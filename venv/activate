@@ -1,0 +1,25 @@
+# Step 1: Check if TTMLIR_TOOLCHAIN_DIR is already set, if not, set it to /opt/ttmlir-toolchain
+if [ -z "${TTMLIR_TOOLCHAIN_DIR}" ]; then
+  export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
+fi
+
+export TTMLIR_VENV_DIR="$(pwd)/venv"
+if [ -d $TTMLIR_VENV_DIR/bin ]; then
+  [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
+else
+  echo "Creating virtual environment in $TTMLIR_VENV_DIR"
+  python3.10 -m venv $TTMLIR_VENV_DIR
+  source $TTMLIR_VENV_DIR/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements.txt
+fi
+export TTMLIR_ENV_ACTIVATED=1
+export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
+if [ -n "$PROJECT_ROOT" ]; then
+    export TT_METAL_HOME="$PROJECT_ROOT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal"
+else
+    export TT_METAL_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal"
+fi
+export TT_MLIR_HOME="$(pwd)"
+export PYTHONPATH="$(pwd)/build/python_packages:$(pwd)/.local/toolchain/python_packages/mlir_core:${TT_METAL_HOME}:${TT_METAL_HOME}/tt_eager:${TT_METAL_BUILD_HOME}/tools/profiler/bin"
+export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
