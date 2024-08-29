@@ -7,9 +7,12 @@
 import os
 import shutil
 import sys
+
 import lit.formats
 import lit.util
+
 import lit.llvm
+import jax
 
 # Configuration file for the 'lit' test runner.
 lit.llvm.initialize(lit_config, config)
@@ -17,13 +20,10 @@ from lit.llvm import llvm_config
 
 llvm_config.with_system_environment("PYTHONPATH")
 
-config.llvm_tools_dir = lit_config.substitute("/opt/ttmlir-toolchain/src/llvm-project-build/bin")
-
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
-llvm_config.use_default_substitutions()
-
 # name: The name of this test suite.
-config.name = 'TT-JAX'
+config.name = 'JAX_PJRT'
+
+config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.py']
@@ -32,7 +32,7 @@ config.suffixes = ['.py']
 config.test_source_root = os.path.dirname(__file__)
 
 #config.use_default_substitutions()
-config.excludes = ['__init__.py', 'lit.cfg.py', 'lit.site.cfg.py', '__pycache__']
+config.excludes = ['__init__.py', 'lit.cfg.py', 'lit.site.cfg.py']
 
 config.substitutions.extend([
     ('%PYTHON', sys.executable),
@@ -56,10 +56,8 @@ if filecheck_exe is not None:
 else:
     print("FileCheck not found "
           "(install pure python version with 'pip install filecheck')")
-    
-config.substitutions.extend([
-    ('%PYTHON', sys.executable),
-])
 
 project_root = os.path.dirname(os.path.dirname(__file__))
-
+lit.llvm.llvm_config.with_environment(
+    "PYTHONPATH", project_root, append_path=True)
+config.environment["FILECHECK_OPTS"] = "--dump-input=fail"

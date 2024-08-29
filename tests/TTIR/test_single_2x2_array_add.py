@@ -26,5 +26,5 @@ graph = jax.jit(module_add)
 res = graph(a, b)
 print(res)
 
-# CHECK: [6. 8.]
+# CHECK: [ 6. 8.]
 # CHECK: [10. 12.]
