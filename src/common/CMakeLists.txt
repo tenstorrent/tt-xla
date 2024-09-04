@@ -13,19 +13,20 @@ add_library(TTPJRTCommon
     "platform.cc"
     "module_builder.cc"
 )
+add_dependencies(TTPJRTCommon tt-mlir)
 target_include_directories(TTPJRTCommon PUBLIC 
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include/ttmlir/Target/Common
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
-    /opt/ttmlir-toolchain/include/
-    /opt/ttmlir-toolchain/src/stablehlo
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
+    /opt/ttmlir-toolchain/include
+    /opt/ttmlir-toolchain/src/stablehlo
 )
 
 set(STABLEHLO_LIBS
-	StablehloBase
+StablehloBase
 StablehloReferenceIndex
 StablehloReferenceErrors
 StablehloReferenceElement
@@ -71,8 +72,8 @@ StablehloLinalgTransforms  StablehloReferenceAxes  StablehloReferenceNumPy    St
 )
 
 target_link_directories(TTPJRTCommon PUBLIC
-    /opt/ttmlir-toolchain/src/stablehlo-build/lib
+    /opt/ttmlir-toolchain/lib
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/
 )
 
