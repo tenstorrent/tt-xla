@@ -1,8 +1,8 @@
-# Copyright 2021 The IREE Authors
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
-# Licensed under the Apache License v2.0 with LLVM Exceptions.
-# See https://llvm.org/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: Apache-2.0
+
+# -*- Python -*-
 
 import os
 import shutil
@@ -13,6 +13,8 @@ import lit.util
 
 import lit.llvm
 import jax
+import jax._src.xla_bridge as xb
+import jax.numpy as jnp
 
 # Configuration file for the 'lit' test runner.
 lit.llvm.initialize(lit_config, config)
