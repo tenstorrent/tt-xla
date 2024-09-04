@@ -50,6 +50,25 @@ std::pair<tt::target::DataType, size_t> MapBufferTypeToElementType(PJRT_Buffer_T
     }
 }
 
+static PJRT_Buffer_Type convertElementTypeToBufferType(tt::target::DataType ElementType) {
+  switch (ElementType) {
+    case tt::target::DataType::UInt8:
+      return PJRT_Buffer_Type_U8;
+    case tt::target::DataType::UInt16:
+      return PJRT_Buffer_Type_U16;
+    case tt::target::DataType::UInt32:
+      return PJRT_Buffer_Type_U32;
+    case tt::target::DataType::Float16:
+      return PJRT_Buffer_Type_F16;
+    case tt::target::DataType::Float32:
+      return PJRT_Buffer_Type_F32;
+    case tt::target::DataType::BFloat16:
+      return PJRT_Buffer_Type_BF16;
+    default:
+      assert(false && "Unsupported data type");
+      return PJRT_Buffer_Type_BF16;  
+  }
+}
 
 const std::string_view kMlirFormat = "mlir";
 //===----------------------------------------------------------------------===//
@@ -181,7 +200,12 @@ void BufferInstance::BindApi(PJRT_Api* api) {
       +[](PJRT_Buffer_ElementType_Args* args) -> PJRT_Error* {
     std::cout << "BufferInstance::PJRT_Buffer_ElementType" << std::endl;
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
-    args->type = PJRT_Buffer_Type_F32;
+    std::optional<PJRT_Buffer_Type> type = buffer->getType();
+    if (type.has_value())
+      args->type = *type;
+    else {
+      args->type = buffer->getRuntimeType();
+    }
     return nullptr;
   };
   api->PJRT_Buffer_Dimensions =
@@ -337,9 +361,10 @@ tt_pjrt_status BufferInstance::CopyToHost(void* dst, size_t dst_size,
 }
 
 
-std::optional<PJRT_Buffer_Type> BufferInstance::element_type() {
+PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   std::cout << "BufferInstance::element_type" << std::endl;
-  return PJRT_Buffer_Type_F32;
+  tt::target::DataType Type = tt::runtime::getTensorDataType(tensor());
+  return convertElementTypeToBufferType(Type);
 }
 
 //===----------------------------------------------------------------------===//
@@ -487,6 +512,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
       data_ptr, shape, strides, element_size, element_type);
   auto buffer_instance = new BufferInstance(*this, tensor, shape, strides);
+  buffer_instance->setType(type);
   *out_buffer = buffer_instance;
   auto event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
@@ -1057,6 +1083,7 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
     auto result_buffer = std::make_unique<BufferInstance>(*this->addressable_devices_[dev_index], rt_outputs[i], output_specs[i].shape, output_specs[i].stride);
+    result_buffer->setType(convertElementTypeToBufferType(output_specs[i].dataType));
     args->output_lists[dev_index][i] = *(result_buffer.release());
   }
   if (args->device_complete_events) {

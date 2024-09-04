@@ -96,7 +96,11 @@ class BufferInstance {
 
   const int64_t* dims() { return dims_.data(); }
   size_t num_dims() { return dims_.size(); }
-  std::optional<PJRT_Buffer_Type> element_type();
+  void setType(PJRT_Buffer_Type Type) { DataType = Type; }
+  std::optional<PJRT_Buffer_Type> getType() { return DataType; }
+
+  // Get the data type for a tensor through runtime if DataType is not set.
+  PJRT_Buffer_Type getRuntimeType();
 
 
  private:
@@ -115,6 +119,9 @@ class BufferInstance {
   std::vector<int64_t> minor_to_major_;
   std::vector<int64_t> tile_dims_;
   std::vector<size_t> tile_dim_sizes_;
+
+  // Underlying datatype of tensor.
+  std::optional<PJRT_Buffer_Type> DataType;
 };
 
 //===----------------------------------------------------------------------===//
