@@ -55,11 +55,30 @@ StablehloSerialization
 InterpreterOps
 StablehloPortableApi
 StablehloPasses
-StablehloAssemblyFormat    StablehloOps            StablehloReferenceElement  StablehloReferenceOps          StablehloReferenceTensor  StablehloRegister
-StablehloBase              StablehloPasses         StablehloReferenceErrors   StablehloReferenceProcess      StablehloReferenceToken   StablehloSerialization
-StablehloBroadcastUtils    StablehloPortableApi    StablehloReferenceIndex    StablehloReferenceProcessGrid  StablehloReferenceTypes   StablehloTypeInference
-StablehloLinalgTransforms  StablehloReferenceAxes  StablehloReferenceNumPy    StablehloReferenceScope        StablehloReferenceValue
-    )
+StablehloAssemblyFormat
+StablehloOps
+StablehloReferenceElement
+StablehloReferenceOps
+StablehloReferenceTensor
+StablehloRegister
+StablehloBase
+StablehloPasses
+StablehloReferenceErrors  
+StablehloReferenceProcess
+StablehloReferenceToken   
+StablehloSerialization
+StablehloBroadcastUtils
+StablehloPortableApi 
+StablehloReferenceIndex
+StablehloReferenceProcessGrid
+StablehloReferenceTypes
+StablehloTypeInference
+StablehloLinalgTransforms
+StablehloReferenceAxes
+StablehloReferenceNumPy
+StablehloReferenceScope
+StablehloReferenceValue
+)
     
     target_link_libraries(TTPJRTCommon PUBLIC
     LLVM
