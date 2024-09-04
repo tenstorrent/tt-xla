@@ -15,7 +15,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 # set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
 
-link_directories(/opt/ttmlir-toolchain/lib/)
+link_directories(/opt/ttmlir-toolchain/lib)
 
 add_subdirectory(src)
 add_subdirectory(third_party)

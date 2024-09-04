@@ -20,47 +20,79 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include/ttmlir/Target/Common
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
-    /opt/ttmlir-toolchain/include/
-    /opt/ttmlir-toolchain/src/stablehlo/
-    /opt/ttmlir-toolchain/src/stablehlo-build/
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
+    /opt/ttmlir-toolchain/include
+    /opt/ttmlir-toolchain/src/stablehlo
 )
 
 set(STABLEHLO_LIBS
-	StablehloBase
-    CheckOps
-    ChloCAPI
-    ChloOps
-    InterpreterOps
-    StablehloAssemblyFormat
-    StablehloBase
-    StablehloBroadcastUtils
-    StablehloCAPI
-    StablehloLinalgTransforms
-    StablehloOps
-    StablehloPasses
-    StablehloPortableApi
-    StablehloRegister
-    StablehloSerialization
-    StablehloTOSATransforms
-    StablehloTestUtils
-    StablehloTypeInference
-    Version
-    VhloCAPI
-    VhloOps
-    VhloTypes
-    StablehloBase
-    )
+StablehloBase
+StablehloReferenceIndex
+StablehloReferenceErrors
+StablehloReferenceElement
+StablehloReferenceAxes
+StablehloReferenceValue
+StablehloReferenceTypes
+StablehloReferenceToken
+StablehloReferenceTensor
+StablehloReferenceScope
+StablehloReferenceProcessGrid
+StablehloReferenceProcess
+StablehloReferenceOps
+StablehloPasses
+ChloOps
+VhloOps
+VhloTypes
+StablehloOps
+StablehloRegister
+StablehloReferenceToken
+StablehloLinalgTransforms
+StablehloReferenceValue
+StablehloReferenceScope
+StablehloPasses
+StablehloReferenceOps
+StablehloSerialization
+InterpreterOps
+StablehloPortableApi
+StablehloPasses
+StablehloAssemblyFormat
+StablehloOps
+StablehloReferenceElement
+StablehloReferenceOps
+StablehloReferenceTensor
+StablehloRegister
+StablehloBase
+StablehloPasses
+StablehloReferenceErrors  
+StablehloReferenceProcess
+StablehloReferenceToken   
+StablehloSerialization
+StablehloBroadcastUtils
+StablehloPortableApi 
+StablehloReferenceIndex
+StablehloReferenceProcessGrid
+StablehloReferenceTypes
+StablehloTypeInference
+StablehloLinalgTransforms
+StablehloReferenceAxes
+StablehloReferenceNumPy
+StablehloReferenceScope
+StablehloReferenceValue
+)
     
     target_link_libraries(TTPJRTCommon PUBLIC
     LLVM
     MLIR
     TTMLIR
     TTPJRTCommonDylibPlatform
+    TTMLIRStatic
+    TTMLIRStableHLOToTTIR
     ${STABLEHLO_LIBS}
 )
 
-target_link_directories(TTPJRTCommon PUBLIC 
+target_link_directories(TTPJRTCommon PUBLIC
+    /opt/ttmlir-toolchain/lib
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
-    /opt/ttmlir-toolchain/src/stablehlo-build/lib
 )
 

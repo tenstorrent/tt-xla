@@ -14,7 +14,7 @@ ExternalProject_Add(
       -DTTMLIR_ENABLE_STABLEHLO=ON
       -DTTMLIR_ENABLE_RUNTIME=ON
     GIT_REPOSITORY git@github.com:tenstorrent/tt-mlir.git
-    GIT_TAG 458061f6ef3f91aba23086dc4326f351390ccf9d
+    GIT_TAG e9b47209571b0829f7630aed1cbd8c3769334fa5
     GIT_PROGRESS ON
     INSTALL_COMMAND ""
 )
