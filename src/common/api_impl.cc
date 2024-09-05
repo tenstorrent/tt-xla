@@ -1052,7 +1052,6 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
     rt_inputs.emplace_back(buffer->tensor());
   }
   auto output_specs = binary.getProgramOutputs(0);
-  uint32_t sentinel = 0xDEADBEEF;
   for (auto output_spec : output_specs) {
     int volume = 1;
     for (auto dim : output_spec.shape) {
@@ -1061,8 +1060,9 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
     int size = volume * output_spec.itemsize;
     //TODO What to do with stride
     void *data = malloc(size);
+
+    //TODO: Only zero set in debug mode
     memset(data, 0, size);
-    memcpy(data, &sentinel, sizeof(sentinel));
     std::shared_ptr<void> data_ptr(const_cast<void*>(data), [](void*) {});
     tt::runtime::Tensor tensor = tt::runtime::createTensor(
         data_ptr, output_spec.shape, output_spec.stride, output_spec.itemsize, output_spec.dataType);
@@ -1070,15 +1070,6 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
   }
   
   tt::runtime::Event event = tt::runtime::submit(device, binary, 0, rt_inputs, rt_outputs);
-  if ((rt_inputs.size()==1) and (rt_outputs.size()==1) and memcmp(&sentinel, rt_outputs[0].data.get(), sizeof(sentinel)) == 0) {
-    std::cout << "WARNING, output is not written, assume NOP graph bug: https://github.com/tenstorrent/tt-mlir/issues/426" << std::endl;
-    int volume = 1;
-    for (auto dim : output_specs[0].shape) {
-      volume *= dim;
-    }
-    int size = volume * output_specs[0].itemsize;
-    memcpy(rt_outputs[0].data.get(), rt_inputs[0].data.get(), size);
-  }
   (void)event;
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
