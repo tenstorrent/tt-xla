@@ -18,7 +18,7 @@ CPUClientInstance::CPUClientInstance(std::unique_ptr<Platform> platform)
   // great.
   // TODO: Get this when constructing the client so it is guaranteed to
   // match.
-  cached_platform_name_ = "tt_cpu";
+  cached_platform_name_ = "tt";
 }
 
 tt_pjrt_status CPUClientInstance::InitializeDeps() {
@@ -27,7 +27,7 @@ tt_pjrt_status CPUClientInstance::InitializeDeps() {
 }
 
 bool CPUClientInstance::SetDefaultCompilerFlags(CompilerJob* compiler_job) {
-  return compiler_job->SetFlag("--iree-hal-target-backends=llvm-cpu");
+  return compiler_job->SetFlag("");
 }
 
 }  // namespace iree::pjrt::cpu

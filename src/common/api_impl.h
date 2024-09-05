@@ -16,6 +16,7 @@
 #include <thread>
 #include <vector>
 #include <iostream>
+#include <sstream>
 
 #include "common/compiler.h"
 #include "common/layout_utils.h"
@@ -144,7 +145,12 @@ class DeviceDescription {
 
   std::string_view kind_string() { return kind_string_; }
   std::string_view debug_string() { return debug_string_; }
-  std::string_view user_string() { return user_string_; }
+  std::string_view user_string() { 
+    std::stringstream ss;
+    ss << "TTDevice(id=" << device_id() << ")";
+    user_string_ = ss.str();
+    return user_string_; 
+  }
   //TODO
   int64_t device_id() { return 0; }
 
@@ -157,7 +163,7 @@ class DeviceDescription {
  private:
   int client_id_;
   std::string kind_string_ = "wormhole";
-  std::string debug_string_ = "";
+  std::string debug_string_ = "debug_string";
   std::string user_string_ = "";
 };
 
