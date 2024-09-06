@@ -39,7 +39,7 @@
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
-#include "ttmlir/Dialect/TTNN/Pipelines/Passes.h"
+#include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
 #include "tt/runtime/runtime.h"
