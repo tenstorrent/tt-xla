@@ -44,3 +44,4 @@ def test_mnist():
     return x
 
   verify_module(module_mnist, [(32, 784), (784, 128), (1, 128), (128, 128), (1, 128), (128, 10), (1, 10)])
+  

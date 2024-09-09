@@ -1,12 +1,15 @@
 import jax
 import jax.numpy as jnp
 
-def cpu_random_input(shape, key=42):
+def random_input_tensor(shape, key=42, on_device=False):
   def random_input(shape, key):
       return jax.random.uniform(jax.random.PRNGKey(key), shape=shape)
   
-  cpu_random_input = jax.jit(random_input, static_argnums=[0,1], backend='cpu')
-  return cpu_random_input(shape, key)
+  jitted_tensor_creator = jax.jit(random_input, static_argnums=[0,1], backend='cpu')
+  tensor = jitted_tensor_creator(shape, key)
+  if on_device:
+    tensor = jax.device_put(tensor, jax.devices()[0])
+  return tensor
 
 def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e-2, assert_on_error=True):
   ret = True
@@ -32,7 +35,7 @@ def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e
 
 def verify_module(module, input_shapes, key=42, required_pcc=0.99, required_atol=1e-2):
   tt_device = jax.devices()[0]
-  cpu_inputs = [cpu_random_input(shape, key) for shape in input_shapes]
+  cpu_inputs = [random_input_tensor(shape, key) for shape in input_shapes]
   tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
   graph = jax.jit(module)
   res = graph(*tt_inputs)

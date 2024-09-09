@@ -2,7 +2,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 
-from infrastructure import cpu_random_input
+from infrastructure import random_input_tensor
 
 def test_num_devices():
   devices = jax.devices()
@@ -10,7 +10,7 @@ def test_num_devices():
 
 
 def test_to_device():
-  cpu_array = cpu_random_input((32, 32))
+  cpu_array = random_input_tensor((32, 32))
   device = jax.devices()[0]
   tt_array = jax.device_put(cpu_array, device)
   assert tt_array.device.device_kind == "wormhole"
@@ -21,12 +21,12 @@ def test_input_on_device():
     return a + b
   
   tt_device = jax.devices()[0]
-  cpu_param = cpu_random_input((32, 32))
+  cpu_param = random_input_tensor((32, 32))
   tt_param = jax.device_put(cpu_param, tt_device)
 
   graph = jax.jit(module_add)
-  cpu_activation_0 = cpu_random_input((32, 32))
-  cpu_activation_1 = cpu_random_input((32, 32))
+  cpu_activation_0 = random_input_tensor((32, 32))
+  cpu_activation_1 = random_input_tensor((32, 32))
   tt_activation_0 = jax.device_put(cpu_activation_0, tt_device)
   tt_activation_1 = jax.device_put(cpu_activation_1, tt_device)
   
