@@ -22,6 +22,7 @@
 #include "common/layout_utils.h"
 #include "common/platform.h"
 #include "common/module_builder.h"
+#include "loguru/loguru.hpp"
 #include "xla/pjrt/c/pjrt_c_api.h"
 #include "tt/runtime/runtime.h"
 
@@ -413,7 +414,7 @@ static void BindApi(PJRT_Api* api) {
 
   // Bind polymorphic entry-points.
   api->PJRT_Client_Create = +[](PJRT_Client_Create_Args* args) -> PJRT_Error* {
-    std::cout << "PJRT_Client_Create" << std::endl;
+    DLOG_F(INFO, "PJRT_Client_Create");
     auto platform = std::make_unique<PlatformTy>();
 
     // Populate config_vars() from the client create_options.

@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common/module_builder.h"
+#include "loguru/loguru.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -47,7 +48,7 @@ namespace iree::pjrt {
 
 
 void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, mlir::MLIRContext& context) {
-  std::cout << "ModuleBuilder::BuildModule" << std::endl;
+  DLOG_F(INFO, "ModuleBuilder::BuildModule");
 
   // Register all the required dialects.
   mlir::DialectRegistry registry;
@@ -68,7 +69,7 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
           // IR may be invalid because some fields may be using DenseElements
           // instead of DenseArray. We rectify that below and verify after.
           mlir::ParserConfig{&context, /*verifyAfterParse=*/true});
-  std::cout << "VHLO Module" << std::endl;
+  DLOG_F(INFO, "VHLO Module");
   mlir_module->dump();
 
   mlir::tt::ttir::registerPasses();
@@ -82,7 +83,7 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   {
       throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
   }
-  std::cout << "TTIR Module" << std::endl;
+  DLOG_F(INFO, "TTIR Module");
   mlir_module->dump();
 
 

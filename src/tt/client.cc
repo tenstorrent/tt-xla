@@ -6,6 +6,7 @@
 
 #include "tt/client.h"
 #include "common/status.h"
+#include "loguru/loguru.hpp"
 #include <iostream>
 
 
@@ -13,7 +14,7 @@ namespace iree::pjrt::cpu {
 
 CPUClientInstance::CPUClientInstance(std::unique_ptr<Platform> platform)
     : ClientInstance(std::move(platform)) {
-  std::cout << "CPUClientInstance::CPUClientInstance" << std::endl;
+  DLOG_F(INFO, "CPUClientInstance::CPUClientInstance");
   // Seems that it must match how registered. Action at a distance not
   // great.
   // TODO: Get this when constructing the client so it is guaranteed to
@@ -22,7 +23,7 @@ CPUClientInstance::CPUClientInstance(std::unique_ptr<Platform> platform)
 }
 
 tt_pjrt_status CPUClientInstance::InitializeDeps() {
-  std::cout << "CPUClientInstance::InitializeDeps" << std::endl;
+  DLOG_F(INFO, "CPUClientInstance::InitializeDeps");
   return tt_pjrt_status::kSuccess;
 }
 

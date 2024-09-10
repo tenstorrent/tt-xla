@@ -17,5 +17,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 link_directories(/opt/ttmlir-toolchain/lib)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_definitions(-DLOGURU_DEBUG_LOGGING=1)
+endif()
+
 add_subdirectory(src)
 add_subdirectory(third_party)

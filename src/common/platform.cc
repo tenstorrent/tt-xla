@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common/platform.h"
+#include "loguru/loguru.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -49,7 +50,7 @@ void ConfigVars::Set(const std::string& key, std::string value) {
 Platform::~Platform() = default;
 
 tt_pjrt_status Platform::Initialize() {
-  std::cout << "Platform::Initialize" << std::endl;
+  DLOG_F(INFO, "Platform::Initialize");
   
   SubclassInitialize();
   // Default logger.

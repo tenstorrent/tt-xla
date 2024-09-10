@@ -7,14 +7,19 @@
 add_library(TTPJRTCommonDylibPlatform
 "dylib_platform.cc"
 )
+target_include_directories(TTPJRTCommonDylibPlatform PUBLIC 
+    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
+)
+add_dependencies(TTPJRTCommonDylibPlatform loguru)
 
 add_library(TTPJRTCommon
     "api_impl.cc"
     "platform.cc"
     "module_builder.cc"
 )
-add_dependencies(TTPJRTCommon tt-mlir)
+add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC 
+    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include/ttmlir/Target/Common
@@ -79,8 +84,9 @@ StablehloReferenceNumPy
 StablehloReferenceScope
 StablehloReferenceValue
 )
-    
-    target_link_libraries(TTPJRTCommon PUBLIC
+
+target_link_libraries(TTPJRTCommon PUBLIC
+    loguru
     LLVM
     MLIR
     TTMLIR
@@ -92,6 +98,7 @@ StablehloReferenceValue
 
 target_link_directories(TTPJRTCommon PUBLIC
     /opt/ttmlir-toolchain/lib
+    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
 )
