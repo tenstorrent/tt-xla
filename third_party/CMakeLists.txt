@@ -32,3 +32,19 @@ foreach(TTMLIR_LIBRARY ${TTMLIR_LIBRARIES})
     set_target_properties(${lib_name} PROPERTIES EXCLUDE_FROM_ALL TRUE IMPORTED_LOCATION ${TTMLIR_LIBRARY})
     add_dependencies(${lib_name} tt-mlir)
 endforeach()
+
+set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC ")
+ExternalProject_Add(
+    loguru
+    PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
+    CMAKE_GENERATOR Ninja
+    CMAKE_ARGS
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=clang-17
+      -DCMAKE_CXX_COMPILER=clang++-17
+      -DCMAKE_CXX_FLAGS=${FLAGS}
+      -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
+    GIT_REPOSITORY git@github.com:emilk/loguru.git
+    GIT_TAG 4adaa185883e3c04da25913579c451d3c32cfac1
+    GIT_PROGRESS ON
+)
