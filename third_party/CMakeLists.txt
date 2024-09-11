@@ -33,7 +33,7 @@ foreach(TTMLIR_LIBRARY ${TTMLIR_LIBRARIES})
     add_dependencies(${lib_name} tt-mlir)
 endforeach()
 
-set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC ")
+set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-undef -Wno-unsafe-buffer-usage -Wno-disabled-macro-expansion")
 ExternalProject_Add(
     loguru
     PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
