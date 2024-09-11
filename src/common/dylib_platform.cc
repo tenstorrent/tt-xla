@@ -5,19 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common/dylib_platform.h"
-#include "loguru/loguru.hpp"
 
 #include <array>
 #include <optional>
 #include <string>
 #include <iostream>
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
 namespace {
 
 bool InitializeCompilerForProcess(const std::string& library_path) {
-  DLOG_F(INFO, "Loading compiler library: %s", library_path.c_str());
+  DLOG_F(LOG_DEBUG, "Loading compiler library: %s", library_path.c_str());
   return true;
 }
 
@@ -41,7 +40,7 @@ std::optional<std::string> LoadPartitionerStubOnce(
 }  // namespace
 
 tt_pjrt_status DylibPlatform::SubclassInitialize() {
-  DLOG_F(INFO, "DylibPlatform::SubclassInitialize");
+  DLOG_F(LOG_DEBUG, "DylibPlatform::SubclassInitialize");
   return tt_pjrt_status::kSuccess;
 }
 
@@ -65,4 +64,4 @@ std::optional<std::string> DylibPlatform::GetPartitionerLibraryPath() {
   return {};
 }
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt

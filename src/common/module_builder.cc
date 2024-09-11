@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common/module_builder.h"
-#include "loguru/loguru.hpp"
+#include "status.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -44,12 +44,14 @@
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
 #include "tt/runtime/runtime.h"
-namespace iree::pjrt {
+#include "loguru/loguru.hpp"
+namespace tt::pjrt {
 
 
 void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, mlir::MLIRContext& context) {
-  DLOG_F(INFO, "ModuleBuilder::BuildModule");
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::BuildModule");
 
+  int log_level = loguru::g_stderr_verbosity;
   // Register all the required dialects.
   mlir::DialectRegistry registry;
       
@@ -69,8 +71,9 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
           // IR may be invalid because some fields may be using DenseElements
           // instead of DenseArray. We rectify that below and verify after.
           mlir::ParserConfig{&context, /*verifyAfterParse=*/true});
-  DLOG_F(INFO, "VHLO Module");
-  mlir_module->dump();
+  DLOG_F(LOG_DEBUG, "VHLO Module");
+  if (log_level > 0)
+    mlir_module->dump();
 
   mlir::tt::ttir::registerPasses();
   mlir::tt::ttnn::registerPasses();
@@ -83,8 +86,9 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   {
       throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
   }
-  DLOG_F(INFO, "TTIR Module");
-  mlir_module->dump();
+  DLOG_F(LOG_DEBUG, "TTIR Module");
+  if (log_level > 0)
+    mlir_module->dump();
 
 
   mlir::PassManager pm(mlir_module.get()->getName());
@@ -97,7 +101,8 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
       throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
   }
 
-  mlir_module->dump();
+  if (log_level > 0)
+    mlir_module->dump();
 
   binary_ptr_ = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
  
@@ -113,4 +118,4 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
     
 }
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt

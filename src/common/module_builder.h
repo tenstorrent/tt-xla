@@ -15,7 +15,7 @@
 #include "tt/runtime/runtime.h"
 
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
 
 class ModuleBuilder {
@@ -40,6 +40,6 @@ class ModuleBuilder {
 
 };
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt
 
 #endif  // IREE_PJRT_PLUGIN_PJRT_COMMON_MODULE_BUILDER_H_

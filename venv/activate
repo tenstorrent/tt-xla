@@ -23,3 +23,5 @@ fi
 export TT_MLIR_HOME="$(pwd)"
 export PYTHONPATH="$(pwd)/build/python_packages:$(pwd)/.local/toolchain/python_packages/mlir_core:${TT_METAL_HOME}:${TT_METAL_HOME}/tt_eager:${TT_METAL_BUILD_HOME}/tools/profiler/bin"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
+export TT_METAL_LOGGER_LEVEL="ERROR"
+

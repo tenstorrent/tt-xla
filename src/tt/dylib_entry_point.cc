@@ -10,13 +10,13 @@
 // Provides the shared library exports.
 #include "common/dylib_entry_point.cc.inc"
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 namespace {
 
 // Declared but not implemented by the include file.
 void InitializeAPI(PJRT_Api* api) {
-  BindApi<DylibPlatform, cpu::CPUClientInstance>(api);
+  BindApi<DylibPlatform, device::TTClientInstance>(api);
 }
 
 }  // namespace
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt

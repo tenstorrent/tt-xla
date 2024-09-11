@@ -35,7 +35,7 @@
 // Entry-point private API.
 //===----------------------------------------------------------------------===//
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 namespace {
 
 // The including module must define `InitializeAPI` to set up the
@@ -60,7 +60,7 @@ PJRT_Api* GetInitializedAPIStruct() {
 }
 
 }  // namespace
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt
 
 //===----------------------------------------------------------------------===//
 // Export function typedefs.
@@ -97,5 +97,5 @@ static_assert(
 unsigned GetPjrtApiVersion() { return 1; }
 
 PJRT_Api* GetPjrtApi() {
-  return iree::pjrt::GetInitializedAPIStruct();
+  return tt::pjrt::GetInitializedAPIStruct();
 }

@@ -6,29 +6,21 @@
 
 #include "tt/client.h"
 #include "common/status.h"
-#include "loguru/loguru.hpp"
 #include <iostream>
 
 
-namespace iree::pjrt::cpu {
+namespace tt::pjrt::device {
 
-CPUClientInstance::CPUClientInstance(std::unique_ptr<Platform> platform)
+TTClientInstance::TTClientInstance(std::unique_ptr<Platform> platform)
     : ClientInstance(std::move(platform)) {
-  DLOG_F(INFO, "CPUClientInstance::CPUClientInstance");
-  // Seems that it must match how registered. Action at a distance not
-  // great.
-  // TODO: Get this when constructing the client so it is guaranteed to
-  // match.
+  DLOG_F(LOG_DEBUG, "TTClientInstance::TTClientInstance");
   cached_platform_name_ = "tt";
 }
 
-tt_pjrt_status CPUClientInstance::InitializeDeps() {
-  DLOG_F(INFO, "CPUClientInstance::InitializeDeps");
+tt_pjrt_status TTClientInstance::InitializeDeps() {
+  DLOG_F(LOG_DEBUG, "TTClientInstance::InitializeDeps");
   return tt_pjrt_status::kSuccess;
 }
 
-bool CPUClientInstance::SetDefaultCompilerFlags(CompilerJob* compiler_job) {
-  return compiler_job->SetFlag("");
-}
 
-}  // namespace iree::pjrt::cpu
+}  // namespace tt::pjrt::device

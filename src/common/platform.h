@@ -7,41 +7,16 @@
 #ifndef IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
 #define IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
 
+#include <memory>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
-#include "common/compiler.h"
-#include "common/debugging.h"
 #include "common/status.h"
 
-namespace iree::pjrt {
-
-//===----------------------------------------------------------------------===//
-// ConfigVars
-// Placeholder for API-level configuration (i.e. from environment, files, etc).
-//===----------------------------------------------------------------------===//
-
-struct ConfigVars {
- public:
-  ConfigVars() = default;
-  // Configures this instance to fallback to the system environment if a config
-  // var is not found by prefixing |env_fallback_prefix| to the variable name.
-  void EnableEnvFallback(std::string env_fallback_prefix);
-
-  // Looks up a variable value by name. On success, the resulting string_view
-  // is valid at least until the next mutation.
-  std::optional<std::string> Lookup(const std::string& key);
-
-  // Sets a variable.
-  void Set(const std::string& key, std::string value);
-
- private:
-  std::unordered_map<std::string, std::string> kv_entries_;
-  std::optional<std::string> env_fallback_prefix_;
-};
+namespace tt::pjrt {
 
 //===----------------------------------------------------------------------===//
 // Platform
@@ -53,22 +28,11 @@ class Platform {
  public:
   virtual ~Platform();
   tt_pjrt_status Initialize();
-  ConfigVars& config_vars() { return config_vars_; }
-  Logger& logger() { return *logger_; }
-  AbstractCompiler& compiler() { return *compiler_; }
-  // The partitioner is optional.
-  AbstractCompiler* partitioner() { return partitioner_.get(); }
-  ArtifactDumper& artifact_dumper() { return *artifact_dumper_; }
-
  protected:
   virtual tt_pjrt_status SubclassInitialize() = 0;
-  ConfigVars config_vars_;
-  std::unique_ptr<Logger> logger_;
-  std::unique_ptr<AbstractCompiler> compiler_;
-  std::unique_ptr<AbstractCompiler> partitioner_;
-  std::unique_ptr<ArtifactDumper> artifact_dumper_;
+  void InitializeLogging();
 };
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt
 
 #endif  // IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_

@@ -14,6 +14,7 @@ target_link_libraries(TTPJRTTT PUBLIC
 )
 
 target_include_directories(TTPJRTTT PUBLIC
+    ${PROJECT_SOURCE_DIR}/src/common
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
 )
 

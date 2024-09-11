@@ -9,13 +9,12 @@
 
 #include "common/api_impl.h"
 
-namespace iree::pjrt::cpu {
+namespace tt::pjrt::device {
 
-class CPUClientInstance final : public ClientInstance {
+class TTClientInstance final : public ClientInstance {
  public:
-  CPUClientInstance(std::unique_ptr<Platform> platform);
-  ~CPUClientInstance() {};
-  bool SetDefaultCompilerFlags(CompilerJob* compiler_job) override;
+  TTClientInstance(std::unique_ptr<Platform> platform);
+  ~TTClientInstance() {};
 
  private:
   tt_pjrt_status InitializeDeps();
@@ -24,6 +23,6 @@ class CPUClientInstance final : public ClientInstance {
   bool single_threaded_debug_ = false;
 };
 
-}  // namespace iree::pjrt::cpu
+}  // namespace tt::pjrt::device
 
 #endif  // IREE_PJRT_PLUGIN_PJRT_CPU_CLIENT_H_

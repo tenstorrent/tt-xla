@@ -1,8 +1,11 @@
 #ifndef TT_PJRT_STATUS
 #define TT_PJRT_STATUS
 
+#include "loguru/loguru.hpp"
 
-namespace iree::pjrt {
+#define LOG_DEBUG 1
+
+namespace tt::pjrt {
 
   enum class tt_pjrt_status {
     kSuccess = 0,

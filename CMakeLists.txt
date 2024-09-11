@@ -14,6 +14,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 # set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+endif()
 
 link_directories(/opt/ttmlir-toolchain/lib)
 

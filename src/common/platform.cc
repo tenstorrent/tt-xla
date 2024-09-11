@@ -5,43 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common/platform.h"
-#include "loguru/loguru.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <cstring>
+#include "loguru/loguru.hpp"
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
-//===----------------------------------------------------------------------===//
-// ConfigVars
-//===----------------------------------------------------------------------===//
-
-void ConfigVars::EnableEnvFallback(std::string env_fallback_prefix) {
-  env_fallback_prefix_ = env_fallback_prefix;
-}
-
-std::optional<std::string> ConfigVars::Lookup(const std::string& key) {
-  auto found_it = kv_entries_.find(key);
-  if (found_it != kv_entries_.end()) {
-    return found_it->second;
-  }
-
-  // Env fallback?
-  if (!env_fallback_prefix_) return {};
-
-  std::string full_env_key = *env_fallback_prefix_;
-  full_env_key.append(key);
-  char* found_env = std::getenv(full_env_key.c_str());
-  if (found_env) {
-    return std::string(found_env);
-  }
-
-  return {};
-}
-
-void ConfigVars::Set(const std::string& key, std::string value) {
-  kv_entries_[key] = std::move(value);
-}
 
 //===----------------------------------------------------------------------===//
 // Platform
@@ -49,14 +20,33 @@ void ConfigVars::Set(const std::string& key, std::string value) {
 
 Platform::~Platform() = default;
 
+void Platform::InitializeLogging() {
+  
+  loguru::g_stderr_verbosity = 0;
+  const char *loguru_verbosity = std::getenv("LOGGER_LEVEL");
+  if (loguru_verbosity) {
+    if (strcmp(loguru_verbosity, "DEBUG") == 0) {
+      loguru::g_stderr_verbosity = LOG_DEBUG;
+    } else if (strcmp(loguru_verbosity, "INFO") == 0) {
+      loguru::g_stderr_verbosity = 0;
+    } else if (strcmp(loguru_verbosity, "WARNING") == 0) {
+      loguru::g_stderr_verbosity = -1;
+    } else if (strcmp(loguru_verbosity, "ERROR") == 0) {
+      loguru::g_stderr_verbosity = -2;
+    }
+    else {
+      LOG_F(ERROR, "Invalid LOGGER_LEVEL: %s", loguru_verbosity);
+    }
+  }
+}
+
 tt_pjrt_status Platform::Initialize() {
-  DLOG_F(INFO, "Platform::Initialize");
+  DLOG_F(LOG_DEBUG, "Platform::Initialize");
+  InitializeLogging();
   
   SubclassInitialize();
-  // Default logger.
-  logger_ = std::make_unique<Logger>();
 
   return tt_pjrt_status::kSuccess;
 }
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt

@@ -12,7 +12,7 @@
 
 #include "common/platform.h"
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
 class DylibPlatform final : public Platform {
  public:
@@ -48,6 +48,6 @@ class DylibPlatform final : public Platform {
   tt_pjrt_status SubclassInitialize() override;
 };
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt
 
 #endif  // IREE_PJRT_PLUGIN_PJRT_COMMON_DYLIB_PLATFORM_H_

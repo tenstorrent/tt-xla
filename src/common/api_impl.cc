@@ -12,12 +12,10 @@
 #include <cstring>
 #include <cassert>
 #include "common/api_impl.h"
-#include "common/tensor_utils.h"
 #include "common/status.h"
 #include "common/module_builder.h"
-#include "loguru/loguru.hpp"
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
 
 std::pair<tt::target::DataType, size_t> MapBufferTypeToElementType(PJRT_Buffer_Type buffer_type) {
@@ -166,41 +164,38 @@ const std::string& ErrorInstance::message() const {
 //===----------------------------------------------------------------------===//
 // BufferInstance
 //===----------------------------------------------------------------------===//
+int BufferInstance::id_counter_ = 0;
 
 BufferInstance::~BufferInstance() = default;
 
 BufferInstance::BufferInstance(DeviceInstance& device, tt::runtime::Tensor tensor, std::vector<std::uint32_t> shape, std::vector<std::uint32_t> stride)
     : device_(device) {
-  DLOG_F(INFO, "BufferInstance::BufferInstance");
+  DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
   tensor_ = tensor;
   dims_.resize(shape.size());
   for (int i = 0; i < shape.size(); i++){
     dims_[i] = shape[i];
   }
   stride_ = stride;
-
-}
-BufferInstance::BufferInstance(DeviceInstance& device)
-    : device_(device) {
-  
-  DLOG_F(INFO, "BufferInstance::BufferInstance");
+  unique_id_ = id_counter_++;
 }
 
 void BufferInstance::ComputeLayout() {
-  DLOG_F(INFO, "BufferInstance::ComputeLayout");
+  DLOG_F(LOG_DEBUG, "BufferInstance::ComputeLayout");
 }
 
 void BufferInstance::BindApi(PJRT_Api* api) {
-  DLOG_F(INFO, "BufferInstance::BindApi");
+  DLOG_F(LOG_DEBUG, "BufferInstance::BindApi");
   api->PJRT_Buffer_Destroy =
       +[](PJRT_Buffer_Destroy_Args* args) -> PJRT_Error* {
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     delete buffer;
     return nullptr;
   };
   api->PJRT_Buffer_ElementType =
       +[](PJRT_Buffer_ElementType_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_ElementType");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     std::optional<PJRT_Buffer_Type> type = buffer->getType();
     if (type.has_value())
@@ -212,7 +207,7 @@ void BufferInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Buffer_Dimensions =
       +[](PJRT_Buffer_Dimensions_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_Dimensions");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     args->dims = buffer->dims();
     args->num_dims = buffer->num_dims();
@@ -220,7 +215,7 @@ void BufferInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Buffer_UnpaddedDimensions =
       +[](PJRT_Buffer_UnpaddedDimensions_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     args->unpadded_dims = buffer->dims();
     args->num_dims = buffer->num_dims();
@@ -228,7 +223,7 @@ void BufferInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Buffer_ToHostBuffer =
       +[](PJRT_Buffer_ToHostBuffer_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_ToHostBuffer");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
     BufferInstance* buffer = BufferInstance::Unwrap(args->src);
     if (!args->dst) {
       // Size query.
@@ -242,65 +237,65 @@ void BufferInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Buffer_OnDeviceSizeInBytes =
       +[](PJRT_Buffer_OnDeviceSizeInBytes_Args* args) -> PJRT_Error* {
-        DLOG_F(INFO, "BufferInstance::PJRT_Buffer_OnDeviceSizeInBytes");
+        DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_OnDeviceSizeInBytes");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     return nullptr;
   };
   api->PJRT_Buffer_Delete = +[](PJRT_Buffer_Delete_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_Delete");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Delete");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     buffer->Delete();
     return nullptr;
   };
   api->PJRT_Buffer_IsDeleted =
       +[](PJRT_Buffer_IsDeleted_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_IsDeleted");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
     BufferInstance* buffer = BufferInstance::Unwrap(args->buffer);
     args->is_deleted = buffer->is_deleted();
     return nullptr;
   };
   api->PJRT_Buffer_CopyToDevice =
       +[](PJRT_Buffer_CopyToDevice_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_CopyToDevice");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Buffer_IsOnCpu =
       +[](PJRT_Buffer_IsOnCpu_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_IsOnCpu");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
     args->is_on_cpu = BufferInstance::Unwrap(args->buffer)->is_on_cpu();
     return nullptr;
   };
   api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_Device");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
     args->device = BufferInstance::Unwrap(args->buffer)->device();
     return nullptr;
   };
   api->PJRT_Buffer_Memory = +[](PJRT_Buffer_Memory_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_Memory");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Buffer_ReadyEvent =
       +[](PJRT_Buffer_ReadyEvent_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_ReadyEvent");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
     return nullptr;
   };
   // TODO: Rework the API to be Aliases(b1, b2) to let the plugin explicitly
   // check for aliases.
   api->PJRT_Buffer_GetMemoryLayout =
       +[](PJRT_Buffer_GetMemoryLayout_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_GetMemoryLayout");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_GetMemoryLayout");
     auto* buffer = BufferInstance::Unwrap(args->buffer);
     return buffer->GetMemoryLayout(args);
   };
   api->PJRT_Buffer_UnsafePointer =
       +[](PJRT_Buffer_UnsafePointer_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "BufferInstance::PJRT_Buffer_UnsafePointer");
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnsafePointer");
     return nullptr;
   };
 }
 
 PJRT_Error* BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args* args) {
-  DLOG_F(INFO, "BufferInstance::GetMemoryLayout");
+  DLOG_F(LOG_DEBUG, "BufferInstance::GetMemoryLayout");
     args->layout.type = PJRT_Buffer_MemoryLayout_Type::PJRT_Buffer_MemoryLayout_Type_Tiled;
     size_t rank = num_dims();
     minor_to_major_.resize(rank);
@@ -325,23 +320,24 @@ PJRT_Error* BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args* ar
 }
 
 tt_pjrt_status BufferInstance::GetHostSizeInBytes(size_t* host_size) {
-  DLOG_F(INFO, "BufferInstance::GetHostSizeInBytes");
+  DLOG_F(LOG_DEBUG, "BufferInstance::GetHostSizeInBytes");
   return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status BufferInstance::AsyncDeallocate() {
-  DLOG_F(INFO, "BufferInstance::AsyncDeallocate");
+  DLOG_F(LOG_DEBUG, "BufferInstance::AsyncDeallocate");
   return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status BufferInstance::Delete() {
-  DLOG_F(INFO, "BufferInstance::Delete");
+  DLOG_F(LOG_DEBUG, "BufferInstance::Delete");
+  is_deleted_ = true;
   return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status BufferInstance::CopyToHost(void* dst, size_t dst_size,
                                          EventInstance** out_done_event) {
-  DLOG_F(INFO, "BufferInstance::CopyToHost");
+  DLOG_F(LOG_DEBUG, "BufferInstance::CopyToHost");
 
   // This callback simply deletes the `dst_buffer_ready_event`. We could perform
   // this deletion in the `dst_buffer_callback`, but this would result in the
@@ -354,6 +350,7 @@ tt_pjrt_status BufferInstance::CopyToHost(void* dst, size_t dst_size,
     delete ErrorInstance::FromError(error);
   };
 
+  DLOG_F(INFO, "Copy to host id: %d", unique_id());
   memcpy(dst, tensor().data.get(), dst_size);
   auto copy_done_event = new EventInstance();
   copy_done_event->OnReady(copy_done_callback, nullptr);
@@ -364,7 +361,7 @@ tt_pjrt_status BufferInstance::CopyToHost(void* dst, size_t dst_size,
 
 
 PJRT_Buffer_Type BufferInstance::getRuntimeType() {
-  DLOG_F(INFO, "BufferInstance::element_type");
+  DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
   tt::target::DataType Type = tt::runtime::getTensorDataType(tensor());
   return convertElementTypeToBufferType(Type);
 }
@@ -376,7 +373,7 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
 DeviceDescription::~DeviceDescription() = default;
 
 void DeviceDescription::BindApi(PJRT_Api* api) {
-  DLOG_F(INFO, "DeviceDescription::BindApi");
+  DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
   api->PJRT_DeviceDescription_Id =
       +[](PJRT_DeviceDescription_Id_Args* args) -> PJRT_Error* {
     args->id = DeviceDescription::Unwrap(args->device_description)->client_id();
@@ -384,14 +381,14 @@ void DeviceDescription::BindApi(PJRT_Api* api) {
   };
   api->PJRT_DeviceDescription_ProcessIndex =
       +[](PJRT_DeviceDescription_ProcessIndex_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
+    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
     args->process_index =
         DeviceDescription::Unwrap(args->device_description)->process_index();
     return nullptr;
   };
   api->PJRT_DeviceDescription_Attributes =
       +[](PJRT_DeviceDescription_Attributes_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceDescription::PJRT_DeviceDescription_Attributes");
+    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
     // TODO: Implement something.
     args->num_attributes = 0;
     args->attributes = nullptr;
@@ -399,7 +396,7 @@ void DeviceDescription::BindApi(PJRT_Api* api) {
   };
   api->PJRT_DeviceDescription_Kind =
       +[](PJRT_DeviceDescription_Kind_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceDescription::PJRT_DeviceDescription_Kind");
+    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
     auto sv =
         DeviceDescription::Unwrap(args->device_description)->kind_string();
     args->device_kind = sv.data();
@@ -408,7 +405,7 @@ void DeviceDescription::BindApi(PJRT_Api* api) {
   };
   api->PJRT_DeviceDescription_DebugString =
       +[](PJRT_DeviceDescription_DebugString_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceDescription::PJRT_DeviceDescription_DebugString");
+    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
     auto sv =
         DeviceDescription::Unwrap(args->device_description)->debug_string();
     args->debug_string = sv.data();
@@ -417,7 +414,7 @@ void DeviceDescription::BindApi(PJRT_Api* api) {
   };
   api->PJRT_DeviceDescription_ToString =
       +[](PJRT_DeviceDescription_ToString_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceDescription::PJRT_DeviceDescription_ToString");
+    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
     auto sv =
         DeviceDescription::Unwrap(args->device_description)->user_string();
     args->to_string = sv.data();
@@ -433,7 +430,7 @@ void DeviceDescription::BindApi(PJRT_Api* api) {
 DeviceInstance::~DeviceInstance() = default;
 
 void DeviceInstance::BindApi(PJRT_Api* api) {
-  DLOG_F(INFO, "DeviceInstance::BindApi");
+  DLOG_F(LOG_DEBUG, "DeviceInstance::BindApi");
   api->PJRT_Device_IsAddressable =
       +[](PJRT_Device_IsAddressable_Args* args) -> PJRT_Error* {
     args->is_addressable =
@@ -442,24 +439,24 @@ void DeviceInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Device_LocalHardwareId =
       +[](PJRT_Device_LocalHardwareId_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceInstance::PJRT_Device_LocalHardwareId_Args");
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_LocalHardwareId_Args");
     args->local_hardware_id =
         DeviceInstance::Unwrap(args->device)->local_hardware_id();
     return nullptr;
   };
   api->PJRT_Device_AddressableMemories =
       +[](PJRT_Device_AddressableMemories_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceInstance::PJRT_Device_AddressableMemories");
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Device_DefaultMemory =
       +[](PJRT_Device_DefaultMemory_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceInstance::PJRT_Device_DefaultMemory");
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Device_GetDescription =
       +[](PJRT_Device_GetDescription_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "DeviceInstance::PJRT_Device_GetDescription");
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetDescription");
     args->device_description = reinterpret_cast<PJRT_DeviceDescription*>(
         DeviceInstance::Unwrap(args->device)->device_description());
     return nullptr;
@@ -468,23 +465,7 @@ void DeviceInstance::BindApi(PJRT_Api* api) {
 
 
 tt_pjrt_status DeviceInstance::OpenDevice() {
-  DLOG_F(INFO, "DeviceInstance::OpenDevice");
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status DeviceInstance::HostBufferToDeviceSplat(
-    const void* data, PJRT_Buffer_Type type, const int64_t* dims,
-    size_t num_dims, EventInstance** out_done_with_host_buffer_event,
-    BufferInstance** out_buffer) {
-  DLOG_F(INFO, "DeviceInstance::HostBufferToDeviceSplat");
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status DeviceInstance::HostBufferToDeviceZeroDim(
-    PJRT_Buffer_Type type, const int64_t* dims, size_t num_dims,
-    EventInstance** out_done_with_host_buffer_event,
-    BufferInstance** out_buffer) {
-  DLOG_F(INFO, "DeviceInstance::HostBufferToDeviceZeroDim");
+  DLOG_F(LOG_DEBUG, "DeviceInstance::OpenDevice");
   return tt_pjrt_status::kSuccess;
 }
 
@@ -494,7 +475,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance** out_done_with_host_buffer_event,
     BufferInstance** out_buffer) {
-  DLOG_F(INFO, "DeviceInstance::HostBufferToDevice");
+  DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
 
   auto tt_buffer_type = MapBufferTypeToElementType(type);
   tt::target::DataType element_type = tt_buffer_type.first;
@@ -514,6 +495,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
       data_ptr, shape, strides, element_size, element_type);
   auto buffer_instance = new BufferInstance(*this, tensor, shape, strides);
+  DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance;
   auto event_instance = new EventInstance();
@@ -527,16 +509,16 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)) {
-  DLOG_F(INFO, "ClientInstance::ClientInstance");
+  DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
   module_builder_ = std::make_unique<ModuleBuilder>();
 }
 
 ClientInstance::~ClientInstance() {
-  DLOG_F(INFO, "ClientInstance::~ClientInstance");
+  DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 }
 
 PJRT_Error* ClientInstance::Initialize() {
-  DLOG_F(INFO, "ClientInstance::Initialize");
+  DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
   auto status = PopulateDevices();
   if (!tt_pjrt_status_is_ok(status)) {
@@ -551,13 +533,13 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   // PJRT_Client_Create is polymorphic
   api->PJRT_Client_Destroy =
       +[](PJRT_Client_Destroy_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_Destroy");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
     delete ClientInstance::Unwrap(args->client);
     return nullptr;
   };
   api->PJRT_Client_PlatformName =
       +[](PJRT_Client_PlatformName_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_PlatformName");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
     auto* client = ClientInstance::Unwrap(args->client);
     args->platform_name = client->cached_platform_name().data();
     args->platform_name_size = client->cached_platform_name().size();
@@ -570,7 +552,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_PlatformVersion =
       +[](PJRT_Client_PlatformVersion_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_PlatformVersion");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
     auto* client = ClientInstance::Unwrap(args->client);
     args->platform_version = client->cached_platform_version().data();
     args->platform_version_size = client->cached_platform_version().size();
@@ -578,7 +560,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_Devices =
       +[](PJRT_Client_Devices_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_Devices");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
     auto& devices = ClientInstance::Unwrap(args->client)->devices();
     args->devices = const_cast<PJRT_Device**>(
         reinterpret_cast<PJRT_Device* const*>(devices.data()));
@@ -587,7 +569,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_AddressableDevices =
       +[](PJRT_Client_AddressableDevices_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_AddressableDevices_Args");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices_Args");
     auto& devices = ClientInstance::Unwrap(args->client)->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device**>(
         reinterpret_cast<PJRT_Device* const*>(devices.data()));
@@ -596,7 +578,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_LookupDevice =
       +[](PJRT_Client_LookupDevice_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_LookupDevice_Args");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice_Args");
     auto& devices = ClientInstance::Unwrap(args->client)->devices();
     size_t id_as_size = args->id;
     if (id_as_size >= devices.size()) {
@@ -607,7 +589,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_AddressableMemories =
       +[](PJRT_Client_AddressableMemories_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_AddressableMemories");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
     // return MakeError(tt_pjrt_status::kUnimplemented);
     args->num_addressable_memories = 0;//ClientInstance::Unwrap(args->client)->addressable_memories.size();
     args->addressable_memories = nullptr;//ClientInstance::Unwrap(args->client)->addressable_memories.data();
@@ -615,7 +597,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_Compile =
       +[](PJRT_Client_Compile_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_Compile");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
     // TODO: It is not great that we only get a client here vs a list of
     // devices to consider (or something). The issue is that systems often
     // have unrelated devices that will not actually be scheduled and those
@@ -634,7 +616,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_DefaultDeviceAssignment =
       +[](PJRT_Client_DefaultDeviceAssignment_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
     // TODO: Something sensible.
     for (size_t i = 0; i < args->default_assignment_size; ++i) {
       args->default_assignment[i] = 0;
@@ -643,7 +625,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
     auto status =
         DeviceInstance::Unwrap(args->device)
             ->HostBufferToDevice(
@@ -656,20 +638,18 @@ void ClientInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_LoadedExecutable_Fingerprint =
       +[](PJRT_LoadedExecutable_Fingerprint_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ClientInstance::PJRT_LoadedExecutable_Fingerprint");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_LoadedExecutable_Fingerprint");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
 }
 
 tt_pjrt_status ClientInstance::PopulateDevices() {
-  DLOG_F(INFO, "ClientInstance::PopulateDevices");
-  //TODO: Query available devices
-  int device_info_count_ = 1;
+  DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
+  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
+  int device_info_count_ = chip_ids.size();
+
   devices_.resize(device_info_count_);
   for (size_t i = 0; i < device_info_count_; ++i) {
-    // Note that we assume one driver per client here.
-    // But device is modeled with a driver in case if it ever becomes
-    // more heterogenous.
     devices_[i] = new DeviceInstance(i, *this);
   }
 
@@ -683,7 +663,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 
 PJRT_Error* ClientInstance::Compile(const PJRT_Program* program,
                                     LoadedExecutableInstance** out_executable) {
-  DLOG_F(INFO, "ClientInstance::Compile");
+  DLOG_F(LOG_DEBUG, "ClientInstance::Compile");
   std::string_view format(program->format, program->format_size);
   std::string_view code(program->code, program->code_size);
 
@@ -692,7 +672,6 @@ PJRT_Error* ClientInstance::Compile(const PJRT_Program* program,
   }
   module_builder_->BuildModule(code, format, *context_);
 
-  std::unique_ptr<CompilerOutput> output;
   auto executable = std::make_unique<LoadedExecutableInstance>(
       *this,
       new ExecutableImage(module_builder_->GetBinary(),
@@ -755,9 +734,9 @@ EventInstance::~EventInstance() {
 }
 
 void EventInstance::BindApi(PJRT_Api* api) {
-  DLOG_F(INFO, "EventInstance::BindApi");
+  DLOG_F(LOG_DEBUG, "EventInstance::BindApi");
   api->PJRT_Event_Destroy = +[](PJRT_Event_Destroy_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "EventInstance::PJRT_Event_Destroy");
+    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Destroy");
     auto instance = EventInstance::Unwrap(args->event);
     auto delete_event = [](PJRT_Error* error, void* user_data) {
       EventInstance* event = static_cast<EventInstance*>(user_data);
@@ -771,20 +750,20 @@ void EventInstance::BindApi(PJRT_Api* api) {
     return nullptr;
   };
   api->PJRT_Event_IsReady = +[](PJRT_Event_IsReady_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "EventInstance::PJRT_Event_IsReady");
+    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_IsReady");
     args->is_ready = EventInstance::Unwrap(args->event)->is_ready();
     return nullptr;
   };
   api->PJRT_Event_Error = +[](PJRT_Event_Error_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "EventInstance::PJRT_Event_Error");
+    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Error");
     return (PJRT_Error*)EventInstance::Unwrap(args->event)->error();
   };
   api->PJRT_Event_Await = +[](PJRT_Event_Await_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "EventInstance::PJRT_Event_Await");
+    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Await");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Event_OnReady = +[](PJRT_Event_OnReady_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "EventInstance::PJRT_Event_OnReady");
+    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_OnReady");
     return MakeError(EventInstance::Unwrap(args->event)
                          ->OnReady(args->callback, args->user_arg));
   };
@@ -796,14 +775,14 @@ ErrorInstance* EventInstance::error() {
   return nullptr;
 }
 bool EventInstance::is_ready() {
-  DLOG_F(INFO, "EventInstance::is_ready");
+  DLOG_F(LOG_DEBUG, "EventInstance::is_ready");
   std::lock_guard<std::mutex> guard(lock_);
   return is_ready_;
 }
 
 tt_pjrt_status EventInstance::OnReady(PJRT_Event_OnReadyCallback callback,
                                      void* user_arg) {
-  DLOG_F(INFO, "EventInstance::OnReady");
+  DLOG_F(LOG_DEBUG, "EventInstance::OnReady");
   tt_pjrt_status local_status;
   {
     std::lock_guard<std::mutex> guard(lock_);
@@ -822,7 +801,7 @@ tt_pjrt_status EventInstance::OnReady(PJRT_Event_OnReadyCallback callback,
 }
 
 void EventInstance::SignalReady(tt_pjrt_status status) {
-  DLOG_F(INFO, "EventInstance::SignalReady");
+  DLOG_F(LOG_DEBUG, "EventInstance::SignalReady");
   tt_pjrt_status local_status;
   std::vector<std::pair<PJRT_Event_OnReadyCallback, void*>> local_callbacks;
   {
@@ -855,13 +834,13 @@ void EventInstance::SignalReady(tt_pjrt_status status) {
 void ExecutableImage::BindApi(PJRT_Api* api) {
   api->PJRT_Executable_Destroy =
       +[](PJRT_Executable_Destroy_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_Destroy");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Destroy");
     ExecutableImage::Unwrap(args->executable)->DecRef();
     return nullptr;
   };
   api->PJRT_Executable_Name =
       +[](PJRT_Executable_Name_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_Name");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Name");
     const char* dummy_name = "tt_pjrt_exe";
     args->executable_name = dummy_name;
     args->executable_name_size = std::strlen(dummy_name);
@@ -870,13 +849,13 @@ void ExecutableImage::BindApi(PJRT_Api* api) {
   api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
       +[](PJRT_Executable_SizeOfGeneratedCodeInBytes_Args* args)
       -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_SizeOfGeneratedCodeInBytes");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_SizeOfGeneratedCodeInBytes");
     args->size_in_bytes = 0; //TODO: ExecutableImage::Unwrap(args->executable)->binary->GetDataSize();
     return nullptr;
   };
   api->PJRT_Executable_NumOutputs =
       +[](PJRT_Executable_NumOutputs_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_NumOutputs");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
     auto* exec = ExecutableImage::Unwrap(args->executable);
     args->num_outputs = exec->result_count;
     return nullptr;
@@ -895,22 +874,22 @@ void ExecutableImage::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Executable_Serialize =
       +[](PJRT_Executable_Serialize_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_Serialize");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Serialize");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_DeserializeAndLoad =
       +[](PJRT_Executable_DeserializeAndLoad_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_DeserializeAndLoad_Args");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_DeserializeAndLoad_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_Serialize =
       +[](PJRT_Executable_Serialize_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_Serialize_Args");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Serialize_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OptimizedProgram =
       +[](PJRT_Executable_OptimizedProgram_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_OptimizedProgram");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OptimizedProgram");
     ExecutableImage* executable = ExecutableImage::Unwrap(args->executable);
     PJRT_Program* program = args->program;
     program->format = kMlirFormat.data();
@@ -929,22 +908,22 @@ void ExecutableImage::BindApi(PJRT_Api* api) {
   };
   api->PJRT_Executable_GetCostAnalysis =
       +[](PJRT_Executable_GetCostAnalysis_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_GetCostAnalysis_Args");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_GetCostAnalysis_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OutputElementTypes =
       +[](PJRT_Executable_OutputElementTypes_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OutputDimensions =
       +[](PJRT_Executable_OutputDimensions_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OutputMemoryKinds =
       +[](PJRT_Executable_OutputMemoryKinds_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
 }
@@ -952,13 +931,13 @@ void ExecutableImage::BindApi(PJRT_Api* api) {
 void LoadedExecutableInstance::BindApi(PJRT_Api* api) {
   api->PJRT_LoadedExecutable_Destroy =
       +[](PJRT_LoadedExecutable_Destroy_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
     delete LoadedExecutableInstance::Unwrap(args->executable);
     return nullptr;
   };
   api->PJRT_LoadedExecutable_AddressableDevices =
       +[](PJRT_LoadedExecutable_AddressableDevices_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
     auto& devices = LoadedExecutableInstance::Unwrap(args->executable)
                         ->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device**>(
@@ -968,23 +947,23 @@ void LoadedExecutableInstance::BindApi(PJRT_Api* api) {
   };
   api->PJRT_LoadedExecutable_Delete =
       +[](PJRT_LoadedExecutable_Delete_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_LoadedExecutable_IsDeleted =
       +[](PJRT_LoadedExecutable_IsDeleted_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted_Args");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted_Args");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_LoadedExecutable_Execute =
       +[](PJRT_LoadedExecutable_Execute_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
     return MakeError(
         LoadedExecutableInstance::Unwrap(args->executable)->Execute(args));
   };
   api->PJRT_LoadedExecutable_GetExecutable =
       +[](PJRT_LoadedExecutable_GetExecutable_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
+    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
     auto* loaded_exe =
         LoadedExecutableInstance::Unwrap(args->loaded_executable);
     ExecutableImage* image = loaded_exe->image_;
@@ -995,48 +974,9 @@ void LoadedExecutableInstance::BindApi(PJRT_Api* api) {
   };
 }
 
-tt_pjrt_status LoadedExecutableInstance::LoadAll() {
-  DLOG_F(INFO, "LoadedExecutableInstance::LoadAll");
-  if (!resident_executables_.empty()) return tt_pjrt_status::kSuccess;
-
-  std::vector<ResidentExecutable> new_list;
-  for (DeviceInstance* device_instance : addressable_devices_) {
-    new_list.push_back({});
-    ResidentExecutable& loaded = new_list.back();
-    loaded.device_instance = device_instance;
-
-    //TODO
-    loaded.arg_count = 1;
-    loaded.result_count = 1;
-  }
-
-  new_list.swap(resident_executables_);
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status LoadedExecutableInstance::GetDefaultResidentExecutable(
-    ResidentExecutable** out_loaded) {
-  LoadAll();
-  if (resident_executables_.empty()) {
-    return tt_pjrt_status::kNotFound;
-  }
-  *out_loaded = &resident_executables_.front();
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status LoadedExecutableInstance::GetArgResultCount(
-    size_t* out_arg_count, size_t* out_result_count) {
-  DLOG_F(INFO, "LoadedExecutableInstance::GetArgResultCount");
-  ResidentExecutable* loaded;
-  GetDefaultResidentExecutable(&loaded);
-  *out_arg_count = loaded->arg_count;
-  *out_result_count = loaded->result_count;
-  return tt_pjrt_status::kSuccess;
-}
-
 tt_pjrt_status LoadedExecutableInstance::Execute(
     PJRT_LoadedExecutable_Execute_Args* args) {
-  DLOG_F(INFO, "LoadedExecutableInstance::Execute");
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
   std::vector<tt::runtime::Tensor> rt_inputs;
   std::vector<tt::runtime::Tensor> rt_outputs;
@@ -1052,6 +992,7 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
   for (size_t i = 0; i < args->num_args; ++i) {
     auto* buffer = BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
+    DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
   auto output_specs = binary.getProgramOutputs(0);
   for (auto output_spec : output_specs) {
@@ -1063,8 +1004,9 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
     //TODO What to do with stride
     void *data = malloc(size);
 
-    //TODO: Only zero set in debug mode
+#ifdef DEBUG
     memset(data, 0, size);
+#endif
     std::shared_ptr<void> data_ptr(const_cast<void*>(data), [](void*) {});
     tt::runtime::Tensor tensor = tt::runtime::createTensor(
         data_ptr, output_spec.shape, output_spec.stride, output_spec.itemsize, output_spec.dataType);
@@ -1077,6 +1019,7 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
   for (size_t i = 0; i < output_specs.size(); ++i) {
     auto result_buffer = std::make_unique<BufferInstance>(*this->addressable_devices_[dev_index], rt_outputs[i], output_specs[i].shape, output_specs[i].stride);
     result_buffer->setType(convertElementTypeToBufferType(output_specs[i].dataType));
+    DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
     args->output_lists[dev_index][i] = *(result_buffer.release());
   }
   if (args->device_complete_events) {
@@ -1090,7 +1033,7 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
 static void BindUndefineds(PJRT_Api* api) {
 #define _STUB(API)                                               \
   api->API = +[](API##_Args* args) -> decltype(api->API(args)) { \
-    DLOG_F(INFO, "STUB: " #API);                     \
+    DLOG_F(LOG_DEBUG, "STUB: " #API);                     \
     return (decltype(api->API(args)))MakeError(                  \
         tt_pjrt_status::kUnimplemented);      \
   }
@@ -1115,13 +1058,13 @@ void BindMonomorphicApi(PJRT_Api* api) {
 
   api->PJRT_Plugin_Initialize =
       +[](PJRT_Plugin_Initialize_Args* args) -> PJRT_Error* {
-        DLOG_F(INFO, "PJRT_Plugin_Initialize");
+        DLOG_F(LOG_DEBUG, "PJRT_Plugin_Initialize");
         return nullptr; 
   };
 
   api->PJRT_Plugin_Attributes =
       +[](PJRT_Plugin_Attributes_Args* args) -> PJRT_Error* {
-        DLOG_F(INFO, "PJRT_Plugin_Attributes");
+        DLOG_F(LOG_DEBUG, "PJRT_Plugin_Attributes");
         args->num_attributes = 0;
         return nullptr; 
   };
@@ -1136,4 +1079,4 @@ void BindMonomorphicApi(PJRT_Api* api) {
   LoadedExecutableInstance::BindApi(api);
 }
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt

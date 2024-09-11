@@ -18,15 +18,12 @@
 #include <iostream>
 #include <sstream>
 
-#include "common/compiler.h"
-#include "common/layout_utils.h"
 #include "common/platform.h"
 #include "common/module_builder.h"
-#include "loguru/loguru.hpp"
 #include "xla/pjrt/c/pjrt_c_api.h"
 #include "tt/runtime/runtime.h"
 
-namespace iree::pjrt {
+namespace tt::pjrt {
 
 class ClientInstance;
 class DeviceInstance;
@@ -63,7 +60,6 @@ inline PJRT_Error* MakeError(tt_pjrt_status status) {
 //===----------------------------------------------------------------------===//
 // BufferInstance
 //===----------------------------------------------------------------------===//
-
 class BufferInstance {
  public:
   BufferInstance(DeviceInstance& device, tt::runtime::Tensor tensor, std::vector<std::uint32_t> shape, std::vector<std::uint32_t> stride);
@@ -104,8 +100,11 @@ class BufferInstance {
   // Get the data type for a tensor through runtime if DataType is not set.
   PJRT_Buffer_Type getRuntimeType();
 
+  int unique_id() { return unique_id_; }
 
  private:
+  static int id_counter_;
+  int unique_id_;
   void ComputeLayout();
 
   DeviceInstance& device_;
@@ -115,7 +114,6 @@ class BufferInstance {
   // API elements that must have the same lifetime as BufferInstance.
   std::vector<int64_t> dims_;
   std::vector<std::uint32_t> stride_;
-  ApiMemoryLayout layout_;
   std::optional<tt::runtime::Tensor> tensor_;
 
   std::vector<int64_t> minor_to_major_;
@@ -347,7 +345,6 @@ class ClientInstance {
   PJRT_Error* Initialize();
 
   Platform& platform() { return *platform_; }
-  Logger& logger() { return platform_->logger(); }
   const std::vector<DeviceInstance*>& devices() { return devices_; }
   const std::vector<DeviceInstance*>& addressable_devices() {
     return addressable_devices_;
@@ -363,11 +360,6 @@ class ClientInstance {
   PJRT_Error* Compile(
       const PJRT_Program* program, /*xla::CompileOptions options, */
       LoadedExecutableInstance** executable);
-
-  // Sets default compiler flags for the client which apply to all executables
-  // and devices.
-  // Returns false on failure (and sets error information on the compiler_job).
-  virtual bool SetDefaultCompilerFlags(CompilerJob* compiler_job) = 0;
 
   // Advances the timeline, returning (current, next) time point values.
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
@@ -414,17 +406,12 @@ static void BindApi(PJRT_Api* api) {
 
   // Bind polymorphic entry-points.
   api->PJRT_Client_Create = +[](PJRT_Client_Create_Args* args) -> PJRT_Error* {
-    DLOG_F(INFO, "PJRT_Client_Create");
+    DLOG_F(LOG_DEBUG, "PJRT_Client_Create");
     auto platform = std::make_unique<PlatformTy>();
 
     // Populate config_vars() from the client create_options.
     for (size_t i = 0; i < args->num_options; ++i) {
-      const PJRT_NamedValue* nv = args->create_options + i;
-      // For now, we only support string types.
-      if (nv->type != PJRT_NamedValue_kString) continue;
-      std::string name(nv->name, nv->name_size);
-      std::string value(nv->string_value, nv->value_size);
-      platform->config_vars().Set(name, std::move(value));
+      DLOG_F(WARNING, "Unused config var: %s", args->create_options[i].name);
     }
 
     auto status = platform->Initialize();
@@ -442,6 +429,6 @@ static void BindApi(PJRT_Api* api) {
   };
 }
 
-}  // namespace iree::pjrt
+}  // namespace tt::pjrt
 
 #endif  // IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
