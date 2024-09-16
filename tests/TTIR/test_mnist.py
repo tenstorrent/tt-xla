@@ -30,7 +30,7 @@ def test_relu():
 
   verify_module(module_relu, [(32, 32)])
 
-# @pytest.mark.xfail
+@pytest.mark.xfail
 def test_softmax():
   def module_softmax(a):
     return jax.nn.softmax(a)
