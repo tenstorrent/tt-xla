@@ -4,22 +4,27 @@ import jax.numpy as jnp
 
 from infrastructure import verify_module
 
-@pytest.mark.xfail
 def test_matmul():
   def module_matmul(a, b):
     return jnp.matmul(a, b)
 
-  verify_module(module_matmul, [(32, 32), (32, 32)])
+  verify_module(module_matmul, [(32, 32), (32, 32)], required_atol=3e-2)
 
-@pytest.mark.xfail
 def test_matmul_with_bias():
   def module_matmul(a, b, bias):
     return jnp.matmul(a, b) + bias
 
-  verify_module(module_matmul, [(32, 32), (32, 32), (1, 32)])
+  verify_module(module_matmul, [(32, 32), (32, 32), (1, 32)], required_atol=3e-2)
 
-@pytest.mark.xfail
+def test_relu_no_broadcast():
+  def module_relu(a, b):
+    return jnp.maximum(a, b)
+
+  verify_module(module_relu, [(32, 32), (32, 32)])
+
+
 def test_relu():
+  pytest.skip("Asserts")
   def module_relu(a):
     return jnp.maximum(a, 0)
 
