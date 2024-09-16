@@ -19,7 +19,7 @@ Please make sure that you are running the following commands with in tt-mlir `vi
 
 ### PJRT
 This `PJRT` repo is updated to use cmake instead of bazel and made compatiable with tt-mlir compiler.
-- Clone PJRT repo `git clone git@github.com:AleksKnezevic/pjrt.git`.
+- Clone PJRT repo `git clone git@github.com:tenstorrent/tt-xla.git`.
 - cd pjrt
 - source venv/activate
 - cmake -G Ninja -B build
