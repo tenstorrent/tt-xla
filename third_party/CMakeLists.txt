@@ -5,7 +5,7 @@ if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)
     project(ttmlir-toolchain LANGUAGES CXX C)
     execute_process(
-        COMMAND git clone --recursive git@github.com:tenstorrent/tt-mlir.git ${PROJECT_SOURCE_DIR}/tt-mlir/src/tt-mlir
+        COMMAND git clone --recursive https://github.com/tenstorrent/tt-mlir.git ${PROJECT_SOURCE_DIR}/tt-mlir/src/tt-mlir
         RESULT_VARIABLE result1
         OUTPUT_VARIABLE output1
         ERROR_VARIABLE error_output1
