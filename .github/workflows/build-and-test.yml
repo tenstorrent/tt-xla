@@ -17,13 +17,14 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/${{ github.repository }}/tt-mlir-ci-ubuntu-22-04:latest #TODO update this to the correct image
+      image: ghcr.io/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest #TODO update this to the correct image
       options: --user root
 
     steps:
     - uses: actions/checkout@v4
       with:
-          fetch-depth: 0
+        submodules: recursive
+        lfs: true
 
     - name: Set reusable strings
       id: strings
@@ -100,7 +101,7 @@ jobs:
       - ${{ matrix.build.runs-on }}
 
     container:
-      image: ghcr.io/${{ github.repository }}/tt-mlir-ci-ubuntu-22-04:latest
+      image: ghcr.io/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest
       options: --user root --device /dev/tenstorrent/0
       volumes:
         - /dev/hugepages:/dev/hugepages
