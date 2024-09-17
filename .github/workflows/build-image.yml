@@ -40,7 +40,6 @@ jobs:
       - name: Build and export base Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .github
           file: .github/Dockerfile.base
           push: true
           build-args: |
@@ -51,7 +50,6 @@ jobs:
       - name: Build and export CI Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .github
           file: .github/Dockerfile.ci
           push: true
           build-args: |
@@ -64,7 +62,6 @@ jobs:
       - name: Build and push base Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .github
           file: .github/Dockerfile.base
           push: true
           build-args: |
@@ -75,7 +72,6 @@ jobs:
       - name: Build and push CI Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .github
           file: .github/Dockerfile.ci
           push: true
           build-args: |
