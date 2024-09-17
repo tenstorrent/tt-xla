@@ -20,7 +20,10 @@ jobs:
         run: sudo chmod 777 -R $GITHUB_WORKSPACE
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
