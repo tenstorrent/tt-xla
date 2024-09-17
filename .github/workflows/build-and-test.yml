@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest #TODO update this to the correct image
+      image: ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest #TODO update this to the correct image
       options: --user root
 
     steps:
@@ -101,7 +101,7 @@ jobs:
       - ${{ matrix.build.runs-on }}
 
     container:
-      image: ghcr.io/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest
+      image: ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest
       options: --user root --device /dev/tenstorrent/0
       volumes:
         - /dev/hugepages:/dev/hugepages
