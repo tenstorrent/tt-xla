@@ -16,13 +16,15 @@ RUN mkdir -p $BUILD_DIR && \
     mkdir -p $TTMLIR_TOOLCHAIN_DIR
 
 # Clone tt-mlir
-RUN git clone https://github.com/tenstorrent/tt-mlir.git $BUILD_DIR/$PROJECT_NAME && \
+RUN git clone https://github.com/tenstorrent/$PROJECT_NAME.git $BUILD_DIR/$PROJECT_NAME && \
     cd $BUILD_DIR/$PROJECT_NAME && \
     git checkout $GIT_SHA
 
 # Build the toolchain
 WORKDIR $BUILD_DIR/$PROJECT_NAME
-RUN source env/activate && \
+RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
+    cd third_party/tt-mlir/src/tt-mlir/ && \
+    source env/activate && \
     cmake -B env/build env && \
     cmake --build env/build
 
