@@ -21,9 +21,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          lfs: true
+      with:
+        submodules: recursive
+        lfs: true
 
     - name: Set reusable strings
       id: strings
