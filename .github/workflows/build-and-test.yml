@@ -32,6 +32,7 @@ jobs:
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "metal-lib-dir=$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib" >> "$GITHUB_OUTPUT"
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
 
     - name: Git safe dir
@@ -53,15 +54,17 @@ jobs:
       run: |
         source venv/activate
         cmake --build ${{ steps.strings.outputs.build-output-dir }}
-
+        cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
 
     # This is needed to preserve file permissions
     # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
-    - name: 'Tar install directory'
+    - name: 'Tar install directory and metal lib directory'
       shell: bash
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: tar cvf artifact.tar .
+      working-directory: ${{ steps.strings.outputs.work-dir }}
+      run: | 
+        tar cvf artifact.tar install
+        tar rvf artifact.tar third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib
 
     - name: Upload install folder to archive
       uses: actions/upload-artifact@v4

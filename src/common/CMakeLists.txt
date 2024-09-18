@@ -91,7 +91,6 @@ target_link_libraries(TTPJRTCommon PUBLIC
     MLIR
     TTMLIR
     TTPJRTCommonDylibPlatform
-    TTMLIRStatic
     TTMLIRStableHLOToTTIR
     ${STABLEHLO_LIBS}
 )
@@ -99,7 +98,6 @@ target_link_libraries(TTPJRTCommon PUBLIC
 target_link_directories(TTPJRTCommon PUBLIC
     /opt/ttmlir-toolchain/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
+    ${PROJECT_SOURCE_DIR}/install/lib
 )
 
