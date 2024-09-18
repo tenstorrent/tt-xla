@@ -1,4 +1,4 @@
-set(TT_MLIR_VERSION "f955a08e8836e41a3333ca20a3bbe193ce91b2a0")
+set(TT_MLIR_VERSION "a4628f8e8fe900ec64bd96565d80a487b76f5755")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -19,7 +19,7 @@ if (TOOLCHAIN STREQUAL "ON")
 else()
     include(ExternalProject)
     add_subdirectory(pjrt_c_api)
-    set(TTMLIR_LIB_DIR ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib)
+    set(TTMLIR_LIB_DIR ${TTPJRT_SOURCE_DIR}/install)
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
@@ -31,11 +31,17 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
+          -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
         GIT_REPOSITORY git@github.com:tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
-        INSTALL_COMMAND ""
     )
+
+    # #TODO: Remove this once we have a proper install target
+    # message(STATUS "Copying ttmetal libraries from ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib to ${TTMLIR_LIB_DIR}/lib")
+    # execute_process(
+    #     COMMAND /bin/bash -c "mkdir -p ${TTMLIR_LIB_DIR}/lib/ && cp ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib/* ${TTMLIR_LIB_DIR}/lib/"
+    # )
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 

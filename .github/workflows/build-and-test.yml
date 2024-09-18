@@ -45,7 +45,7 @@ jobs:
       run: |
         source venv/activate
         cmake -G Ninja \
-        -B ${{ steps.strings.outputs.build-output-dir }}
+        -B ${{ steps.strings.outputs.build-output-dir }} \
         -S ${{ steps.strings.outputs.work-dir }}
 
     - name: Build
@@ -60,14 +60,14 @@ jobs:
     # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
     - name: 'Tar install directory'
       shell: bash
-      working-directory: ${{ steps.strings.outputs.install-output-dir }}
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: tar cvf artifact.tar .
 
     - name: Upload install folder to archive
       uses: actions/upload-artifact@v4
       with:
         name: install-artifacts
-        path: ${{ steps.strings.outputs.install-output-dir }}/artifact.tar
+        path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
     - name: Get the latest tag
       shell: bash

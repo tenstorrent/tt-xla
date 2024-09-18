@@ -27,12 +27,14 @@ target_link_libraries(TTPJRTTTDylib PUBLIC TTPJRTTT)
 
 # # Output to the project wide python binary directory tree.
 set_target_properties(TTPJRTTTDylib
-  PROPERTIES
-    PREFIX ""  # Disable "lib" prefix.
-    LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    RUNTIME_OUTPUT_DIRECTORY "${_NATIVE_PYTHON_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${_NATIVE_PYTHON_DIR}"
+PROPERTIES
+PREFIX ""  # Disable "lib" prefix.
+LIBRARY_OUTPUT_NAME pjrt_plugin_tt
+# RUNTIME_OUTPUT_DIRECTORY "${_NATIVE_PYTHON_DIR}"
+# LIBRARY_OUTPUT_DIRECTORY "${_NATIVE_PYTHON_DIR}"
+INSTALL_RPATH_USE_LINK_PATH TRUE
 )
+install(TARGETS TTPJRTTTDylib DESTINATION lib)
 
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 
