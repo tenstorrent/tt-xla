@@ -30,7 +30,6 @@ set_target_properties(TTPJRTTTDylib
     PROPERTIES
     PREFIX ""  # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 install(TARGETS TTPJRTTTDylib DESTINATION lib)
 

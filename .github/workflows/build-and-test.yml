@@ -61,10 +61,9 @@ jobs:
     # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
     - name: 'Tar install directory and metal lib directory'
       shell: bash
-      working-directory: ${{ steps.strings.outputs.work-dir }}
+      working-directory: ${{ steps.strings.outputs.install-output-dir }}
       run: | 
-        tar cvf artifact.tar install
-        tar rvf artifact.tar third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib
+        tar cvf artifact.tar .
 
     - name: Upload install folder to archive
       uses: actions/upload-artifact@v4
@@ -146,5 +145,6 @@ jobs:
     - name: Run tests
       shell: bash
       run: |
+        export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
         pytest -v tests/
