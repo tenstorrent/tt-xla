@@ -32,7 +32,7 @@ else()
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
-        GIT_REPOSITORY git@github.com:tenstorrent/tt-mlir.git
+        GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
     )
@@ -68,7 +68,7 @@ else()
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_FLAGS=${FLAGS}
           -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
-        GIT_REPOSITORY git@github.com:emilk/loguru.git
+        GIT_REPOSITORY https://github.com/emilk/loguru.git
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
     )
