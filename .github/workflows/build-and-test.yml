@@ -71,6 +71,18 @@ jobs:
         name: install-artifacts
         path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
+    - name: Get the latest tag
+      shell: bash
+      run: |
+        latest_tag=$(git describe --tags --abbrev=0)
+        latest_tag=${latest_tag#v}
+        echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+        commit_count=$(git rev-list ${{ env.latest_tag }}..HEAD --count)
+        echo "commit_count=$commit_count" >> $GITHUB_ENV
+        version="${{ env.latest_tag }}.${{ env.commit_count }}"
+        echo "version=$version" >> $GITHUB_ENV
+        echo $version
+
 
   # Run tests on TT hardware
 
