@@ -91,7 +91,6 @@ target_link_libraries(TTPJRTCommon PUBLIC
     MLIR
     TTMLIR
     TTPJRTCommonDylibPlatform
-    TTMLIRStatic
     TTMLIRStableHLOToTTIR
     ${STABLEHLO_LIBS}
 )
