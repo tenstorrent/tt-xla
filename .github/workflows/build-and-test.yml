@@ -93,7 +93,7 @@ jobs:
       matrix:
         build: [
           {runs-on: n150, name: "run"},
-          # {runs-on: n300, name: "run"}, #TODO: https://github.com/tenstorrent/tt-xla/issues/9
+          {runs-on: n300, name: "run"},
         ]
 
     runs-on:

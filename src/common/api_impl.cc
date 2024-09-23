@@ -646,7 +646,7 @@ void ClientInstance::BindApi(PJRT_Api* api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int device_info_count_ = chip_ids.size();
+  int device_info_count_ = 1; // TODO: revert to chip_ids.size(); once https://github.com/tenstorrent/tt-xla/issues/9 is fixed
 
   devices_.resize(device_info_count_);
   for (size_t i = 0; i < device_info_count_; ++i) {
