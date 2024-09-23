@@ -2,8 +2,8 @@ import pytest
 import jax
 import jax.numpy as jnp
 
+@pytest.mark.xfail
 def test_scalar_add():
-  pytest.skip("Not working")
   def module_add(a, b):
     return a + b
 

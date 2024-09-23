@@ -5,16 +5,17 @@ fi
 
 export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
 
-export TTMLIR_VENV_DIR="$(pwd)/venv"
-if [ -d $TTMLIR_VENV_DIR/bin ]; then
-  [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
+export TTXLA_VENV_DIR="$(pwd)/venv"
+if [ -d $TTXLA_VENV_DIR/bin ]; then
+  [ -f $TTXLA_VENV_DIR/bin/activate ] && source $TTXLA_VENV_DIR/bin/activate
 else
-  echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-  python3.10 -m venv $TTMLIR_VENV_DIR
-  source $TTMLIR_VENV_DIR/bin/activate
+  echo "Creating virtual environment in $TTXLA_VENV_DIR"
+  python3.10 -m venv $TTXLA_VENV_DIR
+  source $TTXLA_VENV_DIR/bin/activate
   pip install --upgrade pip
   pip install -r requirements.txt
 fi
+export PJRT_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
 export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
 if [ -n "$PROJECT_ROOT" ]; then
@@ -25,5 +26,6 @@ fi
 export TT_MLIR_HOME="$(pwd)"
 export PYTHONPATH="$(pwd)/build/python_packages:$(pwd)/.local/toolchain/python_packages/mlir_core:${TT_METAL_HOME}:${TT_METAL_HOME}/tt_eager:${TT_METAL_BUILD_HOME}/tools/profiler/bin"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
-export TT_METAL_LOGGER_LEVEL="ERROR"
+export TT_METAL_LOGGER_LEVEL="FATAL"
+export LOGGER_LEVEL="INFO"
 

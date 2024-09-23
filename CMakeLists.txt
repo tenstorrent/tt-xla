@@ -5,6 +5,10 @@ project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 
+if (NOT DEFINED ENV{PJRT_ENV_ACTIVATED})
+  message(FATAL_ERROR "tt-xla environment not activated. Please run 'source venv/activate'.")
+endif()
+
 set(CMAKE_C_COMPILER clang-17)
 set(DCMAKE_CXX_COMPILER clang++-17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -22,15 +22,14 @@ def test_relu_no_broadcast():
 
   verify_module(module_relu, [(32, 32), (32, 32)])
 
-
+# @pytest.mark.xfail
 def test_relu():
-  pytest.skip("Asserts")
   def module_relu(a):
     return jnp.maximum(a, 0)
 
   verify_module(module_relu, [(32, 32)])
 
-@pytest.mark.xfail
+# @pytest.mark.xfail
 def test_softmax():
   def module_softmax(a):
     return jax.nn.softmax(a)

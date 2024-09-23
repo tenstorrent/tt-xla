@@ -989,6 +989,7 @@ tt_pjrt_status LoadedExecutableInstance::Execute(
   assert(args->num_devices == 1);
   int dev_index = 0;
   tt::runtime::Binary binary(image_->binary);
+  auto input_specs = binary.getProgramInputs(0);
   for (size_t i = 0; i < args->num_args; ++i) {
     auto* buffer = BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
