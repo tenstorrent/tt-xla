@@ -1,8 +1,11 @@
-// Copyright 2022 The IREE Authors
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 //
-// Licensed under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0
+//
+// This file incorporates work covered by the following copyright and permission notice:
+// SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// https://llvm.org/LICENSE.txt
 
 #ifndef IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
 #define IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
