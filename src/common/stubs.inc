@@ -1,3 +1,12 @@
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// This file incorporates work covered by the following copyright and permission notice:
+// SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// https://llvm.org/LICENSE.txt
+
   _STUB(PJRT_Error_Destroy);
   _STUB(PJRT_Error_Message);
   _STUB(PJRT_Error_GetCode);

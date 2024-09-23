@@ -1,3 +1,11 @@
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// This file incorporates work covered by the following copyright and permission notice:
+// SPDX-FileCopyrightText: Copyright 2022 The OpenXLA Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /* Copyright 2022 The OpenXLA Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -2118,7 +2126,7 @@ typedef PJRT_Error* PJRT_Compile(PJRT_Compile_Args* args);
 #define _PJRT_API_STRUCT_FIELD(fn_type) fn_type* fn_type
 
 // Please modify PJRT_Api_STRUCT_SIZE if the last field of PJRT_Api is changed.
-typedef struct {
+typedef struct PJRT_Api {
   size_t struct_size;
   PJRT_Extension_Base* extension_start;
 

@@ -3,8 +3,6 @@ name: Build and Test
 on:
   workflow_dispatch:
   workflow_call:
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   # build-ttxla:

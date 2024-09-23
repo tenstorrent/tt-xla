@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
 #ifndef TT_PJRT_STATUS
 #define TT_PJRT_STATUS
 
