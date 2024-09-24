@@ -23,10 +23,10 @@ cp /opt/ttmlir-toolchain/src/stablehlo-build/lib/lib* /opt/ttmlir-toolchain/lib/
 This `tt-xla` repo is updated to use cmake instead of bazel and made compatiable with tt-mlir compiler.
 ```
 git clone git@github.com:tenstorrent/tt-xla.git // Clone tt-xla repo
-cd pjrt
+cd tt-xla
 source venv/activate
 cmake -G Ninja -B build
-cmake –-build build
+cmake --build build
 ```
 
 ## Testing
