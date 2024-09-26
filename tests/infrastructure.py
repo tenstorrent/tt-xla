@@ -34,12 +34,12 @@ def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e
   ret = ret and atol <= required_atol
   if assert_on_error:
     assert ret, f"ATOL is {atol} which is greater than {required_atol}"
-  
+
   return ret
 
 def verify_module(module, input_shapes, key=42, required_pcc=0.99, required_atol=1e-2):
   tt_device = jax.devices()[0]
-  cpu_inputs = [random_input_tensor(shape, key) for shape in input_shapes]
+  cpu_inputs = [random_input_tensor(input_shapes[i], key + i) for i in range(len(input_shapes))]
   tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
   graph = jax.jit(module)
   res = graph(*tt_inputs)
