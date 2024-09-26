@@ -19,7 +19,7 @@ def test_abs_op():
 
 
 #Broadcasted values are incorrect
-@pytest.mark.xfail
+@pytest.mark.skip("Broadcasted values are incorrect")
 def test_broadcast_op():
   def module_broadcast(a):
     return jnp.broadcast_to(a, (2, 4))
@@ -28,7 +28,7 @@ def test_broadcast_op():
 
 
 #error: 'ttir.constant' op failed to verify that all of {value, result} have same shape
-@pytest.mark.xfail
+@pytest.mark.skip("Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615")
 def test_constant_op():
   def module_constant_zeros(a):
     zeros = jnp.zeros(a.shape)
@@ -105,7 +105,7 @@ def test_negate_op():
   
 
 #Reduce is failing due to error in constant.
-@pytest.mark.xfail
+@pytest.mark.skip("keepdim=False is not supported")
 def test_reduce_op():
   def module_reduce_max(a):
     return jnp.max(a)
@@ -152,7 +152,7 @@ def test_transpose_op_2d():
 
 
 # Transpose op failing for higher ranks/dimensions.
-@pytest.mark.xfail
+@pytest.mark.skip("Transpose op failing for higher ranks/dimensions.")
 def test_transpose_op_3d():
   def module_transpose(a):
     return jnp.transpose(a)

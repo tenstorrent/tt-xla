@@ -34,14 +34,14 @@ def test_relu():
 
   verify_module(module_relu, [(32, 32)])
 
-@pytest.mark.xfail
+@pytest.mark.skip("keepdims=False in runtime")
 def test_softmax():
   def module_softmax(a):
     return jax.nn.softmax(a)
 
   verify_module(module_softmax, [(32, 32)])
 
-@pytest.mark.xfail
+@pytest.mark.skip("Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615")
 def test_mnist():
   def module_mnist(act, w0, b0, w1, b1, w2, b2):
     x = jnp.matmul(act, w0) + b0

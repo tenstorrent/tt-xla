@@ -5,10 +5,10 @@
 import jax
 import jax.numpy as jnp
 
-def random_input_tensor(shape, key=42, on_device=False):
+def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
   device_cpu = jax.devices('cpu')[0]
   with jax.default_device(device_cpu):
-    tensor = jax.random.uniform(jax.random.PRNGKey(key), shape=shape)
+    tensor = jax.random.uniform(jax.random.PRNGKey(key), shape=shape, dtype=dtype)
 
   # Although the random tensor is generated on cpu but it is not committed to
   # cpu; so this tensor can be moved to the device and subsequent code will
@@ -43,9 +43,9 @@ def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e
 
   return ret
 
-def verify_module(module, input_shapes, key=42, required_pcc=0.99, required_atol=1e-2):
+def verify_module(module, input_shapes, key=42, required_pcc=0.99, required_atol=1e-2, dtype=jnp.float32):
   tt_device = jax.devices()[0]
-  cpu_inputs = [random_input_tensor(input_shapes[i], key + i) for i in range(len(input_shapes))]
+  cpu_inputs = [random_input_tensor(input_shapes[i], key + i, dtype=dtype) for i in range(len(input_shapes))]
   tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
   graph = jax.jit(module)
   res = graph(*tt_inputs)

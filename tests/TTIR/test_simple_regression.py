@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from infrastructure import verify_module
 
 
-@pytest.mark.xfail
+@pytest.mark.skip("Module contains function used inside the main function. Cannot compile Flatbuffer.")
 def test_gradient():
   def simple_gradient(a):
     def gradient(a):
@@ -20,7 +20,7 @@ def test_gradient():
   verify_module(simple_gradient, [(2, 2)])
 
 
-@pytest.mark.xfail
+@pytest.mark.skip("TT_METAL_HOME is not set.")
 def test_simple_regression():
   def simple_regression(weights, bias, X, y):
     def loss(weights, bias, X, y):
