@@ -29,7 +29,7 @@ def test_relu_no_broadcast():
 
 def test_relu():
   def module_relu(a):
-    return jnp.maximum(a, 0)
+    return jnp.maximum(0, a)
 
   verify_module(module_relu, [(32, 32)])
 
@@ -44,9 +44,9 @@ def test_softmax():
 def test_mnist():
   def module_mnist(act, w0, b0, w1, b1, w2, b2):
     x = jnp.matmul(act, w0) + b0
-    x = jnp.maximum(x, 0)
+    x = jnp.maximum(0, x)
     x = jnp.matmul(x, w1) + b1
-    x = jnp.maximum(x, 0)
+    x = jnp.maximum(0, x)
     x = jnp.matmul(x, w2) + b2
     x = jax.nn.softmax(x)
     return x
