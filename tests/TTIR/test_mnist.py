@@ -33,14 +33,12 @@ def test_relu():
 
   verify_module(module_relu, [(32, 32)])
 
-# @pytest.mark.xfail
 def test_softmax():
   def module_softmax(a):
     return jax.nn.softmax(a)
 
   verify_module(module_softmax, [(32, 32)])
 
-# @pytest.mark.xfail
 def test_mnist():
   def module_mnist(act, w0, b0, w1, b1, w2, b2):
     x = jnp.matmul(act, w0) + b0

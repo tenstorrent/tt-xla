@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 def random_input_tensor(shape, key=42, on_device=False):
   def random_input(shape, key):
-      return jax.random.uniform(jax.random.PRNGKey(key), shape=shape)
+      return jax.random.uniform(jax.random.PRNGKey(key), shape=shape) - 0.5
   
   jitted_tensor_creator = jax.jit(random_input, static_argnums=[0,1], backend='cpu')
   tensor = jitted_tensor_creator(shape, key)
