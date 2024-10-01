@@ -205,4 +205,4 @@ Third-Party Dependencies:
 The following dependencies are utilized by this project but are not explicitly
 distributed as part of the software:
 
-- xla - https://github.com/openxla/xla/blob/main/LICENSE
+- xla/pjrt/c/pjrt_c_api.h - https://github.com/openxla/xla/blob/main/LICENSE
