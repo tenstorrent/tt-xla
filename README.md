@@ -13,16 +13,16 @@ tt-xla and stableHLO integration with tt-mlir compiler is still under progress. 
 ### StableHLO
 Please make sure that you are running the following commands with in tt-mlir `virtual environment` (execute `source env/activate` in `tt-mlir` directory).
 ```
-cd /opt/ttmlir-toolchain/src/stablehlo-build/
+cd $TTMLIR_TOOLCHAIN_DIR/src/stablehlo-build/
 cmake ../stablehlo -G Ninja -DMLIR_DIR=${PWD}/../llvm-build/lib/cmake/mlir
 cmake --build .
-cp /opt/ttmlir-toolchain/src/stablehlo-build/lib/lib* /opt/ttmlir-toolchain/lib/
+cp $TTMLIR_TOOLCHAIN_DIR/src/stablehlo-build/lib/lib* $TTMLIR_TOOLCHAIN_DIR/lib/
 ```
 
 ### tt-xla
 This `tt-xla` repo is updated to use cmake instead of bazel and made compatiable with tt-mlir compiler.
 ```
-git clone git@github.com:tenstorrent/tt-xla.git // Clone tt-xla repo
+git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
 source venv/activate
 cmake -G Ninja -B build
