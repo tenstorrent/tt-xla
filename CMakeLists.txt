@@ -14,6 +14,7 @@ cmake_minimum_required(VERSION 3.20)
 project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
+set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
 set(CMAKE_C_COMPILER clang-17)
 set(DCMAKE_CXX_COMPILER clang++-17)
@@ -30,7 +31,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG)
 endif()
 
-link_directories(/opt/ttmlir-toolchain/lib)
+link_directories(${TTMLIR_TOOLCHAIN_DIR}//lib)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
