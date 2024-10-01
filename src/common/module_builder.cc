@@ -75,11 +75,20 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   if (log_level > 0)
     mlir_module->dump();
 
+  mlir::PassManager shlo_pm(mlir_module.get()->getName());
+  shlo_pm.addPass(mlir::stablehlo::createVhloLegalizeToStablehloPass());
+  // Run the pass manager.
+  if (mlir::failed(shlo_pm.run(mlir_module.get())))
+  {
+      throw std::runtime_error("Failed to run VLHO Legalization pass pipeline.");
+  }
+  DLOG_F(LOG_DEBUG, "SHLO Module");
+  if (log_level > 0)
+    mlir_module->dump();
+
   mlir::tt::ttir::registerPasses();
   mlir::tt::ttnn::registerPasses();
 
-  mlir::PassManager shlo_pm(mlir_module.get()->getName());
-  shlo_pm.addPass(mlir::stablehlo::createVhloLegalizeToStablehloPass());
   shlo_pm.addPass(mlir::tt::createConvertStableHLOToTTIRPass());
   // Run the pass manager.
   if (mlir::failed(shlo_pm.run(mlir_module.get())))
