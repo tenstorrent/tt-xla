@@ -29,8 +29,8 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
-    /opt/ttmlir-toolchain/include
-    /opt/ttmlir-toolchain/src/stablehlo
+    ${TTMLIR_TOOLCHAIN_DIR}/include
+    ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )
 
 set(STABLEHLO_LIBS
@@ -99,7 +99,7 @@ target_link_libraries(TTPJRTCommon PUBLIC
 )
 
 target_link_directories(TTPJRTCommon PUBLIC
-    /opt/ttmlir-toolchain/lib
+    ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
