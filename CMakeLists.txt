@@ -10,6 +10,9 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+if (NOT DEFINED ENV{TTXLA_ENV_ACTIVATED})
+  message(FATAL_ERROR "tt-xla environment not activated. Please run 'source venv/activate'.")
+endif()
 
 project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
