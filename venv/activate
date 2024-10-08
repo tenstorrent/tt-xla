@@ -3,11 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Step 1: Check if TTMLIR_TOOLCHAIN_DIR is already set, if not, set it to /opt/ttmlir-toolchain
-if [ -z "${TTMLIR_TOOLCHAIN_DIR}" ]; then
-  export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
-fi
-
 export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
 
 export TTMLIR_VENV_DIR="$(pwd)/venv"
