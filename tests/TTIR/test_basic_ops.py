@@ -26,6 +26,24 @@ def test_broadcast_op():
 
   verify_module(module_broadcast, [(2, 1)])
 
+def test_concat_op():
+  def module_concat_dim_0(x, y):
+    return jnp.concatenate([x, y], axis=0)
+  def module_concat_dim_1(x, y):
+    return jnp.concatenate([x, y], axis=1)
+  def module_concat_dim_2(x, y):
+    return jnp.concatenate([x, y], axis=2)
+  def module_concat_dim_3(x, y):
+    return jnp.concatenate([x, y], axis=3)
+
+  verify_module(module_concat_dim_0, [(32, 32), (64, 32)]) # output shape: (96, 32)
+  verify_module(module_concat_dim_0, [(32, 32, 32), (64, 32, 32)]) # output shape: (96, 32, 32)
+  verify_module(module_concat_dim_1, [(32, 32), (32, 64)]) # output shape: (32, 96)
+  verify_module(module_concat_dim_1, [(32, 32, 32), (32, 32, 32)]) # output shape: (32, 64, 32)
+  verify_module(module_concat_dim_2, [(32, 32, 32), (32, 32, 64)]) # output shape: (32, 32, 96)
+  verify_module(module_concat_dim_2, [(32, 32, 32, 32),(32, 32, 64, 32)]) # output shape: (32, 32, 96, 32)
+  verify_module(module_concat_dim_3, [(32, 32, 32, 32),(32, 32, 32, 64)]) # output shape: (32, 32, 32, 96)
+
 
 #error: 'ttir.constant' op failed to verify that all of {value, result} have same shape
 @pytest.mark.skip("Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615")
