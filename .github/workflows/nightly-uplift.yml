@@ -29,6 +29,8 @@ jobs:
           echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Update tt-mlir reference
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
             # Fetch the latest SHA using GitHub CLI
             LATEST_SHA=$(gh api repos/tenstorrent/tt-mlir/commits/main --jq '.sha')
