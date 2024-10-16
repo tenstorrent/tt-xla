@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+
 #include "common/module_builder.h"
 #include "status.h"
 
@@ -15,44 +16,45 @@
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/IR/MLIRContext.h"
 
-#include "mlir/IR/Attributes.h"              // from @llvm-project
-#include "mlir/IR/Builders.h"                // from @llvm-project
-#include "mlir/IR/BuiltinAttributes.h"       // from @llvm-project
-#include "mlir/IR/BuiltinOps.h"              // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"            // from @llvm-project
-#include "mlir/IR/MLIRContext.h"             // from @llvm-project
-#include "mlir/IR/OwningOpRef.h"             // from @llvm-project
-#include "mlir/IR/Visitors.h"                // from @llvm-project
-#include "mlir/Parser/Parser.h"              // from @llvm-project
-#include "mlir/Pass/PassManager.h"           // from @llvm-project
-#include "mlir/Support/LLVM.h"               // from @llvm-project
-#include "mlir/Support/LogicalResult.h"      // from @llvm-project
-#include "mlir/Transforms/Passes.h"          // from @llvm-project
-#include "stablehlo/dialect/ChloOps.h"       // from @stablehlo
-#include "stablehlo/dialect/Register.h"      // from @stablehlo
-#include "stablehlo/dialect/Serialization.h" // from @stablehlo
+
+#include "mlir/IR/Attributes.h"  // from @llvm-project
+#include "mlir/IR/Builders.h"  // from @llvm-project
+#include "mlir/IR/BuiltinAttributes.h"  // from @llvm-project
+#include "mlir/IR/BuiltinOps.h"  // from @llvm-project
+#include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
+#include "mlir/IR/MLIRContext.h"  // from @llvm-project
+#include "mlir/IR/OwningOpRef.h"  // from @llvm-project
+#include "mlir/IR/Visitors.h"  // from @llvm-project
+#include "mlir/Parser/Parser.h"  // from @llvm-project
+#include "mlir/Pass/PassManager.h"  // from @llvm-project
+#include "mlir/Support/LLVM.h"  // from @llvm-project
+#include "mlir/Support/LogicalResult.h"  // from @llvm-project
+#include "mlir/Transforms/Passes.h"  // from @llvm-project
+#include "stablehlo/dialect/ChloOps.h"  // from @stablehlo
+#include "stablehlo/dialect/Register.h"  // from @stablehlo
+#include "stablehlo/dialect/Serialization.h"  // from @stablehlo
 #include "stablehlo/dialect/StablehloOps.h"  // from @stablehlo
-#include "stablehlo/transforms/Passes.h"     // from @stablehlo
+#include "stablehlo/transforms/Passes.h"  // from @stablehlo
 
 #define TTMLIR_ENABLE_STABLEHLO
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
-#include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
-#include "loguru/loguru.hpp"
 #include "tt/runtime/runtime.h"
+#include "loguru/loguru.hpp"
 namespace tt::pjrt {
 
-void ModuleBuilder::BuildModule(std::string_view code, std::string_view format,
-                                mlir::MLIRContext &context) {
+
+void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, mlir::MLIRContext& context) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::BuildModule");
 
   int log_level = loguru::g_stderr_verbosity;
   // Register all the required dialects.
   mlir::DialectRegistry registry;
-
+      
   registry.insert<mlir::arith::ArithDialect>();
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::ml_program::MLProgramDialect>();
