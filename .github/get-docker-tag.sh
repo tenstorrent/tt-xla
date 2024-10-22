@@ -9,20 +9,17 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Silence stdout
-# exec 3>&1 1>/dev/null 2>&1
-
 # Execute this in a separate bash process
 (
     # Read tt-mlir version from third_party/CMakeLists.txt and clone third_party/tt-mlir
     # Get the MLIR docker tag
     TT_MLIR_VERSION=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
     if [ ! -d "third_party/tt-mlir" ]; then
-        git clone https://github.com/tenstorrent/tt-mlir.git third_party/tt-mlir
+        git clone https://github.com/tenstorrent/tt-mlir.git third_party/tt-mlir --quiet
     fi
     cd third_party/tt-mlir
-    git fetch
-    git checkout $TT_MLIR_VERSION
+    git fetch --quiet
+    git checkout $TT_MLIR_VERSION --quiet
     if [ -f ".github/get-docker-tag.sh" ]; then
         MLIR_DOCKER_TAG=$(.github/get-docker-tag.sh)
     else
@@ -30,9 +27,6 @@ set -e
     fi
     cd ../..
 )
-
-# Restore stdout
-# exec 1>&3 3>&-
 
 DOCKERFILE_HASH_FILES=".github/Dockerfile.base .github/Dockerfile.ci"
 DOCKERFILE_HASH=$( (echo $MLIR_DOCKER_TAG; sha256sum $DOCKERFILE_HASH_FILES) | sha256sum | cut -d ' ' -f 1)
