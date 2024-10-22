@@ -16,11 +16,12 @@ RUN mkdir -p $BUILD_DIR && \
 # Copy the project from host, cloned in build-image.yml
 COPY . $BUILD_DIR/$PROJECT_NAME
 
+WORKDIR $BUILD_DIR/$PROJECT_NAME
+
 # Show last commit
 RUN git log -1
 
 # Build the toolchain
-WORKDIR $BUILD_DIR/$PROJECT_NAME
 RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     cd third_party/tt-mlir/src/tt-mlir/ && \
     source env/activate && \
