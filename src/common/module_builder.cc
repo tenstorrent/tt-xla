@@ -96,10 +96,14 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   {
       throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
   }
-  DLOG_F(LOG_DEBUG, "TTIR Module");
+  shlo_pm.addPass(mlir::tt::ttir::createTTIRGatherPatternMatch());
+  if (mlir::failed(shlo_pm.run(mlir_module.get())))
+  {
+      throw std::runtime_error("Failed to convert gather op");
+  }
+  DLOG_F(LOG_DEBUG, "TTIR to TTIR Module");
   if (log_level > 0)
     mlir_module->dump();
-
 
   mlir::PassManager pm(mlir_module.get()->getName());
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
