@@ -1,11 +1,9 @@
-ARG GIT_SHA
-ARG FROM_TAG=${GIT_SHA:-latest}
+ARG FROM_TAG=latest
 
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci-build
 SHELL ["/bin/bash", "-c"]
 
 # Create a directory for the build and toolchain
-ARG GIT_SHA
 ENV PROJECT_NAME=tt-xla
 ENV BUILD_DIR=/home/build
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
@@ -17,6 +15,9 @@ RUN mkdir -p $BUILD_DIR && \
 
 # Copy the project from host, cloned in build-image.yml
 COPY . $BUILD_DIR/$PROJECT_NAME
+
+# Show last commit
+RUN git log -1
 
 # Build the toolchain
 WORKDIR $BUILD_DIR/$PROJECT_NAME
