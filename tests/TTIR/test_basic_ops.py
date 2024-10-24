@@ -26,6 +26,13 @@ def test_broadcast_op():
 
   verify_module(module_broadcast, [(2, 1)])
 
+def test_cbrt_op():
+  def module_cbrt(a):
+    return jax.lax.cbrt(a)
+
+  verify_module(module_cbrt, [(3, 3)], required_atol=2e-2) # ATOL is 0.010040640830993652
+  verify_module(module_cbrt, [(3, 3, 3)], required_atol=2e-2)
+
 def test_concat_op():
   def module_concat_dim_0(x, y):
     return jnp.concatenate([x, y], axis=0)
