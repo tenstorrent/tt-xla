@@ -39,6 +39,7 @@ std::pair<tt::target::DataType, size_t> MapBufferTypeToElementType(PJRT_Buffer_T
     case PJRT_Buffer_Type_S4:
     case PJRT_Buffer_Type_S8:
     case PJRT_Buffer_Type_S16:
+      return std::make_pair(tt::target::DataType::UInt16, 2);
     case PJRT_Buffer_Type_S32:
     case PJRT_Buffer_Type_S64:
     case PJRT_Buffer_Type_U4:
