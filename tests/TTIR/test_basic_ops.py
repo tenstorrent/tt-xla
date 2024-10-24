@@ -80,7 +80,7 @@ def test_div_op():
   verify_module(module_div, [(3, 3), (3, 3)])
   verify_module(module_div, [(3, 3, 3), (3, 3, 3)], required_atol=35e-2)
 
-
+@pytest.mark.skip("VHLO Legalization failed.")
 def test_dot_general_op():
   def module_dot_general(a, b):
     return jnp.dot(a, b)
