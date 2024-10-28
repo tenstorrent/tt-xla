@@ -35,6 +35,8 @@
 #include "stablehlo/dialect/Serialization.h"  // from @stablehlo
 #include "stablehlo/dialect/StablehloOps.h"  // from @stablehlo
 #include "stablehlo/transforms/Passes.h"  // from @stablehlo
+#include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
+#include "ttmlir/RegisterAll.h"
 
 #define TTMLIR_ENABLE_STABLEHLO
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
@@ -60,8 +62,10 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   registry.insert<mlir::ml_program::MLProgramDialect>();
   registry.insert<mlir::shape::ShapeDialect>();
 
+  mlir::tt::registerAllDialects(registry);
   mlir::stablehlo::registerAllDialects(registry);
   mlir::func::registerAllExtensions(registry);
+  mlir::tt::registerAllExtensions(registry);
 
   context.appendDialectRegistry(registry);
 
@@ -89,8 +93,13 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   mlir::tt::ttir::registerPasses();
   mlir::tt::ttnn::registerPasses();
 
-  mlir::PassManager shlo_pm(mlir_module.get()->getName());
-  shlo_pm.addPass(mlir::tt::createConvertStableHLOToTTIRPass());
+  // Implicit nesting required to call the stablehlo.composite --> func.call conversion.
+  mlir::PassManager shlo_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
+  mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
+  shlo_options.arithDialectConversionsEnabled = true;
+  shlo_options.removeDeadValuesEnabled = true;
+  shlo_options.legalizeCompositeToCallEnabled = true;
+  mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_pm, shlo_options);
   // Run the pass manager.
   if (mlir::failed(shlo_pm.run(mlir_module.get())))
   {
