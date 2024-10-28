@@ -32,7 +32,9 @@ def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e
 
   if not tensor.flatten().size == 1: #pcc invalid for scalar values
     pcc = jnp.min(jnp.corrcoef(tensor.flatten(), golden.flatten()))
-    ret = ret and pcc >= required_pcc
+    print("pcc=", tensor.flatten())
+    print("pcc2=", golden.flatten())
+    ret = ret and (pcc >= required_pcc or (tensor.flatten() == golden.flatten()).all())
     if assert_on_error:
       assert ret, f"PCC is {pcc} which is less than {required_pcc}"
   
@@ -47,6 +49,7 @@ def verify_module(module, input_shapes, key=42, required_pcc=0.99, required_atol
   tt_device = jax.devices()[0]
   cpu_inputs = [random_input_tensor(input_shapes[i], key + i, dtype=dtype) for i in range(len(input_shapes))]
   tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
+  print(cpu_inputs)
   graph = jax.jit(module)
   res = graph(*tt_inputs)
   res_cpu = graph(*cpu_inputs)
