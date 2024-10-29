@@ -32,7 +32,7 @@ def compare_tensor_to_golden(tensor, golden, required_pcc=0.99, required_atol=1e
 
   if not tensor.flatten().size == 1: #pcc invalid for scalar values
     pcc = jnp.min(jnp.corrcoef(tensor.flatten(), golden.flatten()))
-    ret = ret and pcc >= required_pcc
+    ret = ret and (pcc >= required_pcc or (tensor.flatten() == golden.flatten()).all())
     if assert_on_error:
       assert ret, f"PCC is {pcc} which is less than {required_pcc}"
   
