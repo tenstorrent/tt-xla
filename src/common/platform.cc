@@ -2,20 +2,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// This file incorporates work covered by the following copyright and permission notice:
+// This file incorporates work covered by the following copyright and permission
+// notice:
 // SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
 #include "common/platform.h"
 
-#include <cstdlib>
-#include <iostream>
-#include <cstring>
 #include "loguru/loguru.hpp"
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 
 namespace tt::pjrt {
-
 
 //===----------------------------------------------------------------------===//
 // Platform
@@ -24,7 +24,7 @@ namespace tt::pjrt {
 Platform::~Platform() = default;
 
 void Platform::InitializeLogging() {
-  
+
   loguru::g_stderr_verbosity = 0;
   const char *loguru_verbosity = std::getenv("LOGGER_LEVEL");
   if (loguru_verbosity) {
@@ -36,8 +36,7 @@ void Platform::InitializeLogging() {
       loguru::g_stderr_verbosity = -1;
     } else if (strcmp(loguru_verbosity, "ERROR") == 0) {
       loguru::g_stderr_verbosity = -2;
-    }
-    else {
+    } else {
       LOG_F(ERROR, "Invalid LOGGER_LEVEL: %s", loguru_verbosity);
     }
   }
@@ -46,10 +45,10 @@ void Platform::InitializeLogging() {
 tt_pjrt_status Platform::Initialize() {
   DLOG_F(LOG_DEBUG, "Platform::Initialize");
   InitializeLogging();
-  
+
   SubclassInitialize();
 
   return tt_pjrt_status::kSuccess;
 }
 
-}  // namespace tt::pjrt
+} // namespace tt::pjrt

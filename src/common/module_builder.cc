@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 #include "common/module_builder.h"
 #include "status.h"
 
@@ -16,47 +15,46 @@
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/IR/MLIRContext.h"
 
-
-#include "mlir/IR/Attributes.h"  // from @llvm-project
-#include "mlir/IR/Builders.h"  // from @llvm-project
-#include "mlir/IR/BuiltinAttributes.h"  // from @llvm-project
-#include "mlir/IR/BuiltinOps.h"  // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
-#include "mlir/IR/MLIRContext.h"  // from @llvm-project
-#include "mlir/IR/OwningOpRef.h"  // from @llvm-project
-#include "mlir/IR/Visitors.h"  // from @llvm-project
-#include "mlir/Parser/Parser.h"  // from @llvm-project
-#include "mlir/Pass/PassManager.h"  // from @llvm-project
-#include "mlir/Support/LLVM.h"  // from @llvm-project
-#include "mlir/Support/LogicalResult.h"  // from @llvm-project
-#include "mlir/Transforms/Passes.h"  // from @llvm-project
-#include "stablehlo/dialect/ChloOps.h"  // from @stablehlo
-#include "stablehlo/dialect/Register.h"  // from @stablehlo
-#include "stablehlo/dialect/Serialization.h"  // from @stablehlo
+#include "mlir/IR/Attributes.h"              // from @llvm-project
+#include "mlir/IR/Builders.h"                // from @llvm-project
+#include "mlir/IR/BuiltinAttributes.h"       // from @llvm-project
+#include "mlir/IR/BuiltinOps.h"              // from @llvm-project
+#include "mlir/IR/BuiltinTypes.h"            // from @llvm-project
+#include "mlir/IR/MLIRContext.h"             // from @llvm-project
+#include "mlir/IR/OwningOpRef.h"             // from @llvm-project
+#include "mlir/IR/Visitors.h"                // from @llvm-project
+#include "mlir/Parser/Parser.h"              // from @llvm-project
+#include "mlir/Pass/PassManager.h"           // from @llvm-project
+#include "mlir/Support/LLVM.h"               // from @llvm-project
+#include "mlir/Support/LogicalResult.h"      // from @llvm-project
+#include "mlir/Transforms/Passes.h"          // from @llvm-project
+#include "stablehlo/dialect/ChloOps.h"       // from @stablehlo
+#include "stablehlo/dialect/Register.h"      // from @stablehlo
+#include "stablehlo/dialect/Serialization.h" // from @stablehlo
 #include "stablehlo/dialect/StablehloOps.h"  // from @stablehlo
-#include "stablehlo/transforms/Passes.h"  // from @stablehlo
+#include "stablehlo/transforms/Passes.h"     // from @stablehlo
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/RegisterAll.h"
 
 #define TTMLIR_ENABLE_STABLEHLO
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
-#include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
+#include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
-#include "tt/runtime/runtime.h"
 #include "loguru/loguru.hpp"
+#include "tt/runtime/runtime.h"
 namespace tt::pjrt {
 
-
-void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, mlir::MLIRContext& context) {
+void ModuleBuilder::BuildModule(std::string_view code, std::string_view format,
+                                mlir::MLIRContext &context) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::BuildModule");
 
   int log_level = loguru::g_stderr_verbosity;
   // Register all the required dialects.
   mlir::DialectRegistry registry;
-      
+
   registry.insert<mlir::arith::ArithDialect>();
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::ml_program::MLProgramDialect>();
@@ -82,9 +80,8 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   mlir::PassManager vhlo_pm(mlir_module.get()->getName());
   vhlo_pm.addPass(mlir::stablehlo::createVhloLegalizeToStablehloPass());
   // Run the pass manager.
-  if (mlir::failed(vhlo_pm.run(mlir_module.get())))
-  {
-      throw std::runtime_error("Failed to run VHLO Legalization pass pipeline.");
+  if (mlir::failed(vhlo_pm.run(mlir_module.get()))) {
+    throw std::runtime_error("Failed to run VHLO->SHLO pipeline.");
   }
   DLOG_F(LOG_DEBUG, "SHLO Module");
   if (log_level > 0)
@@ -93,48 +90,45 @@ void ModuleBuilder::BuildModule(std::string_view code, std::string_view format, 
   mlir::tt::ttir::registerPasses();
   mlir::tt::ttnn::registerPasses();
 
-  // Implicit nesting required to call the stablehlo.composite --> func.call conversion.
-  mlir::PassManager shlo_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
+  // Implicit nesting required to call the stablehlo.composite --> func.call
+  // conversion.
+  mlir::PassManager shlo_pm(mlir_module.get()->getName(),
+                            mlir::PassManager::Nesting::Implicit);
   mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.removeDeadValuesEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_pm, shlo_options);
   // Run the pass manager.
-  if (mlir::failed(shlo_pm.run(mlir_module.get())))
-  {
-      throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
+  if (mlir::failed(shlo_pm.run(mlir_module.get()))) {
+    throw std::runtime_error("Failed to run SHLO->TTIR pipeline.");
   }
   DLOG_F(LOG_DEBUG, "TTIR Module");
   if (log_level > 0)
     mlir_module->dump();
 
-
   mlir::PassManager pm(mlir_module.get()->getName());
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(pm, options);
-  
-  // Run the pass manager.
-  if (mlir::failed(pm.run(mlir_module.get())))
-  {
-      throw std::runtime_error("Failed to run MLIR compiler pass pipeline.");
-  }
 
+  // Run the pass manager.
+  if (mlir::failed(pm.run(mlir_module.get()))) {
+    throw std::runtime_error("Failed to run TTIR->TTNN pipeline.");
+  }
+  DLOG_F(LOG_DEBUG, "TTNN Module");
   if (log_level > 0)
     mlir_module->dump();
 
   binary_ptr_ = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
- 
-  if (binary_ptr_ == nullptr)
-  {
-      throw std::runtime_error("Failed to generate flatbuffer binary."); 
+
+  if (binary_ptr_ == nullptr) {
+    throw std::runtime_error("Failed to generate flatbuffer binary.");
   }
 
   binary_ = std::make_unique<tt::runtime::Binary>(binary_ptr_);
   num_outputs_ = binary_->getProgramOutputs(0).size();
   num_inputs_ = binary_->getProgramInputs(0).size();
   return;
-    
 }
 
-}  // namespace tt::pjrt
+} // namespace tt::pjrt

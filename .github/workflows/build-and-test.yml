@@ -60,7 +60,7 @@ jobs:
   #   - name: 'Tar install directory and metal lib directory'
   #     shell: bash
   #     working-directory: ${{ steps.strings.outputs.install-output-dir }}
-  #     run: | 
+  #     run: |
   #       tar cvf artifact.tar .
 
   #   - name: Upload install folder to archive
@@ -151,4 +151,3 @@ jobs:
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
         pytest -v tests/
-
