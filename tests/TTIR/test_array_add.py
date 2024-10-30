@@ -3,34 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-import jax
-import jax.numpy as jnp
 
-from infrastructure import verify_module
+from infrastructure import verify_test_module
 
-def test_2x2_array_add():
-  def module_add(a, b):
+
+@verify_test_module([(2, 2), (2, 2)], [(3, 2), (3, 2)])
+def test_add(a, b):
     return a + b
 
-  verify_module(module_add, [(2, 2), (2, 2)])
-
-
-def test_3x2_array_add():
-  def module_add(a, b):
-    return a + b
-
-  verify_module(module_add, [(3, 2), (3, 2)])
 
 @pytest.mark.parametrize("rank", [1, 2, 3, 4, 5, 6])
 def test_module_add(rank):
-  def module_add(a, b):
-    c = a + a
-    d = b + b
-    return c + d
+    input_shape = (32,) if rank == 1 else (1,) * (rank - 2) + (32, 32)
 
-  input_shape = []
-  for i in range(rank):
-    input_shape.insert(0, 32 if i < 2 else 1)
+    @verify_test_module([input_shape, input_shape])
+    def module_add(a, b):
+        c = a + a
+        d = b + b
+        return c + d
 
-  input_shape = tuple(input_shape)
-  verify_module(module_add, [input_shape, input_shape])
+    module_add()

@@ -4,33 +4,35 @@
 
 import pytest
 import jax
-import jax.numpy as jnp
 
-from infrastructure import verify_module
+from infrastructure import verify_test_module
 
 
-@pytest.mark.skip("Module contains function used inside the main function. Cannot compile Flatbuffer.")
+@pytest.mark.skip(
+    "Module contains function used inside the main function. Cannot compile Flatbuffer."
+)
 def test_gradient():
-  def simple_gradient(a):
-    def gradient(a):
-      return (a ** 2).sum()
+    @verify_test_module([(2, 2)])
+    def simple_gradient(a):
+        def gradient(a):
+            return (a**2).sum()
 
-    return jax.grad(gradient)(a)
+        return jax.grad(gradient)(a)
 
-  verify_module(simple_gradient, [(2, 2)])
+    simple_gradient()
 
 
 @pytest.mark.skip("TT_METAL_HOME is not set.")
+@verify_test_module([(1, 2), (1, 1), (2, 1), (1, 1)])
 def test_simple_regression():
-  def simple_regression(weights, bias, X, y):
-    def loss(weights, bias, X, y):
-      predict = X.dot(weights) + bias
-      return ((predict - y) ** 2).sum()
+    def simple_regression(weights, bias, X, y):
+        def loss(weights, bias, X, y):
+            predict = X.dot(weights) + bias
+            return ((predict - y) ** 2).sum()
 
-    # Compute gradient and update weights
-    weights -= jax.grad(loss)(weights, bias, X, y)
+        # Compute gradient and update weights
+        weights -= jax.grad(loss)(weights, bias, X, y)
 
-    return weights
-    
-  verify_module(simple_regression, [(1, 2), (1,1), (2, 1), (1, 1)])
+        return weights
 
+    simple_regression()

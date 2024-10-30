@@ -6,7 +6,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 
-from infrastructure import verify_module
+from infrastructure import verify_test_module
 
 
 @pytest.mark.parametrize(
@@ -33,13 +33,12 @@ from infrastructure import verify_module
         # (1, 512, 512, 7, 7, 3, 3, 1, 1, 1), Requires block sharding
         # (1, 2048, 512, 7, 7, 1, 1, 1, 1, 0), Requires block sharding
         # (1, 512, 2048, 7, 7, 1, 1, 1, 1, 0), Requires block sharding
-
         # MISCELLANEOUS
         (1, 64, 16, 115, 115, 4, 4, 1, 1, 0),
         (1, 64, 64, 8, 8, 3, 3, 1, 1, 1),
         (1, 64, 64, 16, 16, 3, 3, 1, 1, 1),
         (1, 256, 256, 7, 7, 3, 3, 1, 1, 1),
-        (1, 256, 64, 56, 56, 1, 1, 2, 2, 0), 
+        (1, 256, 64, 56, 56, 1, 1, 2, 2, 0),
     ),
 )
 def test_conv2d(
@@ -52,16 +51,27 @@ def test_conv2d(
     filter_width,
     stride_h,
     stride_w,
-    padding
+    padding,
 ):
-  def module_conv(img, weights):
-    return jax.lax.conv_general_dilated(img, weights, [stride_h, stride_w], [[padding]*2]*2, dimension_numbers=('NHWC', 'OIHW', 'NHWC'))
-  
+    img_shape = (batch_size, input_height, input_width, input_channels)
+    weights_shape = (output_channels, input_channels, filter_height, filter_width)
 
-  img_shape = (batch_size, input_height, input_width, input_channels)
-  weights_shape = (output_channels, input_channels, filter_height, filter_width)
+    # Some resnet convolutions seem to require bfloat16, ttnn throws in runtime otherwise.
+    # On another note, MaxPool2d is also only supported for bfloat16 in ttnn, so we have
+    # to run resnet in bfloat16 for the time being.
+    @verify_test_module(
+        [img_shape, weights_shape],
+        required_pcc=0.95,
+        required_atol=float("inf"),
+        dtype=jnp.bfloat16,
+    )
+    def module_conv(img, weights):
+        return jax.lax.conv_general_dilated(
+            img,
+            weights,
+            [stride_h, stride_w],
+            [[padding] * 2] * 2,
+            dimension_numbers=("NHWC", "OIHW", "NHWC"),
+        )
 
-  # Some resnet convolutions seem to require bfloat16, ttnn throws in runtime otherwise.
-  # On another note, MaxPool2d is also only supported for bfloat16 in ttnn, so we have
-  # to run resnet in bfloat16 for the time being.
-  verify_module(module_conv, [img_shape, weights_shape], required_pcc=0.95, required_atol=float("inf"), dtype=jnp.bfloat16)
+    module_conv()
