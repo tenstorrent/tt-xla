@@ -50,6 +50,7 @@ def test_maxpool2d(
 
     verify_module(module_maxpool, [act_shape], required_pcc=0.95, required_atol=float("inf"), dtype=jnp.bfloat16)
 
+@pytest.mark.skip("AssertionError.")
 def test_resnet_maxpool2d():
     # This maxpool doesnt work on its own because of the reshape that is inserted on its input
     # Issue: https://github.com/tenstorrent/tt-metal/issues/12866

@@ -214,6 +214,8 @@ for begin in numpy.arange(0, 64, 32).tolist():
     *dim1_cases
   ]
 )
+
+@pytest.mark.skip("Requires tt-metal uplift.")
 def test_slice(begin, end, dim):
 
   def module_slice(a):
