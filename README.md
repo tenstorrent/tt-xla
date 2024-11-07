@@ -26,3 +26,19 @@ tt-xla repo contains various tests in `tests` directory. To run them, please run
 ## Common Build Errors (tt-xla repo)
 - Building `tt-xla` requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` link to correct version of respective tools.
 - `tt-xla` also builds `tt-metal` and it may cause `sfpi-trisc-ncrisc-build-failure`. Please use this [fix](https://docs.tenstorrent.com/tt-mlir/build.html#sfpi-trisc-ncrisc-build-failure).
+
+### Pre-Commit
+Pre-Commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install from the root of the repository using:
+
+```bash
+source venv/activate
+pre-commit install
+```
+
+If you have already committed before installing the pre-commit hooks, you can run on all files to "catch up":
+
+```bash
+pre-commit run --all-files
+```
+
+For more information visit [pre-commit](https://pre-commit.com/)

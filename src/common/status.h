@@ -12,29 +12,29 @@
 
 namespace tt::pjrt {
 
-  enum class tt_pjrt_status {
-    kSuccess = 0,
-    kCancelled = 1,
-    kUnknown = 2,
-    kInvalidArgument = 3,
-    kDeadlineExceeded = 4,
-    kNotFound = 5,
-    kAlreadyExists = 6,
-    kPermissionDenied = 7,
-    kResourceExhausted = 8,
-    kFailedPrecondition = 9,
-    kAborted = 10,
-    kOutOfRange = 11,
-    kUnimplemented = 12,
-    kInternal = 13,
-    kUnavailable = 14,
-    kDataLoss = 15,
-    kUnauthenticated = 16,
-  };
+enum class tt_pjrt_status {
+  kSuccess = 0,
+  kCancelled = 1,
+  kUnknown = 2,
+  kInvalidArgument = 3,
+  kDeadlineExceeded = 4,
+  kNotFound = 5,
+  kAlreadyExists = 6,
+  kPermissionDenied = 7,
+  kResourceExhausted = 8,
+  kFailedPrecondition = 9,
+  kAborted = 10,
+  kOutOfRange = 11,
+  kUnimplemented = 12,
+  kInternal = 13,
+  kUnavailable = 14,
+  kDataLoss = 15,
+  kUnauthenticated = 16,
+};
 
-  inline bool tt_pjrt_status_is_ok(tt_pjrt_status status) {
-    return status == tt_pjrt_status::kSuccess;
-  }
-
+inline bool tt_pjrt_status_is_ok(tt_pjrt_status status) {
+  return status == tt_pjrt_status::kSuccess;
 }
+
+} // namespace tt::pjrt
 #endif // TT_PJRT_STATUS

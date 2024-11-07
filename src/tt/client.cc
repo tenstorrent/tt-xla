@@ -2,15 +2,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// This file incorporates work covered by the following copyright and permission notice:
-// SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
+// This file incorporates work covered by the following copyright and permission
+// notice: SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
 #include "tt/client.h"
 #include "common/status.h"
 #include <iostream>
-
 
 namespace tt::pjrt::device {
 
@@ -25,5 +24,4 @@ tt_pjrt_status TTClientInstance::InitializeDeps() {
   return tt_pjrt_status::kSuccess;
 }
 
-
-}  // namespace tt::pjrt::device
+} // namespace tt::pjrt::device

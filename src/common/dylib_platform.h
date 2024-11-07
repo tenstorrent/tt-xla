@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// This file incorporates work covered by the following copyright and permission notice:
+// This file incorporates work covered by the following copyright and permission
+// notice:
 // SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
@@ -18,7 +19,7 @@
 namespace tt::pjrt {
 
 class DylibPlatform final : public Platform {
- public:
+public:
   // Gets the IREE home directory, which is expected to contain
   //   bin/
   //   lib/
@@ -47,10 +48,10 @@ class DylibPlatform final : public Platform {
   // or computed from paths above.
   std::optional<std::string> GetPartitionerLibraryPath();
 
- protected:
+protected:
   tt_pjrt_status SubclassInitialize() override;
 };
 
-}  // namespace tt::pjrt
+} // namespace tt::pjrt
 
-#endif  // IREE_PJRT_PLUGIN_PJRT_COMMON_DYLIB_PLATFORM_H_
+#endif // IREE_PJRT_PLUGIN_PJRT_COMMON_DYLIB_PLATFORM_H_

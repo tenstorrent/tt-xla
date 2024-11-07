@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// This file incorporates work covered by the following copyright and permission notice:
+// This file incorporates work covered by the following copyright and permission
+// notice:
 // SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
@@ -11,20 +12,20 @@
 #define IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
 
 #include <atomic>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
-#include <iostream>
-#include <sstream>
 
-#include "common/platform.h"
 #include "common/module_builder.h"
-#include "xla/pjrt/c/pjrt_c_api.h"
+#include "common/platform.h"
 #include "tt/runtime/runtime.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -33,51 +34,50 @@ class DeviceInstance;
 class ErrorInstance;
 class EventInstance;
 
-
 class ErrorInstance {
- public:
+public:
   ErrorInstance(tt_pjrt_status status) : status_(status) {}
-  ~ErrorInstance() { }
-  static void BindApi(PJRT_Api* api);
+  ~ErrorInstance() {}
+  static void BindApi(PJRT_Api *api);
 
-  static const ErrorInstance* FromError(const PJRT_Error* error) {
-    return reinterpret_cast<const ErrorInstance*>(error);
+  static const ErrorInstance *FromError(const PJRT_Error *error) {
+    return reinterpret_cast<const ErrorInstance *>(error);
   }
 
   tt_pjrt_status status() const { return status_; }
-  const std::string& message() const;
+  const std::string &message() const;
 
- private:
+private:
   tt_pjrt_status status_;
   mutable std::string cached_message_;
 };
 
-inline PJRT_Error* MakeError(tt_pjrt_status status) {
+inline PJRT_Error *MakeError(tt_pjrt_status status) {
   if (tt_pjrt_status_is_ok(status)) {
     return nullptr;
   }
   auto alloced_error = std::make_unique<ErrorInstance>(status);
-  return reinterpret_cast<PJRT_Error*>(alloced_error.release());
+  return reinterpret_cast<PJRT_Error *>(alloced_error.release());
 }
 
 //===----------------------------------------------------------------------===//
 // BufferInstance
 //===----------------------------------------------------------------------===//
 class BufferInstance {
- public:
-  BufferInstance(DeviceInstance& device, tt::runtime::Tensor tensor, std::vector<std::uint32_t> shape, std::vector<std::uint32_t> stride);
-  BufferInstance(DeviceInstance& device);
+public:
+  BufferInstance(DeviceInstance &device, tt::runtime::Tensor tensor,
+                 std::vector<std::uint32_t> shape,
+                 std::vector<std::uint32_t> stride);
+  BufferInstance(DeviceInstance &device);
   ~BufferInstance();
-  operator PJRT_Buffer*() { return reinterpret_cast<PJRT_Buffer*>(this); }
-  static BufferInstance* Unwrap(PJRT_Buffer* buffer) {
-    return reinterpret_cast<BufferInstance*>(buffer);
+  operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
+  static BufferInstance *Unwrap(PJRT_Buffer *buffer) {
+    return reinterpret_cast<BufferInstance *>(buffer);
   }
-  static void BindApi(PJRT_Api* api);
+  static void BindApi(PJRT_Api *api);
 
   // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance& device() { 
-    return device_; 
-  }
+  DeviceInstance &device() { return device_; }
   tt_pjrt_status AsyncDeallocate();
   tt_pjrt_status Delete();
   bool is_deleted() { return is_deleted_; }
@@ -88,14 +88,13 @@ class BufferInstance {
   }
   tt::runtime::Tensor tensor() { return tensor_.value(); }
 
-  PJRT_Error* GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args* args);
+  PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
   // Gets the required host size in bytes to copy to host.
-  tt_pjrt_status GetHostSizeInBytes(size_t* host_size);
-  tt_pjrt_status CopyToHost(void* dst, size_t dst_size,
-                           EventInstance** done_event);
+  tt_pjrt_status GetHostSizeInBytes(size_t *host_size);
+  tt_pjrt_status CopyToHost(void *dst, size_t dst_size,
+                            EventInstance **done_event);
 
-
-  const int64_t* dims() { return dims_.data(); }
+  const int64_t *dims() { return dims_.data(); }
   size_t num_dims() { return dims_.size(); }
   void setType(PJRT_Buffer_Type Type) { DataType = Type; }
   std::optional<PJRT_Buffer_Type> getType() { return DataType; }
@@ -105,12 +104,12 @@ class BufferInstance {
 
   int unique_id() { return unique_id_; }
 
- private:
+private:
   static int id_counter_;
   int unique_id_;
   void ComputeLayout();
 
-  DeviceInstance& device_;
+  DeviceInstance &device_;
   // When the buffer resource gets freed, this is set to true.
   bool is_deleted_ = false;
 
@@ -132,37 +131,34 @@ class BufferInstance {
 //===----------------------------------------------------------------------===//
 
 class DeviceDescription {
- public:
-  DeviceDescription(int32_t client_id)
-      : client_id_(client_id) {};
+public:
+  DeviceDescription(int32_t client_id) : client_id_(client_id) {};
   ~DeviceDescription();
-  operator PJRT_DeviceDescription*() {
-    return reinterpret_cast<PJRT_DeviceDescription*>(this);
+  operator PJRT_DeviceDescription *() {
+    return reinterpret_cast<PJRT_DeviceDescription *>(this);
   }
-  static void BindApi(PJRT_Api* api);
+  static void BindApi(PJRT_Api *api);
 
-  static DeviceDescription* Unwrap(PJRT_DeviceDescription* device) {
-    return reinterpret_cast<DeviceDescription*>(device);
+  static DeviceDescription *Unwrap(PJRT_DeviceDescription *device) {
+    return reinterpret_cast<DeviceDescription *>(device);
   }
 
   std::string_view kind_string() { return kind_string_; }
   std::string_view debug_string() { return debug_string_; }
-  std::string_view user_string() { 
+  std::string_view user_string() {
     std::stringstream ss;
     ss << "TTDevice(id=" << device_id() << ")";
     user_string_ = ss.str();
-    return user_string_; 
+    return user_string_;
   }
-  //TODO
+  // TODO
   int64_t device_id() { return 0; }
 
   int client_id() { return client_id_; }
-  
+
   int process_index() { return 0; }
 
-
-
- private:
+private:
   int client_id_;
   std::string kind_string_ = "wormhole";
   std::string debug_string_ = "debug_string";
@@ -174,46 +170,50 @@ class DeviceDescription {
 //===----------------------------------------------------------------------===//
 
 class DeviceInstance {
- public:
-  DeviceInstance(int client_id, ClientInstance& client)
+public:
+  DeviceInstance(int client_id, ClientInstance &client)
       : client_(client), description_(client_id) {}
   ~DeviceInstance();
-  operator PJRT_Device*() { return reinterpret_cast<PJRT_Device*>(this); }
-  static void BindApi(PJRT_Api* api);
+  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
+  static void BindApi(PJRT_Api *api);
 
-  static DeviceInstance* Unwrap(PJRT_Device* device) {
-    return reinterpret_cast<DeviceInstance*>(device);
+  static DeviceInstance *Unwrap(PJRT_Device *device) {
+    return reinterpret_cast<DeviceInstance *>(device);
   }
 
-  static DeviceInstance* Unwrap(PJRT_DeviceDescription* device_description) {
-    return reinterpret_cast<DeviceInstance*>(device_description);
+  static DeviceInstance *Unwrap(PJRT_DeviceDescription *device_description) {
+    return reinterpret_cast<DeviceInstance *>(device_description);
   }
-  ClientInstance& client() { return client_; }
+  ClientInstance &client() { return client_; }
   bool is_addressable() { return true; }
   int local_hardware_id() { return -1; }
 
-  tt_pjrt_status HostBufferToDeviceZeroDim(
-      PJRT_Buffer_Type type, const int64_t* dims, size_t num_dims,
-      EventInstance** out_done_with_host_buffer_event,
-      BufferInstance** out_buffer);
+  tt_pjrt_status
+  HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
+                            size_t num_dims,
+                            EventInstance **out_done_with_host_buffer_event,
+                            BufferInstance **out_buffer);
 
-  tt_pjrt_status HostBufferToDeviceSplat(
-      const void* data, PJRT_Buffer_Type type, const int64_t* dims,
-      size_t num_dims, EventInstance** out_done_with_host_buffer_event,
-      BufferInstance** out_buffer);
+  tt_pjrt_status
+  HostBufferToDeviceSplat(const void *data, PJRT_Buffer_Type type,
+                          const int64_t *dims, size_t num_dims,
+                          EventInstance **out_done_with_host_buffer_event,
+                          BufferInstance **out_buffer);
 
-  tt_pjrt_status HostBufferToDevice(
-      const void* data, PJRT_Buffer_Type type, const int64_t* dims,
-      size_t num_dims, const int64_t* byte_strides, size_t num_byte_strides,
-      PJRT_HostBufferSemantics host_buffer_semantics,
-      EventInstance** out_done_with_host_buffer_event,
-      BufferInstance** out_buffer);
+  tt_pjrt_status
+  HostBufferToDevice(const void *data, PJRT_Buffer_Type type,
+                     const int64_t *dims, size_t num_dims,
+                     const int64_t *byte_strides, size_t num_byte_strides,
+                     PJRT_HostBufferSemantics host_buffer_semantics,
+                     EventInstance **out_done_with_host_buffer_event,
+                     BufferInstance **out_buffer);
 
-  DeviceDescription* device_description() { return &description_; }
- private:
+  DeviceDescription *device_description() { return &description_; }
+
+private:
   tt_pjrt_status OpenDevice();
 
-  ClientInstance& client_;
+  ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
   DeviceDescription description_;
 };
@@ -223,40 +223,41 @@ class DeviceInstance {
 //===----------------------------------------------------------------------===//
 
 class EventInstance {
- public:
+public:
   EventInstance();
   ~EventInstance();
-  operator PJRT_Event*() { return reinterpret_cast<PJRT_Event*>(this); }
-  static void BindApi(PJRT_Api* api);
-  static EventInstance* Unwrap(PJRT_Event* exe) {
-    return reinterpret_cast<EventInstance*>(exe);
+  operator PJRT_Event *() { return reinterpret_cast<PJRT_Event *>(this); }
+  static void BindApi(PJRT_Api *api);
+  static EventInstance *Unwrap(PJRT_Event *exe) {
+    return reinterpret_cast<EventInstance *>(exe);
   }
 
-  tt_pjrt_status OnReady(PJRT_Event_OnReadyCallback callback, void* user_arg);
-  ErrorInstance* error();
+  tt_pjrt_status OnReady(PJRT_Event_OnReadyCallback callback, void *user_arg);
+  ErrorInstance *error();
   bool is_ready();
 
- private:
+private:
   void SignalReady(tt_pjrt_status status);
 
   std::mutex lock_;
   tt_pjrt_status status_ = tt_pjrt_status::kSuccess;
   bool is_ready_;
-  std::vector<std::pair<PJRT_Event_OnReadyCallback, void*>> pending_callbacks_;
+  std::vector<std::pair<PJRT_Event_OnReadyCallback, void *>> pending_callbacks_;
   std::unique_ptr<std::thread> signal_thread_;
 };
 
-
 struct ExecutableImage {
-  ExecutableImage(std::shared_ptr<void> binary, std::string code, size_t arg_count, size_t result_count)
-      : ref_count(1), binary(std::move(binary)), code(code), arg_count(arg_count), result_count(result_count) {}
-  operator PJRT_Executable*() {
-    return reinterpret_cast<PJRT_Executable*>(this);
+  ExecutableImage(std::shared_ptr<void> binary, std::string code,
+                  size_t arg_count, size_t result_count)
+      : ref_count(1), binary(std::move(binary)), code(code),
+        arg_count(arg_count), result_count(result_count) {}
+  operator PJRT_Executable *() {
+    return reinterpret_cast<PJRT_Executable *>(this);
   }
-  static ExecutableImage* Unwrap(PJRT_Executable* exe) {
-    return reinterpret_cast<ExecutableImage*>(exe);
+  static ExecutableImage *Unwrap(PJRT_Executable *exe) {
+    return reinterpret_cast<ExecutableImage *>(exe);
   }
-  static void BindApi(PJRT_Api* api);
+  static void BindApi(PJRT_Api *api);
 
   void AddRef() { ref_count.fetch_add(1); }
   void DecRef() {
@@ -265,11 +266,11 @@ struct ExecutableImage {
     }
   }
 
- private:
+private:
   // The reference count. Must be disposed when reaching zero.
   std::atomic<int> ref_count;
 
- public:
+public:
   // Raw compiler output.
   std::shared_ptr<void> binary;
 
@@ -280,49 +281,46 @@ struct ExecutableImage {
   size_t result_count;
 };
 
-
 struct ResidentExecutable {
-  DeviceInstance* device_instance;
+  DeviceInstance *device_instance;
   size_t arg_count;
   size_t result_count;
 };
 
-
 class LoadedExecutableInstance {
- public:
+public:
   LoadedExecutableInstance(
-      ClientInstance& client, ExecutableImage* image,
-      const std::vector<DeviceInstance*>& addressable_devices)
-      : client_(client),
-        image_(image),
+      ClientInstance &client, ExecutableImage *image,
+      const std::vector<DeviceInstance *> &addressable_devices)
+      : client_(client), image_(image),
         addressable_devices_(addressable_devices) {}
   ~LoadedExecutableInstance() { image_->DecRef(); }
 
-  operator PJRT_LoadedExecutable*() {
-    return reinterpret_cast<PJRT_LoadedExecutable*>(this);
+  operator PJRT_LoadedExecutable *() {
+    return reinterpret_cast<PJRT_LoadedExecutable *>(this);
   }
-  static void BindApi(PJRT_Api* api);
-  static LoadedExecutableInstance* Unwrap(PJRT_LoadedExecutable* exe) {
-    return reinterpret_cast<LoadedExecutableInstance*>(exe);
+  static void BindApi(PJRT_Api *api);
+  static LoadedExecutableInstance *Unwrap(PJRT_LoadedExecutable *exe) {
+    return reinterpret_cast<LoadedExecutableInstance *>(exe);
   }
 
-  const std::vector<DeviceInstance*>& addressable_devices() {
+  const std::vector<DeviceInstance *> &addressable_devices() {
     return addressable_devices_;
   }
 
   // Loads all executables to addressable devices.
   tt_pjrt_status LoadAll();
 
-  tt_pjrt_status GetDefaultResidentExecutable(ResidentExecutable** out_loaded);
-  tt_pjrt_status GetArgResultCount(size_t* out_arg_count,
-                                  size_t* out_result_count);
+  tt_pjrt_status GetDefaultResidentExecutable(ResidentExecutable **out_loaded);
+  tt_pjrt_status GetArgResultCount(size_t *out_arg_count,
+                                   size_t *out_result_count);
 
-  tt_pjrt_status Execute(PJRT_LoadedExecutable_Execute_Args* args);
+  tt_pjrt_status Execute(PJRT_LoadedExecutable_Execute_Args *args);
 
- private:
-  ClientInstance& client_;
-  ExecutableImage* image_;  // Ref-counted semantics.
-  std::vector<DeviceInstance*> addressable_devices_;
+private:
+  ClientInstance &client_;
+  ExecutableImage *image_; // Ref-counted semantics.
+  std::vector<DeviceInstance *> addressable_devices_;
   std::vector<ResidentExecutable> resident_executables_;
 };
 
@@ -333,52 +331,51 @@ class LoadedExecutableInstance {
 //===----------------------------------------------------------------------===//
 
 class ClientInstance {
- public:
+public:
   ClientInstance(std::unique_ptr<Platform> platform);
   virtual ~ClientInstance();
 
   // Binds monomorphic entry-points for the client.
-  static void BindApi(PJRT_Api* api);
+  static void BindApi(PJRT_Api *api);
 
-  static ClientInstance* Unwrap(PJRT_Client* client) {
-    return reinterpret_cast<ClientInstance*>(client);
+  static ClientInstance *Unwrap(PJRT_Client *client) {
+    return reinterpret_cast<ClientInstance *>(client);
   }
 
   // Before the client is usable, it must be initialized.
-  PJRT_Error* Initialize();
+  PJRT_Error *Initialize();
 
-  Platform& platform() { return *platform_; }
-  const std::vector<DeviceInstance*>& devices() { return devices_; }
-  const std::vector<DeviceInstance*>& addressable_devices() {
+  Platform &platform() { return *platform_; }
+  const std::vector<DeviceInstance *> &devices() { return devices_; }
+  const std::vector<DeviceInstance *> &addressable_devices() {
     return addressable_devices_;
   }
-  const std::string& cached_platform_name() { return cached_platform_name_; }
-  const std::string& cached_platform_version() {
+  const std::string &cached_platform_name() { return cached_platform_name_; }
+  const std::string &cached_platform_version() {
     return cached_platform_version_;
   }
 
-
   // Compiles.
   // See TODOs in PJRT_Client_Compile.
-  PJRT_Error* Compile(
-      const PJRT_Program* program, /*xla::CompileOptions options, */
-      LoadedExecutableInstance** executable);
+  PJRT_Error *
+  Compile(const PJRT_Program *program, /*xla::CompileOptions options, */
+          LoadedExecutableInstance **executable);
 
   // Advances the timeline, returning (current, next) time point values.
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
 
- protected:
+protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
 
- private:
+private:
   tt_pjrt_status InitializeCompiler();
   tt_pjrt_status PopulateDevices();
 
   std::unique_ptr<Platform> platform_;
 
-  std::vector<DeviceInstance*> devices_;
-  std::vector<DeviceInstance*> addressable_devices_;
+  std::vector<DeviceInstance *> devices_;
+  std::vector<DeviceInstance *> addressable_devices_;
 
   std::unique_ptr<ModuleBuilder> module_builder_;
   std::optional<mlir::MLIRContext> context_;
@@ -399,16 +396,16 @@ class ClientInstance {
 //===----------------------------------------------------------------------===//
 
 // Binds all monomorphic API members and top-level API struct setup.
-void BindMonomorphicApi(PJRT_Api* api);
+void BindMonomorphicApi(PJRT_Api *api);
 
 // Fully binds the PJRT_Api struct for all types. Polymorphic types must be
 // specified by template parameters.
 template <typename PlatformTy, typename ClientInstanceTy>
-static void BindApi(PJRT_Api* api) {
+static void BindApi(PJRT_Api *api) {
   BindMonomorphicApi(api);
 
   // Bind polymorphic entry-points.
-  api->PJRT_Client_Create = +[](PJRT_Client_Create_Args* args) -> PJRT_Error* {
+  api->PJRT_Client_Create = +[](PJRT_Client_Create_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "PJRT_Client_Create");
     auto platform = std::make_unique<PlatformTy>();
 
@@ -423,15 +420,16 @@ static void BindApi(PJRT_Api* api) {
     }
 
     auto client = std::make_unique<ClientInstanceTy>(std::move(platform));
-    auto* error = client->Initialize();
-    if (error) return error;
+    auto *error = client->Initialize();
+    if (error)
+      return error;
 
     // Successful return.
-    args->client = reinterpret_cast<PJRT_Client*>(client.release());
+    args->client = reinterpret_cast<PJRT_Client *>(client.release());
     return nullptr;
   };
 }
 
-}  // namespace tt::pjrt
+} // namespace tt::pjrt
 
-#endif  // IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
+#endif // IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_

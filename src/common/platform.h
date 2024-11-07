@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// This file incorporates work covered by the following copyright and permission notice:
+// This file incorporates work covered by the following copyright and permission
+// notice:
 // SPDX-FileCopyrightText: Copyright 2023 The IREE Authors
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
@@ -10,8 +11,8 @@
 #ifndef IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
 #define IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
 
-#include <memory>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,14 +29,15 @@ namespace tt::pjrt {
 //===----------------------------------------------------------------------===//
 
 class Platform {
- public:
+public:
   virtual ~Platform();
   tt_pjrt_status Initialize();
- protected:
+
+protected:
   virtual tt_pjrt_status SubclassInitialize() = 0;
   void InitializeLogging();
 };
 
-}  // namespace tt::pjrt
+} // namespace tt::pjrt
 
-#endif  // IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
+#endif // IREE_PJRT_PLUGIN_PJRT_PLATFORM_H_
