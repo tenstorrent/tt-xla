@@ -230,6 +230,8 @@ for begin in numpy.arange(0, 64, 32).tolist():
 @pytest.mark.parametrize(
     "begin, end, dim", [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases]
 )
+
+@pytest.mark.skip("Requires tt-metal uplift.")
 def test_slice(begin, end, dim):
     def module_slice(a):
         if dim == 0:

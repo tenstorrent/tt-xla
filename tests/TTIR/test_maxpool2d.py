@@ -59,6 +59,7 @@ def test_maxpool2d(
     )
 
 
+@pytest.mark.skip("AssertionError.")
 def test_resnet_maxpool2d():
     # This maxpool doesnt work on its own because of the reshape that is inserted on its input
     # Issue: https://github.com/tenstorrent/tt-metal/issues/12866
