@@ -118,6 +118,7 @@ def test_dot_general_op():
 
 
 # Exponential generate slightly different values, so using higher ATOL value.
+# see tt-mlir issue https://github.com/tenstorrent/tt-mlir/issues/1199)
 def test_exp_op():
     def module_exp(a):
         return jnp.exp(a)
@@ -172,6 +173,32 @@ def test_rsqrt_op():
 
     verify_module(module_rsqrt, [(3, 3)])
     verify_module(module_rsqrt, [(3, 3, 3)])
+
+
+# Needs to have a bigger atol due to inaccuracies in the exp op on tt-metal
+# see tt-mlir issue https://github.com/tenstorrent/tt-mlir/issues/1199)
+def test_expm1_op():
+    def module_expm1(a):
+        return jax.lax.expm1(a)
+
+    verify_module(module_expm1, [(3, 3)], required_atol=20e-2)
+    verify_module(module_expm1, [(3, 3, 3)], required_atol=20e-2)
+
+
+def test_log1p_op():
+    def module_log1p(a):
+        return jax.lax.log1p(a)
+
+    verify_module(module_log1p, [(3, 3)], required_atol=2e-2)
+    verify_module(module_log1p, [(3, 3, 3)], required_atol=2e-2)
+
+
+def test_sign_op():
+    def module_sign(a):
+        return jax.lax.sign(a)
+
+    verify_module(module_sign, [(3, 3)])
+    verify_module(module_sign, [(3, 3, 3)])
 
 
 def test_sqrt_op():
@@ -230,7 +257,6 @@ for begin in numpy.arange(0, 64, 32).tolist():
 @pytest.mark.parametrize(
     "begin, end, dim", [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases]
 )
-
 @pytest.mark.skip("Requires tt-metal uplift.")
 def test_slice(begin, end, dim):
     def module_slice(a):
