@@ -1,0 +1,19 @@
+name: pre-commit
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  pre-commit:
+
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
