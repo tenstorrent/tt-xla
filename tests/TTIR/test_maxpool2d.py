@@ -42,6 +42,7 @@ from infrastructure import verify_module
         (1, 128, 128, 128),
     ],
 )
+@pytest.mark.skip("Skipped due to https://github.com/tenstorrent/tt-xla/issues/64")
 def test_maxpool2d(
     act_shape,
 ):
