@@ -272,3 +272,60 @@ def test_slice(begin, end, dim):
     shape = [10, 10, 10, 10]
     shape[dim] = 128
     verify_module(module_slice, [shape])
+
+
+@pytest.mark.parametrize(
+    "input_shapes",
+    [
+        [(32, 32), (32, 32)],
+        pytest.param(
+            [(3, 3), (3, 3)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/70"
+            ),
+        ),
+        pytest.param(
+            [(3, 3, 3), (3, 3, 3)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/70"
+            ),
+        ),
+    ],
+)
+def test_remainder_op_lax(input_shapes):
+    def module_remainder_lax(a, b):
+        return jax.lax.rem(a, b)
+
+    verify_module(module_remainder_lax, input_shapes, required_atol=0.02)
+
+
+@pytest.mark.parametrize(
+    "input_shapes",
+    [
+        pytest.param(
+            [(32, 32), (32, 32)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/71"
+            ),
+        ),
+        pytest.param(
+            [(3, 3), (3, 3)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/70"
+            ),
+        ),
+        pytest.param(
+            [(3, 3, 3), (3, 3, 3)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/70"
+            ),
+        ),
+    ],
+)
+def test_remainder_op_jnp(input_shapes):
+    # `jnp.remainder` generates a more complex stablehlo graph than `jax.lax.rem` with
+    # implicit broadcasts, etc. That's why we have both.
+    def module_remainder_jnp(a, b):
+        return jnp.remainder(a, b)
+
+    verify_module(module_remainder_jnp, input_shapes, required_atol=0.02)
