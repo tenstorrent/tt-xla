@@ -7,6 +7,8 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy
+from jax import export
+
 
 from infrastructure import verify_module
 
@@ -222,6 +224,12 @@ def test_transpose_op_2d():
         return jnp.transpose(a)
 
     verify_module(module_transpose, [(3, 3)])
+
+def test_shape_scalar():
+    def module_shape_scalar(a):
+        return a.shape[0]
+
+    verify_module(module_shape_scalar, [(3, 3)])
 
 
 # Transpose op failing for higher ranks/dimensions.
