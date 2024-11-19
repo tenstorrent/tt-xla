@@ -27,6 +27,13 @@ def compare_tensor_to_golden(
     tensor, golden, required_pcc=0.99, required_atol=1e-2, assert_on_error=True
 ):
     ret = True
+
+    if tensor.ndim == 0:
+        tensor = tensor.reshape((1,))
+    if golden.ndim == 0:
+        with jax.default_device(jax.local_devices(backend="cpu")[0]):
+            golden = golden.reshape((1,))
+
     if tensor.device != golden.device:
         tensor = jax.device_put(tensor, golden.device)
 
@@ -41,12 +48,7 @@ def compare_tensor_to_golden(
         )
         if assert_on_error:
             assert ret, f"PCC is {pcc} which is less than {required_pcc}"
-
-    atol = (
-        jnp.abs(tensor - golden)
-        if len(tensor.shape) == 0
-        else jnp.max(jnp.abs(tensor - golden))
-    )
+    atol = jnp.max(jnp.abs(tensor - golden))
     ret = ret and atol <= required_atol
     if assert_on_error:
         assert ret, f"ATOL is {atol} which is greater than {required_atol}"
@@ -70,6 +72,6 @@ def verify_module(
     tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
     graph = jax.jit(module)
     res = graph(*tt_inputs)
-    res_cpu = graph(*cpu_inputs)
-
+    with jax.default_device(jax.local_devices(backend="cpu")[0]):
+        res_cpu = graph(*cpu_inputs)
     compare_tensor_to_golden(res, res_cpu, required_pcc, required_atol)
