@@ -225,6 +225,10 @@ def test_transpose_op_2d():
 
     verify_module(module_transpose, [(3, 3)])
 
+
+@pytest.mark.skip(
+    "Scalar ops currently not working due to issue https://github.com/tenstorrent/tt-xla/issues/73"
+)
 def test_shape_scalar():
     def module_shape_scalar(a):
         return a.shape[0]

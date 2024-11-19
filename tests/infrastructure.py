@@ -42,7 +42,11 @@ def compare_tensor_to_golden(
         if assert_on_error:
             assert ret, f"PCC is {pcc} which is less than {required_pcc}"
 
-    atol = jnp.abs(tensor - golden) if len(tensor.shape) == 0 else jnp.max(jnp.abs(tensor - golden))
+    atol = (
+        jnp.abs(tensor - golden)
+        if len(tensor.shape) == 0
+        else jnp.max(jnp.abs(tensor - golden))
+    )
     ret = ret and atol <= required_atol
     if assert_on_error:
         assert ret, f"ATOL is {atol} which is greater than {required_atol}"
