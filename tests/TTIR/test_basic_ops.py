@@ -7,8 +7,6 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy
-from jax import export
-
 
 from infrastructure import verify_module
 
