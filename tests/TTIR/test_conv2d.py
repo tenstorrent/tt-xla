@@ -41,7 +41,6 @@ from infrastructure import verify_module
         (1, 256, 64, 56, 56, 1, 1, 2, 2, 0),
     ),
 )
-@pytest.mark.skip("AssertionError.")
 def test_conv2d(
     batch_size,
     output_channels,
