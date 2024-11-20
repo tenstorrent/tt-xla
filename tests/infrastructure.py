@@ -2,8 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import contextmanager
 import jax
 import jax.numpy as jnp
+
+
+@contextmanager
+def run_on_cpu():
+    devices = jax.local_devices(backend="cpu")
+    assert len(devices) > 0
+    cpu = devices[0]
+
+    with jax.default_device(cpu):
+        yield
 
 
 def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
@@ -31,7 +42,7 @@ def compare_tensor_to_golden(
     if tensor.ndim == 0:
         tensor = tensor.reshape((1,))
     if golden.ndim == 0:
-        with jax.default_device(jax.local_devices(backend="cpu")[0]):
+        with run_on_cpu():
             golden = golden.reshape((1,))
 
     if tensor.device != golden.device:
@@ -73,6 +84,6 @@ def verify_module(
     tt_inputs = [jax.device_put(cpu_input, tt_device) for cpu_input in cpu_inputs]
     graph = jax.jit(module)
     res = graph(*tt_inputs)
-    with jax.default_device(jax.local_devices(backend="cpu")[0]):
+    with run_on_cpu():
         res_cpu = graph(*cpu_inputs)
     compare_tensor_to_golden(res, res_cpu, required_pcc, required_atol)
