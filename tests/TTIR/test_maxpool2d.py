@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-import jax
 import jax.numpy as jnp
 import flax
 
@@ -42,9 +41,7 @@ from infrastructure import verify_module
         (1, 128, 128, 128),
     ],
 )
-def test_maxpool2d(
-    act_shape,
-):
+def test_maxpool2d(act_shape):
     def module_maxpool(img):
         return flax.linen.max_pool(
             img, window_shape=(2, 2), strides=(2, 2), padding=((0, 0), (0, 0))
@@ -59,7 +56,8 @@ def test_maxpool2d(
     )
 
 
-def test_resnet_maxpool2d():
+@pytest.mark.parametrize("act_shape", [(1, 112, 112, 64)])
+def test_resnet_maxpool2d(act_shape):
     def module_resnet_maxpool(x):
         x = flax.linen.max_pool(
             x, window_shape=(3, 3), strides=(2, 2), padding=((1, 1), (1, 1))
@@ -68,7 +66,7 @@ def test_resnet_maxpool2d():
 
     verify_module(
         module_resnet_maxpool,
-        [(1, 112, 112, 64)],
+        [act_shape],
         required_pcc=0.95,
         required_atol=float("inf"),
         dtype=jnp.bfloat16,

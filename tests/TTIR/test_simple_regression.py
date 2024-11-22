@@ -4,26 +4,27 @@
 
 import pytest
 import jax
-import jax.numpy as jnp
 
 from infrastructure import verify_module
 
 
-@pytest.mark.skip(
-    "Module contains function used inside the main function. Cannot compile Flatbuffer."
-)
-def test_gradient():
+@pytest.mark.parametrize("input_shapes", [[(2, 2)]])
+@pytest.mark.skip("Inputs to eltwise binary must be tilized")
+def test_gradient(input_shapes):
     def simple_gradient(a):
         def gradient(a):
             return (a**2).sum()
 
         return jax.grad(gradient)(a)
 
-    verify_module(simple_gradient, [(2, 2)])
+    verify_module(simple_gradient, input_shapes)
 
 
-@pytest.mark.skip("TT_METAL_HOME is not set.")
-def test_simple_regression():
+@pytest.mark.parametrize(
+    ["weights", "bias", "X", "y"], [[(1, 2), (1, 1), (2, 1), (1, 1)]]
+)
+@pytest.mark.skip("failed to legalize operation 'stablehlo.dot_general'")
+def test_simple_regression(weights, bias, X, y):
     def simple_regression(weights, bias, X, y):
         def loss(weights, bias, X, y):
             predict = X.dot(weights) + bias
@@ -34,4 +35,4 @@ def test_simple_regression():
 
         return weights
 
-    verify_module(simple_regression, [(1, 2), (1, 1), (2, 1), (1, 1)])
+    verify_module(simple_regression, [weights, bias, X, y])
