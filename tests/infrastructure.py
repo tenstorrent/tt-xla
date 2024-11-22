@@ -17,6 +17,7 @@ def run_on_cpu():
         yield
 
 
+# TODO(issue #80): Make this creation more explicit regarding the originating devices.
 def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
     device_cpu = jax.devices("cpu")[0]
     with jax.default_device(device_cpu):
@@ -39,6 +40,7 @@ def compare_tensor_to_golden(
 ):
     ret = True
 
+    # TODO (issue #81): Remove these reshapes once the PJRT can handle scalars.
     if tensor.ndim == 0:
         tensor = tensor.reshape((1,))
     if golden.ndim == 0:
