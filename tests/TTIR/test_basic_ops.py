@@ -224,6 +224,16 @@ def test_transpose_op_2d():
     verify_module(module_transpose, [(3, 3)])
 
 
+@pytest.mark.skip(
+    "Scalars currently not working due to issue https://github.com/tenstorrent/tt-xla/issues/73"
+)
+def test_scalar_type():
+    def module_scalar_type(a):
+        return a.shape[0]
+
+    verify_module(module_scalar_type, [(3, 3)])
+
+
 # Transpose op failing for higher ranks/dimensions.
 @pytest.mark.skip("Transpose op failing for higher ranks/dimensions.")
 def test_transpose_op_3d():
