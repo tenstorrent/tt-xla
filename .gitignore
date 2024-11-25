@@ -12,7 +12,8 @@ __pycache__/
 .env
 .venv
 env/
-venv/
+venv/*
+!venv/activate
 .env.sh
 *.egg-info
 *.whl
