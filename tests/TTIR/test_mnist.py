@@ -9,7 +9,6 @@ import jax.numpy as jnp
 from infrastructure import verify_module
 
 
-@pytest.mark.skip("VHLO Legalization failed.")
 def test_matmul():
     def module_matmul(a, b):
         return jnp.matmul(a, b)
@@ -17,7 +16,6 @@ def test_matmul():
     verify_module(module_matmul, [(32, 32), (32, 32)], required_atol=3e-2)
 
 
-@pytest.mark.skip("VHLO Legalization failed.")
 def test_matmul_with_bias():
     def module_matmul(a, b, bias):
         return jnp.matmul(a, b) + bias

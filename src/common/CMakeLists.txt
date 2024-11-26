@@ -49,6 +49,7 @@ StablehloReferenceProcess
 StablehloReferenceOps
 StablehloPasses
 ChloOps
+Version
 VhloOps
 VhloTypes
 StablehloOps

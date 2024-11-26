@@ -3,40 +3,73 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef IREE_PJRT_PLUGIN_PJRT_COMMON_MODULE_BUILDER_H_
-#define IREE_PJRT_PLUGIN_PJRT_COMMON_MODULE_BUILDER_H_
+#ifndef TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
+#define TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
 
+// c++ standard library includes
 #include <memory>
 #include <string>
 
+// llvm mlir includes
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "tt/runtime/runtime.h"
+
+// tt-xla includes
+#include "status.h"
 
 namespace tt::pjrt {
 
 class ModuleBuilder {
 public:
-  ModuleBuilder() = default;
-  ~ModuleBuilder() = default;
+  ModuleBuilder();
 
-  size_t get_num_inputs() { return num_inputs_; };
-  size_t get_num_outputs() { return num_outputs_; };
-  unsigned int get_code_size() { return code_size_; };
+  tt_pjrt_status buildModule(const std::string_view &code,
+                             const std::string_view &format);
 
-  std::shared_ptr<void> GetBinary() { return binary_ptr_; }
+  std::shared_ptr<void> getBinary() const { return m_flatbuffer_binary; }
 
-  void BuildModule(std::string_view code, std::string_view format,
-                   mlir::MLIRContext &context);
+  size_t getNumInputs() const { return m_num_inputs; };
+
+  size_t getNumOutputs() const { return m_num_outputs; };
 
 private:
-  size_t num_inputs_ = 0;
-  size_t num_outputs_ = 0;
-  unsigned int code_size_ = 0;
-  std::shared_ptr<void> binary_ptr_;
-  std::unique_ptr<tt::runtime::Binary> binary_;
+  // Creates VHLO module from the input program code.
+  mlir::OwningOpRef<mlir::ModuleOp>
+  createVHLOModule(const std::string_view &code);
+
+  // Converts VHLO module to StableHLO module.
+  void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Converts StableHLO module to TTIR module.
+  void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Converts TTIR module to TTNN module.
+  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Creates flatbuffer binary from the built TTNN module.
+  void
+  createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Prints module to console for debug purposes.
+  static void print_module(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // MLIR context handle.
+  std::unique_ptr<mlir::MLIRContext> m_context;
+
+  // Flatbuffer binary handle.
+  std::shared_ptr<void> m_flatbuffer_binary;
+
+  // Number of binary program inputs.
+  size_t m_num_inputs;
+
+  // Number of binary program outputs.
+  size_t m_num_outputs;
+
+  // Holds status of the last builder action.
+  tt_pjrt_status m_status;
 };
 
 } // namespace tt::pjrt
 
-#endif // IREE_PJRT_PLUGIN_PJRT_COMMON_MODULE_BUILDER_H_
+#endif // TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
