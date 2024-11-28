@@ -150,10 +150,11 @@ public:
   }
 
   std::string_view kind_string() { return kind_string_; }
-  std::string_view debug_string() { return debug_string_; }
-  std::string_view user_string() {
+  std::string_view debug_string() { return to_string(); }
+  std::string_view to_string() {
     std::stringstream ss;
-    ss << "TTDevice(id=" << device_id() << ")";
+    ss << kind_string_ << "(id=" << device_id() << ", arch=" << arch_string_
+       << ")";
     user_string_ = ss.str();
     return user_string_;
   }
@@ -166,8 +167,10 @@ public:
 
 private:
   int client_id_;
-  std::string kind_string_ = "wormhole";
-  std::string debug_string_ = "debug_string";
+  // TODO We should understand better how these are used.
+  // See https://github.com/tenstorrent/tt-xla/issues/125
+  std::string kind_string_ = "TTDevice";
+  std::string arch_string_ = "Wormhole";
   std::string user_string_ = "";
 };
 
