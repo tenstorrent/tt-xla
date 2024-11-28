@@ -8,8 +8,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#ifndef IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
-#define IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
+#ifndef TT_XLA_SRC_COMMON_API_IMPL_H_
+#define TT_XLA_SRC_COMMON_API_IMPL_H_
 
 #include <atomic>
 #include <iostream>
@@ -378,7 +378,6 @@ private:
   std::vector<DeviceInstance *> addressable_devices_;
 
   std::unique_ptr<ModuleBuilder> module_builder_;
-  std::optional<mlir::MLIRContext> context_;
 
   // Synchronization.
   // We keep one global execution timeline across all devices. The management
@@ -432,4 +431,4 @@ static void BindApi(PJRT_Api *api) {
 
 } // namespace tt::pjrt
 
-#endif // IREE_PJRT_PLUGIN_PJRT_COMMON_API_IMPL_H_
+#endif // TT_XLA_SRC_COMMON_API_IMPL_H_

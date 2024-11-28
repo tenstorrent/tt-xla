@@ -9,14 +9,16 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/api_impl.h"
-#include "common/module_builder.h"
-#include "common/status.h"
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #include <optional>
 #include <sstream>
 #include <utility>
+
+#include "common/module_builder.h"
+#include "common/status.h"
 
 namespace tt::pjrt {
 
@@ -673,22 +675,24 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
                                     LoadedExecutableInstance **out_executable) {
   DLOG_F(LOG_DEBUG, "ClientInstance::Compile");
-  std::string_view format(program->format, program->format_size);
-  std::string_view code(program->code, program->code_size);
 
-  if (!context_.has_value()) {
-    context_.emplace();
+  std::string_view code(program->code, program->code_size);
+  std::string_view format(program->format, program->format_size);
+
+  tt_pjrt_status status = module_builder_->buildModule(code, format);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return MakeError(status);
   }
-  module_builder_->BuildModule(code, format, *context_);
 
   auto executable = std::make_unique<LoadedExecutableInstance>(
       *this,
-      new ExecutableImage(module_builder_->GetBinary(),
+      new ExecutableImage(module_builder_->getBinary(),
                           std::string(program->code, program->code_size),
-                          module_builder_->get_num_inputs(),
-                          module_builder_->get_num_outputs()),
+                          module_builder_->getNumInputs(),
+                          module_builder_->getNumOutputs()),
       addressable_devices_);
   *out_executable = executable.release();
+
   return nullptr;
 }
 
