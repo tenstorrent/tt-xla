@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-import jax
-import jax.numpy as jnp
 
 from infrastructure import verify_module
 

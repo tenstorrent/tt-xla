@@ -9,48 +9,58 @@ import jax.numpy as jnp
 from infrastructure import verify_module
 
 
-def test_matmul():
+@pytest.mark.parametrize("input_shapes", [[(32, 32), (32, 32)]])
+def test_matmul(input_shapes):
     def module_matmul(a, b):
         return jnp.matmul(a, b)
 
-    verify_module(module_matmul, [(32, 32), (32, 32)], required_atol=3e-2)
+    verify_module(module_matmul, input_shapes, required_atol=3e-2)
 
 
-def test_matmul_with_bias():
+@pytest.mark.parametrize("input_shapes", [[(32, 32), (32, 32), (1, 32)]])
+def test_matmul_with_bias(input_shapes):
     def module_matmul(a, b, bias):
         return jnp.matmul(a, b) + bias
 
-    verify_module(module_matmul, [(32, 32), (32, 32), (1, 32)], required_atol=3e-2)
+    verify_module(module_matmul, input_shapes, required_atol=3e-2)
 
 
-def test_relu_no_broadcast():
+@pytest.mark.parametrize("input_shapes", [[(32, 32), (32, 32)]])
+def test_relu_no_broadcast(input_shapes):
     def module_relu(a, b):
         return jnp.maximum(a, b)
 
-    verify_module(module_relu, [(32, 32), (32, 32)])
+    verify_module(module_relu, input_shapes)
 
 
-def test_relu():
-    pytest.skip("Asserts")
-
+@pytest.mark.parametrize("input_shapes", [[(32, 32)]])
+@pytest.mark.skip(
+    "ttnn::operations::binary::BinaryDeviceOperation: unsupported broadcast"
+)
+def test_relu(input_shapes):
     def module_relu(a):
         return jnp.maximum(a, 0)
 
-    verify_module(module_relu, [(32, 32)])
+    verify_module(module_relu, input_shapes)
 
 
-@pytest.mark.skip("keepdims=False in runtime")
-def test_softmax():
+@pytest.mark.parametrize("input_shapes", [[(32, 32)]])
+@pytest.mark.skip("keepdim=False is not supported")
+def test_softmax(input_shapes):
     def module_softmax(a):
         return jax.nn.softmax(a)
 
-    verify_module(module_softmax, [(32, 32)])
+    verify_module(module_softmax, input_shapes)
 
 
-@pytest.mark.skip(
-    "Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615"
+@pytest.mark.parametrize(
+    ["act", "w0", "b0", "w1", "b1", "w2", "b2"],
+    [[(32, 784), (784, 128), (1, 128), (128, 128), (1, 128), (128, 10), (1, 10)]],
 )
-def test_mnist():
+@pytest.mark.skip(
+    "ttnn::operations::binary::BinaryDeviceOperation: unsupported broadcast"
+)
+def test_mnist(act, w0, b0, w1, b1, w2, b2):
     def module_mnist(act, w0, b0, w1, b1, w2, b2):
         x = jnp.matmul(act, w0) + b0
         x = jnp.maximum(x, 0)
@@ -62,5 +72,5 @@ def test_mnist():
 
     verify_module(
         module_mnist,
-        [(32, 784), (784, 128), (1, 128), (128, 128), (1, 128), (128, 10), (1, 10)],
+        [act, w0, b0, w1, b1, w2, b2],
     )

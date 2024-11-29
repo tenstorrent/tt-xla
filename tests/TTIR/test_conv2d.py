@@ -10,8 +10,19 @@ from infrastructure import verify_module
 
 
 @pytest.mark.parametrize(
-    "batch_size, output_channels, input_channels, input_height, input_width, filter_height, filter_width, stride_h, stride_w, padding",
-    (
+    [
+        "batch_size",
+        "output_channels",
+        "input_channels",
+        "input_height",
+        "input_width",
+        "filter_height",
+        "filter_width",
+        "stride_h",
+        "stride_w",
+        "padding",
+    ],
+    [
         # RESNET
         (1, 64, 3, 224, 224, 7, 7, 2, 2, 3),
         (1, 256, 64, 56, 56, 1, 1, 1, 1, 0),
@@ -23,23 +34,26 @@ from infrastructure import verify_module
         (1, 128, 128, 28, 28, 3, 3, 1, 1, 1),
         (1, 512, 128, 28, 28, 1, 1, 1, 1, 0),
         (1, 128, 512, 28, 28, 1, 1, 1, 1, 0),
-        # (1, 1024, 512, 28, 28, 1, 1, 2, 2, 0), Requires block sharding
+        (1, 1024, 512, 28, 28, 1, 1, 2, 2, 0),
         (1, 256, 512, 28, 28, 1, 1, 2, 2, 0),
         (1, 256, 256, 14, 14, 3, 3, 1, 1, 1),
         (1, 1024, 256, 14, 14, 1, 1, 1, 1, 0),
         (1, 256, 1024, 14, 14, 1, 1, 1, 1, 0),
-        # (1, 2048, 1024, 14, 14, 1, 1, 2, 2, 0), Requires block sharding
-        # (1, 512, 1024, 14, 14, 1, 1, 2, 2, 0), Requires block sharding
-        # (1, 512, 512, 7, 7, 3, 3, 1, 1, 1), Requires block sharding
-        # (1, 2048, 512, 7, 7, 1, 1, 1, 1, 0), Requires block sharding
-        # (1, 512, 2048, 7, 7, 1, 1, 1, 1, 0), Requires block sharding
+        (1, 2048, 1024, 14, 14, 1, 1, 2, 2, 0),
+        (1, 512, 1024, 14, 14, 1, 1, 2, 2, 0),
+        (1, 512, 512, 7, 7, 3, 3, 1, 1, 1),
+        (1, 2048, 512, 7, 7, 1, 1, 1, 1, 0),
+        pytest.param(
+            *(1, 512, 2048, 7, 7, 1, 1, 1, 1, 0),
+            marks=pytest.mark.skip(reason="PCC is 0.8828 which is less than 0.95"),
+        ),
         # MISCELLANEOUS
         (1, 64, 16, 115, 115, 4, 4, 1, 1, 0),
         (1, 64, 64, 8, 8, 3, 3, 1, 1, 1),
         (1, 64, 64, 16, 16, 3, 3, 1, 1, 1),
         (1, 256, 256, 7, 7, 3, 3, 1, 1, 1),
         (1, 256, 64, 56, 56, 1, 1, 2, 2, 0),
-    ),
+    ],
 )
 def test_conv2d(
     batch_size,
