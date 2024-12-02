@@ -233,11 +233,12 @@ def test_transpose_op(input_shapes):
     verify_module(module_transpose, input_shapes)
 
 
-def test_scalar_type():
+@pytest.mark.parametrize("input_shapes", [[(3, 3)]])
+def test_scalar_type(input_shapes):
     def module_scalar_type(a):
         return a.shape[0]
 
-    verify_module(module_scalar_type, [(3, 3)])
+    verify_module(module_scalar_type, input_shapes)
 
 
 dim0_cases = []
