@@ -370,6 +370,11 @@ public:
   // Advances the timeline, returning (current, next) time point values.
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
 
+  // Returns the module builder used for this ClientInstance.
+  const ModuleBuilder *get_module_builder() const {
+    return module_builder_.get();
+  }
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
