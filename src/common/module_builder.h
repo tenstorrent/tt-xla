@@ -33,6 +33,8 @@ public:
 
   size_t getNumOutputs() const { return m_num_outputs; };
 
+  bool is_output_scalar(int index) const { return m_is_output_scalar[index]; }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -51,6 +53,10 @@ private:
   void
   createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // Fills up the m_is_output_scalar array with information is the output type
+  // scalar or not.
+  void collectOutputTypes(mlir::ModuleOp &&module);
+
   // Prints module to console for debug purposes.
   static void print_module(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -68,6 +74,9 @@ private:
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;
+
+  // For every output, holds if the type is a scalar or not.
+  std::vector<bool> m_is_output_scalar;
 };
 
 } // namespace tt::pjrt

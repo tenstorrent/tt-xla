@@ -40,13 +40,6 @@ def compare_tensor_to_golden(
 ):
     ret = True
 
-    # TODO (issue #81): Remove these reshapes once the PJRT can handle scalars.
-    if tensor.ndim == 0:
-        tensor = tensor.reshape((1,))
-    if golden.ndim == 0:
-        with run_on_cpu():
-            golden = golden.reshape((1,))
-
     if tensor.device != golden.device:
         tensor = jax.device_put(tensor, golden.device)
 
