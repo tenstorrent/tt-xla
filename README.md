@@ -25,7 +25,7 @@ cmake --build build
 ## Testing
 tt-xla repo contains various tests in `tests` directory. To run them all, please run `pytest -v tests` from project root directory. To run individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
 
-## Common Build Errors (tt-xla repo)
+## Common Build Errors
 - Building `tt-xla` requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` link to correct version of respective tools.
 - `tt-xla` also builds `tt-metal` and it may cause `sfpi-trisc-ncrisc-build-failure`. Please use [this](https://docs.tenstorrent.com/tt-mlir/build.html#sfpi-trisc-ncrisc-build-failure) fix.
 - Please see tt-mlir [docs](https://docs.tenstorrent.com/tt-mlir/build.html#common-build-errors) for common build errors.
