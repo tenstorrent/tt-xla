@@ -79,14 +79,13 @@ static bool isScalarType(mlir::Type type) {
 void ModuleBuilder::collectOutputTypes(mlir::ModuleOp &&module) {
   m_is_output_scalar.clear();
   for (auto &op : module.getOps()) {
-    if (auto funcOp = mlir::cast<mlir::func::FuncOp>(op)) {
+    if (auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op)) {
       // We care only for return ops of public functions, as that are the ones
       // that will produce results in the flatbuffer.
       if (funcOp.isPublic()) {
         funcOp.walk([&](mlir::Operation *op) {
-          if (mlir::func::ReturnOp return_op =
-                  mlir::dyn_cast<mlir::func::ReturnOp>(op)) {
-            for (auto operand : op->getOperands()) {
+          if (auto returnOp = mlir::dyn_cast<mlir::func::ReturnOp>(op)) {
+            for (auto operand : returnOp->getOperands()) {
               m_is_output_scalar.push_back(isScalarType(operand.getType()));
             }
           }
@@ -141,7 +140,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
-  print_module(vhlo_module);
+  printModule(vhlo_module);
 
   return vhlo_module;
 }
@@ -168,7 +167,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   collectOutputTypes(mlir_module.get());
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::convertFromSHLOToTTIR(
@@ -191,7 +190,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   }
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::convertFromTTIRToTTNN(
@@ -209,7 +208,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::createFlatbufferBinary(
@@ -227,7 +226,7 @@ void ModuleBuilder::createFlatbufferBinary(
   m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
 }
 
-void ModuleBuilder::print_module(
+void ModuleBuilder::printModule(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   if (loguru::g_stderr_verbosity < LOG_DEBUG) {
     return;
