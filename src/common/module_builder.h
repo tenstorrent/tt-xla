@@ -33,7 +33,7 @@ public:
 
   size_t getNumOutputs() const { return m_num_outputs; };
 
-  bool is_output_scalar(int index) const { return m_is_output_scalar[index]; }
+  bool isOutputScalar(int index) const { return m_is_output_scalar[index]; }
 
 private:
   // Creates VHLO module from the input program code.
@@ -58,7 +58,7 @@ private:
   void collectOutputTypes(mlir::ModuleOp &&module);
 
   // Prints module to console for debug purposes.
-  static void print_module(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;

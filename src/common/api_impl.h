@@ -370,9 +370,9 @@ public:
   // Advances the timeline, returning (current, next) time point values.
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
 
-  // Returns the module builder used for this ClientInstance.
-  const ModuleBuilder *get_module_builder() const {
-    return module_builder_.get();
+  // Checks if the output on the i-th index is a scalar.
+  bool isOutputScalar(const int index) const {
+    return module_builder_->isOutputScalar(index);
   }
 
 protected:
