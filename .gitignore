@@ -7,6 +7,10 @@ third_party/tt-mlir
 # IDE
 .vscode/
 
+# Clangd
+.cache/
+compile_commands.json
+
 # Python
 __pycache__/
 .env
