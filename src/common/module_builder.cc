@@ -66,38 +66,16 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-static bool isScalarType(mlir::Type type) {
-  if (mlir::isa<mlir::FloatType>(type) || mlir::isa<mlir::IntegerType>(type)) {
-    return true;
-  }
-  if (auto tensorType = mlir::dyn_cast<mlir::RankedTensorType>(type)) {
-    return tensorType.getRank() == 0;
-  }
-  return false;
-}
-
-void ModuleBuilder::collectOutputTypes(mlir::ModuleOp &&module) {
-  m_is_output_scalar.clear();
-  for (auto &op : module.getOps()) {
-    if (auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op)) {
-      // We care only for return ops of public functions, as that are the ones
-      // that will produce results in the flatbuffer.
-      if (funcOp.isPublic()) {
-        funcOp.walk([&](mlir::Operation *op) {
-          if (auto returnOp = mlir::dyn_cast<mlir::func::ReturnOp>(op)) {
-            for (auto operand : returnOp->getOperands()) {
-              m_is_output_scalar.push_back(isScalarType(operand.getType()));
-            }
-          }
-        });
-      }
-    }
-  }
+bool ModuleBuilder::isOutputScalar(int index) const {
+  assert(index < m_is_output_scalar.size() && "Index of output out of range.");
+  return m_is_output_scalar[index];
 }
 
 tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
                                           const std::string_view &format) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
+
+  m_status = tt_pjrt_status::kSuccess;
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -108,6 +86,8 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
+
+  collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -155,10 +135,47 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
-  collectOutputTypes(mlir_module.get());
-
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
+}
+
+void ModuleBuilder::collectOutputTypes(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputTypes");
+
+  m_is_output_scalar.clear();
+
+  module.get().walk([&](mlir::Operation *op) {
+    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
+    mlir::ModuleOp moduleOp = mlir::dyn_cast<mlir::ModuleOp>(op);
+
+    // We care only about return ops of public functions, as that are the ones
+    // that will produce results in the flatbuffer.
+    if (funcOp && funcOp.isPublic()) {
+      for (const mlir::Type &returnType :
+           funcOp.getFunctionType().getResults()) {
+        m_is_output_scalar.push_back(isScalarType(returnType));
+      }
+    }
+
+    if (moduleOp) {
+      if (moduleOp == module.get()) {
+        return;
+      }
+      collectOutputTypes(moduleOp);
+    }
+  });
+}
+
+bool ModuleBuilder::isScalarType(mlir::Type type) {
+  if (mlir::isa<mlir::FloatType>(type) || mlir::isa<mlir::IntegerType>(type)) {
+    return true;
+  }
+  if (mlir::RankedTensorType tensorType =
+          mlir::dyn_cast<mlir::RankedTensorType>(type)) {
+    return tensorType.getRank() == 0;
+  }
+  return false;
 }
 
 void ModuleBuilder::convertFromSHLOToTTIR(
@@ -215,6 +232,12 @@ void ModuleBuilder::createFlatbufferBinary(
   tt::runtime::Binary runtime_binary_handle(m_flatbuffer_binary);
   m_num_inputs = runtime_binary_handle.getProgramInputs(0).size();
   m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
+
+  if (m_num_outputs != m_is_output_scalar.size()) {
+    DLOG_F(ERROR, "The number of return types does not match ");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
 }
 
 void ModuleBuilder::printModule(

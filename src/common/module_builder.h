@@ -33,7 +33,7 @@ public:
 
   size_t getNumOutputs() const { return m_num_outputs; };
 
-  bool isOutputScalar(int index) const { return m_is_output_scalar[index]; }
+  bool isOutputScalar(int index) const;
 
 private:
   // Creates VHLO module from the input program code.
@@ -42,6 +42,10 @@ private:
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Fills up the m_is_output_scalar array with information is the output type
+  // scalar or not.
+  void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -53,12 +57,11 @@ private:
   void
   createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Fills up the m_is_output_scalar array with information is the output type
-  // scalar or not.
-  void collectOutputTypes(mlir::ModuleOp &&module);
-
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Checks if a particular type is scalar.
+  bool isScalarType(mlir::Type type);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
