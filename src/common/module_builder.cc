@@ -168,6 +168,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  // TODO: Remove this comment.
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
@@ -175,6 +176,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     return;
   }
 
+  // TODO: Have better debugging errors.
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   print_module(mlir_module);
 }

@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+
+// TODO: Move unimplemented stuff to these stubs.
   _STUB(PJRT_Error_Destroy);
   _STUB(PJRT_Error_Message);
   _STUB(PJRT_Error_GetCode);

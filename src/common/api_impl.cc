@@ -20,8 +20,11 @@
 #include "common/module_builder.h"
 #include "common/status.h"
 
+// TODO: Separate this file into multiple files per class.
+
 namespace tt::pjrt {
 
+// TODO: Make a separate function to do this (possibly put it in device instance class).
 std::pair<tt::target::DataType, size_t>
 MapBufferTypeToElementType(PJRT_Buffer_Type buffer_type) {
   switch (buffer_type) {
@@ -102,6 +105,7 @@ void ErrorInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Error_GetCode = +[](PJRT_Error_GetCode_Args *args) -> PJRT_Error * {
     auto *error = ErrorInstance::FromError(args->error);
     tt_pjrt_status status = error->status();
+    // TODO: Make separate functions for this.
     switch (status) {
     case tt_pjrt_status::kCancelled:
       args->code = PJRT_Error_Code_CANCELLED;
@@ -175,6 +179,7 @@ int BufferInstance::id_counter_ = 0;
 
 BufferInstance::~BufferInstance() = default;
 
+// TODO: Shouldn't this all be in initializator lists?
 BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor tensor,
                                std::vector<std::uint32_t> shape,
@@ -190,10 +195,12 @@ BufferInstance::BufferInstance(DeviceInstance &device,
   unique_id_ = id_counter_++;
 }
 
+// TODO: Find out what this does.
 void BufferInstance::ComputeLayout() {
   DLOG_F(LOG_DEBUG, "BufferInstance::ComputeLayout");
 }
 
+// TODO: Can this be templated? (Or use macros) - we can use template specialisation.
 void BufferInstance::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BindApi");
   api->PJRT_Buffer_Destroy =
@@ -235,6 +242,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_ToHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
     BufferInstance *buffer = BufferInstance::Unwrap(args->src);
+    // TODO: These MakeError functions are messy (it does not say that they can return nullptr in case there is no error) - FIX.
     if (!args->dst) {
       // Size query.
       return MakeError(buffer->GetHostSizeInBytes(&args->dst_size));
@@ -304,6 +312,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   };
 }
 
+// TODO: Why is this always tiled?
 PJRT_Error *
 BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::GetMemoryLayout");
@@ -398,7 +407,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Attributes =
       +[](PJRT_DeviceDescription_Attributes_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
-    // TODO: Implement something.
+    // TODO: Implement something (Perhaps attributes of device)?.
     args->num_attributes = 0;
     args->attributes = nullptr;
     return nullptr;
@@ -406,6 +415,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Kind =
       +[](PJRT_DeviceDescription_Kind_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
+    // TODO: Change sv to something more meaningful.
     auto sv =
         DeviceDescription::Unwrap(args->device_description)->kind_string();
     args->device_kind = sv.data();
@@ -415,6 +425,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_DebugString =
       +[](PJRT_DeviceDescription_DebugString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
+    // TODO: Change sv to something more meaningful.
     auto sv =
         DeviceDescription::Unwrap(args->device_description)->debug_string();
     args->debug_string = sv.data();
@@ -529,6 +540,8 @@ PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
   auto status = PopulateDevices();
+
+  // TODO: This is double check, as MakeError already checks for is_ok.
   if (!tt_pjrt_status_is_ok(status)) {
     return MakeError(status);
   }
@@ -613,7 +626,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     // will very naturally have different tuning flags. We therefore have to
     // guess... which is an accident waiting to happen.
     // Looks like what I need is buried in the compile options... need to
-    // work on that.
+    // work on that. (Understand this more).
     auto *client = ClientInstance::Unwrap(args->client);
     LoadedExecutableInstance *executable;
 
@@ -882,13 +895,13 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Executable_NumPartitions =
       +[](PJRT_Executable_NumPartitions_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports partitioning.
+    // TODO: This should be updated once iree supports partitioning.
     args->num_partitions = 1;
     return nullptr;
   };
   api->PJRT_Executable_NumReplicas =
       +[](PJRT_Executable_NumReplicas_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports replicas.
+    // TODO: This should be updated once iree supports replicas.
     args->num_replicas = 1;
     return nullptr;
   };

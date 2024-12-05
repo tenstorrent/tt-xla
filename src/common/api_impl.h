@@ -151,7 +151,7 @@ public:
     user_string_ = ss.str();
     return user_string_;
   }
-  // TODO
+  // TODO: Return something which makes more sense.
   int64_t device_id() { return 0; }
 
   int client_id() { return client_id_; }
