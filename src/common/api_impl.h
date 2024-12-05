@@ -364,6 +364,11 @@ public:
   // Advances the timeline, returning (current, next) time point values.
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
 
+  // Checks if the output on the i-th index is a scalar.
+  bool isOutputScalar(const int index) const {
+    return module_builder_->isOutputScalar(index);
+  }
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
