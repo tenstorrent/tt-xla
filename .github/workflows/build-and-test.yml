@@ -211,7 +211,6 @@ jobs:
 
     - name: Prepare code coverage report
       run: |
-        apt-get install lcov
         lcov --directory build --capture --output-file coverage.info
         lcov --extract coverage.info '**/src/*' --output-file coverage.info
         lcov --list coverage.info
