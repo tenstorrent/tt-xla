@@ -102,6 +102,8 @@ target_link_libraries(TTPJRTCommon PUBLIC
     ${STABLEHLO_LIBS}
 )
 
+target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
+
 target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/

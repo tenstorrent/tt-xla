@@ -29,6 +29,8 @@ add_library(TTPJRTTTDylib
 target_include_directories(TTPJRTTTDylib PUBLIC ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api)
 target_link_libraries(TTPJRTTTDylib PUBLIC TTPJRTTT)
 
+target_link_libraries(TTPJRTTTDylib PUBLIC coverage_config)
+
 # # Output to the project wide python binary directory tree.
 set_target_properties(TTPJRTTTDylib
     PROPERTIES
