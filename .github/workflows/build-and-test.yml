@@ -216,6 +216,6 @@ jobs:
         lcov --list coverage.info
 
     - name: Report code coverage
-      uses: romeovs/lcov-reporter-action@v0.2.16
+      uses: tluijken/code-coverage-threshold@v1
       with:
-        lcov-file: coverage.info
+        coverage-file: coverage.info
