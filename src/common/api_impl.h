@@ -11,6 +11,7 @@
 #ifndef TT_XLA_SRC_COMMON_API_IMPL_H_
 #define TT_XLA_SRC_COMMON_API_IMPL_H_
 
+// c++ standard library includes
 #include <atomic>
 #include <iostream>
 #include <memory>
@@ -22,10 +23,15 @@
 #include <thread>
 #include <vector>
 
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
+
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
+// tt-xla includes
 #include "common/module_builder.h"
 #include "common/platform.h"
-#include "tt/runtime/runtime.h"
-#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -396,6 +402,9 @@ private:
 
 // Binds all monomorphic API members and top-level API struct setup.
 void BindMonomorphicApi(PJRT_Api *api);
+
+// Initializes and returns PJRT plugin attributes.
+PJRT_Error *InitializePluginAttributes(PJRT_Plugin_Attributes_Args *args);
 
 // Fully binds the PJRT_Api struct for all types. Polymorphic types must be
 // specified by template parameters.

@@ -99,8 +99,6 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   mlir::OwningOpRef<mlir::ModuleOp> vhlo_module =
       mlir::parseSourceString<mlir::ModuleOp>(
           llvm::StringRef(code.data(), code.size()),
-          // IR may be invalid because some fields may be using DenseElements
-          // instead of DenseArray. We rectify that below and verify after.
           mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
 
   if (!vhlo_module) {
@@ -119,14 +117,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
 
-  // Converting VHLO to latest version to facilitate easier conversion to
-  // StableHLO.
-  mlir::stablehlo::VhloToVersionPassOptions vhlo_options;
-  vhlo_options.targetVersionOption =
-      mlir::vhlo::Version::getCurrentVersion().toString();
-  vhlo_to_shlo_pm.addPass(
-      mlir::stablehlo::createVhloToVersionPass(vhlo_options));
-  vhlo_to_shlo_pm.addPass(mlir::stablehlo::createVhloLegalizeToStablehloPass());
+  mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
