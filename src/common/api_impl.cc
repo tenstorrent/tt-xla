@@ -361,7 +361,8 @@ tt_pjrt_status BufferInstance::CopyToHost(void *dst, size_t dst_size,
   };
 
   DLOG_F(INFO, "Copy to host id: %d", unique_id());
-  memcpy(dst, tensor().data.get(), dst_size);
+  tt::runtime::memcpy(dst, tensor());
+
   auto copy_done_event = new EventInstance();
   copy_done_event->OnReady(copy_done_callback, nullptr);
 
@@ -1006,45 +1007,29 @@ tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  std::vector<tt::runtime::Tensor> rt_inputs;
-  std::vector<tt::runtime::Tensor> rt_outputs;
-
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
   int dev_0 = chip_ids[0];
   auto device = tt::runtime::openDevice({dev_0});
 
-  rt_inputs.reserve(args->num_args);
   assert(args->num_devices == 1);
   int dev_index = 0;
   tt::runtime::Binary binary(image_->binary);
+
+  std::vector<tt::runtime::Tensor> rt_inputs;
+  rt_inputs.reserve(args->num_args);
+
   for (size_t i = 0; i < args->num_args; ++i) {
     auto *buffer = BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
-  auto output_specs = binary.getProgramOutputs(0);
-  for (auto output_spec : output_specs) {
-    int volume = 1;
-    for (auto dim : output_spec.shape) {
-      volume *= dim;
-    }
-    int size = volume * output_spec.itemsize;
-    // TODO What to do with stride
-    void *data = malloc(size);
 
-#ifdef DEBUG
-    memset(data, 0, size);
-#endif
-    std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
-    tt::runtime::Tensor tensor = tt::runtime::createTensor(
-        data_ptr, output_spec.shape, output_spec.stride, output_spec.itemsize,
-        output_spec.dataType);
-    rt_outputs.emplace_back(tensor);
-  }
+  std::vector<tt::runtime::Tensor> rt_outputs =
+      tt::runtime::submit(device, binary, 0, rt_inputs);
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      binary.getProgramOutputs(0);
 
-  tt::runtime::Event event =
-      tt::runtime::submit(device, binary, 0, rt_inputs, rt_outputs);
-  (void)event;
+  assert(rt_outputs.size() == output_specs.size());
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
     auto result_buffer = std::make_unique<BufferInstance>(
@@ -1055,9 +1040,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
     args->output_lists[dev_index][i] = *(result_buffer.release());
   }
+
   if (args->device_complete_events) {
     args->device_complete_events[dev_index] = *(new EventInstance());
   }
+
   tt::runtime::closeDevice(device);
 
   return tt_pjrt_status::kSuccess;
