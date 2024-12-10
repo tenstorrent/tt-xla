@@ -24,6 +24,9 @@
 
 #include "common/module_builder.h"
 #include "common/platform.h"
+#include "pjrt_implementation/buffer_instance.h"
+#include "pjrt_implementation/device_description.h"
+#include "pjrt_implementation/device_instance.h"
 #include "pjrt_implementation/error_instance.h"
 #include "pjrt_implementation/utils.h"
 #include "tt/runtime/runtime.h"
@@ -32,167 +35,7 @@
 namespace tt::pjrt {
 
 class ClientInstance;
-class DeviceInstance;
 class EventInstance;
-
-//===----------------------------------------------------------------------===//
-// BufferInstance
-//===----------------------------------------------------------------------===//
-class BufferInstance {
-public:
-  BufferInstance(DeviceInstance &device, tt::runtime::Tensor tensor,
-                 std::vector<std::uint32_t> shape,
-                 std::vector<std::uint32_t> stride);
-  BufferInstance(DeviceInstance &device);
-  ~BufferInstance();
-  operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
-  static BufferInstance *Unwrap(PJRT_Buffer *buffer) {
-    return reinterpret_cast<BufferInstance *>(buffer);
-  }
-  static void BindApi(PJRT_Api *api);
-
-  // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance &device() { return device_; }
-  tt_pjrt_status AsyncDeallocate();
-  tt_pjrt_status Delete();
-  bool is_deleted() { return is_deleted_; }
-  bool is_on_cpu() {
-    // TODO: Plumb through an indication if running on CPU and then implement
-    // the hook to get an unsafe pointer (avoids a copy).
-    return false;
-  }
-  tt::runtime::Tensor tensor() { return tensor_.value(); }
-
-  PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
-  // Gets the required host size in bytes to copy to host.
-  tt_pjrt_status GetHostSizeInBytes(size_t *host_size);
-  tt_pjrt_status CopyToHost(void *dst, size_t dst_size,
-                            EventInstance **done_event);
-
-  const int64_t *dims() { return dims_.data(); }
-  size_t num_dims() { return dims_.size(); }
-  void setType(PJRT_Buffer_Type Type) { DataType = Type; }
-  std::optional<PJRT_Buffer_Type> getType() { return DataType; }
-
-  // Get the data type for a tensor through runtime if DataType is not set.
-  PJRT_Buffer_Type getRuntimeType();
-
-  int unique_id() { return unique_id_; }
-
-private:
-  static int id_counter_;
-  int unique_id_;
-  void ComputeLayout();
-
-  DeviceInstance &device_;
-  // When the buffer resource gets freed, this is set to true.
-  bool is_deleted_ = false;
-
-  // API elements that must have the same lifetime as BufferInstance.
-  std::vector<int64_t> dims_;
-  std::vector<std::uint32_t> stride_;
-  std::optional<tt::runtime::Tensor> tensor_;
-
-  std::vector<int64_t> minor_to_major_;
-  std::vector<int64_t> tile_dims_;
-  std::vector<size_t> tile_dim_sizes_;
-
-  // Underlying datatype of tensor.
-  std::optional<PJRT_Buffer_Type> DataType;
-};
-
-//===----------------------------------------------------------------------===//
-// DeviceDescription
-//===----------------------------------------------------------------------===//
-
-class DeviceDescription {
-public:
-  DeviceDescription(int32_t client_id) : client_id_(client_id) {};
-  ~DeviceDescription();
-  operator PJRT_DeviceDescription *() {
-    return reinterpret_cast<PJRT_DeviceDescription *>(this);
-  }
-  static void BindApi(PJRT_Api *api);
-
-  static DeviceDescription *Unwrap(PJRT_DeviceDescription *device) {
-    return reinterpret_cast<DeviceDescription *>(device);
-  }
-
-  std::string_view kind_string() { return kind_string_; }
-  std::string_view debug_string() { return debug_string_; }
-  std::string_view user_string() {
-    std::stringstream ss;
-    ss << "TTDevice(id=" << device_id() << ")";
-    user_string_ = ss.str();
-    return user_string_;
-  }
-  // TODO
-  int64_t device_id() { return 0; }
-
-  int client_id() { return client_id_; }
-
-  int process_index() { return 0; }
-
-private:
-  int client_id_;
-  std::string kind_string_ = "wormhole";
-  std::string debug_string_ = "debug_string";
-  std::string user_string_ = "";
-};
-
-//===----------------------------------------------------------------------===//
-// DeviceInstance
-//===----------------------------------------------------------------------===//
-
-class DeviceInstance {
-public:
-  DeviceInstance(int client_id, ClientInstance &client)
-      : client_(client), description_(client_id) {}
-  ~DeviceInstance();
-  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
-  static void BindApi(PJRT_Api *api);
-
-  static DeviceInstance *Unwrap(PJRT_Device *device) {
-    return reinterpret_cast<DeviceInstance *>(device);
-  }
-
-  static DeviceInstance *Unwrap(PJRT_DeviceDescription *device_description) {
-    return reinterpret_cast<DeviceInstance *>(device_description);
-  }
-  ClientInstance &client() { return client_; }
-  bool is_addressable() { return true; }
-  int local_hardware_id() { return -1; }
-
-  tt_pjrt_status
-  HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
-                            size_t num_dims,
-                            EventInstance **out_done_with_host_buffer_event,
-                            BufferInstance **out_buffer);
-
-  tt_pjrt_status
-  HostBufferToDeviceSplat(const void *data, PJRT_Buffer_Type type,
-                          const int64_t *dims, size_t num_dims,
-                          EventInstance **out_done_with_host_buffer_event,
-                          BufferInstance **out_buffer);
-
-  tt_pjrt_status
-  HostBufferToDevice(const void *data, PJRT_Buffer_Type type,
-                     const int64_t *dims, size_t num_dims,
-                     const int64_t *byte_strides, size_t num_byte_strides,
-                     PJRT_HostBufferSemantics host_buffer_semantics,
-                     EventInstance **out_done_with_host_buffer_event,
-                     BufferInstance **out_buffer);
-
-  DeviceDescription *device_description() { return &description_; }
-
-private:
-  tt_pjrt_status OpenDevice();
-
-  ClientInstance &client_;
-  uint64_t last_transfer_timepoint_ = 0;
-  DeviceDescription description_;
-};
-
 //===----------------------------------------------------------------------===//
 // EventInstance
 //===----------------------------------------------------------------------===//
