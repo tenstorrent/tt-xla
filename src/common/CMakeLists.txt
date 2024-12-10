@@ -19,6 +19,7 @@ add_library(TTPJRTCommon
     "api_impl.cc"
     "platform.cc"
     "module_builder.cc"
+    "pjrt_implementation/error_instance.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC
@@ -29,6 +30,7 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
+    ${PROJECT_SOURCE_DIR}/inc
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )

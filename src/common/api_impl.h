@@ -24,6 +24,8 @@
 
 #include "common/module_builder.h"
 #include "common/platform.h"
+#include "pjrt_implementation/error_instance.h"
+#include "pjrt_implementation/utils.h"
 #include "tt/runtime/runtime.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -31,34 +33,7 @@ namespace tt::pjrt {
 
 class ClientInstance;
 class DeviceInstance;
-class ErrorInstance;
 class EventInstance;
-
-class ErrorInstance {
-public:
-  ErrorInstance(tt_pjrt_status status) : status_(status) {}
-  ~ErrorInstance() {}
-  static void BindApi(PJRT_Api *api);
-
-  static const ErrorInstance *FromError(const PJRT_Error *error) {
-    return reinterpret_cast<const ErrorInstance *>(error);
-  }
-
-  tt_pjrt_status status() const { return status_; }
-  const std::string &message() const;
-
-private:
-  tt_pjrt_status status_;
-  mutable std::string cached_message_;
-};
-
-inline PJRT_Error *MakeError(tt_pjrt_status status) {
-  if (tt_pjrt_status_is_ok(status)) {
-    return nullptr;
-  }
-  auto alloced_error = std::make_unique<ErrorInstance>(status);
-  return reinterpret_cast<PJRT_Error *>(alloced_error.release());
-}
 
 //===----------------------------------------------------------------------===//
 // BufferInstance
