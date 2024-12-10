@@ -10,6 +10,7 @@
 
 #include "common/api_impl.h"
 
+// c++ standard library includes
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -17,7 +18,9 @@
 #include <sstream>
 #include <utility>
 
+// tt-xla includes
 #include "common/module_builder.h"
+#include "common/plugin_attributes.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -1082,12 +1085,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
     return nullptr;
   };
 
-  api->PJRT_Plugin_Attributes =
-      +[](PJRT_Plugin_Attributes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "PJRT_Plugin_Attributes");
-    args->num_attributes = 0;
-    return nullptr;
-  };
+  api->PJRT_Plugin_Attributes = InitializePluginAttributes;
 
   // Bind by object types.
   BufferInstance::BindApi(api);
@@ -1097,6 +1095,17 @@ void BindMonomorphicApi(PJRT_Api *api) {
   EventInstance::BindApi(api);
   ExecutableImage::BindApi(api);
   LoadedExecutableInstance::BindApi(api);
+}
+
+PJRT_Error *InitializePluginAttributes(PJRT_Plugin_Attributes_Args *args) {
+  DLOG_F(LOG_DEBUG, "PJRT_Plugin_Attributes");
+
+  static std::unique_ptr<PJRTPluginAttributes> s_plugin_attributes =
+      std::make_unique<PJRTPluginAttributes>();
+  args->attributes = s_plugin_attributes->getAttributes();
+  args->num_attributes = s_plugin_attributes->getNumAttributes();
+
+  return nullptr;
 }
 
 } // namespace tt::pjrt

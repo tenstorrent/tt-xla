@@ -19,6 +19,7 @@ add_library(TTPJRTCommon
     "api_impl.cc"
     "platform.cc"
     "module_builder.cc"
+    "plugin_attributes.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC
