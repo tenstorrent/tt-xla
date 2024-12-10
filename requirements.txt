@@ -13,4 +13,3 @@ pre-commit
 lit
 pybind11
 pytest
-pytest-cov
