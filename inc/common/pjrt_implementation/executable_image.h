@@ -8,31 +8,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#ifndef TT_XLA_SRC_COMMON_API_IMPL_H_
-#define TT_XLA_SRC_COMMON_API_IMPL_H_
-
 #include <atomic>
-#include <iostream>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <sstream>
 #include <string>
-#include <string_view>
-#include <thread>
-#include <vector>
 
-#include "common/module_builder.h"
-#include "common/pjrt_implementation/buffer_instance.h"
-#include "common/pjrt_implementation/client_instance.h"
-#include "common/pjrt_implementation/device_description.h"
-#include "common/pjrt_implementation/device_instance.h"
-#include "common/pjrt_implementation/error_instance.h"
-#include "common/pjrt_implementation/event_instance.h"
-#include "common/pjrt_implementation/utils.h"
-#include "common/platform.h"
-#include "tt/runtime/runtime.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
+
+#ifndef TT_XLA_SRC_EXECUTABLE_IMAGE_H_
+#define TT_XLA_SRC_EXECUTABLE_IMAGE_H_
 
 namespace tt::pjrt {
 

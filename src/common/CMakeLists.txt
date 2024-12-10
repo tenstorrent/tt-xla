@@ -16,7 +16,6 @@ target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
 add_dependencies(TTPJRTCommonDylibPlatform loguru)
 
 add_library(TTPJRTCommon
-    "api_impl.cc"
     "platform.cc"
     "module_builder.cc"
     "pjrt_implementation/utils.cc"
@@ -27,6 +26,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/error_instance.cc"
     "pjrt_implementation/event_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/executable_image.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC

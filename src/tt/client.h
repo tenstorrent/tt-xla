@@ -10,7 +10,7 @@
 #ifndef IREE_PJRT_PLUGIN_PJRT_CPU_CLIENT_H_
 #define IREE_PJRT_PLUGIN_PJRT_CPU_CLIENT_H_
 
-#include "common/api_impl.h"
+#include "common/pjrt_implementation/client_instance.h"
 
 namespace tt::pjrt::device {
 

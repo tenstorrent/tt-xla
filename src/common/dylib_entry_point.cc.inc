@@ -11,7 +11,7 @@
 
 #include <cstring>
 
-#include "common/api_impl.h"
+#include "common/pjrt_implementation/utils.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #if (defined(_WIN32) || defined(__CYGWIN__)) && \

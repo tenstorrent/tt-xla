@@ -8,17 +8,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "common/api_impl.h"
+#include "common/pjrt_implementation/executable_image.h"
 
-#include <cassert>
-#include <cstring>
-#include <iostream>
-#include <optional>
-#include <sstream>
-#include <utility>
-
-#include "common/module_builder.h"
+#include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
+
+#include <string>
 
 namespace tt::pjrt {
 

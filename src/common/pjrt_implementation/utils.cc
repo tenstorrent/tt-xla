@@ -1,6 +1,5 @@
 #include "common/pjrt_implementation/utils.h"
 
-#include "common/api_impl.h"
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/device_description.h"
