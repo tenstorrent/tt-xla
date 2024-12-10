@@ -1,8 +1,8 @@
 #include <string>
 
 #include "common/api_impl.h"
-#include "pjrt_implementation/loaded_executable_instance.h"
-#include "pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 

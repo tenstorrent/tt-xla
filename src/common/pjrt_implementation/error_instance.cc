@@ -1,6 +1,6 @@
 #include <string>
 
-#include "pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {

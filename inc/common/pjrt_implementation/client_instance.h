@@ -8,10 +8,10 @@
 #include <vector>
 
 #include "common/module_builder.h"
+#include "common/pjrt_implementation/device_instance.h"
+#include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
-#include "pjrt_implementation/device_instance.h"
-#include "pjrt_implementation/loaded_executable_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_CLIENT_INSTANCE_H_

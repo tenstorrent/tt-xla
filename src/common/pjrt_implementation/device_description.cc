@@ -1,6 +1,6 @@
 #include <string>
 
-#include "pjrt_implementation/device_description.h"
+#include "common/pjrt_implementation/device_description.h"
 
 #include "common/status.h"
 #include "xla/pjrt/c/pjrt_c_api.h"

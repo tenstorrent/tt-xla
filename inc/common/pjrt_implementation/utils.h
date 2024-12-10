@@ -5,7 +5,7 @@
 #include <memory>
 #include <utility>
 
-#include "pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "tt/runtime/runtime.h"
 
 #ifndef TT_XLA_UTILS_H_

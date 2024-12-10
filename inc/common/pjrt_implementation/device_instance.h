@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "common/pjrt_implementation/device_description.h"
+#include "common/pjrt_implementation/event_instance.h"
 #include "common/status.h"
-#include "pjrt_implementation/device_description.h"
-#include "pjrt_implementation/event_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_DEVICE_INSTANCE_H_

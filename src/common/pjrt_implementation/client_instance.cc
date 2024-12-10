@@ -1,9 +1,9 @@
 #include <string>
 
-#include "pjrt_implementation/client_instance.h"
+#include "common/pjrt_implementation/client_instance.h"
 
 #include "common/api_impl.h"
-#include "pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/utils.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {

@@ -1,4 +1,4 @@
-#include "pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 

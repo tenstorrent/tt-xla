@@ -7,8 +7,8 @@
 #include <thread>
 #include <vector>
 
+#include "common/pjrt_implementation/error_instance.h"
 #include "common/status.h"
-#include "pjrt_implementation/error_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_EVENT_INSTANCE_H_
