@@ -2,11 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include <string>
-
 #include "common/status.h"
-#include "pjrt_implementation/buffer_instance.h"
 #include "pjrt_implementation/device_description.h"
+#include "pjrt_implementation/event_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_DEVICE_INSTANCE_H_
@@ -15,7 +13,7 @@
 namespace tt::pjrt {
 
 class ClientInstance;
-class EventInstance;
+class BufferInstance;
 
 class DeviceInstance {
 public:

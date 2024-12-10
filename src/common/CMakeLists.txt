@@ -21,9 +21,12 @@ add_library(TTPJRTCommon
     "module_builder.cc"
     "pjrt_implementation/utils.cc"
     "pjrt_implementation/buffer_instance.cc"
+    "pjrt_implementation/client_instance.cc"
     "pjrt_implementation/device_description.cc"
     "pjrt_implementation/device_instance.cc"
     "pjrt_implementation/error_instance.cc"
+    "pjrt_implementation/event_instance.cc"
+    "pjrt_implementation/loaded_executable_instance.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC

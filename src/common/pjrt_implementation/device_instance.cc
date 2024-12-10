@@ -56,7 +56,8 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     BufferInstance **out_buffer) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
 
-  auto tt_buffer_type = MapBufferTypeToElementType(type);
+  std::pair<tt::target::DataType, size_t> tt_buffer_type =
+      MapBufferTypeToElementType(type);
   tt::target::DataType element_type = tt_buffer_type.first;
   size_t element_size = tt_buffer_type.second;
   std::vector<std::uint32_t> shape;
@@ -73,11 +74,12 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
       data_ptr, shape, strides, element_size, element_type);
-  auto buffer_instance = new BufferInstance(*this, tensor, shape, strides);
+  BufferInstance *buffer_instance =
+      new BufferInstance(*this, tensor, shape, strides);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance;
-  auto event_instance = new EventInstance();
+  EventInstance *event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
 }

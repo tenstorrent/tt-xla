@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
-
-#include <string>
-
 #include "common/status.h"
+#include "pjrt_implementation/event_instance.h"
 #include "tt/runtime/runtime.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -14,7 +12,6 @@
 namespace tt::pjrt {
 
 class DeviceInstance;
-class EventInstance;
 
 class BufferInstance {
 public:

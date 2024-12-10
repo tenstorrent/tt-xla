@@ -34,7 +34,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Kind =
       +[](PJRT_DeviceDescription_Kind_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
-    auto sv =
+    std::string_view sv =
         DeviceDescription::Unwrap(args->device_description)->kind_string();
     args->device_kind = sv.data();
     args->device_kind_size = sv.size();
@@ -43,7 +43,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_DebugString =
       +[](PJRT_DeviceDescription_DebugString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
-    auto sv =
+    std::string_view sv =
         DeviceDescription::Unwrap(args->device_description)->debug_string();
     args->debug_string = sv.data();
     args->debug_string_size = sv.size();
@@ -52,7 +52,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_ToString =
       +[](PJRT_DeviceDescription_ToString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
-    auto sv =
+    std::string_view sv =
         DeviceDescription::Unwrap(args->device_description)->user_string();
     args->to_string = sv.data();
     args->to_string_size = sv.size();

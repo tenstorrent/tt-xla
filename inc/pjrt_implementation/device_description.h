@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <sstream>
-#include <string>
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
