@@ -47,7 +47,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
   api->PJRT_Executable_NumOutputs =
       +[](PJRT_Executable_NumOutputs_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
-    auto *exec = ExecutableImage::Unwrap(args->executable);
+    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
     args->num_outputs = exec->result_count;
     return nullptr;
   };

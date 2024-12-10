@@ -21,8 +21,9 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     DLOG_F(
         LOG_DEBUG,
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    auto &devices = LoadedExecutableInstance::Unwrap(args->executable)
-                        ->addressable_devices();
+    const std::vector<DeviceInstance *> &devices =
+        LoadedExecutableInstance::Unwrap(args->executable)
+            ->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(devices.data()));
     args->num_addressable_devices = devices.size();
@@ -50,7 +51,7 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_LoadedExecutable_GetExecutable_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
-    auto *loaded_exe =
+    LoadedExecutableInstance *loaded_exe =
         LoadedExecutableInstance::Unwrap(args->loaded_executable);
     ExecutableImage *image = loaded_exe->image_;
 
@@ -66,7 +67,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
   int dev_0 = chip_ids[0];
-  auto device = tt::runtime::openDevice({dev_0});
+  tt::runtime::Device device = tt::runtime::openDevice({dev_0});
 
   assert(args->num_devices == 1);
   int dev_index = 0;
@@ -76,7 +77,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   rt_inputs.reserve(args->num_args);
 
   for (size_t i = 0; i < args->num_args; ++i) {
-    auto *buffer = BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
+    BufferInstance *buffer =
+        BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
@@ -89,9 +91,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   assert(rt_outputs.size() == output_specs.size());
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
-    auto result_buffer = std::make_unique<BufferInstance>(
-        *this->addressable_devices_[dev_index], rt_outputs[i],
-        output_specs[i].shape, output_specs[i].stride);
+    std::unique_ptr<BufferInstance> result_buffer =
+        std::make_unique<BufferInstance>(*this->addressable_devices_[dev_index],
+                                         rt_outputs[i], output_specs[i].shape,
+                                         output_specs[i].stride);
     result_buffer->setType(
         convertElementTypeToBufferType(output_specs[i].dataType));
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());

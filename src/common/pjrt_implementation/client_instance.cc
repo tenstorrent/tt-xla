@@ -24,7 +24,7 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  auto status = PopulateDevices();
+  tt_pjrt_status status = PopulateDevices();
   if (!tt_pjrt_status_is_ok(status)) {
     return MakeError(status);
   }
@@ -43,7 +43,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_PlatformName =
       +[](PJRT_Client_PlatformName_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
-    auto *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::Unwrap(args->client);
     args->platform_name = client->cached_platform_name().data();
     args->platform_name_size = client->cached_platform_name().size();
     return nullptr;
@@ -56,7 +56,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_PlatformVersion =
       +[](PJRT_Client_PlatformVersion_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
-    auto *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::Unwrap(args->client);
     args->platform_version = client->cached_platform_version().data();
     args->platform_version_size = client->cached_platform_version().size();
     return nullptr;
@@ -64,7 +64,8 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_Devices =
       +[](PJRT_Client_Devices_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
-    auto &devices = ClientInstance::Unwrap(args->client)->devices();
+    const std::vector<DeviceInstance *> &devices =
+        ClientInstance::Unwrap(args->client)->devices();
     args->devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(devices.data()));
     args->num_devices = devices.size();
@@ -73,7 +74,8 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_AddressableDevices =
       +[](PJRT_Client_AddressableDevices_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices_Args");
-    auto &devices = ClientInstance::Unwrap(args->client)->addressable_devices();
+    const std::vector<DeviceInstance *> &devices =
+        ClientInstance::Unwrap(args->client)->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(devices.data()));
     args->num_addressable_devices = devices.size();
@@ -82,7 +84,8 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_LookupDevice =
       +[](PJRT_Client_LookupDevice_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice_Args");
-    auto &devices = ClientInstance::Unwrap(args->client)->devices();
+    const std::vector<DeviceInstance *> &devices =
+        ClientInstance::Unwrap(args->client)->devices();
     size_t id_as_size = args->id;
     if (id_as_size >= devices.size()) {
       return MakeError(tt_pjrt_status::kOutOfRange);
@@ -110,10 +113,10 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     // guess... which is an accident waiting to happen.
     // Looks like what I need is buried in the compile options... need to
     // work on that.
-    auto *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::Unwrap(args->client);
     LoadedExecutableInstance *executable;
 
-    auto *error = client->Compile(args->program, &executable);
+    PJRT_Error *error = client->Compile(args->program, &executable);
     if (error)
       return error;
     args->executable = *executable;
@@ -131,14 +134,15 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    auto status = DeviceInstance::Unwrap(args->device)
-                      ->HostBufferToDevice(
-                          args->data, args->type, args->dims, args->num_dims,
-                          args->byte_strides, args->num_byte_strides,
-                          args->host_buffer_semantics,
-                          reinterpret_cast<EventInstance **>(
-                              &args->done_with_host_buffer),
-                          reinterpret_cast<BufferInstance **>(&args->buffer));
+    tt_pjrt_status status =
+        DeviceInstance::Unwrap(args->device)
+            ->HostBufferToDevice(
+                args->data, args->type, args->dims, args->num_dims,
+                args->byte_strides, args->num_byte_strides,
+                args->host_buffer_semantics,
+                reinterpret_cast<EventInstance **>(
+                    &args->done_with_host_buffer),
+                reinterpret_cast<BufferInstance **>(&args->buffer));
     return MakeError(status);
   };
   api->PJRT_LoadedExecutable_Fingerprint =
@@ -162,7 +166,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 
   // For now, just make all devices addressable.
   addressable_devices_.reserve(devices_.size());
-  for (auto *device : devices_) {
+  for (DeviceInstance *device : devices_) {
     addressable_devices_.push_back(device);
   }
   return tt_pjrt_status::kSuccess;
