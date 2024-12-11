@@ -27,12 +27,12 @@ void DeviceInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Device_AddressableMemories =
       +[](PJRT_Device_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Device_DefaultMemory =
       +[](PJRT_Device_DefaultMemory_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Device_GetDescription =
       +[](PJRT_Device_GetDescription_Args *args) -> PJRT_Error * {

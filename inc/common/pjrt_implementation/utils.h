@@ -10,16 +10,7 @@
 
 #ifndef TT_XLA_UTILS_H_
 #define TT_XLA_UTILS_H_
-
 namespace tt::pjrt {
-
-inline PJRT_Error *MakeError(tt_pjrt_status status) {
-  if (tt_pjrt_status_is_ok(status)) {
-    return nullptr;
-  }
-  auto alloced_error = std::make_unique<ErrorInstance>(status);
-  return reinterpret_cast<PJRT_Error *>(alloced_error.release());
-}
 
 PJRT_Buffer_Type
 convertElementTypeToBufferType(tt::target::DataType ElementType);
@@ -49,7 +40,7 @@ static void BindApi(PJRT_Api *api) {
 
     auto status = platform->Initialize();
     if (!tt_pjrt_status_is_ok(status)) {
-      return MakeError(status);
+      return ErrorInstance::MakeError(status);
     }
 
     auto client = std::make_unique<ClientInstanceTy>(std::move(platform));

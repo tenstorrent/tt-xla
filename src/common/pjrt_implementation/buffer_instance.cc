@@ -72,10 +72,11 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     BufferInstance *buffer = BufferInstance::Unwrap(args->src);
     if (!args->dst) {
       // Size query.
-      return MakeError(buffer->GetHostSizeInBytes(&args->dst_size));
+      return ErrorInstance::MakeError(
+          buffer->GetHostSizeInBytes(&args->dst_size));
     } else {
       // Initiate transfer.
-      return MakeError(
+      return ErrorInstance::MakeError(
           buffer->CopyToHost(args->dst, args->dst_size,
                              reinterpret_cast<EventInstance **>(&args->event)));
     }
@@ -102,7 +103,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Buffer_CopyToDevice =
       +[](PJRT_Buffer_CopyToDevice_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Buffer_IsOnCpu =
       +[](PJRT_Buffer_IsOnCpu_Args *args) -> PJRT_Error * {
@@ -117,7 +118,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Buffer_Memory = +[](PJRT_Buffer_Memory_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Buffer_ReadyEvent =
       +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {

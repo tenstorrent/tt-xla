@@ -1,3 +1,4 @@
+#include <memory>
 #include <string>
 
 #include "common/pjrt_implementation/error_instance.h"
@@ -90,6 +91,14 @@ const std::string &ErrorInstance::message() const {
   buffer += std::to_string(static_cast<int>(status_));
   cached_message_ = std::move(buffer);
   return cached_message_;
+}
+
+PJRT_Error *ErrorInstance::MakeError(tt_pjrt_status status) {
+  if (tt_pjrt_status_is_ok(status)) {
+    return nullptr;
+  }
+  auto alloced_error = std::make_unique<ErrorInstance>(status);
+  return reinterpret_cast<PJRT_Error *>(alloced_error.release());
 }
 
 } // namespace tt::pjrt

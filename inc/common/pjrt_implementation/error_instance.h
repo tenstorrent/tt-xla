@@ -26,6 +26,8 @@ public:
   tt_pjrt_status status() const { return status_; }
   const std::string &message() const;
 
+  static PJRT_Error *MakeError(tt_pjrt_status status);
+
 private:
   tt_pjrt_status status_;
   mutable std::string cached_message_;

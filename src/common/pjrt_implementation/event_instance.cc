@@ -1,5 +1,5 @@
 #include "common/pjrt_implementation/event_instance.h"
-#include "common/pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
@@ -75,12 +75,13 @@ void EventInstance::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Event_Await = +[](PJRT_Event_Await_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Await");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Event_OnReady = +[](PJRT_Event_OnReady_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_OnReady");
-    return MakeError(EventInstance::Unwrap(args->event)
-                         ->OnReady(args->callback, args->user_arg));
+    return ErrorInstance::MakeError(
+        EventInstance::Unwrap(args->event)
+            ->OnReady(args->callback, args->user_arg));
   };
 }
 

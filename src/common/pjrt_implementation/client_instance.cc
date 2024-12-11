@@ -26,7 +26,7 @@ PJRT_Error *ClientInstance::Initialize() {
 
   tt_pjrt_status status = PopulateDevices();
   if (!tt_pjrt_status_is_ok(status)) {
-    return MakeError(status);
+    return ErrorInstance::MakeError(status);
   }
 
   return nullptr;
@@ -88,7 +88,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
         ClientInstance::Unwrap(args->client)->devices();
     size_t id_as_size = args->id;
     if (id_as_size >= devices.size()) {
-      return MakeError(tt_pjrt_status::kOutOfRange);
+      return ErrorInstance::MakeError(tt_pjrt_status::kOutOfRange);
     }
     args->device = *devices[id_as_size];
     return nullptr;
@@ -96,7 +96,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_AddressableMemories =
       +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
-    // return MakeError(tt_pjrt_status::kUnimplemented);
+    // return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
     args->num_addressable_memories =
         0; // ClientInstance::Unwrap(args->client)->addressable_memories.size();
     args->addressable_memories =
@@ -143,12 +143,12 @@ void ClientInstance::BindApi(PJRT_Api *api) {
                 reinterpret_cast<EventInstance **>(
                     &args->done_with_host_buffer),
                 reinterpret_cast<BufferInstance **>(&args->buffer));
-    return MakeError(status);
+    return ErrorInstance::MakeError(status);
   };
   api->PJRT_LoadedExecutable_Fingerprint =
       +[](PJRT_LoadedExecutable_Fingerprint_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_LoadedExecutable_Fingerprint");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
 }
 
@@ -181,7 +181,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
 
   tt_pjrt_status status = module_builder_->buildModule(code, format);
   if (!tt_pjrt_status_is_ok(status)) {
-    return MakeError(status);
+    return ErrorInstance::MakeError(status);
   }
 
   auto executable = std::make_unique<LoadedExecutableInstance>(

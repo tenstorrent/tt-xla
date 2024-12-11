@@ -1,7 +1,6 @@
-#include <string>
-
-#include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/buffer_instance.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
@@ -32,19 +31,19 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Delete =
       +[](PJRT_LoadedExecutable_Delete_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_LoadedExecutable_IsDeleted =
       +[](PJRT_LoadedExecutable_IsDeleted_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted_Args");
-    return MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_LoadedExecutable_Execute =
       +[](PJRT_LoadedExecutable_Execute_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
-    return MakeError(
+    return ErrorInstance::MakeError(
         LoadedExecutableInstance::Unwrap(args->executable)->Execute(args));
   };
   api->PJRT_LoadedExecutable_GetExecutable =
