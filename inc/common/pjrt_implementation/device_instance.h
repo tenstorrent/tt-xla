@@ -16,6 +16,7 @@ class ClientInstance;
 class BufferInstance;
 
 class DeviceInstance {
+
 public:
   DeviceInstance(int client_id, ClientInstance &client)
       : client_(client), description_(client_id) {}

@@ -19,7 +19,9 @@
 
 namespace tt::pjrt {
 
-struct ExecutableImage {
+class ExecutableImage {
+
+public:
   ExecutableImage(std::shared_ptr<void> binary, std::string code,
                   size_t arg_count, size_t result_count)
       : ref_count(1), binary(std::move(binary)), code(code),
@@ -39,11 +41,18 @@ struct ExecutableImage {
     }
   }
 
+  const size_t get_arg_count() const { return arg_count; }
+
+  const size_t get_result_count() const { return result_count; }
+
+  std::shared_ptr<void> get_binary() { return binary; }
+
+  const std::string &get_code() const { return code; }
+
 private:
   // The reference count. Must be disposed when reaching zero.
   std::atomic<int> ref_count;
 
-public:
   // Raw compiler output.
   std::shared_ptr<void> binary;
 

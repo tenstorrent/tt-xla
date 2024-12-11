@@ -13,6 +13,7 @@
 namespace tt::pjrt {
 
 class ErrorInstance {
+
 public:
   ErrorInstance(tt_pjrt_status status) : status_(status) {}
   ~ErrorInstance() {}

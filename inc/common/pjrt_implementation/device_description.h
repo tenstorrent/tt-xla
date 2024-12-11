@@ -12,6 +12,7 @@
 namespace tt::pjrt {
 
 class DeviceDescription {
+
 public:
   DeviceDescription(int32_t client_id) : client_id_(client_id) {};
   ~DeviceDescription();

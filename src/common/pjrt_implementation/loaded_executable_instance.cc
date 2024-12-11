@@ -71,7 +71,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   assert(args->num_devices == 1);
   int dev_index = 0;
-  tt::runtime::Binary binary(image_->binary);
+  tt::runtime::Binary binary(image_->get_binary());
 
   std::vector<tt::runtime::Tensor> rt_inputs;
   rt_inputs.reserve(args->num_args);

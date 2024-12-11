@@ -17,6 +17,7 @@
 namespace tt::pjrt {
 
 class EventInstance {
+
 public:
   EventInstance();
   ~EventInstance();
