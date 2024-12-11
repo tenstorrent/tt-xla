@@ -89,3 +89,38 @@ def test_conv2d(
         required_atol=float("inf"),
         dtype=jnp.bfloat16,
     )
+
+
+@pytest.mark.parametrize(
+    [
+        "img_shape",
+        "weights_shape",
+    ],
+    [
+        ((1, 256, 512), (1024, 256, 1)),
+        ((1, 256, 256), (512, 256, 1)),
+        ((1, 512, 256), (512, 512, 1)),
+        ((1, 512, 512), (1024, 512, 1)),
+    ],
+)
+def test_conv1d(img_shape, weights_shape):
+    def module_conv(img, weights):
+        return jax.lax.conv_general_dilated(
+            lhs=img,
+            rhs=weights,
+            window_strides=(1,),
+            padding=[(0, 0)],
+            lhs_dilation=None,
+            rhs_dilation=(1,),
+            dimension_numbers=("NCW", "OIW", "NCW"),
+            feature_group_count=1,
+            batch_group_count=1,
+        )
+
+    verify_module(
+        module_conv,
+        [img_shape, weights_shape],
+        required_pcc=0.95,
+        required_atol=float("inf"),
+        dtype=jnp.bfloat16,
+    )
