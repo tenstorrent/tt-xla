@@ -371,7 +371,7 @@ public:
   std::tuple<uint64_t, uint64_t> AdvanceTimeline();
 
   // Checks if the output on the i-th index is a scalar.
-  bool isOutputScalar(const int index) const {
+  bool isOutputScalar(const size_t index) const {
     return module_builder_->isOutputScalar(index);
   }
 
