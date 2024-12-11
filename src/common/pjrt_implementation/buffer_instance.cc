@@ -209,7 +209,7 @@ tt_pjrt_status BufferInstance::CopyToHost(void *dst, size_t dst_size,
 PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
   tt::target::DataType Type = tt::runtime::getTensorDataType(tensor());
-  return convertElementTypeToBufferType(Type);
+  return tt::pjrt::utils::convertElementTypeToBufferType(Type);
 }
 
 } // namespace tt::pjrt

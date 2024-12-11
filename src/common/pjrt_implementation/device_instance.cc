@@ -57,7 +57,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
 
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
-      MapBufferTypeToElementType(type);
+      tt::pjrt::utils::MapBufferTypeToElementType(type);
   tt::target::DataType element_type = tt_buffer_type.first;
   size_t element_size = tt_buffer_type.second;
   std::vector<std::uint32_t> shape;

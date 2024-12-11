@@ -94,8 +94,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
         std::make_unique<BufferInstance>(*this->addressable_devices_[dev_index],
                                          rt_outputs[i], output_specs[i].shape,
                                          output_specs[i].stride);
-    result_buffer->setType(
-        convertElementTypeToBufferType(output_specs[i].dataType));
+    result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
+        output_specs[i].dataType));
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
     args->output_lists[dev_index][i] = *(result_buffer.release());
   }
