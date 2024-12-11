@@ -33,7 +33,7 @@ public:
 
   size_t getNumOutputs() const { return m_num_outputs; };
 
-  bool isOutputScalar(int index) const;
+  bool isOutputScalar(size_t index) const;
 
 private:
   // Creates VHLO module from the input program code.

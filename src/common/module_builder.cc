@@ -66,8 +66,8 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-bool ModuleBuilder::isOutputScalar(int index) const {
-  assert(index < m_is_output_scalar.size() && "Index of output out of range.");
+bool ModuleBuilder::isOutputScalar(const size_t index) const {
+  assert(index < m_is_output_scalar.size() && "Output index out of range");
   return m_is_output_scalar[index];
 }
 
@@ -151,18 +151,14 @@ void ModuleBuilder::collectOutputTypes(
 
     // We care only about return ops of public functions, as that are the ones
     // that will produce results in the flatbuffer.
-    if (funcOp && funcOp.isPublic()) {
-      for (const mlir::Type &returnType :
-           funcOp.getFunctionType().getResults()) {
-        m_is_output_scalar.push_back(isScalarType(returnType));
-      }
+    if (!funcOp) {
+      return;
     }
-
-    if (moduleOp) {
-      if (moduleOp == module.get()) {
-        return;
-      }
-      collectOutputTypes(moduleOp);
+    if (!funcOp.isPublic()) {
+      return;
+    }
+    for (const mlir::Type &returnType : funcOp.getFunctionType().getResults()) {
+      m_is_output_scalar.push_back(isScalarType(returnType));
     }
   });
 }
@@ -234,9 +230,11 @@ void ModuleBuilder::createFlatbufferBinary(
   m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
 
   if (m_num_outputs != m_is_output_scalar.size()) {
-    DLOG_F(ERROR, "The number of return types does not match ");
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %ld "
+           "than expected %ld",
+           m_num_outputs, m_is_output_scalar.size());
     m_status = tt_pjrt_status::kInternal;
-    return;
   }
 }
 
