@@ -2,5 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .device_runner import run_on_cpu, run_on_tt_device
-from .module_tester import ComparisonMetric, TestType, test, test_with_random_inputs
+from .comparison import (
+    AllcloseConfig,
+    AtolConfig,
+    ComparisonConfig,
+    EqualConfig,
+    PccConfig,
+)
+from .tester import (
+    run_graph_test,
+    run_graph_test_with_random_inputs,
+    run_op_test,
+    run_op_test_with_random_inputs,
+)
+from .utils import random_tensor

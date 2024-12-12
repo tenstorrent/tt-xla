@@ -7,7 +7,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import pytest
-from infra.module_tester import ComparisonMetric, test, test_with_random_inputs
+from infra.module_tester import test, test_with_random_inputs
 from infra.test_model import TestModel
 
 
@@ -46,11 +46,18 @@ class SimpleNN(TestModel):  # TODO what's the benefit of inheriting nnx.Module?
         return [act, w0, b0, w1, b1]
 
 
-def test_simple_nn():
-    model = SimpleNN.get_model()
-    inputs = SimpleNN.get_model_inputs()
+@pytest.fixture
+def model() -> SimpleNN:
+    return SimpleNN.get_model()
 
-    assert test(model, inputs, ComparisonMetric.PCC)
+
+@pytest.fixture
+def inputs() -> Sequence[jax.Array]:
+    return SimpleNN.get_model_inputs()
+
+
+def test_simple_nn(model: SimpleNN, inputs: Sequence[jax.Array]):
+    assert test(model, inputs)
 
 
 @pytest.mark.parametrize(
@@ -60,11 +67,9 @@ def test_simple_nn():
     ],
 )
 def test_simple_nn_with_random_inputs(
-    act: tuple, w0: tuple, b0: tuple, w1: tuple, b1: tuple
+    model: SimpleNN, act: tuple, w0: tuple, b0: tuple, w1: tuple, b1: tuple
 ):
-    model = SimpleNN.get_model()
-
-    assert test_with_random_inputs(model, [act, w0, b0, w1, b1], ComparisonMetric.PCC)
+    assert test_with_random_inputs(model, [act, w0, b0, w1, b1])
 
 
 if __name__ == "__main__":
