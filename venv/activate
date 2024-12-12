@@ -18,17 +18,14 @@ else
     pip install --upgrade pip
     pip install -r requirements.txt
   fi
+
   export TTXLA_ENV_ACTIVATED=1
   export TTMLIR_ENV_ACTIVATED=1
-  export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
-  if [ -n "$PROJECT_ROOT" ]; then
-      export TT_METAL_HOME="$PROJECT_ROOT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal"
-  else
-      export TT_METAL_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal"
-  fi
-  export TT_MLIR_HOME="$(pwd)"
-  export PYTHONPATH="$(pwd)/build/python_packages:$(pwd)/.local/toolchain/python_packages/mlir_core:${TT_METAL_HOME}:${TT_METAL_HOME}/tt_eager:${TT_METAL_BUILD_HOME}/tools/profiler/bin"
-  export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
   export TT_METAL_LOGGER_LEVEL="ERROR"
+  export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 
+  export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
+  export PYTHONPATH="$(pwd):$(pwd)/tests"
+  export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+  export TT_METAL_HOME="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"
 fi
