@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <optional>
@@ -659,8 +660,9 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int device_info_count_ =
-      1; // TODO: revert to chip_ids.size(); once
+  int device_info_count_ = chip_ids.size();
+  std::cerr << "device_info_count=" << device_info_count_ << std::endl;
+      // 1; // TODO: revert to chip_ids.size(); once
          // https://github.com/tenstorrent/tt-xla/issues/9 is fixed
 
   devices_.resize(device_info_count_);
@@ -940,11 +942,20 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
+    // args->num_output_types = 1;
+    // PJRT_Buffer_Type output_types[] = {PJRT_Buffer_Type::PJRT_Buffer_Type_F32};
+    // args->output_types = output_types;
+    // return nullptr;
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OutputDimensions =
       +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
+    // const int64_t dims[] = {4, 4};
+    // const size_t dim_sizes[] = {2};
+    // args->dims=dims;
+    // args->dim_sizes=dim_sizes;
+    // return nullptr;
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Executable_OutputMemoryKinds =
@@ -1012,7 +1023,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
   int dev_0 = chip_ids[0];
-  auto device = tt::runtime::openDevice({dev_0});
+  auto device = tt::runtime::openDevice(chip_ids);
 
   assert(args->num_devices == 1);
   int dev_index = 0;
