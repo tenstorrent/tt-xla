@@ -1035,9 +1035,13 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   assert(rt_outputs.size() == output_specs.size());
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
+    bool is_scalar = client_.isOutputScalar(i);
+    // PJRT expects an empty shape for scalars.
+    std::vector<std::uint32_t> output_shape =
+        is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
     auto result_buffer = std::make_unique<BufferInstance>(
-        *this->addressable_devices_[dev_index], rt_outputs[i],
-        output_specs[i].shape, output_specs[i].stride);
+        *this->addressable_devices_[dev_index], rt_outputs[i], output_shape,
+        output_specs[i].stride);
     result_buffer->setType(
         convertElementTypeToBufferType(output_specs[i].dataType));
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());

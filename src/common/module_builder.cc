@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Func/Extensions/AllExtensions.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Parser/Parser.h"
@@ -65,9 +66,16 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
+bool ModuleBuilder::isOutputScalar(const size_t index) const {
+  assert(index < m_is_output_scalar.size() && "Output index out of range");
+  return m_is_output_scalar[index];
+}
+
 tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
                                           const std::string_view &format) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
+
+  m_status = tt_pjrt_status::kSuccess;
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -78,6 +86,8 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
+
+  collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -108,7 +118,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
-  print_module(vhlo_module);
+  printModule(vhlo_module);
 
   return vhlo_module;
 }
@@ -126,7 +136,42 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
+}
+
+void ModuleBuilder::collectOutputTypes(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputTypes");
+
+  m_is_output_scalar.clear();
+
+  module.get().walk([&](mlir::Operation *op) {
+    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
+    mlir::ModuleOp moduleOp = mlir::dyn_cast<mlir::ModuleOp>(op);
+
+    // We care only about return ops of public functions, as that are the ones
+    // that will produce results in the flatbuffer.
+    if (!funcOp) {
+      return;
+    }
+    if (!funcOp.isPublic()) {
+      return;
+    }
+    for (const mlir::Type &returnType : funcOp.getFunctionType().getResults()) {
+      m_is_output_scalar.push_back(isScalarType(returnType));
+    }
+  });
+}
+
+bool ModuleBuilder::isScalarType(mlir::Type type) {
+  if (mlir::isa<mlir::FloatType>(type) || mlir::isa<mlir::IntegerType>(type)) {
+    return true;
+  }
+  if (mlir::RankedTensorType tensorType =
+          mlir::dyn_cast<mlir::RankedTensorType>(type)) {
+    return tensorType.getRank() == 0;
+  }
+  return false;
 }
 
 void ModuleBuilder::convertFromSHLOToTTIR(
@@ -149,7 +194,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   }
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::convertFromTTIRToTTNN(
@@ -167,7 +212,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
-  print_module(mlir_module);
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::createFlatbufferBinary(
@@ -183,9 +228,17 @@ void ModuleBuilder::createFlatbufferBinary(
   tt::runtime::Binary runtime_binary_handle(m_flatbuffer_binary);
   m_num_inputs = runtime_binary_handle.getProgramInputs(0).size();
   m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
+
+  if (m_num_outputs != m_is_output_scalar.size()) {
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %ld "
+           "than expected %ld",
+           m_num_outputs, m_is_output_scalar.size());
+    m_status = tt_pjrt_status::kInternal;
+  }
 }
 
-void ModuleBuilder::print_module(
+void ModuleBuilder::printModule(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   if (loguru::g_stderr_verbosity < LOG_DEBUG) {
     return;
