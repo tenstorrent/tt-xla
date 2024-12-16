@@ -674,8 +674,10 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   }
 
   // For now, just make all devices addressable. (Don't do this)
-  addressable_devices_.reserve(1);
-  addressable_devices_.push_back(devices_[0]);
+  addressable_devices_.reserve(devices_.size());
+  for (auto device_ : devices_) {
+    addressable_devices_.push_back(device_);
+  }
   return tt_pjrt_status::kSuccess;
 }
 

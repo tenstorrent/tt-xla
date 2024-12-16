@@ -89,6 +89,7 @@ def verify_module(
     device_tt = jax.devices('tt')
     print("device_tt:", device_tt)
     devices = device_tt[0]  # 1D list of devices
+    #devices = device_tt
     print("device:", devices)
     mesh = Mesh(devices=(devices,), axis_names=('x',))  # Match dimensionality
     print("Mesh devices:", mesh.devices)
