@@ -17,6 +17,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <utility>
 
 // tt-xla includes
@@ -282,6 +283,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
     args->device = BufferInstance::Unwrap(args->buffer)->device();
+    std::cerr << "DEVICE=" << args->device << std::endl;
     return nullptr;
   };
   api->PJRT_Buffer_Memory = +[](PJRT_Buffer_Memory_Args *args) -> PJRT_Error * {
@@ -383,6 +385,8 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
 //===----------------------------------------------------------------------===//
 // DeviceDescription
 //===----------------------------------------------------------------------===//
+
+int DeviceDescription::static_id = 0;
 
 DeviceDescription::~DeviceDescription() = default;
 
@@ -582,10 +586,10 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_AddressableDevices =
       +[](PJRT_Client_AddressableDevices_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices_Args");
-    auto &devices = ClientInstance::Unwrap(args->client)->addressable_devices();
+    auto &addressable_devices = ClientInstance::Unwrap(args->client)->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(devices.data()));
-    args->num_addressable_devices = devices.size();
+        reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
+    args->num_addressable_devices = 1;
     return nullptr;
   };
   api->PJRT_Client_LookupDevice =
@@ -661,7 +665,6 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
   int device_info_count_ = chip_ids.size();
-  std::cerr << "device_info_count=" << device_info_count_ << std::endl;
       // 1; // TODO: revert to chip_ids.size(); once
          // https://github.com/tenstorrent/tt-xla/issues/9 is fixed
 
@@ -670,11 +673,9 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
     devices_[i] = new DeviceInstance(i, *this);
   }
 
-  // For now, just make all devices addressable.
-  addressable_devices_.reserve(devices_.size());
-  for (auto *device : devices_) {
-    addressable_devices_.push_back(device);
-  }
+  // For now, just make all devices addressable. (Don't do this)
+  addressable_devices_.reserve(1);
+  addressable_devices_.push_back(devices_[0]);
   return tt_pjrt_status::kSuccess;
 }
 
@@ -978,11 +979,11 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     DLOG_F(
         LOG_DEBUG,
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    auto &devices = LoadedExecutableInstance::Unwrap(args->executable)
+    auto &addressable_devices = LoadedExecutableInstance::Unwrap(args->executable)
                         ->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(devices.data()));
-    args->num_addressable_devices = devices.size();
+        reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
+    args->num_addressable_devices = 1;
     return nullptr;
   };
   api->PJRT_LoadedExecutable_Delete =
@@ -1020,9 +1021,9 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
-
+  std::cerr << "I AM HERE" << std::endl;
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int dev_0 = chip_ids[0];
+
   auto device = tt::runtime::openDevice(chip_ids);
 
   assert(args->num_devices == 1);

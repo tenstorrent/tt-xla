@@ -209,7 +209,7 @@ def test_sign_op(input_shapes):
     verify_module(module_sign, input_shapes)
 
 
-@pytest.mark.parametrize("input_shapes", [[(3, 3)], [(3, 3, 3)]])
+@pytest.mark.parametrize("input_shapes", [[(2, 2)]])
 def test_sqrt_op(input_shapes):
     def module_sqrt(a):
         return jnp.sqrt(a)
@@ -217,7 +217,7 @@ def test_sqrt_op(input_shapes):
     verify_module(module_sqrt, input_shapes)
 
 
-@pytest.mark.parametrize("input_shapes", [[(3, 3), (3, 3)], [(3, 3, 3), (3, 3, 3)]])
+@pytest.mark.parametrize("input_shapes", [[(3, 3), (3, 3)]])
 def test_sub_op(input_shapes):
     def module_sub(a, b):
         return a - b

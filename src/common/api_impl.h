@@ -138,7 +138,10 @@ private:
 
 class DeviceDescription {
 public:
-  DeviceDescription(int32_t client_id) : client_id_(client_id) {};
+
+  static int static_id;
+
+  DeviceDescription(int32_t client_id) : client_id_(client_id), id(static_id++) {};
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -158,7 +161,7 @@ public:
     return user_string_;
   }
   // TODO
-  int64_t device_id() { return 0; }
+  int64_t device_id() { return id; }
 
   int client_id() { return client_id_; }
 
@@ -167,8 +170,9 @@ public:
 private:
   int client_id_;
   std::string kind_string_ = "wormhole";
-  std::string debug_string_ = "debug_string";
+  std::string debug_string_ = "wormhole_b0";
   std::string user_string_ = "";
+  int id;
 };
 
 //===----------------------------------------------------------------------===//

@@ -87,20 +87,36 @@ def verify_module(
     ]
 
     device_tt = jax.devices('tt')
-    print("device_tt=", device_tt)
-    devices = mesh_utils.create_device_mesh((1, 1), [device_tt[0]])
-    mesh = Mesh(devices=devices, axis_names=('x', 'y'))
+    print("device_tt:", device_tt)
+    devices = device_tt[0]  # 1D list of devices
+    print("device:", devices)
+    mesh = Mesh(devices=(devices,), axis_names=('x',))  # Match dimensionality
+    print("Mesh devices:", mesh.devices)
+    print("Mesh axis names:", mesh.axis_names)
+    # PartitionSpec for axis 'x' (size=1)
+    in_spec = PartitionSpec('x')  # Partition along 'x', even though x=1
+    out_spec = PartitionSpec('x')
     module_sharded = shard_map(
         module,
         mesh=mesh,
-        in_specs=(PartitionSpec('x', None)),
-        out_specs=PartitionSpec('x', None)
+        in_specs=(in_spec,),  # Partition inputs along 'x'
+        out_specs=out_spec   # Partition outputs along 'x'
     )
-    tt_inputs = [jax.device_put(cpu_input, device_tt[0]) for cpu_input in cpu_inputs]
+    sharding = NamedSharding(mesh, in_spec)
+    tt_inputs = [jax.device_put(cpu_input, devices) for cpu_input in cpu_inputs]
+    # Check data placement
+    print("Input devices:", [inp.device for inp in tt_inputs])
+
+    # Compile and execute
     graph = jax.jit(module_sharded)
-    lowered_single = jax.jit(module_sharded).lower(*tt_inputs)
+    cpu_graph = jax.jit(module)
+    lowered_single = graph.lower(*tt_inputs)
+    print("Lowered HLO:")
     print(lowered_single.as_text())
-    res = graph(*tt_inputs)
-    # with run_on_cpu():
-    #     res_cpu = graph(*cpu_inputs)
-    # compare_tensor_to_golden(res, res_cpu, required_pcc, required_atol)
+
+    # Execute the graph
+    with mesh: 
+        res = graph(*tt_inputs)
+    with run_on_cpu():
+        res_cpu = cpu_graph(*cpu_inputs)
+    compare_tensor_to_golden(res, res_cpu, required_pcc, required_atol)
