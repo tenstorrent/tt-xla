@@ -28,7 +28,10 @@ RUN apt-get update && apt-get install -y \
     graphviz \
     patchelf \
     libyaml-cpp-dev \
-    libboost-all-dev
+    libboost-all-dev \
+    jq \
+    curl \
+    lcov
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \

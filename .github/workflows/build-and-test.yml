@@ -147,10 +147,21 @@ jobs:
     - name: Set reusable strings
       id: strings
       shell: bash
+      env:
+        job-name: "${{ github.job }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
+
+        # Github job context unfortunately doesn't contain job_id, this is the workaround how to fetch it using GH API
+        echo "Expected job name: ${{ env.job-name }}"
+        JOB_ID=$(curl -s -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}/jobs" | \
+          jq -r '.jobs[] | select(.name | contains("${{ env.job-name }}")) | .id ')
+        echo "Current job id: $JOB_ID"
+        echo "job-id=$JOB_ID" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
@@ -165,6 +176,7 @@ jobs:
         source venv/activate
         cmake -G Ninja \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+        -DCODE_COVERAGE=ON \
         -B ${{ steps.strings.outputs.build-output-dir }} \
         -S ${{ steps.strings.outputs.work-dir }}
 
@@ -180,4 +192,25 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
-        pytest -v tests/
+        pytest -v tests/ \
+          --junitxml=${{ steps.strings.outputs.test_report_path }}
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-reports-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Show Test Report
+      uses: mikepenz/action-junit-report@v4
+      if: success() || failure()
+      with:
+        report_paths: ${{ steps.strings.outputs.test_report_path }}
+        check_name: TT-XLA Tests
+
+    - name: Prepare code coverage report
+      run: |
+        lcov --directory build --capture --output-file coverage.info
+        lcov --extract coverage.info '**/src/*' --output-file coverage.info
+        lcov --list coverage.info
