@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import os
+
 import jax
 import jax._src.xla_bridge as xb
+import pytest
+from infra.device_connector import DeviceConnector
 
 
 def initialize():
@@ -21,4 +23,9 @@ def initialize():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_session():
-    initialize()
+    # Added to prevent `PJRT_Api already exists for device type tt` error.
+    # Will be removed completely soon.
+    connector = DeviceConnector.get_instance()
+
+    if not connector.is_initialized():
+        initialize()

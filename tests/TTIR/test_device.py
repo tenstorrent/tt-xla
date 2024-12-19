@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import jax
 import jax.numpy as jnp
-
 from infrastructure import random_input_tensor
 
 
@@ -16,9 +14,9 @@ def test_num_devices():
 
 def test_to_device():
     cpu_array = random_input_tensor((32, 32))
-    device = jax.devices()[0]
+    device = jax.devices("tt")[0]
     tt_array = jax.device_put(cpu_array, device)
-    assert tt_array.device.device_kind == "wormhole"
+    assert tt_array.device.device_kind == "TTDevice"
 
 
 def test_input_on_device():
