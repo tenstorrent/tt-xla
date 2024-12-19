@@ -12,3 +12,4 @@ pre-commit
 lit
 pybind11
 pytest
+transformers
