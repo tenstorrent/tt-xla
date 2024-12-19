@@ -26,23 +26,6 @@ class Workload:
     def execute(self) -> Any:
         return self.executable(*self.args, **self.kwargs)
 
-    def as_mlir_module(self) -> str:
-        """
-        Returns workload as mlir module string.
-
-        Note that workload.executable must be the result of jit, otherwise empty string
-        will be returned.
-        """
-        try:
-            s = export.export(self.executable)(*self.args, **self.kwargs).mlir_module()
-            # Remove all lines that start with "#loc" for cleaner output.
-            return "\n".join(
-                line for line in s.splitlines() if not line.startswith("#loc")
-            )
-
-        except ValueError:
-            return ""
-
 
 class Framework(Enum):
     JAX = "jax"
@@ -71,11 +54,13 @@ def random_tensor(
     shape: tuple,
     dtype: str = "float32",
     random_seed: int = 0,
+    minval: float = 0.0,
+    maxval: float = 1.0,
     framework: Framework = Framework.JAX,
 ) -> Tensor:
     """
-    Generates a random tensor of `shape`, `dtype`, and `random_seed` for the desired
-    `framework`.
+    Generates a random tensor of `shape`, `dtype`, and `random_seed` in range
+    [`minval`, `maxval`) for the desired `framework`.
     """
     # Convert dtype string to actual dtype for the selected framework.
     dtype_converted = _str_to_dtype(dtype, framework)
@@ -83,6 +68,40 @@ def random_tensor(
     # Generate random tensor based on framework type
     if framework == Framework.JAX:
         prng_key = jax.random.PRNGKey(random_seed)
-        return jax.random.uniform(key=prng_key, shape=shape, dtype=dtype_converted)
+
+        return jax.random.uniform(
+            key=prng_key,
+            shape=shape,
+            dtype=dtype_converted,
+            minval=minval,
+            maxval=maxval,
+        )
+    else:
+        raise ValueError(f"Unsupported framework: {framework.value}.")
+
+
+def workload_as_mlir_module(
+    workload: Workload, framework: Framework = Framework.JAX
+) -> str:
+    """
+    Returns workload as mlir module string.
+
+    Note that in case of jax, workload.executable must be the result of jit, otherwise
+    empty string will be returned.
+    """
+
+    if framework == Framework.JAX:
+        try:
+            s = export.export(workload.executable)(
+                *workload.args, **workload.kwargs
+            ).mlir_module()
+
+            # Remove all lines that start with "#loc" for cleaner output.
+            return "\n".join(
+                line for line in s.splitlines() if not line.startswith("#loc")
+            )
+
+        except ValueError:
+            return ""
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")

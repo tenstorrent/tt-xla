@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Callable, Sequence
 
 import jax
 
@@ -124,3 +124,22 @@ class DeviceRunner:
             kwargs_on_device[key] = value_on_device
 
         return Workload(workload.executable, args_on_device, kwargs_on_device)
+
+
+# --------------- Convenience decorators ---------------
+
+
+def run_on_cpu(f: Callable):
+    def wrapper(*args, **kwargs):
+        workload = Workload(f, args, kwargs)
+        return DeviceRunner.run_on_cpu(workload)
+
+    return wrapper
+
+
+def run_on_tt_device(f: Callable):
+    def wrapper(*args, **kwargs):
+        workload = Workload(f, args, kwargs)
+        return DeviceRunner.run_on_tt_device(workload)
+
+    return wrapper

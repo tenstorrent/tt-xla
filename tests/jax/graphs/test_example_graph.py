@@ -8,7 +8,7 @@ from infra import run_graph_test_with_random_inputs
 from jax import numpy as jnp
 
 
-def arbitrary_op_chain(x: jax.Array, y: jax.Array) -> jax.Array:
+def example_graph(x: jax.Array, y: jax.Array) -> jax.Array:
     a = jnp.abs(x)
     b = jnp.add(a, y)
     c = jnp.divide(a, b)
@@ -23,5 +23,5 @@ def arbitrary_op_chain(x: jax.Array, y: jax.Array) -> jax.Array:
         [(64, 64), (64, 64)],
     ],
 )
-def test_arbitrary_op_chain(x_shape: tuple, y_shape: tuple):
-    run_graph_test_with_random_inputs(arbitrary_op_chain, [x_shape, y_shape])
+def test_example_graph(x_shape: tuple, y_shape: tuple):
+    run_graph_test_with_random_inputs(example_graph, [x_shape, y_shape])

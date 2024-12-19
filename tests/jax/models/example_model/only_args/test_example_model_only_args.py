@@ -14,7 +14,7 @@ from ..model import ExampleModel
 # ----- Tester -----
 
 
-class ExampleModelTester(ModelTester):
+class ExampleModelOnlyArgsTester(ModelTester):
     """
     Example tester showcasing how to use only positional arguments for model's forward
     method.
@@ -52,41 +52,34 @@ class ExampleModelTester(ModelTester):
         b1 = self._model.b1
 
         # Fetch activations.
-        acts = self._get_input_activations()
-        assert len(acts) == 1
-        act = acts[0]
+        input_activations = self._get_input_activations()
+        assert len(input_activations) == 1
+        input_activation = input_activations[0]
 
         # Mix activations, weights and biases to match forward method signature.
-        return [act, w0, b0, w1, b1]
+        return [input_activation, w0, b0, w1, b1]
 
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def comparison_config() -> ComparisonConfig:
-    config = ComparisonConfig()
-    config.atol.disable()
-    return config
+def inference_tester() -> ExampleModelOnlyArgsTester:
+    return ExampleModelOnlyArgsTester()
 
 
 @pytest.fixture
-def inference_tester(comparison_config: ComparisonConfig) -> ExampleModelTester:
-    return ExampleModelTester(comparison_config)
-
-
-@pytest.fixture
-def training_tester(comparison_config: ComparisonConfig) -> ExampleModelTester:
-    return ExampleModelTester(comparison_config, RunMode.TRAINING)
+def training_tester() -> ExampleModelOnlyArgsTester:
+    return ExampleModelOnlyArgsTester(RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
-def test_example_model_inference(inference_tester: ExampleModelTester):
+def test_example_model_inference(inference_tester: ExampleModelOnlyArgsTester):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_example_model_training(training_tester: ExampleModelTester):
+def test_example_model_training(training_tester: ExampleModelOnlyArgsTester):
     training_tester.test()

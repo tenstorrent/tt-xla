@@ -39,7 +39,7 @@ class ModelTester(BaseTester, ABC):
 
     def __init__(
         self,
-        comparison_config: ComparisonConfig,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
         super().__init__(comparison_config)

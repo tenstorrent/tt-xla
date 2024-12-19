@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
+from .device_runner import run_on_cpu
 from .utils import Tensor
 
 
@@ -68,6 +69,7 @@ class ComparisonConfig:
 # frameworks in the future.
 
 
+@run_on_cpu
 def compare_equal(device_output: Tensor, golden_output: Tensor) -> None:
     assert isinstance(device_output, jax.Array) and isinstance(
         golden_output, jax.Array
@@ -78,6 +80,7 @@ def compare_equal(device_output: Tensor, golden_output: Tensor) -> None:
     assert eq, f"Equal comparison failed"
 
 
+@run_on_cpu
 def compare_atol(
     device_output: Tensor, golden_output: Tensor, atol_config: AtolConfig
 ) -> None:
@@ -92,6 +95,7 @@ def compare_atol(
     ), f"Atol comparison failed. Calculated atol={atol}"
 
 
+@run_on_cpu
 def compare_pcc(
     device_output: Tensor, golden_output: Tensor, pcc_config: PccConfig
 ) -> None:
@@ -113,6 +117,7 @@ def compare_pcc(
         ), f"PCC comparison failed. Calculated pcc={pcc}"
 
 
+@run_on_cpu
 def compare_allclose(
     device_output: Tensor, golden_output: Tensor, allclose_config: AllcloseConfig
 ) -> None:

@@ -14,7 +14,7 @@ from ..model import ExampleModel
 # ----- Tester -----
 
 
-class ExampleModelTester(ModelTester):
+class ExampleModelMixedArgsAndKwargsTester(ModelTester):
     """
     Example tester showcasing how to use both positional and keyword arguments for
     model's forward method.
@@ -43,10 +43,10 @@ class ExampleModelTester(ModelTester):
     # @override
     def _get_forward_method_args(self) -> Sequence[jax.Array]:
         """Returns just input activations as positional arg."""
-        acts = self._get_input_activations()
-        assert len(acts) == 1
-        act = acts[0]
-        return [act]
+        input_activations = self._get_input_activations()
+        assert len(input_activations) == 1
+        input_activation = input_activations[0]
+        return [input_activation]
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
@@ -69,29 +69,24 @@ class ExampleModelTester(ModelTester):
 
 
 @pytest.fixture
-def comparison_config() -> ComparisonConfig:
-    config = ComparisonConfig()
-    config.atol.disable()
-    return config
+def inference_tester() -> ExampleModelMixedArgsAndKwargsTester:
+    return ExampleModelMixedArgsAndKwargsTester()
 
 
 @pytest.fixture
-def inference_tester(comparison_config: ComparisonConfig) -> ExampleModelTester:
-    return ExampleModelTester(comparison_config)
-
-
-@pytest.fixture
-def training_tester(comparison_config: ComparisonConfig) -> ExampleModelTester:
-    return ExampleModelTester(comparison_config, RunMode.TRAINING)
+def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
+    return ExampleModelMixedArgsAndKwargsTester(RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
-def test_example_model_inference(inference_tester: ExampleModelTester):
+def test_example_model_inference(
+    inference_tester: ExampleModelMixedArgsAndKwargsTester,
+):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_example_model_training(training_tester: ExampleModelTester):
+def test_example_model_training(training_tester: ExampleModelMixedArgsAndKwargsTester):
     training_tester.test()

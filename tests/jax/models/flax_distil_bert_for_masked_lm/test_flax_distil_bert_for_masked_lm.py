@@ -37,37 +37,25 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        activations = self._get_input_activations()
+        input_activations = self._get_input_activations()
 
-        assert len(activations) == 1
+        assert len(input_activations) == 1
         assert hasattr(self._model, "params")
 
-        return {"input_ids": activations[0], "params": self._model.params}
+        return {"input_ids": input_activations[0], "params": self._model.params}
 
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def comparison_config() -> ComparisonConfig:
-    config = ComparisonConfig()
-    config.disable_all()
-    config.pcc.enable()
-    return config
+def inference_tester() -> FlaxDistilBertForMaskedLMTester:
+    return FlaxDistilBertForMaskedLMTester()
 
 
 @pytest.fixture
-def inference_tester(
-    comparison_config: ComparisonConfig,
-) -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(comparison_config)
-
-
-@pytest.fixture
-def training_tester(
-    comparison_config: ComparisonConfig,
-) -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(comparison_config, RunMode.TRAINING)
+def training_tester() -> FlaxDistilBertForMaskedLMTester:
+    return FlaxDistilBertForMaskedLMTester(RunMode.TRAINING)
 
 
 # ----- Tests -----
