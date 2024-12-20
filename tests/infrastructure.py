@@ -24,7 +24,7 @@ def run_on_cpu():
 def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
     device_cpu = jax.devices("cpu")[0]
     with jax.default_device(device_cpu):
-        tensor = jax.random.uniform(jax.random.PRNGKey(key), shape=shape, dtype=dtype)
+        tensor = jax.numpy.ones(shape=shape, dtype=dtype)
 
     # Although the random tensor is generated on cpu but it is not committed to
     # cpu; so this tensor can be moved to the device and subsequent code will
@@ -104,16 +104,17 @@ def verify_module(
         out_specs=out_spec   # Partition outputs along 'x'
     )
     sharding = NamedSharding(mesh, in_spec)
-    tt_inputs = [jax.device_put(cpu_input, devices) for cpu_input in cpu_inputs]
+    #tt_inputs = [jax.device_put(cpu_input, devices) for cpu_input in cpu_inputs]
+    tt_inputs = [jax.device_put(cpu_input, sharding) for cpu_input in cpu_inputs]
     # Check data placement
     print("Input devices:", [inp.device for inp in tt_inputs])
 
     # Compile and execute
     graph = jax.jit(module_sharded)
     cpu_graph = jax.jit(module)
-    lowered_single = graph.lower(*tt_inputs)
-    print("Lowered HLO:")
-    print(lowered_single.as_text())
+    # lowered_single = graph.lower(*tt_inputs)
+    # print("Lowered HLO:")
+    # print(lowered_single.as_text())
 
     # Execute the graph
     with mesh: 

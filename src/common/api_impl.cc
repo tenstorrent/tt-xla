@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <optional>
 #include <sstream>
@@ -24,6 +25,8 @@
 #include "common/module_builder.h"
 #include "common/plugin_attributes.h"
 #include "common/status.h"
+#include "tt/runtime/runtime.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -212,6 +215,9 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_ElementType_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+    std::cerr << "[[[[[[[]]]]]]]" << std::endl;
+    print_tensor(buffer->tensor());
+    std::cerr << "[[[[[[[]]]]]]]" << std::endl;
     std::optional<PJRT_Buffer_Type> type = buffer->getType();
     if (type.has_value())
       args->type = *type;
@@ -220,10 +226,22 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     }
     return nullptr;
   };
+  api->PJRT_Buffer_DynamicDimensionIndices = 
+    +[](PJRT_Buffer_DynamicDimensionIndices_Args* args) -> PJRT_Error* {
+      DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_DynamicDimensionIndices");
+      BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+      std::cerr << "CCCCCCCCCC" << std::endl;
+      print_tensor(buffer->tensor());
+      std::cerr << "CCCCCCCCCC" << std::endl;
+      return nullptr;
+    };
   api->PJRT_Buffer_Dimensions =
       +[](PJRT_Buffer_Dimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+    std::cerr << "VVVVVVVVVV" << std::endl;
+    print_tensor(buffer->tensor());
+    std::cerr << "VVVVVVVVVV" << std::endl;
     args->dims = buffer->dims();
     args->num_dims = buffer->num_dims();
     return nullptr;
@@ -283,7 +301,11 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
     args->device = BufferInstance::Unwrap(args->buffer)->device();
-    std::cerr << "DEVICE=" << args->device << std::endl;
+    std::cerr << "device=" << args->device << std::endl;
+    std::cerr << "AAAAAAAAAAAA" << std::endl;
+    runtime::print_tensor(BufferInstance::Unwrap(args->buffer)->tensor());
+    std::cerr << "AAAAAAAAAAAA" << std::endl;
+    //throw std::exception();
     return nullptr;
   };
   api->PJRT_Buffer_Memory = +[](PJRT_Buffer_Memory_Args *args) -> PJRT_Error * {
@@ -493,7 +515,6 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     EventInstance **out_done_with_host_buffer_event,
     BufferInstance **out_buffer) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
-
   auto tt_buffer_type = MapBufferTypeToElementType(type);
   tt::target::DataType element_type = tt_buffer_type.first;
   size_t element_size = tt_buffer_type.second;
@@ -508,13 +529,30 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }
+  const float* data_float = (static_cast<const float *>(data));
+
+  /*while (*data_float)
+  {
+    std::cout << "p=" << *data_float << std::endl;
+    data_float++;
+  }
+
+  for (auto& l : strides)
+  {
+    std::cerr << "l=" << l << std::endl;
+  }*/
   std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
+  std::cerr << "data_ptr=" << data_ptr << std::endl;
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
       data_ptr, shape, strides, element_size, element_type);
   auto buffer_instance = new BufferInstance(*this, tensor, shape, strides);
-  DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
+  DLOG_F(INFO, "Buffer created with id: %d on device %d", buffer_instance->unique_id(), this->local_hardware_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance;
+  std::cerr << "PPPPPPP" << std::endl;
+  runtime::print_tensor((*out_buffer)->tensor());
+  std::cerr << "PPPPPPP" << std::endl;
+  std::cerr << "device_ptr=" << this << std::endl;
   auto event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
@@ -644,6 +682,12 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+    DeviceInstance* device_instance = DeviceInstance::Unwrap(args->device);
+    std::cout << "log=" << device_instance->local_hardware_id() << std::endl;
+    std::cout << "user=" << device_instance->device_description()->user_string() << std::endl;
+    std::cout << "platform=" << device_instance->client().cached_platform_name() << std::endl;
+    std::cout << "args->device=" << args->device << std::endl;
+    std::cout << "host_buffer_semantics=" << args->host_buffer_semantics << std::endl;
     auto status = DeviceInstance::Unwrap(args->device)
                       ->HostBufferToDevice(
                           args->data, args->type, args->dims, args->num_dims,
@@ -1023,7 +1067,6 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
-  std::cerr << "I AM HERE" << std::endl;
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
   auto device = tt::runtime::openDevice(chip_ids);
@@ -1037,7 +1080,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   for (size_t i = 0; i < args->num_args; ++i) {
     auto *buffer = BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
+    std::cout << "buffer=" << buffer->device().local_hardware_id() << std::endl;
     rt_inputs.emplace_back(buffer->tensor());
+    std::cerr << "YYYYYYYYYYY" << std::endl;
+    tt::runtime::print_tensor(buffer->tensor());
+    std::cerr << "YYYYYYYYYYY" << std::endl;
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
