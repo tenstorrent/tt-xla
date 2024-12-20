@@ -34,15 +34,15 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(MODEL)
         inputs = tokenizer("Hello [MASK].", return_tensors="np")
         return [inputs["input_ids"]]
+    
+    # @override
+    def _get_forward_method_args(self):
+        return self._get_input_activations()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        input_activations = self._get_input_activations()
-
-        assert len(input_activations) == 1
         assert hasattr(self._model, "params")
-
-        return {"input_ids": input_activations[0], "params": self._model.params}
+        return {"params": self._model.params}
 
 
 # ----- Fixtures -----

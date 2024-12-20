@@ -116,9 +116,12 @@ class DeviceRunner:
         kwargs_on_device = {}
 
         for key, value in workload.kwargs.items():
-            try:
-                value_on_device = jax.device_put(value, device)
-            except:
+            if (isinstance(value, dict) or isinstance(value, list) or isinstance(value, tuple) or isinstance(value, jax.Array)):
+                try:
+                    value_on_device = jax.device_put(value, device)
+                except:
+                    value_on_device = value
+            else:
                 value_on_device = value
 
             kwargs_on_device[key] = value_on_device
