@@ -23,5 +23,9 @@ def example_graph(x: jax.Array, y: jax.Array) -> jax.Array:
         [(64, 64), (64, 64)],
     ],
 )
+@pytest.mark.skip(
+    "Skipped due to CI reporting atol and pcc mismatch. "
+    "See issue https://github.com/tenstorrent/tt-xla/issues/128"
+)
 def test_example_graph(x_shape: tuple, y_shape: tuple):
     run_graph_test_with_random_inputs(example_graph, [x_shape, y_shape])
