@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from .device_runner import run_on_cpu
-from .utils import Tensor
+from .types import Tensor
 
 
 @dataclass

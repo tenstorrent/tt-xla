@@ -9,7 +9,9 @@ from typing import Callable, Sequence
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
-from .utils import Tensor, Workload, random_tensor
+from .types import Tensor
+from .utils import random_tensor
+from .workload import Workload
 
 
 class OpTester(BaseTester):
