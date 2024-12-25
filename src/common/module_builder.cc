@@ -191,7 +191,7 @@ void ModuleBuilder::print_module(
     return;
   }
 
-  mlir_module->dump();
+  //mlir_module->dump();
 }
 
 } // namespace tt::pjrt

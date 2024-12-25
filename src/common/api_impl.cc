@@ -218,6 +218,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     std::cerr << "[[[[[[[]]]]]]]" << std::endl;
     print_tensor(buffer->tensor());
     std::cerr << "[[[[[[[]]]]]]]" << std::endl;
+    std::cerr << "buffer_device=" << buffer->device() << std::endl;
     std::optional<PJRT_Buffer_Type> type = buffer->getType();
     if (type.has_value())
       args->type = *type;
@@ -302,6 +303,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
     args->device = BufferInstance::Unwrap(args->buffer)->device();
     std::cerr << "device=" << args->device << std::endl;
+    std::cerr << "descriptor_ptr2=" << DeviceInstance::Unwrap(args->device)->device_description() << std::endl;
     std::cerr << "AAAAAAAAAAAA" << std::endl;
     runtime::print_tensor(BufferInstance::Unwrap(args->buffer)->tensor());
     std::cerr << "AAAAAAAAAAAA" << std::endl;
@@ -408,7 +410,7 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
 // DeviceDescription
 //===----------------------------------------------------------------------===//
 
-int DeviceDescription::static_id = 0;
+int DeviceDescription::static_id = 1;
 
 DeviceDescription::~DeviceDescription() = default;
 
@@ -553,6 +555,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   runtime::print_tensor((*out_buffer)->tensor());
   std::cerr << "PPPPPPP" << std::endl;
   std::cerr << "device_ptr=" << this << std::endl;
+  std::cerr << "descriptor_ptr=" << this->device_description() << std::endl;
   auto event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
@@ -623,10 +626,13 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Client_AddressableDevices =
       +[](PJRT_Client_AddressableDevices_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices_Args");
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevice");
     auto &addressable_devices = ClientInstance::Unwrap(args->client)->addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
+    std::cerr << "device1=" << ClientInstance::Unwrap(args->client)->addressable_devices()[0] << std::endl;
+    std::cerr << "pointer1=" << addressable_devices[0]->device_description() << std::endl;
+    std::cerr << "this_is_device=" << addressable_devices[0]->device_description()->user_string() << std::endl;
     args->num_addressable_devices = 1;
     return nullptr;
   };
@@ -634,11 +640,12 @@ void ClientInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Client_LookupDevice_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice_Args");
     auto &devices = ClientInstance::Unwrap(args->client)->devices();
-    size_t id_as_size = args->id;
+    size_t id_as_size = args->id-1;
     if (id_as_size >= devices.size()) {
       return MakeError(tt_pjrt_status::kOutOfRange);
     }
     args->device = *devices[id_as_size];
+    std::cerr << "device is device=" << devices[id_as_size]->device_description()->user_string() << std::endl;
     return nullptr;
   };
   api->PJRT_Client_AddressableMemories =
@@ -703,24 +710,86 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_LoadedExecutable_Fingerprint");
     return MakeError(tt_pjrt_status::kUnimplemented);
   };
+  api->PJRT_Client_TopologyDescription = 
+      +[](PJRT_Client_TopologyDescription_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_TopologyDescription");
+    auto *client = ClientInstance::Unwrap(args->client);
+    std::vector<const DeviceDescription*> description_pointers;
+    for (auto& device : client->addressable_devices()) {
+      std::cerr << "device2=" << device << std::endl;
+      std::cerr << "pointer2=" << device->device_description() << std::endl; 
+      std::cerr << "this_is_device2=" << device->device_description()->user_string() << std::endl;
+      description_pointers.push_back(device->device_description());
+    }
+    std::cerr << "ZZZZZZZ" << std::endl;
+    for (const auto& device : client->addressable_devices()) {
+      std::cerr << "Registering device: " << device->device_description()->user_string() << std::endl;
+    }
+    std::cerr << "ZZZZZZZ" << std::endl;
+    args->topology = reinterpret_cast<PJRT_TopologyDescription*>(new TopologyDescription(description_pointers));
+    return nullptr;
+  };
+
+  api->PJRT_TopologyDescription_Attributes = 
+      +[](PJRT_TopologyDescription_Attributes_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_TopologyDescription_Attributes");
+    auto* topology_description = TopologyDescription::Unwrap(args->topology);
+    auto& descriptions = topology_description->get_description_pointers();
+    args->num_attributes = topology_description->get_description_pointers().size();
+    auto attributes = new PJRT_NamedValue[descriptions.size()];
+    for (size_t i = 0; i < descriptions.size(); ++i) {
+      const auto* device_description = descriptions[i];
+
+      attributes[i].name = device_description->user_string().data();
+      attributes[i].name_size = device_description->user_string().size();
+      attributes[i].type = PJRT_NamedValue_Type::PJRT_NamedValue_kInt64;
+      
+      attributes[i].int64_value = device_description->process_index();
+      attributes[i].value_size = 1;
+      attributes[i].struct_size = PJRT_STRUCT_SIZE(PJRT_NamedValue, value_size); 
+    }
+    args->attributes = attributes;
+    std::cout << "UUUUUUUUUUUU" << std::endl;
+    for (int i=0;i<descriptions.size();i++)
+    {
+      std::cerr << args->attributes[i].name << " " << args->attributes[i].int64_value << std::endl;
+    }
+    std::cout << "UUUUUUUUUUUU" << std::endl;
+    return nullptr;
+  };
+
+  api->PJRT_TopologyDescription_GetDeviceDescriptions = 
+    +[](PJRT_TopologyDescription_GetDeviceDescriptions_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_TopologyDescription_GetDeviceDescriptions");
+    auto *topology_description = TopologyDescription::Unwrap(args->topology);
+    PJRT_DeviceDescription **descriptions = new PJRT_DeviceDescription*[topology_description->get_description_pointers().size()];
+    for (int i=0;i<topology_description->get_description_pointers().size();i++)
+    {
+      descriptions[i] = reinterpret_cast<PJRT_DeviceDescription*>(const_cast<DeviceDescription*>(topology_description->get_description_pointers()[i]));
+    }
+    args->descriptions = descriptions;
+    args->num_descriptions = topology_description->get_description_pointers().size();
+    return nullptr;
+  };
 }
 
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int device_info_count_ = chip_ids.size();
+  int device_info_count_ = 1; //chip_ids.size();
       // 1; // TODO: revert to chip_ids.size(); once
          // https://github.com/tenstorrent/tt-xla/issues/9 is fixed
 
   devices_.resize(device_info_count_);
   for (size_t i = 0; i < device_info_count_; ++i) {
-    devices_[i] = new DeviceInstance(i, *this);
+    devices_[i] = new DeviceInstance(i+1, *this);
   }
 
   // For now, just make all devices addressable. (Don't do this)
-  addressable_devices_.reserve(devices_.size());
+  addressable_devices_.reserve(1);
   for (auto device_ : devices_) {
     addressable_devices_.push_back(device_);
+    break;
   }
   return tt_pjrt_status::kSuccess;
 }
@@ -736,7 +805,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
   if (!tt_pjrt_status_is_ok(status)) {
     return MakeError(status);
   }
-
+  std::cerr << "LOADED EXECUTABLE=" << addressable_devices_[0]->device_description()->user_string() << std::endl;
   auto executable = std::make_unique<LoadedExecutableInstance>(
       *this,
       new ExecutableImage(module_builder_->getBinary(),
@@ -771,7 +840,7 @@ EventInstance::EventInstance() {
   // {
   //   std::lock_guard<std::mutex> guard(lock_);
   //   // Create a thread that waits on the fence and executes the callbacks
-  //   when
+  //   // when
   //   // the fence is ready.
   //   signal_thread_ = std::make_unique<std::thread>(
   //       [](EventInstance* event_instance,
@@ -864,10 +933,10 @@ tt_pjrt_status EventInstance::OnReady(PJRT_Event_OnReadyCallback callback,
   // Already signalled. Callback out of lock scope.
   // Note that the callback may destroy the event - so must only operate on
   // locals.
-  callback(tt_pjrt_status_is_ok(local_status)
-               ? nullptr
-               : (PJRT_Error *)new ErrorInstance(local_status),
-           user_arg);
+  // callback(tt_pjrt_status_is_ok(local_status)
+  //              ? nullptr
+  //              : (PJRT_Error *)new ErrorInstance(local_status),
+  //          user_arg);
   return tt_pjrt_status::kSuccess;
 }
 

@@ -86,8 +86,9 @@ def verify_module(
         for i in range(len(input_shapes))
     ]
 
+    #device_tt = jax.devices('cpu')
     device_tt = jax.devices('tt')
-    print("device_tt:", device_tt)
+    #print("device_tt:", device_tt)
     devices = device_tt[0]  # 1D list of devices
     #devices = device_tt
     print("device:", devices)
@@ -107,6 +108,7 @@ def verify_module(
     #tt_inputs = [jax.device_put(cpu_input, devices) for cpu_input in cpu_inputs]
     tt_inputs = [jax.device_put(cpu_input, sharding) for cpu_input in cpu_inputs]
     # Check data placement
+    print("help_me=", sharding.num_devices)
     print("Input devices:", [inp.device for inp in tt_inputs])
 
     # Compile and execute

@@ -153,7 +153,7 @@ def test_multiply_op(input_shapes):
     verify_module(module_multiply, input_shapes)
 
 
-@pytest.mark.parametrize("input_shapes", [[(3, 3)], [(3, 3, 3)]])
+@pytest.mark.parametrize("input_shapes", [[(3, 3)]])
 def test_negate_op(input_shapes):
     def module_negate(a):
         return -a

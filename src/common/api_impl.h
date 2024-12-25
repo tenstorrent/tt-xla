@@ -141,7 +141,11 @@ public:
 
   static int static_id;
 
-  DeviceDescription(int32_t client_id) : client_id_(client_id), id(static_id++) {};
+  DeviceDescription(int32_t client_id) : client_id_(client_id), id(static_id++) 
+  {
+    std::cerr << "static_laaa=" << id << std::endl;
+    user_string_ = "TTDevice(id=" + std::to_string(device_id()) + ")";
+  };
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -152,26 +156,22 @@ public:
     return reinterpret_cast<DeviceDescription *>(device);
   }
 
-  std::string_view kind_string() { return kind_string_; }
-  std::string_view debug_string() { return debug_string_; }
-  std::string_view user_string() {
-    std::stringstream ss;
-    ss << "TTDevice(id=" << device_id() << ")";
-    user_string_ = ss.str();
-    return user_string_;
-  }
+  std::string_view kind_string() const { return kind_string_; }
+  std::string_view debug_string() const { return debug_string_; }
+  std::string_view user_string() const { return user_string_; }
+
   // TODO
-  int64_t device_id() { return id; }
+  int64_t device_id() const { return id; }
 
-  int client_id() { return client_id_; }
+  int client_id() const { return client_id_; }
 
-  int process_index() { return 0; }
+  int process_index() const { return 0; }
 
 private:
   int client_id_;
-  std::string kind_string_ = "wormhole";
-  std::string debug_string_ = "wormhole_b0";
-  std::string user_string_ = "";
+  std::string kind_string_ = "tt";
+  std::string debug_string_ = "wormhole";
+  std::string user_string_;
   int id;
 };
 
@@ -196,7 +196,7 @@ public:
   }
   ClientInstance &client() { return client_; }
   bool is_addressable() { return true; }
-  int local_hardware_id() { return -1; }
+  int local_hardware_id() { return description_.device_id(); }
 
   tt_pjrt_status
   HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
@@ -441,6 +441,28 @@ static void BindApi(PJRT_Api *api) {
     return nullptr;
   };
 }
+
+class TopologyDescription
+{
+  std::vector<const DeviceDescription*> description_pointers;
+
+public:
+  TopologyDescription(std::vector<const DeviceDescription*>& devicesDescription) :
+    description_pointers(devicesDescription) {}
+
+  operator PJRT_TopologyDescription *() {
+    return reinterpret_cast<PJRT_TopologyDescription *>(this);
+  }
+  static void BindApi(PJRT_Api *api);
+
+  static TopologyDescription *Unwrap(PJRT_TopologyDescription *device) {
+    return reinterpret_cast<TopologyDescription *>(device);
+  }
+
+  const std::vector<const DeviceDescription*> get_description_pointers() const {
+    return description_pointers;
+  }
+};
 
 } // namespace tt::pjrt
 
