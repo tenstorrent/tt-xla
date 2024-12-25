@@ -62,15 +62,6 @@ class DeviceConnector:
         self._plugin_path = plugin_path
         self._initialize_backend()
 
-    @staticmethod
-    def get_instance() -> DeviceConnector:
-        """
-        Factory method returning singleton connector instance.
-
-        Use this method instead of constructor.
-        """
-        return DeviceConnector()
-
     def is_initialized(self) -> bool:
         """Checks if connector is already initialized."""
         if hasattr(self, "_initialized") and self._initialized == True:
@@ -119,3 +110,8 @@ class DeviceConnector:
         jax.config.update("jax_platforms", self._supported_devices_str())
 
         self._initialized = True
+
+
+# `DeviceConnector._initialize_backend` must be executed before anything jax related is
+# called. By providing this global instance, that is secured.
+device_connector = DeviceConnector()

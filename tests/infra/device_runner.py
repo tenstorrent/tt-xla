@@ -6,8 +6,9 @@ from typing import Callable, Sequence
 
 import jax
 
-from .device_connector import DeviceConnector, DeviceType
-from .utils import Tensor, Workload
+from .device_connector import DeviceType, device_connector
+from .types import Tensor
+from .workload import Workload
 
 
 class DeviceRunner:
@@ -64,9 +65,7 @@ class DeviceRunner:
     def _run_on_device(device_type: DeviceType, workload: Workload) -> Tensor:
         """Runs `workload` on device identified by `device_type`."""
         device_workload = DeviceRunner._put_on_device(device_type, workload)
-
-        connector = DeviceConnector().get_instance()
-        device = connector.connect_device(device_type)
+        device = device_connector.connect_device(device_type)
 
         with jax.default_device(device):
             return device_workload.execute()
@@ -74,8 +73,7 @@ class DeviceRunner:
     @staticmethod
     def _put_on_device(device_type: DeviceType, workload: Workload) -> Workload:
         """Puts `workload` on device and returns it."""
-        connector = DeviceConnector().get_instance()
-        device = connector.connect_device(device_type)
+        device = device_connector.connect_device(device_type)
         return DeviceRunner._safely_put_workload_on_device(workload, device)
 
     @staticmethod
@@ -83,8 +81,7 @@ class DeviceRunner:
         device_type: DeviceType, tensors: Sequence[Tensor]
     ) -> Sequence[Tensor]:
         """Puts `tensors` on device identified by `device_type`."""
-        connector = DeviceConnector().get_instance()
-        device = connector.connect_device(device_type)
+        device = device_connector.connect_device(device_type)
         return [jax.device_put(t, device) for t in tensors]
 
     @staticmethod

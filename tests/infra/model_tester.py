@@ -14,7 +14,8 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
-from .utils import Model, Workload
+from .types import Model
+from .workload import Workload
 
 
 class RunMode(Enum):

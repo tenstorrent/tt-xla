@@ -8,7 +8,8 @@ from typing import Callable, Sequence
 
 from .comparison import ComparisonConfig
 from .op_tester import OpTester
-from .utils import Tensor, Workload
+from .types import Tensor
+from .workload import Workload
 
 
 class GraphTester(OpTester):

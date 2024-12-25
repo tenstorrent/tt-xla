@@ -17,7 +17,7 @@ from .comparison import (
     compare_pcc,
 )
 from .device_runner import DeviceRunner
-from .utils import Tensor
+from .types import Tensor
 
 
 class BaseTester(ABC):
