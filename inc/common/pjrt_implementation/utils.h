@@ -8,7 +8,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-
 #include <utility>
 
 #include "common/pjrt_implementation/error_instance.h"

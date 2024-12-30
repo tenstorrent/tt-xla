@@ -59,7 +59,8 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_ToString =
       +[](PJRT_DeviceDescription_ToString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
-    std::string_view sv = DeviceDescription::Unwrap(args->device_description)->to_string();
+    std::string_view sv =
+        DeviceDescription::Unwrap(args->device_description)->to_string();
     args->to_string = sv.data();
     args->to_string_size = sv.size();
     return nullptr;

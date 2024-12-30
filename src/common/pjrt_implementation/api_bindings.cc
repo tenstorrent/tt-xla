@@ -29,7 +29,6 @@ void BindMonomorphicApi(PJRT_Api *api) {
   // This is a bare implementation throwing UNDEFINED errors. This way new
   // functions will not segmentation fault on invocation.
   BindUndefineds(api);
-  ErrorInstance::BindApi(api);
 
   api->PJRT_Plugin_Initialize =
       +[](PJRT_Plugin_Initialize_Args *args) -> PJRT_Error * {
@@ -52,6 +51,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   DeviceDescription::BindApi(api);
   DeviceInstance::BindApi(api);
   EventInstance::BindApi(api);
+  ErrorInstance::BindApi(api);
   ExecutableImage::BindApi(api);
   LoadedExecutableInstance::BindApi(api);
 }

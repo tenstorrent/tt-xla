@@ -50,7 +50,7 @@ public:
 
 private:
   int client_id_;
-  
+
   // TODO We should understand better how these are used.
   // See https://github.com/tenstorrent/tt-xla/issues/125
   std::string kind_string_ = "TTDevice";
