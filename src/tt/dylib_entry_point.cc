@@ -8,6 +8,7 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/dylib_platform.h"
+#include "common/pjrt_implementation/api_bindings.h"
 #include "tt/client.h"
 
 // Provides the shared library exports.
