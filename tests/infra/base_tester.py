@@ -32,10 +32,11 @@ class BaseTester(ABC):
     ) -> None:
         self._comparison_config = comparison_config
 
-    @staticmethod
-    def _compile(executable: Callable) -> Callable:
+    def _compile(
+        self, executable: Callable, static_argnames: Sequence[str] = None
+    ) -> Callable:
         """Sets up `executable` for just-in-time compile."""
-        return jax.jit(executable)
+        return jax.jit(executable, static_argnames=static_argnames)
 
     def _compare(
         self,

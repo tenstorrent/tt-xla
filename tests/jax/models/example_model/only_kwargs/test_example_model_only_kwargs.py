@@ -21,20 +21,17 @@ class ExampleModelOnlyKwargsTester(ModelTester):
     """
 
     # @override
-    @staticmethod
-    def _get_model() -> nnx.Module:
+    def _get_model(self) -> nnx.Module:
         return ExampleModel()
 
     # @override
-    @staticmethod
-    def _get_input_activations() -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Sequence[jax.Array]:
         act_shape = (32, 784)
         act = jax.numpy.ones(act_shape)
         return [act]
 
     # @override
-    @staticmethod
-    def _get_forward_method_name() -> str:
+    def _get_forward_method_name(self) -> str:
         return "__call__"
 
     # @override
