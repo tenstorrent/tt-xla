@@ -16,13 +16,23 @@ target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
 add_dependencies(TTPJRTCommonDylibPlatform loguru)
 
 add_library(TTPJRTCommon
-    "api_impl.cc"
     "platform.cc"
     "module_builder.cc"
     "plugin_attributes.cc"
+    "pjrt_implementation/api_bindings.cc"
+    "pjrt_implementation/buffer_instance.cc"
+    "pjrt_implementation/client_instance.cc"
+    "pjrt_implementation/device_description.cc"
+    "pjrt_implementation/device_instance.cc"
+    "pjrt_implementation/error_instance.cc"
+    "pjrt_implementation/event_instance.cc"
+    "pjrt_implementation/executable_image.cc"
+    "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/utils.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC
+    ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include
