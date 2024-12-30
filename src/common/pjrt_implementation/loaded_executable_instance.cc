@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
+#include <unordered_set>
+#include <iostream>
+
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
@@ -77,9 +80,6 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int dev_0 = chip_ids[0];
-  int dev_1 = chip_ids[1];
-  tt::runtime::Device device = tt::runtime::openDevice({dev_0});
 
   assert(args->num_devices == 1);
   int dev_index = 0;
@@ -88,12 +88,23 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<tt::runtime::Tensor> rt_inputs;
   rt_inputs.reserve(args->num_args);
 
+  std::unordered_set<int> device_ids;
+
   for (size_t i = 0; i < args->num_args; ++i) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
+    device_ids.insert(chip_ids[buffer->device().device_description()->device_id()]);
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
+
+  assert(device_ids.size() == 1);
+
+  std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
+
+  std::cerr << "device_ids_vector=" << device_ids_vector[0] << std::endl;
+
+  tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
 
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0, rt_inputs);

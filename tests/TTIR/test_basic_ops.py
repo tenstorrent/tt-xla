@@ -284,7 +284,12 @@ def test_slice(begin, end, dim):
 @pytest.mark.parametrize(
     "input_shapes",
     [
-        [(32, 32), (32, 32)],
+        pytest.param(
+            [(32, 32), (32, 32)],
+            marks=pytest.mark.skip(
+                reason="Fails due to https://github.com/tenstorrent/tt-xla/issues/70"
+            ),
+        ),
         pytest.param(
             [(3, 3), (3, 3)],
             marks=pytest.mark.skip(

@@ -42,7 +42,7 @@ public:
   }
 
   // TODO
-  int64_t device_id() { return 0; }
+  int64_t device_id() { return device_id_; }
 
   int client_id() { return client_id_; }
 

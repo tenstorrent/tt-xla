@@ -71,7 +71,7 @@ def verify_module(
     required_atol=1e-2,
     dtype=jnp.float32,
 ):
-    tt_device = jax.devices('tt')[0]
+    tt_device = jax.devices('tt')[1]
     print("tt_device=", tt_device)
     cpu_inputs = [
         random_input_tensor(input_shapes[i], key + i, dtype=dtype)
