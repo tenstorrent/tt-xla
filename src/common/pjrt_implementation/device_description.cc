@@ -16,6 +16,8 @@ namespace tt::pjrt {
 
 DeviceDescription::~DeviceDescription() = default;
 
+int DeviceDescription::static_device_id = 0;
+
 void DeviceDescription::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
   api->PJRT_DeviceDescription_Id =
