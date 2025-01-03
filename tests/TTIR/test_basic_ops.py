@@ -107,7 +107,9 @@ def test_convert_op(input_shapes):
     ["input_shapes", "required_atol"],
     [([(3, 3), (3, 3)], 0.01), ([(3, 3, 3), (3, 3, 3)], 35e-2)],
 )
-@pytest.mark.skip("Currently fails, see issue: https://github.com/tenstorrent/tt-xla/issues/146")
+@pytest.mark.skip(
+    "Currently fails, see issue: https://github.com/tenstorrent/tt-xla/issues/146"
+)
 def test_div_op(input_shapes, required_atol):
     def module_div(a, b):
         return a / b
