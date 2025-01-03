@@ -15,11 +15,14 @@ class Workload:
     executable: Callable
     args: Sequence[Any]
     kwargs: Optional[Mapping[str, Any]] = None
+    static_argnames: Optional[Sequence[str]] = None
 
     def __post_init__(self):
         # If kwargs is None, initialize it to an empty dictionary.
         if self.kwargs is None:
             self.kwargs = {}
+        if self.static_argnames is None:
+            self.static_argnames = []
 
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""

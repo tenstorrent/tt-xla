@@ -7,42 +7,34 @@ from typing import Dict, Sequence
 import jax
 import pytest
 from flax import linen as nn
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM
 
-MODEL = "distilbert/distilbert-base-uncased"
+MODEL_PATH = "distilbert/distilbert-base-uncased"
 
 # ----- Tester -----
 
 
 class FlaxDistilBertForMaskedLMTester(ModelTester):
-    """Tester for DistilBert model with a `language modeling` head on top."""
+    """Tester for DistilBert model on a masked language modeling task"""
 
     # @override
-    @staticmethod
-    def _get_model() -> nn.Module:
-        return FlaxDistilBertForMaskedLM.from_pretrained(MODEL)
+    def _get_model(self) -> nn.Module:
+        return FlaxDistilBertForMaskedLM.from_pretrained(MODEL_PATH)
 
     # @override
-    @staticmethod
-    def _get_forward_method_name() -> str:
-        return "__call__"
-
-    # @override
-    @staticmethod
-    def _get_input_activations() -> Sequence[jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL)
+    def _get_input_activations(self) -> Sequence[jax.Array]:
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         inputs = tokenizer("Hello [MASK].", return_tensors="np")
-        return [inputs["input_ids"]]
+        return inputs["input_ids"]
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        input_activations = self._get_input_activations()
-
-        assert len(input_activations) == 1
         assert hasattr(self._model, "params")
-
-        return {"input_ids": input_activations[0], "params": self._model.params}
+        return {
+            "params": self._model.params,
+            "input_ids": self._get_input_activations(),
+        }
 
 
 # ----- Fixtures -----
@@ -62,14 +54,14 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 
 
 @pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
-def test_flax_distil_bert_for_masked_lm_inference(
+def test_flax_distilbert_inference(
     inference_tester: FlaxDistilBertForMaskedLMTester,
 ):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_distil_bert_for_masked_lm_training(
+def test_flax_distilbert_training(
     training_tester: FlaxDistilBertForMaskedLMTester,
 ):
     training_tester.test()

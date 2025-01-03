@@ -10,6 +10,8 @@ from .device_connector import DeviceType, device_connector
 from .types import Tensor
 from .workload import Workload
 
+import inspect
+
 
 class DeviceRunner:
     """
@@ -100,25 +102,27 @@ class DeviceRunner:
         To avoid that, we try to `jax.device_put` arg or kwarg, and if it doesn't
         succeed, we leave it as is.
         """
+        fn_params = list(inspect.signature(workload.executable).parameters.keys())
+
         args_on_device = []
-
-        for arg in workload.args:
-            try:
-                arg_on_device = jax.device_put(arg, device)
-            except:
-                arg_on_device = arg
-
-            args_on_device.append(arg_on_device)
+        for i, arg in enumerate(workload.args):
+            if fn_params[i] not in workload.static_argnames:
+                try:
+                    args_on_device.append(jax.device_put(arg, device))
+                except:
+                    args_on_device.append(arg)
+            else:
+                args_on_device.append(arg)
 
         kwargs_on_device = {}
-
         for key, value in workload.kwargs.items():
-            try:
-                value_on_device = jax.device_put(value, device)
-            except:
-                value_on_device = value
-
-            kwargs_on_device[key] = value_on_device
+            if key not in workload.static_argnames:
+                try:
+                    kwargs_on_device[key] = jax.device_put(value, device)
+                except:
+                    kwargs_on_device[key] = value
+            else:
+                kwargs_on_device[key] = value
 
         return Workload(workload.executable, args_on_device, kwargs_on_device)
 

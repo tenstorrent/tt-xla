@@ -29,9 +29,9 @@ class ModelTester(BaseTester, ABC):
 
     Derived classes must provide implementations of:
     ```
-    _get_model() -> Model
-    _get_input_activations() -> Sequence[Any]
-    _get_forward_method_name() -> str # Optional, has default behaviour.
+    _get_model(self) -> Model
+    _get_input_activations(self) -> Sequence[Any]
+    _get_forward_method_name(self) -> str # Optional, has default behaviour.
     # One of or both:
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
     _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
@@ -72,23 +72,24 @@ class ModelTester(BaseTester, ABC):
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
-        # Store model's forward pass method and its arguments as a workload.
-        self._workload = Workload(forward_pass_method, args, kwargs)
+        forward_static_args = self._get_static_argnames()
 
-    @staticmethod
+        # Store model's forward pass method and its arguments as a workload.
+        self._workload = Workload(
+            forward_pass_method, args, kwargs, forward_static_args
+        )
+
     @abstractmethod
-    def _get_model() -> Model:
+    def _get_model(self) -> Model:
         """Returns model instance."""
         raise NotImplementedError("Subclasses must implement this method.")
 
-    @staticmethod
     @abstractmethod
-    def _get_input_activations() -> Sequence[Any]:
+    def _get_input_activations(self) -> Sequence[Any]:
         """Returns input activations."""
         raise NotImplementedError("Subclasses must implement this method.")
 
-    @staticmethod
-    def _get_forward_method_name() -> str:
+    def _get_forward_method_name(self) -> str:
         """
         Returns string name of model's forward pass method.
 
@@ -119,6 +120,18 @@ class ModelTester(BaseTester, ABC):
         """
         return {}
 
+    def _get_static_argnames(self) -> Sequence[str]:
+        """
+        Return the names of arguments which should be treated as static by JIT compiler.
+        Static arguments are those which are not replaced with Tracer objects by the JIT
+        but rather are used as is, which is needed if control flow or shapes depend on them.
+        https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html#jit-mechanics-tracing-and-static-variables
+
+
+        By default no arguments are static.
+        """
+        return []
+
     def test(self) -> None:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
@@ -136,7 +149,10 @@ class ModelTester(BaseTester, ABC):
         compiled_forward_method = self._compile_model()
 
         compiled_workload = Workload(
-            compiled_forward_method, self._workload.args, self._workload.kwargs
+            compiled_forward_method,
+            self._workload.args,
+            self._workload.kwargs,
+            self._workload.static_argnames,
         )
 
         tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
@@ -175,4 +191,6 @@ class ModelTester(BaseTester, ABC):
 
     def _compile_model(self) -> Callable:
         """JIT-compiles model's forward pass into optimized kernels."""
-        return super()._compile(self._workload.executable)
+        return super()._compile(
+            self._workload.executable, self._workload.static_argnames
+        )
