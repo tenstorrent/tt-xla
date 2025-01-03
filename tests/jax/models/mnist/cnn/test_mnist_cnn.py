@@ -26,7 +26,8 @@ class MNISTCNNTester(ModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        img = jnp.ones((28, 28, 1))
+        img = jnp.ones((4, 28, 28, 1))  # B, H, W, C
+        # Channels is 1 as MNIST is in grayscale.
         return img
 
     # @override
@@ -34,7 +35,7 @@ class MNISTCNNTester(ModelTester):
         inp = self._get_input_activations()
 
         # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set initial tensors(parameters and maybe some extra state)
+        # and then later calling init to generate a set of initial tensors(parameters and maybe some extra state)
         parameters = self._model.init(jax.random.PRNGKey(42), inp, train=False)
 
         return [parameters, inp]

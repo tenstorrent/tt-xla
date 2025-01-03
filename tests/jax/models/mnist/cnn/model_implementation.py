@@ -27,6 +27,8 @@ class MNISTCNNModel(nn.Module):
         x = nn.Dense(features=128)(x)
         x = nn.BatchNorm(use_running_average=not train, epsilon=1e-5)(x)
         x = nn.relu(x)
+
         x = nn.Dense(features=10)(x)
         x = nn.softmax(x)
+
         return x
