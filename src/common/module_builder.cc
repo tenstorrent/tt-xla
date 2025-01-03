@@ -174,10 +174,8 @@ bool ModuleBuilder::isScalarType(mlir::Type type) {
   return false;
 }
 
-size_t ModuleBuilder::getNumberOfAddressibleDevices() const 
-{
-  return 1;
-}
+// Currently hardcoded to one, as we only support one-chip execution.
+size_t ModuleBuilder::getNumberOfAddressibleDevices() const { return 1; }
 
 void ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {

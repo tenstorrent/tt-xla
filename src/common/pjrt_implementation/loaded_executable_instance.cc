@@ -11,7 +11,6 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 #include <unordered_set>
-#include <iostream>
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
@@ -35,9 +34,12 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     DLOG_F(
         LOG_DEBUG,
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    auto &addressable_devices = LoadedExecutableInstance::Unwrap(args->executable)
-                        ->addressable_devices();
-    int num_addressable_devices = LoadedExecutableInstance::Unwrap(args->executable)->image_->get_num_addresible_devices();
+    auto &addressable_devices =
+        LoadedExecutableInstance::Unwrap(args->executable)
+            ->addressable_devices();
+    int num_addressable_devices =
+        LoadedExecutableInstance::Unwrap(args->executable)
+            ->image_->get_num_addresible_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -94,15 +96,14 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
-    device_ids.insert(chip_ids[buffer->device().device_description()->device_id()]);
+    device_ids.insert(
+        chip_ids[buffer->device().device_description()->device_id()]);
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
   assert(device_ids.size() == 1);
 
   std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
-
-  std::cerr << "device_ids_vector=" << device_ids_vector[0] << std::endl;
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
 

@@ -20,7 +20,8 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id) : client_id_(client_id), device_id_(static_device_id++) {};
+  DeviceDescription(int32_t client_id)
+      : client_id_(client_id), device_id_(static_device_id++) {};
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);

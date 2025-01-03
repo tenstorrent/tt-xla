@@ -15,6 +15,7 @@ def add(x: jax.Array, y: jax.Array) -> jax.Array:
     ["x_shape", "y_shape"],
     [
         [(32, 32), (32, 32)],
+        [(64, 64), (64, 64)],
     ],
 )
 def test_add(x_shape: tuple, y_shape: tuple):

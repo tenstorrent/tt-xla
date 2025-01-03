@@ -66,11 +66,9 @@ class DeviceRunner:
         """Runs `workload` on device identified by `device_type`."""
         device_workload = DeviceRunner._put_on_device(device_type, workload)
         device = device_connector.connect_device(device_type)
+
         with jax.default_device(device):
-            ret = device_workload.execute()
-        # if not (isinstance(workload.args[0][0], int)):
-        #     print("value=", device_workload.args[0][0].device)
-        return ret
+            return device_workload.execute()
 
     @staticmethod
     def _put_on_device(device_type: DeviceType, workload: Workload) -> Workload:

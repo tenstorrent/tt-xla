@@ -35,7 +35,8 @@ public:
 
   bool isOutputScalar(size_t index) const;
 
-  // This needs to return the number of addressable devices from the StableHLO code.
+  // This needs to return the number of addressable devices from the StableHLO
+  // code.
   size_t getNumberOfAddressibleDevices() const;
 
 private:
