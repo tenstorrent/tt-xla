@@ -23,9 +23,11 @@ class ExecutableImage {
 
 public:
   ExecutableImage(std::shared_ptr<void> binary, std::string code,
-                  size_t arg_count, size_t result_count)
+                  size_t arg_count, size_t result_count,
+                  size_t num_addressable_devices)
       : ref_count(1), binary(std::move(binary)), code(code),
-        arg_count(arg_count), result_count(result_count) {}
+        arg_count(arg_count), result_count(result_count),
+        num_addressable_devices(num_addressable_devices) {}
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
   }
@@ -49,6 +51,10 @@ public:
 
   const std::string &get_code() const { return code; }
 
+  const size_t get_num_addresible_devices() const {
+    return num_addressable_devices;
+  }
+
 private:
   // The reference count. Must be disposed when reaching zero.
   std::atomic<int> ref_count;
@@ -61,6 +67,7 @@ private:
 
   size_t arg_count;
   size_t result_count;
+  size_t num_addressable_devices;
 };
 
 } // namespace tt::pjrt

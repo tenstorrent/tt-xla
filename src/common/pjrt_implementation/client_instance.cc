@@ -164,9 +164,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  int device_info_count_ =
-      1; // TODO: revert to chip_ids.size(); once
-         // https://github.com/tenstorrent/tt-xla/issues/9 is fixed
+  int device_info_count_ = chip_ids.size();
 
   devices_.resize(device_info_count_);
   for (size_t i = 0; i < device_info_count_; ++i) {
@@ -198,7 +196,8 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
       new ExecutableImage(module_builder_->getBinary(),
                           std::string(program->code, program->code_size),
                           module_builder_->getNumInputs(),
-                          module_builder_->getNumOutputs()),
+                          module_builder_->getNumOutputs(),
+                          module_builder_->getNumberOfAddressibleDevices()),
       addressable_devices_);
   *out_executable = executable.release();
 
