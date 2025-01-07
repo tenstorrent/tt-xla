@@ -19,6 +19,7 @@ plugin = xb.register_plugin("tt", priority=500, library_path=path, options=None)
 jax.config.update("jax_platforms", "tt,cpu")
 
 from infrastructure import verify_module
+
 def test_encoder_linear_one():
     def module(a, b, c, d):
         act = jnp.dot(a, b)
@@ -27,4 +28,68 @@ def test_encoder_linear_one():
 
     verify_module(module, input_shapes=[(1, 784), (784, 128), (1, 128), (1, 128)])
 
-test_encoder_linear_one()
+def test_encoder_linear_two():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 128), (128, 64), (1, 64), (1, 64)])
+
+def test_encoder_linear_three():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 64), (64, 12), (1, 12), (1, 12)])
+
+def test_encoder_linear_four():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 12), (12, 3), (1, 3), (1, 3)])
+
+def test_decoder_linear_one():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 3), (3, 12), (1, 12), (1, 12)])
+
+def test_decoder_linear_two():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 12), (12, 64), (1, 64), (1, 64)])
+
+def test_decoder_linear_three():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 64), (64, 128), (1, 128), (1, 128)])
+
+def test_decoder_linear_four():
+    def module(a, b, c, d):
+        act = jnp.dot(a, b)
+        act = jnp.multiply(act, c)
+        return jnp.add(act, d)
+
+    verify_module(module, input_shapes=[(1, 128), (128, 784), (1, 784), (1, 784)])
+
+def test_relu():
+    def module(a):
+        return jnp.maximum(a, 0)
+
+    verify_module(module, input_shapes=[(1, 12)])
+    verify_module(module, input_shapes=[(1, 64)])
+    verify_module(module, input_shapes=[(1, 128)])
+
+test_encoder_linear_two()
