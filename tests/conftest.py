@@ -7,7 +7,7 @@ import os
 import jax
 import jax._src.xla_bridge as xb
 import pytest
-from infra.device_connector import device_connector
+#from infra.device_connector import device_connector
 
 
 def initialize():
@@ -25,5 +25,5 @@ def initialize():
 def setup_session():
     # Added to prevent `PJRT_Api already exists for device type tt` error.
     # Will be removed completely soon.
-    if not device_connector.is_initialized():
-        initialize()
+    #if not device_connector.is_initialized():
+    initialize()

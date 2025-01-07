@@ -8,6 +8,7 @@
 // c++ standard library includes
 #include <cstdlib>
 #include <iostream>
+#include "llvm/Support/FileSystem.h"
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -75,6 +76,7 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
                                           const std::string_view &format) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
+  const char *enable_dump = std::getenv("TT_XLA_ENABLE_IR_DUMP");
   m_status = tt_pjrt_status::kSuccess;
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(code);
@@ -82,9 +84,25 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
+  if (enable_dump && std::string(enable_dump) == "1") {
+      std::string filePath = "vhlo.mlir";
+      std::error_code errorCode;
+      llvm::raw_fd_ostream outputFile(filePath, errorCode, llvm::sys::fs::OF_Text);
+      mlir_module->print(outputFile);
+      outputFile.close();
+  }
+
   convertFromVHLOToSHLO(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
+  }
+
+  if (enable_dump && std::string(enable_dump) == "1") {
+      std::string filePath = "shlo.mlir";
+      std::error_code errorCode;
+      llvm::raw_fd_ostream outputFile(filePath, errorCode, llvm::sys::fs::OF_Text);
+      mlir_module->print(outputFile);
+      outputFile.close();
   }
 
   collectOutputTypes(mlir_module);
@@ -94,9 +112,25 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
+  if (enable_dump && std::string(enable_dump) == "1") {
+      std::string filePath = "ttir.mlir";
+      std::error_code errorCode;
+      llvm::raw_fd_ostream outputFile(filePath, errorCode, llvm::sys::fs::OF_Text);
+      mlir_module->print(outputFile);
+      outputFile.close();
+  }
+
   convertFromTTIRToTTNN(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
+  }
+
+  if (enable_dump && std::string(enable_dump) == "1") {
+      std::string filePath = "ttnn.mlir";
+      std::error_code errorCode;
+      llvm::raw_fd_ostream outputFile(filePath, errorCode, llvm::sys::fs::OF_Text);
+      mlir_module->print(outputFile);
+      outputFile.close();
   }
 
   createFlatbufferBinary(mlir_module);
@@ -126,6 +160,12 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
 void ModuleBuilder::convertFromVHLOToSHLO(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
+
+  const char *enable_printing = std::getenv("TT_XLA_ENABLE_IR_PRINTING");
+  if (enable_printing && std::string(enable_printing) == "1") {
+    vhlo_to_shlo_pm.getContext()->disableMultithreading();
+    vhlo_to_shlo_pm.enableIRPrinting();
+  }
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
@@ -181,6 +221,12 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
                                     mlir::PassManager::Nesting::Implicit);
 
+  const char *enable_printing = std::getenv("TT_XLA_ENABLE_IR_PRINTING");
+  if (enable_printing && std::string(enable_printing) == "1") {
+    shlo_to_ttir_pm.getContext()->disableMultithreading();
+    shlo_to_ttir_pm.enableIRPrinting();
+  }
+
   mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.removeDeadValuesEnabled = true;
@@ -200,6 +246,12 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 void ModuleBuilder::convertFromTTIRToTTNN(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
+
+  const char *enable_printing = std::getenv("TT_XLA_ENABLE_IR_PRINTING");
+  if (enable_printing && std::string(enable_printing) == "1") {
+    ttir_to_ttnn_pm.getContext()->disableMultithreading();
+    ttir_to_ttnn_pm.enableIRPrinting();
+  }
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
