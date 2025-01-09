@@ -10,9 +10,9 @@ import numpy
 import pytest
 import fsspec
 from flax import linen as nn
+import flax.traverse_util
 from infra import ModelTester, RunMode
 from .model_implementation import MlpMixer
-from .util import build_pytee_from_npy
 
 
 # hypers
@@ -29,8 +29,9 @@ def Mixer_B_16_pretrained():
     link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
     with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
         weights = numpy.load(f, encoding="bytes")
-        pytree = build_pytee_from_npy(weights)
-    return pytree
+        state_dict = {k: v for k, v in weights.items()}
+        pytree = flax.traverse_util.unflatten_dict(state_dict, sep="/")
+    return {"params": pytree}
 
 
 class MlpMixerTester(ModelTester):
