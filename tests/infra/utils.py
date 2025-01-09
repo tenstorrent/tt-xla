@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 import jax
 import jax.numpy as jnp
 from jax import export
@@ -9,6 +10,9 @@ from jax import export
 from .device_runner import run_on_cpu
 from .types import Framework, Tensor
 from .workload import Workload
+
+# List of all data types that runtime currently supports.
+supported_dtypes = [jnp.float32, jnp.bfloat16, jnp.uint32, jnp.uint16]
 
 
 def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):

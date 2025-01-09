@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import jax
-import jax.numpy as jnp
+import jax.lax as jlx
 import pytest
 from infra import run_op_test_with_random_inputs
 
@@ -15,8 +15,8 @@ from infra import run_op_test_with_random_inputs
         [(64, 64), (64, 64)],
     ],
 )
-def test_add(x_shape: tuple, y_shape: tuple):
-    def add(x: jax.Array, y: jax.Array) -> jax.Array:
-        return jnp.add(x, y)
+def test_remainder(x_shape: tuple, y_shape: tuple):
+    def remainder(x: jax.Array, y: jax.Array) -> jax.Array:
+        return jlx.rem(x, y)
 
-    run_op_test_with_random_inputs(add, [x_shape, y_shape])
+    run_op_test_with_random_inputs(remainder, [x_shape, y_shape])

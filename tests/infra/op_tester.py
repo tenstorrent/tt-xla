@@ -31,19 +31,27 @@ class OpTester(BaseTester):
         compiled_workload = Workload(
             compiled_executable, workload.args, workload.kwargs
         )
+
         tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
 
         self._compare(tt_res, cpu_res)
 
     def test_with_random_inputs(
-        self, f: Callable, input_shapes: Sequence[tuple]
+        self,
+        f: Callable,
+        input_shapes: Sequence[tuple],
+        minval: float = 0.0,
+        maxval: float = 1.0,
     ) -> None:
         """
-        Tests `f` by running it with random inputs on TT device and CPU and comparing
-        the results.
+        Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
+        TT device and CPU and comparing the results.
         """
-        workload = Workload(f, [random_tensor(shape) for shape in input_shapes])
+        inputs = [
+            random_tensor(shape, minval=minval, maxval=maxval) for shape in input_shapes
+        ]
+        workload = Workload(f, inputs)
         self.test(workload)
 
 
@@ -64,11 +72,13 @@ def run_op_test(
 def run_op_test_with_random_inputs(
     op: Callable,
     input_shapes: Sequence[tuple],
+    minval: float = 0.0,
+    maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
 ) -> None:
     """
-    Tests `op` with random inputs by running it on TT device and CPU and comparing the
-    results based on `comparison_config`.
+    Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
+    TT device and CPU and comparing the results based on `comparison_config`.
     """
     tester = OpTester(comparison_config)
-    tester.test_with_random_inputs(op, input_shapes)
+    tester.test_with_random_inputs(op, input_shapes, minval, maxval)

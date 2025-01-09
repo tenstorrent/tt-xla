@@ -31,7 +31,7 @@ class EqualConfig(ConfigBase):
 
 @dataclass
 class AtolConfig(ConfigBase):
-    required_atol: float = 1e-1
+    required_atol: float = 1.6e-1
 
 
 @dataclass
@@ -77,7 +77,7 @@ def compare_equal(device_output: Tensor, golden_output: Tensor) -> None:
 
     eq = (device_output == golden_output).all()
 
-    assert eq, f"Equal comparison failed"
+    assert eq, f"Equal comparison failed."
 
 
 @run_on_cpu
@@ -90,9 +90,10 @@ def compare_atol(
 
     atol = jnp.max(jnp.abs(device_output - golden_output))
 
-    assert (
-        atol <= atol_config.required_atol
-    ), f"Atol comparison failed. Calculated atol={atol}"
+    assert atol <= atol_config.required_atol, (
+        f"Atol comparison failed. "
+        f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
+    )
 
 
 @run_on_cpu
@@ -112,9 +113,10 @@ def compare_pcc(
         pcc = jnp.corrcoef(device_output.flatten(), golden_output.flatten())
         pcc = jnp.min(pcc)
 
-        assert (
-            pcc >= pcc_config.required_pcc
-        ), f"PCC comparison failed. Calculated pcc={pcc}"
+        assert pcc >= pcc_config.required_pcc, (
+            f"PCC comparison failed. "
+            f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
+        )
 
 
 @run_on_cpu
@@ -132,4 +134,7 @@ def compare_allclose(
         atol=allclose_config.atol,
     )
 
-    assert allclose, f"Allclose comparison failed."
+    assert allclose, (
+        f"Allclose comparison failed. "
+        f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
+    )

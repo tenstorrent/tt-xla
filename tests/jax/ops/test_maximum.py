@@ -15,8 +15,8 @@ from infra import run_op_test_with_random_inputs
         [(64, 64), (64, 64)],
     ],
 )
-def test_add(x_shape: tuple, y_shape: tuple):
-    def add(x: jax.Array, y: jax.Array) -> jax.Array:
-        return jnp.add(x, y)
+def test_maximum(x_shape: tuple, y_shape: tuple):
+    def maximum(x: jax.Array, y: jax.Array) -> jax.Array:
+        return jnp.maximum(x, y)
 
-    run_op_test_with_random_inputs(add, [x_shape, y_shape])
+    run_op_test_with_random_inputs(maximum, [x_shape, y_shape])
