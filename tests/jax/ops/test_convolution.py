@@ -78,17 +78,14 @@ def test_conv1d(
         (1, 256, 256, 14, 14, 3, 3, 1, 1, 1),
         (1, 1024, 256, 14, 14, 1, 1, 1, 1, 0),
         (1, 256, 1024, 14, 14, 1, 1, 1, 1, 0),
-        pytest.param(  # TODO check with old infra
+        pytest.param(  # TODO This passed in old infra. Investigate.
             *(1, 2048, 1024, 14, 14, 1, 1, 2, 2, 0),
             marks=pytest.mark.skip(reason="Segmentation fault"),
         ),
         (1, 512, 1024, 14, 14, 1, 1, 2, 2, 0),
         (1, 512, 512, 7, 7, 3, 3, 1, 1, 1),
         (1, 2048, 512, 7, 7, 1, 1, 1, 1, 0),
-        pytest.param(
-            *(1, 512, 2048, 7, 7, 1, 1, 1, 1, 0),
-            marks=pytest.mark.skip(reason="PCC is 0.8828 which is less than 0.95"),
-        ),
+        (1, 512, 2048, 7, 7, 1, 1, 1, 1, 0),
         # MISCELLANEOUS
         (1, 64, 16, 115, 115, 4, 4, 1, 1, 0),
         (1, 64, 64, 8, 8, 3, 3, 1, 1, 1),
