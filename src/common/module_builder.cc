@@ -174,6 +174,9 @@ bool ModuleBuilder::isScalarType(mlir::Type type) {
   return false;
 }
 
+// Currently hardcoded to one, as we only support one-chip execution.
+size_t ModuleBuilder::getNumberOfAddressibleDevices() const { return 1; }
+
 void ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
