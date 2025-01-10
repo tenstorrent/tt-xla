@@ -69,9 +69,9 @@ class DeviceConnector:
 
         return False
 
-    def connect_tt_device(self) -> jax.Device:
+    def connect_tt_device(self, num_device: int = 0) -> jax.Device:
         """Returns TTDevice handle."""
-        return self.connect_device(DeviceType.TT)
+        return self.connect_device(DeviceType.TT, num_device)
 
     def connect_cpu(self) -> jax.Device:
         """Returns CPUDevice handle."""
@@ -81,9 +81,16 @@ class DeviceConnector:
         """Returns GPUDevice handle."""
         return self.connect_device(DeviceType.GPU)
 
-    def connect_device(self, device_type: DeviceType) -> jax.Device:
+    def _number_of_devices(self, device_type: DeviceType) -> int:
+        """Returns the number of devices of specifed type."""
+        return len(jax.devices(device_type.value))
+
+    def connect_device(
+        self, device_type: DeviceType, num_device: int = 0
+    ) -> jax.Device:
         """Returns handle for device identified by `device_type`."""
-        return jax.devices(device_type.value)[0]
+        assert num_device < self._number_of_devices(device_type)
+        return jax.devices(device_type.value)[num_device]
 
     def _supported_devices(self) -> Sequence[DeviceType]:
         """Returns list of supported device types."""
