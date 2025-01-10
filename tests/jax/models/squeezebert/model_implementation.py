@@ -1,15 +1,15 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
+import re
+from typing import Any, Dict, Tuple
+
+import einops
 import flax.traverse_util
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-import flax.traverse_util
-import einops
-from typing import Any, Dict
-import re
-
 from transformers import SqueezeBertConfig
 
 
@@ -36,11 +36,11 @@ class SqueezeBertEmbedding(nn.Module):
 
     def __call__(
         self,
-        input_ids,
-        token_type_ids=None,
-        position_ids=None,
+        input_ids: jax.Array,
+        token_type_ids: jax.Array = None,
+        position_ids: jax.Array = None,
         deterministic: bool = False,
-    ):
+    ) -> jax.Array:
         if position_ids is None:
             position_ids = jax.numpy.arange(input_ids.shape[1])
         if token_type_ids is None:
@@ -87,7 +87,12 @@ class SqueezeBertSelfAttention(nn.Module):
         self.resid_dropout = nn.Dropout(rate=self.config.hidden_dropout_prob)
         self.layernorm = nn.LayerNorm()
 
-    def __call__(self, hidden_states, attention_mask, deterministic: bool = False):
+    def __call__(
+        self,
+        hidden_states: jax.Array,
+        attention_mask: jax.Array,
+        deterministic: bool = False,
+    ) -> jax.Array:
         head_dim = self.config.hidden_size // self.config.num_attention_heads
         query = self.query(hidden_states)
         key = self.key(hidden_states)
@@ -157,7 +162,9 @@ class SqueezeBertMLP(nn.Module):
         self.dropout = nn.Dropout(rate=self.config.hidden_dropout_prob)
         self.layernorm = nn.LayerNorm()
 
-    def __call__(self, hidden_states, deterministic: bool = False):
+    def __call__(
+        self, hidden_states: jax.Array, deterministic: bool = False
+    ) -> jax.Array:
         x = self.w1(hidden_states)
         x = self.act(x)
         x = self.w2(x)
@@ -176,7 +183,12 @@ class SqueezeBertLayer(nn.Module):
         self.attention = SqueezeBertSelfAttention(self.config)
         self.mlp = SqueezeBertMLP(self.config)
 
-    def __call__(self, hidden_states, attention_mask, deterministic: bool = False):
+    def __call__(
+        self,
+        hidden_states: jax.Array,
+        attention_mask: jax.Array,
+        deterministic: bool = False,
+    ) -> jax.Array:
         attention_output = self.attention(
             hidden_states, attention_mask, deterministic=deterministic
         )
@@ -194,7 +206,12 @@ class SqueezeBertEncoder(nn.Module):
             SqueezeBertLayer(self.config) for _ in range(self.config.num_hidden_layers)
         ]
 
-    def __call__(self, hidden_states, attention_mask, deterministic: bool = False):
+    def __call__(
+        self,
+        hidden_states: jax.Array,
+        attention_mask: jax.Array,
+        deterministic: bool = False,
+    ) -> jax.Array:
         for layer in self.layers:
             hidden_states = layer(
                 hidden_states, attention_mask, deterministic=deterministic
@@ -211,7 +228,7 @@ class SqueezeBertPooler(nn.Module):
         self.dense = nn.Dense(self.config.hidden_size)
         self.activation = nn.tanh
 
-    def __call__(self, hidden_states):
+    def __call__(self, hidden_states: jax.Array) -> jax.Array:
         first_token_tensor = hidden_states[:, 0]
         pooled_output = self.dense(first_token_tensor)
         pooled_output = self.activation(pooled_output)
@@ -230,13 +247,13 @@ class SqueezeBertModel(nn.Module):
 
     def __call__(
         self,
-        input_ids,
-        attention_mask,
-        token_type_ids=None,
-        position_ids=None,
+        input_ids: jax.Array,
+        attention_mask: jax.Array,
+        token_type_ids: jax.Array = None,
+        position_ids: jax.Array = None,
         *,
         train: bool,
-    ):
+    ) -> Tuple[jax.Array, jax.Array]:
         if attention_mask is None:
             attention_mask = jnp.ones_like(input_ids)
         embeddings = self.embeddings(
@@ -273,13 +290,13 @@ class SqueezeBertForMaskedLM(nn.Module):
 
     def __call__(
         self,
-        input_ids,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
+        input_ids: jax.Array,
+        attention_mask: jax.Array = None,
+        token_type_ids: jax.Array = None,
+        position_ids: jax.Array = None,
         *,
         train: bool,
-    ):
+    ) -> jax.Array:
         hidden_states, _ = self.squeezebert(
             input_ids, attention_mask, token_type_ids, position_ids, train=train
         )
@@ -291,7 +308,7 @@ class SqueezeBertForMaskedLM(nn.Module):
         return prediction_scores
 
     @staticmethod
-    def init_from_pytorch_statedict(state_dict: Dict[str, Any]):
+    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
         # Key substitutions for remapping huggingface checkpoints to this implementation
         PATTERNS = [
             ("transformer.", "squeezebert."),

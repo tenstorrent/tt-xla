@@ -6,12 +6,12 @@ from typing import Dict, Sequence
 
 import jax
 import pytest
-from flax import linen as nn
-from infra import ModelTester, RunMode
-from model_implementation import SqueezeBertForMaskedLM, SqueezeBertConfig
-from transformers import AutoTokenizer
-from huggingface_hub import hf_hub_download
 import torch
+from flax import linen as nn
+from huggingface_hub import hf_hub_download
+from infra import ModelTester, RunMode
+from model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
+from transformers import AutoTokenizer
 
 MODEL_PATH = "squeezebert/squeezebert-uncased"
 
