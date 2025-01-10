@@ -1,35 +1,27 @@
-# SPDX-FileCopyrightText: (c) 2024 Google LLC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Taken from https://github.com/google-research/vision_transformer/blob/c6de1e5378c9831a8477feb30994971bdc409e46/vit_jax/models_mixer.py
+# This file incorporates work covered by the following copyright and permission
+# notice:
+# SPDX-FileCopyrightText: Copyright 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
 
-# Copyright 2024 Google LLC.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# This code is based on google-research/vision_transformer
 
 from typing import Any, Optional
 
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
+import jax
 
 
 class MlpBlock(nn.Module):
     mlp_dim: int
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: jax.Array) -> jax.Array:
         y = nn.Dense(self.mlp_dim)(x)
         y = nn.gelu(y)
         return nn.Dense(x.shape[-1])(y)
@@ -42,14 +34,18 @@ class MixerBlock(nn.Module):
     channels_mlp_dim: int
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: jax.Array) -> jax.Array:
         y = nn.LayerNorm()(x)
         y = jnp.swapaxes(y, 1, 2)
         y = MlpBlock(self.tokens_mlp_dim, name="token_mixing")(y)
         y = jnp.swapaxes(y, 1, 2)
         x = x + y
+
         y = nn.LayerNorm()(x)
-        return x + MlpBlock(self.channels_mlp_dim, name="channel_mixing")(y)
+        y = MlpBlock(self.channels_mlp_dim, name="channel_mixing")(y)
+        y = x + y
+
+        return y
 
 
 class MlpMixer(nn.Module):
@@ -64,18 +60,23 @@ class MlpMixer(nn.Module):
     model_name: Optional[str] = None
 
     @nn.compact
-    def __call__(self, inputs, train):
-        del train
+    def __call__(self, inputs: jax.Array) -> jax.Array:
         x = nn.Conv(
             self.hidden_dim, self.patches.size, strides=self.patches.size, name="stem"
-        )(inputs)
+        )(
+            inputs
+        )  # Patch embedding
         x = einops.rearrange(x, "n h w c -> n (h w) c")
+
         for _ in range(self.num_blocks):
             x = MixerBlock(self.tokens_mlp_dim, self.channels_mlp_dim)(x)
+
         x = nn.LayerNorm(name="pre_head_layer_norm")(x)
         x = jnp.mean(x, axis=1)
+
         if self.num_classes:
             x = nn.Dense(
                 self.num_classes, kernel_init=nn.initializers.zeros, name="head"
             )(x)
+
         return x
