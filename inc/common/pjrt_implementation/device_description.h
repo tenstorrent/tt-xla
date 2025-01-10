@@ -42,7 +42,6 @@ public:
     return user_string_;
   }
 
-  // TODO
   int64_t device_id() { return device_id_; }
 
   int client_id() { return client_id_; }

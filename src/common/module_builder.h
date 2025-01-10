@@ -36,8 +36,8 @@ public:
   bool isOutputScalar(size_t index) const;
 
   // This needs to return the number of addressable devices from the StableHLO
-  // code.
-  size_t getNumberOfAddressibleDevices() const;
+  // code. Currently hardcoded to one, as we only support one-chip execution.
+  size_t getNumAddressableDevices() const { return 1; }
 
 private:
   // Creates VHLO module from the input program code.

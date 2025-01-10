@@ -51,7 +51,7 @@ public:
 
   const std::string &get_code() const { return code; }
 
-  const size_t get_num_addresible_devices() const {
+  const size_t get_num_addressable_devices() const {
     return num_addressable_devices;
   }
 

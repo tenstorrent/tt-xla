@@ -197,7 +197,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
                           std::string(program->code, program->code_size),
                           module_builder_->getNumInputs(),
                           module_builder_->getNumOutputs(),
-                          module_builder_->getNumberOfAddressibleDevices()),
+                          module_builder_->getNumAddressableDevices()),
       addressable_devices_);
   *out_executable = executable.release();
 

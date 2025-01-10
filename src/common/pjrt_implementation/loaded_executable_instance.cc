@@ -34,12 +34,12 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     DLOG_F(
         LOG_DEBUG,
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    auto &addressable_devices =
+    const std::vector<DeviceInstance *> &addressable_devices =
         LoadedExecutableInstance::Unwrap(args->executable)
             ->addressable_devices();
     int num_addressable_devices =
         LoadedExecutableInstance::Unwrap(args->executable)
-            ->image_->get_num_addresible_devices();
+            ->image_->get_num_addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -83,7 +83,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
+  // Sanity check, as we only support execution on one chip currently.
   assert(args->num_devices == 1);
+
   int dev_index = 0;
   tt::runtime::Binary binary(image_->get_binary());
 
@@ -96,8 +98,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
     rt_inputs.emplace_back(buffer->tensor());
-    device_ids.insert(
-        chip_ids[buffer->device().device_description()->device_id()]);
+    int64_t buffer_device_id =
+        buffer->device().device_description()->device_id();
+    device_ids.insert(chip_ids[buffer_device_id]);
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
