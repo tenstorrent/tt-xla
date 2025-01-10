@@ -76,6 +76,7 @@
   _STUB(PJRT_Buffer_Memory);
   _STUB(PJRT_Buffer_Delete);
   _STUB(PJRT_Buffer_IsDeleted);
+  _STUB(PJRT_Buffer_CopyRawToHost);
   _STUB(PJRT_Buffer_CopyToDevice);
   _STUB(PJRT_Buffer_ToHostBuffer);
   _STUB(PJRT_Buffer_IsOnCpu);
