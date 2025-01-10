@@ -19,9 +19,9 @@ class DeviceRunner:
     """
 
     @staticmethod
-    def run_on_tt_device(workload: Workload) -> Tensor:
+    def run_on_tt_device(workload: Workload, num_device: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
-        return DeviceRunner._run_on_device(DeviceType.TT, workload)
+        return DeviceRunner._run_on_device(DeviceType.TT, workload, num_device)
 
     @staticmethod
     def run_on_cpu(workload: Workload) -> Tensor:
@@ -34,9 +34,9 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
-    def put_on_tt_device(workload: Workload) -> Workload:
+    def put_on_tt_device(workload: Workload, num_device: int = 0) -> Workload:
         """Puts `workload` on TT device."""
-        return DeviceRunner._put_on_device(DeviceType.TT, workload)
+        return DeviceRunner._put_on_device(DeviceType.TT, workload, num_device)
 
     @staticmethod
     def put_on_cpu(workload: Workload) -> Workload:
@@ -64,18 +64,22 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
-    def _run_on_device(device_type: DeviceType, workload: Workload) -> Tensor:
+    def _run_on_device(
+        device_type: DeviceType, workload: Workload, num_device: int = 0
+    ) -> Tensor:
         """Runs `workload` on device identified by `device_type`."""
-        device_workload = DeviceRunner._put_on_device(device_type, workload)
+        device_workload = DeviceRunner._put_on_device(device_type, workload, num_device)
         device = device_connector.connect_device(device_type)
 
         with jax.default_device(device):
             return device_workload.execute()
 
     @staticmethod
-    def _put_on_device(device_type: DeviceType, workload: Workload) -> Workload:
+    def _put_on_device(
+        device_type: DeviceType, workload: Workload, num_device: int = 0
+    ) -> Workload:
         """Puts `workload` on device and returns it."""
-        device = device_connector.connect_device(device_type)
+        device = device_connector.connect_device(device_type, num_device)
         return DeviceRunner._safely_put_workload_on_device(workload, device)
 
     @staticmethod
