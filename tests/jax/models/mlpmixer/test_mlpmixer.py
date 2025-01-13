@@ -2,19 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence, Any
+from typing import Any, Dict, Sequence
 
+import flax.traverse_util
+import fsspec
 import jax
 import jax.numpy as jnp
 import numpy
 import pytest
-import fsspec
 from flax import linen as nn
-import flax.traverse_util
-
 from infra import ModelTester, RunMode
-from .model_implementation import MlpMixer
 
+from .model_implementation import MlpMixer
 
 # Hyperparameters for Mixer-B/16
 patch_size = 16
@@ -73,6 +72,7 @@ class MlpMixerTester(ModelTester):
         # Alternatively, weights could be randomly initialized like this:
         # weights = self._model.init(jax.random.PRNGKey(42), ins)
 
+        # JAX frameworks have a convention of passing weights as the first argument
         return [weights, ins]
 
 
