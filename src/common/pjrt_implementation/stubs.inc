@@ -76,6 +76,7 @@
   _STUB(PJRT_Buffer_Memory);
   _STUB(PJRT_Buffer_Delete);
   _STUB(PJRT_Buffer_IsDeleted);
+  _STUB(PJRT_Buffer_CopyRawToHost);
   _STUB(PJRT_Buffer_CopyToDevice);
   _STUB(PJRT_Buffer_ToHostBuffer);
   _STUB(PJRT_Buffer_IsOnCpu);
@@ -101,6 +102,7 @@
   _STUB(PJRT_Executable_OutputDimensions);
   _STUB(PJRT_Buffer_CopyToMemory);
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
+  _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Executable_Fingerprint);
   _STUB(PJRT_Client_TopologyDescription);
   _STUB(PJRT_Buffer_DynamicDimensionIndices);
@@ -109,3 +111,5 @@
   _STUB(PJRT_Memory_Kind_Id);
   _STUB(PJRT_ExecuteContext_Create);
   _STUB(PJRT_ExecuteContext_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
