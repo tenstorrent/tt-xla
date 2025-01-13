@@ -46,7 +46,7 @@ class SqueezeBertTester(ModelTester):
         params = self._model.init_from_pytorch_statedict(state_dict)
 
         return {
-            "variables": params,
+            "variables": params,  # JAX frameworks have a convention of passing weights as the first argument
             "input_ids": self._get_input_activations(),
             "train": False,
         }
