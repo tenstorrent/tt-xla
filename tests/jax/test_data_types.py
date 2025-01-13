@@ -44,5 +44,5 @@ def test_array_dtype(dtype: DTypeLike):
     def array(x: jax.Array) -> jax.Array:
         return x
 
-    in0 = jnp.array(1, dtype)  # Dummy array used as input.
+    in0 = jnp.ones((32, 32), dtype)  # Dummy array used as input.
     run_op_test(array, [in0])
