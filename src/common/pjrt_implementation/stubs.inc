@@ -28,8 +28,6 @@
   _STUB(PJRT_Client_LookupAddressableDevice);
   _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_Compile);
-  _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
-  _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
   _STUB(PJRT_Client_BufferFromHostBuffer);
   _STUB(PJRT_DeviceDescription_Id);
@@ -113,3 +111,5 @@
   _STUB(PJRT_Memory_Kind_Id);
   _STUB(PJRT_ExecuteContext_Create);
   _STUB(PJRT_ExecuteContext_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
