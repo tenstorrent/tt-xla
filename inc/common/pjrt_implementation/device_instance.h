@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include "types_generated.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #include "common/pjrt_implementation/device_description.h"
@@ -25,8 +26,8 @@ class BufferInstance;
 class DeviceInstance {
 
 public:
-  DeviceInstance(int client_id, ClientInstance &client)
-      : client_(client), description_(client_id) {}
+  DeviceInstance(int client_id, ClientInstance &client, tt::target::Arch arch)
+      : client_(client), description_(client_id, arch) {}
   ~DeviceInstance();
   operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
   static void BindApi(PJRT_Api *api);

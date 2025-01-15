@@ -10,6 +10,7 @@
 
 #include <sstream>
 
+#include "types_generated.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_
@@ -20,7 +21,23 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id) : client_id_(client_id) {};
+  DeviceDescription(int32_t client_id, tt::target::Arch arch)
+      : client_id_(client_id) {
+    switch (arch) {
+    case tt::target::Arch::Blackhole:
+      kind_string_ = "Blackhole";
+      break;
+    case tt::target::Arch::Wormhole_b0:
+      kind_string_ = "Wormhole_b0";
+      break;
+    case tt::target::Arch::Grayskull:
+      kind_string_ = "Grayskull";
+      break;
+    }
+    std::stringstream ss;
+    ss << "TTDevice(id=" << device_id() << ", arch=" << kind_string_ << ")";
+    user_string_ = ss.str();
+  };
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -32,14 +49,8 @@ public:
   }
 
   std::string_view kind_string() { return kind_string_; }
-  std::string_view debug_string() { return to_string(); }
-  std::string_view to_string() {
-    std::stringstream ss;
-    ss << kind_string_ << "(id=" << device_id() << ", arch=" << arch_string_
-       << ")";
-    user_string_ = ss.str();
-    return user_string_;
-  }
+  std::string_view debug_string() { return user_string_; }
+  std::string_view to_string() { return user_string_; }
 
   // TODO
   int64_t device_id() { return 0; }
@@ -51,11 +62,8 @@ public:
 private:
   int client_id_;
 
-  // TODO We should understand better how these are used.
-  // See https://github.com/tenstorrent/tt-xla/issues/125
-  std::string kind_string_ = "TTDevice";
-  std::string arch_string_ = "Wormhole";
-  std::string user_string_ = "";
+  std::string kind_string_;
+  std::string user_string_;
 };
 
 } // namespace tt::pjrt
