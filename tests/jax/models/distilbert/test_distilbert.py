@@ -2,15 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Callable, Dict, Sequence
 
 import jax
 import pytest
 from flax import linen as nn
 from infra import ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM
+from utils import record_model_test_properties, runtime_fail
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"
+MODEL_NAME = MODEL_PATH.split("/")[1]
 
 # ----- Tester -----
 
@@ -54,16 +56,25 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 
 
 @pytest.mark.xfail(
-    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
+    reason=runtime_fail(
+        "Cannot get the device from a tensor with host storage "
+        "(https://github.com/tenstorrent/tt-xla/issues/171)"
+    )
 )
 def test_flax_distilbert_inference(
     inference_tester: FlaxDistilBertForMaskedLMTester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
+
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_distilbert_training(
     training_tester: FlaxDistilBertForMaskedLMTester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
+
     training_tester.test()

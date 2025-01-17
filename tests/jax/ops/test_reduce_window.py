@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import flax
 import jax
 import pytest
 from infra import ComparisonConfig, random_tensor, run_op_test
+from utils import record_op_test_properties
 
 
 @pytest.fixture
@@ -48,6 +51,7 @@ def comparison_config() -> ComparisonConfig:
         (1, 128, 128, 64),
         (1, 128, 128, 128),
     ],
+    ids=lambda val: f"{val}",
 )
 @pytest.mark.parametrize(
     ["window_shape", "strides", "padding"],
@@ -63,11 +67,19 @@ def test_reduce_window_max(
     strides: tuple,
     padding: tuple,
     comparison_config: ComparisonConfig,
+    record_tt_xla_property: Callable,
 ):
     def maxpool2d(img: jax.Array):
         return flax.linen.max_pool(
             img, window_shape=window_shape, strides=strides, padding=padding
         )
+
+    record_op_test_properties(
+        record_tt_xla_property,
+        "Maxpool op",
+        "flax.linen.max_pool",
+        "stablehlo.reduce_window{MAX}",
+    )
 
     # NOTE Some resnet convolutions seem to require bfloat16, ttnn throws in runtime
     # otherwise. On another note, MaxPool2d is also only supported for bfloat16 in ttnn,
