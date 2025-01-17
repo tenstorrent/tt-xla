@@ -7,7 +7,7 @@ from typing import Dict, Sequence
 import jax
 import pytest
 from flax import nnx
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ModelTester, RunMode
 
 from ..model import ExampleModel
 
@@ -78,6 +78,7 @@ def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
 # ----- Tests -----
 
 
+@pytest.mark.skip("Skipped due to https://github.com/tenstorrent/tt-xla/issues/162")
 def test_example_model_inference(
     inference_tester: ExampleModelMixedArgsAndKwargsTester,
 ):
