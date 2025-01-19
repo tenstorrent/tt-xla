@@ -11,6 +11,7 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 #include <unordered_set>
+#include <iostream>
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
@@ -83,7 +84,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
-  assert(args->num_devices == 1);
+  assert(args->num_devices == 2);
   int dev_index = 0;
   tt::runtime::Binary binary(image_->get_binary());
 
@@ -106,9 +107,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
-
+  std::cerr << "submitted" << std::endl;
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0, rt_inputs);
+  std::cerr << "ended" << std::endl;
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0);
 

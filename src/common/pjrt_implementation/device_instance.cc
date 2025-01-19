@@ -14,6 +14,8 @@
 #include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
 
+#include <iostream>
+
 namespace tt::pjrt {
 
 DeviceInstance::~DeviceInstance() = default;
@@ -64,6 +66,8 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     EventInstance **out_done_with_host_buffer_event,
     BufferInstance **out_buffer) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
+
+  std::cerr << "my_device=" << device_description()->to_string() << std::endl;
 
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
       tt::pjrt::utils::MapBufferTypeToElementType(type);

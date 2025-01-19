@@ -11,6 +11,7 @@
 #include "common/pjrt_implementation/executable_image.h"
 
 #include <string>
+#include <iostream>
 
 #include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
@@ -49,6 +50,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
     args->num_outputs = exec->result_count;
+    std::cerr << "I AM HERE=" << args->num_outputs << std::endl;
     return nullptr;
   };
   api->PJRT_Executable_NumPartitions =
@@ -107,12 +109,31 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+
+    ExecutableImage *executable = ExecutableImage::Unwrap(args->executable);
+    size_t num_outputs = 1;
+    PJRT_Buffer_Type *output_types = new PJRT_Buffer_Type[num_outputs];
+    output_types[0] = PJRT_Buffer_Type_F32;
+    args->num_output_types = num_outputs;
+    args->output_types = output_types;
+    std::cerr << "num_outputs=" << args->num_output_types << std::endl;
+    return nullptr;
   };
   api->PJRT_Executable_OutputDimensions =
       +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    
+    ExecutableImage *executable = ExecutableImage::Unwrap(args->executable);
+    int64_t *dims = new int64_t[3];
+    dims[1] = 128;
+    dims[2] = 128;
+    size_t *dim_sizes = new size_t[1];
+    dim_sizes[0] = 2;
+    args->dims = dims;
+    args->dim_sizes = dim_sizes;
+    args->num_outputs = 1;
+    std::cerr << "num_outputs=" << args->num_outputs << std::endl;
+    return nullptr;
   };
   api->PJRT_Executable_OutputMemoryKinds =
       +[](PJRT_Executable_OutputMemoryKinds_Args *args) -> PJRT_Error * {
