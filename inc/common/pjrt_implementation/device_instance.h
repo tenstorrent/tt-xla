@@ -8,7 +8,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "types_generated.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #include "common/pjrt_implementation/device_description.h"
