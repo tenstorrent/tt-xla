@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from flax import linen as nn
 from infra import RunMode
 
 from ..tester import LLamaTester
@@ -27,7 +26,7 @@ def training_tester() -> LLamaTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
 def test_openllama3b_inference(
     inference_tester: LLamaTester,
 ):

@@ -8,7 +8,6 @@ import pytest
 from infra import run_graph_test_with_random_inputs
 
 
-@pytest.mark.skip("Skipped due to https://github.com/tenstorrent/tt-xla/issues/162")
 @pytest.mark.parametrize(
     ["x_shape", "y_shape", "bias_shape"],
     [

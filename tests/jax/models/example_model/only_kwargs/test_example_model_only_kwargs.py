@@ -73,7 +73,6 @@ def training_tester() -> ExampleModelOnlyKwargsTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip("Skipped due to https://github.com/tenstorrent/tt-xla/issues/162")
 def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester):
     inference_tester.test()
 

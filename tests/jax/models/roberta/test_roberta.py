@@ -57,7 +57,7 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce_window'")
 def test_roberta_inference(
     inference_tester: FlaxRobertaForMaskedLMTester,
 ):
