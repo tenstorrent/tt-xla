@@ -13,3 +13,5 @@ lit
 pybind11
 pytest
 transformers
+fsspec
+einops
