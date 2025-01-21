@@ -51,7 +51,7 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
 def test_gp2_inference(
     inference_tester: GPT2Tester,
 ):

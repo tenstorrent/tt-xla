@@ -8,9 +8,8 @@ from infra import run_op_test_with_random_inputs
 
 
 @pytest.mark.parametrize("input_shapes", [[(2, 1)]])
-@pytest.mark.skip(
-    "error: type of return operand 0 doesn't match function result type in "
-    "function @main"
+@pytest.mark.xfail(
+    reason="AssertionError: Atol comparison failed. Calculated: atol=0.804124116897583. Required: atol=0.16"
 )
 def test_broadcast_in_dim(input_shapes):
     def broadcast(a):

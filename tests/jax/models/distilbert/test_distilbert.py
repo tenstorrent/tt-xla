@@ -53,7 +53,7 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
 def test_flax_distilbert_inference(
     inference_tester: FlaxDistilBertForMaskedLMTester,
 ):
