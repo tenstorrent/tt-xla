@@ -246,7 +246,7 @@ jobs:
         report_paths: ${{ steps.strings.outputs.test_report_path }}
         check_name: TT-XLA Tests
         comment: true
-        updateComment: false
+        updateComment: true
         detailed_summary: true
         group_suite: true
 
