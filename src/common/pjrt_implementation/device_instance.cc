@@ -81,6 +81,10 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   }
   assert(num_byte_strides == num_dims);
   for (size_t i = 0; i < num_dims; ++i) {
+    std::cerr << "shape=" << dims[i] << std::endl;
+    std::cerr << "strides=" << byte_strides[i] / element_size << std::endl;
+    std::cerr << "element_size=" << element_size << std::endl;
+    std::cerr << "element_type=" << (int)element_type << std::endl;
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }

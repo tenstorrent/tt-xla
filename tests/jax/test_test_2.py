@@ -63,8 +63,6 @@ def mesh_negative(act):
         print("--------------------------")
         print(act)
         print("--------------------------")
-        print(result)
-        print("--------------------------")
 
 initializePJRT()
 n_m = 8192
