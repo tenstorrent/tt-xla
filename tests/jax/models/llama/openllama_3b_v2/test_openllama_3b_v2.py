@@ -26,7 +26,8 @@ def training_tester() -> LLamaTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+# @pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+@pytest.mark.skip(reason="OOMs in CI")
 def test_openllama3b_inference(
     inference_tester: LLamaTester,
 ):
