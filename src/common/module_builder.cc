@@ -43,7 +43,8 @@
 namespace tt::pjrt {
 
 ModuleBuilder::ModuleBuilder()
-    : m_status(tt_pjrt_status::kSuccess), m_num_inputs(0), m_num_outputs(0) {
+    : m_status(tt_pjrt_status::kSuccess), m_num_inputs(0), m_num_outputs(0),
+      m_flatbuffer_binary(nullptr) {
   m_context = std::make_unique<mlir::MLIRContext>();
 
   // Register all the required dialects and passes.
@@ -219,15 +220,14 @@ void ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   m_flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
-  if (m_flatbuffer_binary == nullptr) {
+  if (m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
 
-  tt::runtime::Binary runtime_binary_handle(m_flatbuffer_binary);
-  m_num_inputs = runtime_binary_handle.getProgramInputs(0).size();
-  m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
+  m_num_inputs = m_flatbuffer_binary.getProgramInputs(0).size();
+  m_num_outputs = m_flatbuffer_binary.getProgramOutputs(0).size();
 
   if (m_num_outputs != m_is_output_scalar.size()) {
     DLOG_F(ERROR,

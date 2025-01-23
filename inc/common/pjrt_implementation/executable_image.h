@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 
+#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
@@ -22,10 +23,10 @@ namespace tt::pjrt {
 class ExecutableImage {
 
 public:
-  ExecutableImage(std::shared_ptr<void> binary, std::string code,
+  ExecutableImage(const tt::runtime::Binary &binary, std::string code,
                   size_t arg_count, size_t result_count)
-      : ref_count(1), binary(std::move(binary)), code(code),
-        arg_count(arg_count), result_count(result_count) {}
+      : ref_count(1), binary(binary), code(code), arg_count(arg_count),
+        result_count(result_count) {}
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
   }
@@ -45,7 +46,7 @@ public:
 
   const size_t get_result_count() const { return result_count; }
 
-  std::shared_ptr<void> get_binary() { return binary; }
+  const tt::runtime::Binary &get_binary() const { return binary; }
 
   const std::string &get_code() const { return code; }
 
@@ -54,7 +55,7 @@ private:
   std::atomic<int> ref_count;
 
   // Raw compiler output.
-  std::shared_ptr<void> binary;
+  tt::runtime::Binary binary;
 
   // Original code fed to the compiler. Stored for debugging.
   const std::string code;

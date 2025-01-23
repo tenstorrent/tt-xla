@@ -17,6 +17,7 @@
 
 // tt-xla includes
 #include "status.h"
+#include "tt/runtime/types.h"
 
 namespace tt::pjrt {
 
@@ -27,7 +28,7 @@ public:
   tt_pjrt_status buildModule(const std::string_view &code,
                              const std::string_view &format);
 
-  std::shared_ptr<void> getBinary() const { return m_flatbuffer_binary; }
+  const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
   size_t getNumInputs() const { return m_num_inputs; };
 
@@ -66,8 +67,8 @@ private:
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
-  // Flatbuffer binary handle.
-  std::shared_ptr<void> m_flatbuffer_binary;
+  // Flatbuffer binary.
+  tt::runtime::Binary m_flatbuffer_binary;
 
   // Number of binary program inputs.
   size_t m_num_inputs;
