@@ -88,7 +88,12 @@ def training_tester() -> MlpMixerTester:
 
 
 @pytest.mark.skip(
-    reason="Statically allocated circular buffers in program 16 clash with L1 buffers on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and static circular buffer region ends at 951136"
+    reason=(
+        "Statically allocated circular buffers in program 16 clash with L1 buffers "
+        "on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and "
+        "static circular buffer region ends at 951136 "
+        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    )
 )  # segfault
 def test_mlpmixer(inference_tester: MlpMixerTester):
     inference_tester.test()
