@@ -11,6 +11,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -52,12 +53,14 @@ public:
 
   const std::string &get_code() const { return m_code; }
 
-  // Checks if the output on the i-th index is a scalar.
-  bool isOutputScalar(size_t index) const;
-
   const size_t get_num_addressable_devices() const {
     return num_addressable_devices;
   }
+
+  const std::vector<std::uint32_t> &get_output_shape(size_t index) const;
+
+  PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
+  size_t num_output_types() { return m_output_types.size(); }
 
 private:
   // The reference count. Must be disposed when reaching zero.
@@ -75,6 +78,12 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // For every output, holds PJRT_Buffer_Type.
+  std::vector<PJRT_Buffer_Type> m_output_types;
+
+  // For every output, holds a list of its dimensions.
+  std::vector<std::vector<uint32_t>> m_output_dimensions;
 };
 
 } // namespace tt::pjrt
