@@ -102,7 +102,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   assert(rt_outputs.size() == output_specs.size());
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
-    bool is_scalar = client_.isOutputScalar(i);
+    bool is_scalar = image_->isOutputScalar(i);
     // PJRT expects an empty shape for scalars.
     std::vector<std::uint32_t> output_shape =
         is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;

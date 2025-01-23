@@ -121,4 +121,9 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
   };
 }
 
+bool ExecutableImage::isOutputScalar(const size_t index) const {
+  assert(index < is_output_scalar.size() && "Output index out of range");
+  return is_output_scalar[index];
+}
+
 } // namespace tt::pjrt

@@ -24,9 +24,10 @@ class ExecutableImage {
 
 public:
   ExecutableImage(const tt::runtime::Binary &binary, std::string code,
-                  size_t arg_count, size_t result_count)
+                  size_t arg_count, size_t result_count,
+                  const std::vector<bool> &is_output_scalar)
       : ref_count(1), binary(binary), code(code), arg_count(arg_count),
-        result_count(result_count) {}
+        result_count(result_count), is_output_scalar(is_output_scalar) {}
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
   }
@@ -50,6 +51,8 @@ public:
 
   const std::string &get_code() const { return code; }
 
+  bool isOutputScalar(size_t index) const;
+
 private:
   // The reference count. Must be disposed when reaching zero.
   std::atomic<int> ref_count;
@@ -62,6 +65,9 @@ private:
 
   size_t arg_count;
   size_t result_count;
+
+  // For every output, holds if the type is a scalar or not.
+  std::vector<bool> is_output_scalar;
 };
 
 } // namespace tt::pjrt

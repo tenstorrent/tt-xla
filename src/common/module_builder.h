@@ -34,7 +34,9 @@ public:
 
   size_t getNumOutputs() const { return m_num_outputs; };
 
-  bool isOutputScalar(size_t index) const;
+  const std::vector<bool> &getIsOutputScalar() const {
+    return m_is_output_scalar;
+  };
 
 private:
   // Creates VHLO module from the input program code.

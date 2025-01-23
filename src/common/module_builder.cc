@@ -67,11 +67,6 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-bool ModuleBuilder::isOutputScalar(const size_t index) const {
-  assert(index < m_is_output_scalar.size() && "Output index out of range");
-  return m_is_output_scalar[index];
-}
-
 tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
                                           const std::string_view &format) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
