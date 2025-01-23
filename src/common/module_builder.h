@@ -30,10 +30,6 @@ public:
 
   const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
-  size_t getNumInputs() const { return m_num_inputs; };
-
-  size_t getNumOutputs() const { return m_num_outputs; };
-
   const std::vector<bool> &getIsOutputScalar() const {
     return m_is_output_scalar;
   };
@@ -71,12 +67,6 @@ private:
 
   // Flatbuffer binary.
   tt::runtime::Binary m_flatbuffer_binary;
-
-  // Number of binary program inputs.
-  size_t m_num_inputs;
-
-  // Number of binary program outputs.
-  size_t m_num_outputs;
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;

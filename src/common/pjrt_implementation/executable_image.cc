@@ -19,6 +19,22 @@ namespace tt::pjrt {
 
 const std::string_view kMlirFormat = "mlir";
 
+ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
+                                 std::string code,
+                                 const std::vector<bool> &is_output_scalar)
+    : ref_count(1), binary(binary), code(code),
+      is_output_scalar(is_output_scalar) {
+  arg_count = binary.getProgramInputs(0).size();
+  result_count = binary.getProgramOutputs(0).size();
+
+  if (result_count != is_output_scalar.size()) {
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %ld "
+           "than expected %ld",
+           result_count, is_output_scalar.size());
+  }
+}
+
 void ExecutableImage::BindApi(PJRT_Api *api) {
   api->PJRT_Executable_Destroy =
       +[](PJRT_Executable_Destroy_Args *args) -> PJRT_Error * {

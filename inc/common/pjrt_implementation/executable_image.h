@@ -24,10 +24,7 @@ class ExecutableImage {
 
 public:
   ExecutableImage(const tt::runtime::Binary &binary, std::string code,
-                  size_t arg_count, size_t result_count,
-                  const std::vector<bool> &is_output_scalar)
-      : ref_count(1), binary(binary), code(code), arg_count(arg_count),
-        result_count(result_count), is_output_scalar(is_output_scalar) {}
+                  const std::vector<bool> &is_output_scalar);
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
   }
