@@ -35,14 +35,15 @@ class AtolConfig(ConfigBase):
 
 
 @dataclass
-class PccConfig(ConfigBase):
-    required_pcc: float = 0.99
-
-
-@dataclass
 class AllcloseConfig(ConfigBase):
     rtol: float = 1e-2
     atol: float = 1e-2
+
+
+@dataclass
+class PccConfig(ConfigBase):
+    required_pcc: float = 0.99
+    allclose: AllcloseConfig = AllcloseConfig()
 
 
 @dataclass
@@ -106,9 +107,7 @@ def compare_pcc(
 
     # If tensors are really close, pcc will be nan. Handle that before calculating pcc.
     try:
-        compare_allclose(
-            device_output, golden_output, AllcloseConfig(rtol=1e-2, atol=1e-2)
-        )
+        compare_allclose(device_output, golden_output, pcc_config.allclose)
     except AssertionError:
         pcc = jnp.corrcoef(device_output.flatten(), golden_output.flatten())
         pcc = jnp.min(pcc)
