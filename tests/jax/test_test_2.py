@@ -64,6 +64,7 @@ def mesh_negative(act):
         print(act)
         print("--------------------------")
         print("sharding=", result.sharding)
+        #jax.numpy.set_printoptions(threshold = 128*128)
         print(result)
         print(result.shape)
 
@@ -77,7 +78,7 @@ layer_sizes = [784, 8192, 8192, 8192, 10]
 key = jax.random.key(0)
 key, *keys = jax.random.split(key, len(layer_sizes))
 k1 = keys[0]
-act = jax.numpy.ones((128, 128))
+act = jax.numpy.ones((128, 128))*2
 #act = random_input_tensor((n_m, n_k), on_device=True)
 #W = random_input_tensor((n_k, n_n), on_device=True)
 mesh_negative(act)

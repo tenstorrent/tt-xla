@@ -112,13 +112,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
-  std::vector<std::uint32_t> shape;
-  std::vector<std::uint32_t> strides;
-  std::cerr << "tensor=" << rt_inputs[0].data << std::endl;
-  //tt::runtime::Tensor tensor = tt::runtime::mergeTensors(rt_inputs[0],rt_inputs[1]);
-  for (size_t i = 0; i < 2; ++i) {
+  /*std::vector<std::uint32_t> shape;
+  std::vector<std::uint32_t> strides = {128, 1};*/
+  tt::runtime::Tensor tensor = tt::runtime::mergeTensors(rt_inputs[0],rt_inputs[1]);
+  /*for (size_t i = 0; i < 2; ++i) {
     shape.push_back(128);
-    strides.push_back(1);
   }
   void* data = std::malloc(128*128*4);
   float* floatData = static_cast<float*>(data);
@@ -129,7 +127,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
         std::free(ptr); // Free the allocated memory when shared_ptr goes out of scope
     });
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      shared_data, shape, strides, 4, tt::target::DataType::Float32, true);
+      shared_data, shape, strides, 4, tt::target::DataType::Float32, false);*/
   std::cerr << "submitted=" << rt_inputs.size() << std::endl;
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs;
   for (int k = 0; k<2;k++)

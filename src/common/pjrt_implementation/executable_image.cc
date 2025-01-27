@@ -126,7 +126,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     ExecutableImage *executable = ExecutableImage::Unwrap(args->executable);
     int64_t *dims = new int64_t[2];
     dims[0] = 128;
-    dims[1] = 128;
+    dims[1] = 64;
     size_t *dim_sizes = new size_t[1];
     dim_sizes[0] = 2;
     args->dims = dims;
