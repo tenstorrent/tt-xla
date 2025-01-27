@@ -17,6 +17,7 @@
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/utils.h"
+#include "tt/runtime/runtime.h"
 
 namespace tt::pjrt {
 
@@ -113,20 +114,34 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
   std::vector<std::uint32_t> shape;
   std::vector<std::uint32_t> strides;
+  std::cerr << "tensor=" << rt_inputs[0].data << std::endl;
+  //tt::runtime::Tensor tensor = tt::runtime::mergeTensors(rt_inputs[0],rt_inputs[1]);
   for (size_t i = 0; i < 2; ++i) {
     shape.push_back(128);
     strides.push_back(1);
   }
+  void* data = std::malloc(128*128*4);
+  float* floatData = static_cast<float*>(data);
+  for (std::size_t i = 0; i < 128*128; ++i) {
+        floatData[i] = 1;
+  }
+  std::shared_ptr<void> shared_data(data, [](void* ptr) {
+        std::free(ptr); // Free the allocated memory when shared_ptr goes out of scope
+    });
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      rt_inputs[0].data, shape, strides, 4, tt::target::DataType::Float32, true);
+      shared_data, shape, strides, 4, tt::target::DataType::Float32, true);
   std::cerr << "submitted=" << rt_inputs.size() << std::endl;
-  std::vector<tt::runtime::Tensor> rt_outputs =
-      tt::runtime::submit(device, binary, 0, {tensor});
+  std::vector<std::vector<tt::runtime::Tensor>> rt_outputs;
+  for (int k = 0; k<2;k++)
+  {
+    rt_outputs.push_back(
+        tt::runtime::submit(device, binary, 0, {tensor}));
+  }
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0);
 
   std::cerr << "ended" << std::endl;
-  assert(rt_outputs.size() == output_specs.size());
+  //assert(rt_outputs.size() == output_specs.size());
 
   for (int k=0;k<2;k++)
   {
@@ -136,7 +151,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       std::vector<std::uint32_t> output_shape =
           is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
       auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[k], rt_outputs[i], output_shape,
+          *this->addressable_devices_[k], rt_outputs[k][i], output_shape,
           output_specs[i].stride);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[i].dataType));

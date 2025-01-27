@@ -42,6 +42,7 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
+    ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
 )
 
 set(STABLEHLO_LIBS

@@ -2,7 +2,7 @@ import os
 import jax
 import jax.numpy as jnp
 import jax._src.xla_bridge as xb
-from jax.sharding import Mesh, PartitionSpec, NamedSharding
+from jax.sharding import Mesh, PartitionSpec, NamedSharding, SingleDeviceSharding
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 from functools import partial
@@ -31,7 +31,7 @@ def initializePJRT():
 def negative_basic(a_block):
     b_block = jnp.negative(a_block)
     #stitched_result = jax.lax.all_gather(b_block, axis_name='x', tiled=True)
-    stitched_result = jax.lax.psum(b_block, 'y')
+    stitched_result = jax.lax.psum(b_block, ('x', 'y'))
     return stitched_result
 
 def mesh_negative(act):
@@ -46,7 +46,7 @@ def mesh_negative(act):
     mesh = Mesh(devices=devices, axis_names=('x', 'y'))
 
     in_spec = PartitionSpec('x','y')  # Partition along 'x', even though x=1
-    out_spec = PartitionSpec('x','y')
+    out_spec = PartitionSpec(None, None)
 
     module_sharded = shard_map(
         negative_basic,
@@ -55,25 +55,29 @@ def mesh_negative(act):
         out_specs=out_spec   # Partition outputs along 'x'
     )
 
-    sharding = NamedSharding(mesh, in_spec)
-    graph = jax.jit(module_sharded)
-    act_sharded = jax.device_put(act, NamedSharding(mesh, in_spec), may_alias=True)
+    output_sharding = NamedSharding(mesh, out_spec)
     with mesh: 
-        res = graph(act_sharded)
+        act_sharded = jax.device_put(act, NamedSharding(mesh, in_spec), may_alias=True)
+        graph = jax.jit(module_sharded, out_shardings=output_sharding)
+        result = graph(act_sharded)
         print("--------------------------")
         print(act)
         print("--------------------------")
+        print("sharding=", result.sharding)
+        print(result)
+        print(result.shape)
 
 initializePJRT()
 n_m = 8192
 n_k = 784
 n_n = 8192*2
+
 batch_size = 1
 layer_sizes = [784, 8192, 8192, 8192, 10]
 key = jax.random.key(0)
 key, *keys = jax.random.split(key, len(layer_sizes))
 k1 = keys[0]
-act = jax.random.normal(k1, (128, 128))
+act = jax.numpy.ones((128, 128))
 #act = random_input_tensor((n_m, n_k), on_device=True)
 #W = random_input_tensor((n_k, n_n), on_device=True)
 mesh_negative(act)

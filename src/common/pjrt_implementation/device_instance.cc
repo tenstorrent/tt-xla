@@ -89,8 +89,10 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     strides.push_back(byte_strides[i] / element_size);
   }
   std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
+  std::cout << "data_host=" << data << std::endl;
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
       data_ptr, shape, strides, element_size, element_type, true);
+  std::cerr << "please work=" << tensor.data << std::endl;
   BufferInstance *buffer_instance =
       new BufferInstance(*this, tensor, shape, strides);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
