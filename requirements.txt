@@ -16,3 +16,4 @@ transformers
 fsspec
 einops
 torch
+ml_collections
