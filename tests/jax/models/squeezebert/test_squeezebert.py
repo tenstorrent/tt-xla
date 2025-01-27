@@ -73,14 +73,14 @@ def training_tester() -> SqueezeBertTester:
 
 
 @pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
-def test_flax_distilbert_inference(
+def test_squeezebert_inference(
     inference_tester: SqueezeBertTester,
 ):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_distilbert_training(
+def test_squeezebert_training(
     training_tester: SqueezeBertTester,
 ):
     training_tester.test()
