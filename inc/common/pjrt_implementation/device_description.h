@@ -23,17 +23,7 @@ class DeviceDescription {
 public:
   DeviceDescription(int32_t client_id, tt::target::Arch arch)
       : client_id_(client_id) {
-    switch (arch) {
-    case tt::target::Arch::Blackhole:
-      kind_string_ = "Blackhole";
-      break;
-    case tt::target::Arch::Wormhole_b0:
-      kind_string_ = "Wormhole_b0";
-      break;
-    case tt::target::Arch::Grayskull:
-      kind_string_ = "Grayskull";
-      break;
-    }
+    kind_string_ = target::EnumNameArch(arch);
     std::stringstream ss;
     ss << "TTDevice(id=" << device_id() << ", arch=" << kind_string_ << ")";
     user_string_ = ss.str();
