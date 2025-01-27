@@ -15,12 +15,12 @@ MODEL_PATH = "FacebookAI/roberta-large"
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester()
+    return FlaxRobertaForMaskedLMTester(MODEL_PATH)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(RunMode.TRAINING)
+    return FlaxRobertaForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
 
 
 # ----- Tests -----

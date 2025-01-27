@@ -72,7 +72,7 @@ def training_tester() -> SqueezeBertTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
 def test_squeezebert_inference(
     inference_tester: SqueezeBertTester,
 ):

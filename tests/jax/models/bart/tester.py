@@ -26,7 +26,7 @@ class FlaxBartForCausalLMTester(ModelTester):
 
     # @override
     def _get_model(self) -> nn.Module:
-        return FlaxBartForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        return FlaxBartForCausalLM.from_pretrained(self._model_name)
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
