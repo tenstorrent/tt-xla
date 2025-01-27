@@ -21,8 +21,8 @@ class LLamaTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        super().__init__(comparison_config, run_mode)
         self._model_name = model_name
+        super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> nn.Module:

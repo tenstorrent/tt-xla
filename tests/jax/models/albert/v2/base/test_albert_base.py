@@ -27,7 +27,7 @@ def training_tester() -> AlbertV2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="failed to legalize operation 'stablehlo.dot_general'")
+@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
 def test_flax_albert_v2_base_inference(
     inference_tester: AlbertV2Tester,
 ):

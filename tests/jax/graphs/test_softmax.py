@@ -16,9 +16,8 @@ from infra import run_graph_test_with_random_inputs
         [(64, 64), 1],
     ],
 )
-@pytest.mark.skip(
-    "tt-metal assert: Index is out of bounds for the rank. "
-    "Similar to https://github.com/tenstorrent/tt-xla/issues/12"
+@pytest.mark.xfail(
+    reason="Atol comparison failed. Calculated: atol=inf. Required: atol=0.16"
 )
 def test_softmax(x_shape: tuple, axis: int):
     def softmax(x: jax.Array) -> jax.Array:
