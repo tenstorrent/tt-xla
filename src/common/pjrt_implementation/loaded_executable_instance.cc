@@ -114,7 +114,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
   /*std::vector<std::uint32_t> shape;
   std::vector<std::uint32_t> strides = {128, 1};*/
-  tt::runtime::Tensor tensor = tt::runtime::mergeTensors(rt_inputs[0],rt_inputs[1]);
+  std::vector<tt::runtime::Tensor> input_tensors;
+  for (size_t i = 0; i < args->num_args; ++i)
+  {
+    input_tensors.push_back(tt::runtime::mergeTensors(rt_inputs[i],rt_inputs[i+args->num_args]));
+  }
   /*for (size_t i = 0; i < 2; ++i) {
     shape.push_back(128);
   }
@@ -133,7 +137,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (int k = 0; k<2;k++)
   {
     rt_outputs.push_back(
-        tt::runtime::submit(device, binary, 0, {tensor}));
+        tt::runtime::submit(device, binary, 0, input_tensors));
   }
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0);
