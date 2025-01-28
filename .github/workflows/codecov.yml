@@ -1,0 +1,34 @@
+name: codecov
+
+on:
+  pr:
+
+jobs:
+  codecov:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+      # Run tests and generate coverage report
+      - name: Run tests with coverage
+        run: |
+          pip install coverage pytest pytest-cov
+          pytest --cov-branch --cov-report=xml
+
+      # Upload coverage to Codecov
+      # Usage and documentation can be found here:
+      #    https://github.com/codecov/codecov-action
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          name: coverage-report
+          fail_ci_if_error: true
