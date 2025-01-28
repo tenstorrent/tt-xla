@@ -138,7 +138,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0);
 
-  std::cerr << "ended" << std::endl;
+  std::cerr << "ended=" << args->num_devices << std::endl;
   //assert(rt_outputs.size() == output_specs.size());
 
   for (int k=0;k<2;k++)

@@ -131,6 +131,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ReadyEvent =
       +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
+    args->event = *(new EventInstance());
     return nullptr;
   };
   // TODO: Rework the API to be Aliases(b1, b2) to let the plugin explicitly

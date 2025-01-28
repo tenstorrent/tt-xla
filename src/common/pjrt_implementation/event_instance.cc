@@ -12,6 +12,8 @@
 
 #include "common/pjrt_implementation/error_instance.h"
 
+#include <iostream>
+
 namespace tt::pjrt {
 
 //===----------------------------------------------------------------------===//
@@ -112,6 +114,7 @@ tt_pjrt_status EventInstance::OnReady(PJRT_Event_OnReadyCallback callback,
   DLOG_F(LOG_DEBUG, "EventInstance::OnReady");
   tt_pjrt_status local_status;
   {
+    std::cerr << "pointer=" << this << std::endl;
     std::lock_guard<std::mutex> guard(lock_);
     if (!is_ready_) {
       pending_callbacks_.push_back({callback, user_arg});
