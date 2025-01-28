@@ -10,6 +10,7 @@
 
 #include "common/pjrt_implementation/executable_image.h"
 
+#include <memory>
 #include <string>
 
 #include "common/pjrt_implementation/utils.h"
@@ -24,14 +25,28 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  const std::vector<bool> &is_output_scalar)
     : m_ref_count(1), m_binary(binary), m_code(code),
       m_is_output_scalar(is_output_scalar) {
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      m_binary.getProgramOutputs(0);
+
   m_arg_count = m_binary.getProgramInputs(0).size();
-  m_result_count = m_binary.getProgramOutputs(0).size();
+  m_result_count = output_specs.size();
 
   if (m_result_count != m_is_output_scalar.size()) {
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %ld "
            "than expected %ld",
            m_result_count, m_is_output_scalar.size());
+  }
+
+  m_output_types.resize(m_result_count);
+  m_output_dimensions.resize(m_result_count);
+  for (int i = 0; i < m_result_count; i++) {
+    m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
+        output_specs[i].dataType);
+
+    // PJRT expects an empty shape for scalars.
+    m_output_dimensions[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()
+                                               : output_specs[i].shape;
   }
 }
 
@@ -121,14 +136,41 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Executable_OutputElementTypes =
       +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes");
+    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
+    // There is a possibility that this method should return unique types, and
+    // not a type for every output.
+    args->output_types = exec->get_output_types();
+    args->num_output_types = exec->num_output_types();
+    return nullptr;
   };
   api->PJRT_Executable_OutputDimensions =
       +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
+    size_t num_outputs = exec->m_result_count;
+    args->num_outputs = num_outputs;
+    size_t num_dims = 0;
+
+    auto dim_sizes = std::make_unique<size_t[]>(num_outputs);
+    for (size_t i = 0; i < num_outputs; i++) {
+      dim_sizes[i] = exec->m_output_dimensions[i].size();
+      num_dims += dim_sizes[i];
+    }
+
+    auto dims = std::make_unique<int64_t[]>(num_dims);
+    size_t dims_index = 0;
+    for (size_t i = 0; i < num_outputs; i++) {
+      for (size_t j = 0; j < dim_sizes[i]; j++) {
+        dims[dims_index + j] = exec->m_output_dimensions[i][j];
+      }
+      dims_index += dim_sizes[i];
+    }
+
+    args->dims = dims.release();
+    args->dim_sizes = dim_sizes.release();
+
+    return nullptr;
   };
   api->PJRT_Executable_OutputMemoryKinds =
       +[](PJRT_Executable_OutputMemoryKinds_Args *args) -> PJRT_Error * {
@@ -137,9 +179,10 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
   };
 }
 
-bool ExecutableImage::isOutputScalar(const size_t index) const {
-  assert(index < is_output_scalar.size() && "Output index out of range");
-  return m_is_output_scalar[index];
+const std::vector<std::uint32_t> &
+ExecutableImage::get_output_shape(const size_t index) const {
+  assert(index < output_dimensions.size() && "Output index out of range");
+  return m_output_dimensions[index];
 }
 
 } // namespace tt::pjrt
