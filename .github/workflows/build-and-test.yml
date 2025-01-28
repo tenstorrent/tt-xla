@@ -7,11 +7,24 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      test_mark:
+        description: 'Test mark to run'
+        required: true
+        default: 'push'
+        type: choice
+        options:
+          - push
+          - nightly
   workflow_call:
     inputs:
       mlir_override:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
+        type: string
+      test_mark:
+        description: 'Test mark to run'
+        required: false
+        default: 'push'
         type: string
 
 permissions:
