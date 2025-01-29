@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence, Dict
+from typing import Dict, Sequence
 
 import jax
 import pytest
@@ -52,7 +52,7 @@ def training_tester() -> GPT2Tester:
 
 
 @pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
-def test_gp2_inference(
+def test_gpt2_inference(
     inference_tester: GPT2Tester,
 ):
     inference_tester.test()
