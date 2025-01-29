@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import jax
 from flax import linen as nn
 
 
-class MNISTCNNModel(nn.Module):
+class MNISTCNNNoDropoutModel(nn.Module):
     @nn.compact
     def __call__(self, x, *, train: bool):
         x = nn.Conv(features=32, kernel_size=(3, 3), padding="SAME")(x)
