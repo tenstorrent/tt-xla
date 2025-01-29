@@ -33,38 +33,38 @@ public:
   }
   static void BindApi(PJRT_Api *api);
 
-  void AddRef() { ref_count.fetch_add(1); }
+  void AddRef() { m_ref_count.fetch_add(1); }
   void DecRef() {
-    if (ref_count.fetch_sub(1) == 0) {
+    if (m_ref_count.fetch_sub(1) == 0) {
       delete this;
     }
   }
 
-  const size_t get_arg_count() const { return arg_count; }
+  const size_t get_arg_count() const { return m_arg_count; }
 
-  const size_t get_result_count() const { return result_count; }
+  const size_t get_result_count() const { return m_result_count; }
 
-  const tt::runtime::Binary &get_binary() const { return binary; }
+  const tt::runtime::Binary &get_binary() const { return m_binary; }
 
-  const std::string &get_code() const { return code; }
+  const std::string &get_code() const { return m_code; }
 
   bool isOutputScalar(size_t index) const;
 
 private:
   // The reference count. Must be disposed when reaching zero.
-  std::atomic<int> ref_count;
+  std::atomic<int> m_ref_count;
 
   // Raw compiler output.
-  tt::runtime::Binary binary;
+  tt::runtime::Binary m_binary;
 
   // Original code fed to the compiler. Stored for debugging.
-  const std::string code;
+  const std::string m_code;
 
-  size_t arg_count;
-  size_t result_count;
+  size_t m_arg_count;
+  size_t m_result_count;
 
   // For every output, holds if the type is a scalar or not.
-  std::vector<bool> is_output_scalar;
+  std::vector<bool> m_is_output_scalar;
 };
 
 } // namespace tt::pjrt

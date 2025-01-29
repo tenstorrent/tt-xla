@@ -22,16 +22,16 @@ const std::string_view kMlirFormat = "mlir";
 ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  std::string code,
                                  const std::vector<bool> &is_output_scalar)
-    : ref_count(1), binary(binary), code(code),
-      is_output_scalar(is_output_scalar) {
-  arg_count = binary.getProgramInputs(0).size();
-  result_count = binary.getProgramOutputs(0).size();
+    : m_ref_count(1), m_binary(binary), m_code(code),
+      m_is_output_scalar(is_output_scalar) {
+  m_arg_count = m_binary.getProgramInputs(0).size();
+  m_result_count = m_binary.getProgramOutputs(0).size();
 
-  if (result_count != is_output_scalar.size()) {
+  if (m_result_count != m_is_output_scalar.size()) {
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %ld "
            "than expected %ld",
-           result_count, is_output_scalar.size());
+           m_result_count, m_is_output_scalar.size());
   }
 }
 
@@ -64,7 +64,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_NumOutputs_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->num_outputs = exec->result_count;
+    args->num_outputs = exec->m_result_count;
     return nullptr;
   };
   api->PJRT_Executable_NumPartitions =
@@ -102,15 +102,15 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     PJRT_Program *program = args->program;
     program->format = kMlirFormat.data();
     program->format_size = kMlirFormat.size();
-    size_t code_size = executable->code.size();
+    size_t code_size = executable->m_code.size();
     if (program->code == nullptr) {
       program->code_size = code_size;
     } else {
       if (program->code_size < code_size) {
         return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
       }
-      std::memcpy(program->code, executable->code.c_str(),
-                  executable->code.size());
+      std::memcpy(program->code, executable->m_code.c_str(),
+                  executable->m_code.size());
     }
     return nullptr;
   };
@@ -139,7 +139,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
 
 bool ExecutableImage::isOutputScalar(const size_t index) const {
   assert(index < is_output_scalar.size() && "Output index out of range");
-  return is_output_scalar[index];
+  return m_is_output_scalar[index];
 }
 
 } // namespace tt::pjrt
