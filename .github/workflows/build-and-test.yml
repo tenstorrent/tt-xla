@@ -264,13 +264,15 @@ jobs:
         group_suite: true
 
     - name: Prepare code coverage report
+      if: (success() || failure()) && ${{ matrix.build.runs-on == 'n300' }}
       run: |
         lcov --directory build --capture --output-file coverage.info
-        lcov --extract coverage.info '**/src/*' --output-file coverage.info
+        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.infoo
+        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
         lcov --list coverage.info
 
     - name: Upload coverage reports to Codecov
-      if: success() || failure()
+      if: (success() || failure()) && ${{ matrix.build.runs-on == 'n300' }}
       uses: codecov/codecov-action@v5
       with:
         files: coverage.info
@@ -282,4 +284,5 @@ jobs:
       uses: codecov/test-results-action@v1
       with:
         files: ${{ steps.strings.outputs.test_report_path }}
+        disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
