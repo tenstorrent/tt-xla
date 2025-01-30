@@ -82,7 +82,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   }
   std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      data_ptr, shape, strides, element_size, element_type);
+      data_ptr, shape, strides, element_size, element_type, true);
   BufferInstance *buffer_instance =
       new BufferInstance(*this, tensor, shape, strides);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
