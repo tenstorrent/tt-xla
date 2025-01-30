@@ -2,7 +2,9 @@ import os
 import jax
 import jax.numpy as jnp
 import jax._src.xla_bridge as xb
+from jax.sharding import Mesh
 from jax.sharding import Mesh, PartitionSpec, NamedSharding, SingleDeviceSharding
+from jax.sharding import PartitionSpec as P
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 from functools import partial
@@ -28,47 +30,26 @@ def initializePJRT():
   jax.config.update("jax_platforms", "cpu,tt")
   #jax.config.update("jax_use_shardy_partitioner", True)
 
-def negative_basic(a_block, b_block):
-    c_block = jnp.dot(a_block, b_block)
-    #stitched_result = jax.lax.all_gather(b_block, axis_name='x', tiled=True)
-    stitched_result = jax.lax.psum(c_block, ('x', 'y'))
-    return stitched_result
-
-def mesh_negative(act1, act2):
+def test_one():
     device_tt = jax.devices('tt')
     print("device:: ", device_tt)
-    #devices = mesh_utils.create_device_mesh((1, 1), [jax.devices('tt')[0]])
-    devices = mesh_utils.create_device_mesh((1, 2), device_tt)
-    #devices = mesh_utils.create_device_mesh((2, 4), device_tt)
-    #devices = mesh_utils.create_device_mesh((1, 8), device_tt)
-    #devices = mesh_utils.create_device_mesh((4, 2), device_tt)
+    mesh = jax.make_mesh((1, 2), ('batch', 'model'), devices=device_tt)
+    batch = jax.random.normal(jax.random.key(0), (8192, 784))
+    W1 = jax.random.normal(jax.random.key(0), (784, 2048))
+    B1 = jax.random.normal(jax.random.key(0), (2048))
 
-    mesh = Mesh(devices=devices, axis_names=('x', 'y'))
-
-    in_spec = PartitionSpec('x','y')  # Partition along 'x', even though x=1
+    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('model', None), P(None)), out_specs=P('batch'))
+    def fwd(batch, W1_block, B1_block):
+        act = jnp.dot(batch, W1_block)
+        act = jax.lax.psum(act, 'model')
+        act = act + B1_block
+        return act
+  
     out_spec = PartitionSpec(None, None)
-
-    module_sharded = shard_map(
-        negative_basic,
-        mesh=mesh,
-        in_specs=(in_spec,in_spec,),  # Partition inputs along 'x'
-        out_specs=out_spec   # Partition outputs along 'x'
-    )
-
     output_sharding = NamedSharding(mesh, out_spec)
-    with mesh: 
-        act_sharded1 = jax.device_put(act1, NamedSharding(mesh, in_spec), may_alias=True)
-        act_sharded2 = jax.device_put(act2, NamedSharding(mesh, in_spec), may_alias=True)
-        graph = jax.jit(module_sharded, out_shardings=output_sharding)
-        result = graph(act_sharded1, act_sharded2)
-        print("--------------------------")
-        print(act1)
-        print(act2)
-        print("--------------------------")
-        print("sharding=", result.sharding)
-        #jax.numpy.set_printoptions(threshold = 128*128)
-        print(result)
-        print(result.shape)
+    fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
+    golden_output = fwd_jit(batch, W1, B1).block_until_ready()
+    print(golden_output)
 
 initializePJRT()
 n_m = 8192
@@ -84,4 +65,4 @@ act1 = jax.numpy.ones((256, 512))*2
 act2 = jax.numpy.ones((256, 256))
 #act = random_input_tensor((n_m, n_k), on_device=True)
 #W = random_input_tensor((n_k, n_n), on_device=True)
-mesh_negative(act1, act2)
+test_one()
