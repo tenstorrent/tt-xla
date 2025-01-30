@@ -72,7 +72,7 @@ def training_tester() -> SqueezeBertTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+@pytest.mark.xfail(reason="failed to legalize operation 'ttir.convolution'")
 def test_squeezebert_inference(
     inference_tester: SqueezeBertTester,
 ):

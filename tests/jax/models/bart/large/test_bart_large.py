@@ -26,7 +26,9 @@ def training_tester() -> FlaxBartForCausalLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+@pytest.mark.xfail(
+    reason="Unsupported data type (https://github.com/tenstorrent/tt-xla/issues/214)"
+)
 def test_flax_bart_large_inference(
     inference_tester: FlaxBartForCausalLMTester,
 ):
