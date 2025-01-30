@@ -21,13 +21,7 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id, tt::target::Arch arch)
-      : client_id_(client_id) {
-    kind_string_ = target::EnumNameArch(arch);
-    std::stringstream ss;
-    ss << "TTDevice(id=" << device_id() << ", arch=" << kind_string_ << ")";
-    user_string_ = ss.str();
-  };
+  DeviceDescription(int32_t client_id, tt::target::Arch arch);
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
