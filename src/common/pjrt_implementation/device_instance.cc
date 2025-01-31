@@ -80,9 +80,8 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }
-  std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
-  tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      data_ptr, shape, strides, element_size, element_type);
+  tt::runtime::Tensor tensor =
+      MakeDeviceTensor(data, shape, strides, element_size, element_type);
   BufferInstance *buffer_instance =
       new BufferInstance(*this, tensor, shape, strides);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
@@ -91,6 +90,25 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   EventInstance *event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
+}
+
+size_t DeviceInstance::getSize(const std::vector<std::uint32_t> &shape, size_t element_size) {
+  size_t size = 1;
+  for (auto dim : shape) {
+    size *= dim;
+  }
+  return size*element_size;
+}
+
+tt::runtime::Tensor DeviceInstance::MakeDeviceTensor(
+    const void *data, std::vector<std::uint32_t> &shape,
+    std::vector<std::uint32_t> &strides, size_t element_size,
+    tt::target::DataType element_type) {
+  size_t tensor_size = getSize(shape, element_size);
+  std::shared_ptr<void> new_memory(new char[tensor_size], [](void *) {});
+  std::memcpy(new_memory.get(), data, tensor_size);
+  return tt::runtime::createTensor(
+      new_memory, shape, strides, element_size, element_type);
 }
 
 } // namespace tt::pjrt
