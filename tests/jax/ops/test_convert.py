@@ -18,78 +18,78 @@ jax.config.update("jax_enable_x64", True)
 @pytest.mark.parametrize(
     "from_dtype",
     [
+        # uints
+        pytest.param(
+            jnp.uint8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
         jnp.uint16,
         jnp.uint32,
+        jnp.uint64,
+        # ints
         pytest.param(
-            jnp.uint64,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Cannot get the device from a tensor with host storage. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/171"
-                )
-            ),
+            jnp.int8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
+        jnp.int16,
+        jnp.int32,
+        jnp.int64,
+        # floats
         pytest.param(
-            jnp.int16,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Cannot get the device from a tensor with host storage. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/171"
-                )
-            ),
-        ),
-        pytest.param(
-            jnp.int32,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Cannot get the device from a tensor with host storage. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/171"
-                )
-            ),
-        ),
-        pytest.param(
-            jnp.int64,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Cannot get the device from a tensor with host storage. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/171"
-                )
-            ),
+            jnp.float16,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
         jnp.float32,
+        jnp.float64,
+        # bfloat
         jnp.bfloat16,
+        # bool
+        pytest.param(
+            jnp.bool,
+            marks=pytest.mark.skip(
+                reason="Cannot make random tensor of bools in current infra"
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize(
     "to_dtype",
     [
+        # uints
         pytest.param(
-            jnp.uint16,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Fails due to low comparison metrics. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/172"
-                )
-            ),
+            jnp.uint8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
+        jnp.uint16,
         jnp.uint32,
         jnp.uint64,
+        # ints
         pytest.param(
-            jnp.int16,
-            marks=pytest.mark.skip(
-                reason=(
-                    "Fails due to low comparison metrics. "
-                    "See issue https://github.com/tenstorrent/tt-xla/issues/172"
-                )
-            ),
+            jnp.int8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
+        jnp.int16,
         jnp.int32,
         jnp.int64,
+        # floats
+        pytest.param(
+            jnp.float16,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
         jnp.float32,
+        jnp.float64,
+        # bfloat
         jnp.bfloat16,
+        # bool
+        pytest.param(
+            jnp.bool,
+            marks=pytest.mark.skip(
+                reason="Cannot make random tensor of bools in current infra"
+            ),
+        ),
     ],
 )
-@pytest.mark.xfail(reason="https://github.com/tenstorrent/tt-xla/issues/206")
+@pytest.mark.skip(reason="https://github.com/tenstorrent/tt-xla/issues/206")
 def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
     def convert(x: jax.Array) -> jax.Array:
         return jlx.convert_element_type(x, new_dtype=to_dtype)
