@@ -23,7 +23,8 @@ class DeviceInstance;
 
 class BufferInstance {
 public:
-  BufferInstance(DeviceInstance &device, std::unique_ptr<tt::runtime::Tensor>& tensor,
+  BufferInstance(DeviceInstance &device,
+                 std::unique_ptr<tt::runtime::Tensor> &tensor,
                  std::vector<std::uint32_t> shape,
                  std::vector<std::uint32_t> stride);
   BufferInstance(DeviceInstance &device);

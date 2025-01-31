@@ -129,7 +129,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     // PJRT expects an empty shape for scalars.
     std::vector<std::uint32_t> output_shape =
         is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
-    std::unique_ptr<tt::runtime::Tensor> tensor_ptr = std::make_unique<tt::runtime::Tensor>(rt_outputs[i]);
+    std::unique_ptr<tt::runtime::Tensor> tensor_ptr =
+        std::make_unique<tt::runtime::Tensor>(rt_outputs[i]);
     auto result_buffer = std::make_unique<BufferInstance>(
         *this->addressable_devices_[dev_index], tensor_ptr, output_shape,
         output_specs[i].stride);

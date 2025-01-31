@@ -92,12 +92,13 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   return tt_pjrt_status::kSuccess;
 }
 
-size_t DeviceInstance::getSize(const std::vector<std::uint32_t> &shape, size_t element_size) {
+size_t DeviceInstance::getSize(const std::vector<std::uint32_t> &shape,
+                               size_t element_size) {
   size_t size = 1;
   for (auto dim : shape) {
     size *= dim;
   }
-  return size*element_size;
+  return size * element_size;
 }
 
 std::unique_ptr<tt::runtime::Tensor> DeviceInstance::MakeDeviceTensor(
