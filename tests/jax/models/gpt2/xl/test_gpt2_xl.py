@@ -27,9 +27,10 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
-)
+# @pytest.mark.xfail(
+#    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
+# )
+@pytest.mark.skip(reason="OOMs in CI")
 def test_gpt2_xl_inference(
     inference_tester: GPT2Tester,
 ):
