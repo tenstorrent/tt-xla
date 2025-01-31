@@ -19,7 +19,7 @@ int BufferInstance::id_counter_ = 0;
 BufferInstance::~BufferInstance() = default;
 
 BufferInstance::BufferInstance(DeviceInstance &device,
-                               std::unique_ptr<tt::runtime::Tensor>& tensor,
+                               std::unique_ptr<tt::runtime::Tensor> &tensor,
                                std::vector<std::uint32_t> shape,
                                std::vector<std::uint32_t> stride)
     : device_(device) {
