@@ -51,7 +51,7 @@ def random_tensor(
                 minval=int(minval),
                 maxval=int(maxval),
             )
-        else:
+        elif jnp.issubdtype(dtype_converted, jnp.floating):
             return jax.random.uniform(
                 key=prng_key,
                 shape=shape,
@@ -59,6 +59,17 @@ def random_tensor(
                 minval=minval,
                 maxval=maxval,
             )
+        elif jnp.issubdtype(dtype_converted, jnp.bool):
+            # Generate random tensor of 0s and 1s and interpret is as a bool tensor.
+            return jax.random.randint(
+                key=prng_key,
+                shape=shape,
+                dtype=jnp.int32,
+                minval=0,
+                maxval=1,
+            ).astype(dtype_converted)
+        else:
+            raise TypeError(f"Unsupported dtype: {dtype}")
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")
 

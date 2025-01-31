@@ -12,13 +12,13 @@ import pytest
 from infra import run_op_test
 from jax._src.typing import DTypeLike
 
-# Allow 64bit precision in jax which is disabled by default.
-jax.config.update("jax_enable_x64", True)
+from tests.utils import enable_x64
 
 
 @pytest.mark.parametrize(
     "dtype",
     [
+        # uints
         pytest.param(
             jnp.uint8,
             marks=pytest.mark.xfail(reason="Unsupported data type"),
@@ -26,6 +26,7 @@ jax.config.update("jax_enable_x64", True)
         jnp.uint16,
         jnp.uint32,
         jnp.uint64,
+        # ints
         pytest.param(
             jnp.int8,
             marks=pytest.mark.xfail(reason="Unsupported data type"),
@@ -33,6 +34,7 @@ jax.config.update("jax_enable_x64", True)
         jnp.int16,
         jnp.int32,
         jnp.int64,
+        # floats
         pytest.param(
             jnp.float16,
             marks=pytest.mark.xfail(reason="Unsupported data type"),
@@ -40,7 +42,7 @@ jax.config.update("jax_enable_x64", True)
         jnp.float32,
         pytest.param(
             jnp.float64,
-            marks=pytest.mark.skip(
+            marks=pytest.mark.xfail(
                 reason=(
                     "Executable expected parameter 0 of size 8 but got buffer "
                     "with incompatible size 4. See issue "
@@ -48,18 +50,22 @@ jax.config.update("jax_enable_x64", True)
                 )
             ),
         ),
+        # bfloat
         jnp.bfloat16,
+        # bool
+        jnp.bool,
     ],
 )
 def test_dtypes(dtype: DTypeLike):
     def scalar() -> jax.Array:
         """
         This test just returns a scalar of a certain dtype. It will fail if dtype is
-        unsupported.
+        unsupported. In mlir graph, it produces one simple stablehlo.constant op.
 
         Scalars are actually 0-dim arrays. They can be created the same way arrays are,
         using `jax.array(<some-value>, dtype)` or using `dtype(<some-value>)`.
         """
         return jnp.array(1, dtype)  # same as dtype(1)
 
-    run_op_test(scalar, [])
+    with enable_x64():
+        run_op_test(scalar, [])
