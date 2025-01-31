@@ -30,6 +30,7 @@ from jax._src.typing import DTypeLike
         "float64",
     ],
 )
+@pytest.mark.xfail(reason="https://github.com/tenstorrent/tt-xla/issues/206")
 def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
     def convert(x: jax.Array) -> jax.Array:
         return jlx.convert_element_type(x, new_dtype=jnp.dtype(to_dtype))

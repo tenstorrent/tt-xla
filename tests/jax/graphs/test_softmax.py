@@ -16,9 +16,6 @@ from infra import run_graph_test_with_random_inputs
         [(64, 64), 1],
     ],
 )
-@pytest.mark.xfail(
-    reason="Atol comparison failed. Calculated: atol=inf. Required: atol=0.16"
-)
 def test_softmax(x_shape: tuple, axis: int):
     def softmax(x: jax.Array) -> jax.Array:
         return jax.nn.softmax(x, axis=axis)

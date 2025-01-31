@@ -6,6 +6,7 @@ on:
       - "On PR"
       - "On push"
       - "Build and Test"
+      - "On nightly"
     types:
       - completed
 

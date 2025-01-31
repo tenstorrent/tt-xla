@@ -7,7 +7,7 @@ from typing import Any, Dict, Sequence
 import flax.traverse_util
 import fsspec
 import jax
-import jax.numpy as jnp
+import ml_collections
 import numpy
 import pytest
 from flax import linen as nn
@@ -29,7 +29,7 @@ class MlpMixerTester(ModelTester):
 
     # @override
     def _get_model(self) -> nn.Module:
-        patch = jnp.ones((patch_size, patch_size))
+        patch = ml_collections.ConfigDict({"size": (patch_size, patch_size)})
         return MlpMixer(
             patches=patch,
             num_classes=num_classes,
@@ -56,18 +56,13 @@ class MlpMixerTester(ModelTester):
     # @override
     def _get_input_activations(self) -> jax.Array:
         key = jax.random.PRNGKey(42)
-        random_image = jax.random.normal(key, (1, 196, 196, 3))
+        random_image = jax.random.normal(key, (1, 224, 224, 3))
         return random_image
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
         ins = self._get_input_activations()
         weights = self._retrieve_pretrained_weights()
-
-        # Required to bypass "Initializer expected to generate shape (16, 16, 3, 768) but got shape (256, 3, 768)"
-        kernel = weights["params"]["stem"]["kernel"]
-        kernel = kernel.reshape(-1, 3, hidden_dim)
-        weights["params"]["stem"]["kernel"] = kernel
 
         # Alternatively, weights could be randomly initialized like this:
         # weights = self._model.init(jax.random.PRNGKey(42), ins)
@@ -93,9 +88,14 @@ def training_tester() -> MlpMixerTester:
 
 
 @pytest.mark.skip(
-    reason="error: failed to legalize operation 'ttir.convolution' that was explicitly marked illegal"
-)
-def test_mlpmixer(inference_tester: MlpMixerTester):
+    reason=(
+        "Statically allocated circular buffers in program 16 clash with L1 buffers "
+        "on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and "
+        "static circular buffer region ends at 951136 "
+        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    )
+)  # segfault
+def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     inference_tester.test()
 
 
