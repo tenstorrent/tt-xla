@@ -95,7 +95,7 @@ def training_tester() -> MlpMixerTester:
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )  # segfault
-def test_mlpmixer(inference_tester: MlpMixerTester):
+def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     inference_tester.test()
 
 

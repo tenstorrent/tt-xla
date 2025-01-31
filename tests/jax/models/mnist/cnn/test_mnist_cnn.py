@@ -68,14 +68,14 @@ def training_tester() -> MNISTCNNTester:
 @pytest.mark.skip(
     reason='void mlir::OperationConverter::finalize(mlir::ConversionPatternRewriter &): Assertion `newValue && "replacement value not found"\' failed.'
 )  # This is a segfault, marking it as xfail would bring down the whole test suite
-def test_mnist_inference(
+def test_mnist_cnn_inference(
     inference_tester: MNISTCNNTester,
 ):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_training(
+def test_mnist_cnn_training(
     training_tester: MNISTCNNTester,
 ):
     training_tester.test()
