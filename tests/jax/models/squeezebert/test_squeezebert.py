@@ -10,8 +10,9 @@ import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
 from infra import ModelTester, RunMode
-from model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 from transformers import AutoTokenizer
+
+from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
 MODEL_PATH = "squeezebert/squeezebert-uncased"
 
