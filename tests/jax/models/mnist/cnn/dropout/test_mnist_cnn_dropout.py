@@ -25,9 +25,6 @@ def training_tester() -> MNISTCNNTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason="error: failed to legalize unresolved materialization from () to 'tensor<1xf32>' that remained live after conversion"
-)
 def test_mnist_cnn_dropout_inference(
     inference_tester: MNISTCNNTester,
 ):
