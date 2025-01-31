@@ -29,14 +29,14 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 @pytest.mark.xfail(
     reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
 )
-def test_flax_bart_base_inference(
+def test_flax_bert_base_inference(
     inference_tester: FlaxBertForMaskedLMTester,
 ):
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_bart_base_training(
+def test_flax_bert_base_training(
     training_tester: FlaxBertForMaskedLMTester,
 ):
     training_tester.test()
