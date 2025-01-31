@@ -67,10 +67,10 @@ def training_tester(request) -> MNISTMLPTester:
 @pytest.mark.parametrize(
     "inference_tester",
     [
-        (512, 512),
         (128,),
         (128, 128),
         (192, 128),
+        (512, 512),
         (128, 128, 128),
         (256, 128, 64),
     ],
