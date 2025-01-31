@@ -51,7 +51,9 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+@pytest.mark.xfail(
+    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
+)
 def test_gpt2_inference(
     inference_tester: GPT2Tester,
 ):

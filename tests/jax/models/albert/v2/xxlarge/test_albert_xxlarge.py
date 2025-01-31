@@ -26,7 +26,9 @@ def training_tester() -> AlbertV2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'stablehlo.reduce'")
+@pytest.mark.xfail(
+    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
+)
 def test_flax_albert_v2_xxlarge_inference(
     inference_tester: AlbertV2Tester,
 ):
