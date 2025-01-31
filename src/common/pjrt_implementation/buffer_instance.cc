@@ -19,12 +19,12 @@ int BufferInstance::id_counter_ = 0;
 BufferInstance::~BufferInstance() = default;
 
 BufferInstance::BufferInstance(DeviceInstance &device,
-                               tt::runtime::Tensor tensor,
+                               std::unique_ptr<tt::runtime::Tensor>& tensor,
                                std::vector<std::uint32_t> shape,
                                std::vector<std::uint32_t> stride)
     : device_(device) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
-  tensor_ = tensor;
+  tensor_ = std::move(tensor);
   dims_.resize(shape.size());
   for (int i = 0; i < shape.size(); i++) {
     dims_[i] = shape[i];

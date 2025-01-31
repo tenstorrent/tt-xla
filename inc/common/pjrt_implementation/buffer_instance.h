@@ -23,7 +23,7 @@ class DeviceInstance;
 
 class BufferInstance {
 public:
-  BufferInstance(DeviceInstance &device, tt::runtime::Tensor tensor,
+  BufferInstance(DeviceInstance &device, std::unique_ptr<tt::runtime::Tensor>& tensor,
                  std::vector<std::uint32_t> shape,
                  std::vector<std::uint32_t> stride);
   BufferInstance(DeviceInstance &device);
@@ -44,7 +44,7 @@ public:
     // the hook to get an unsafe pointer (avoids a copy).
     return false;
   }
-  tt::runtime::Tensor tensor() { return tensor_.value(); }
+  tt::runtime::Tensor tensor() { return *tensor_; }
 
   PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
   // Gets the required host size in bytes to copy to host.
@@ -74,7 +74,7 @@ private:
   // API elements that must have the same lifetime as BufferInstance.
   std::vector<int64_t> dims_;
   std::vector<std::uint32_t> stride_;
-  std::optional<tt::runtime::Tensor> tensor_;
+  std::unique_ptr<tt::runtime::Tensor> tensor_;
 
   std::vector<int64_t> minor_to_major_;
   std::vector<int64_t> tile_dims_;
