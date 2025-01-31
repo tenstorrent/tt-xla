@@ -40,6 +40,9 @@ class AllcloseConfig(ConfigBase):
     atol: float = 1e-2
 
 
+# When tensors are too close, pcc will output NaN values.
+# Therefore, for each test it should be possible to separately tune the threshold of allclose.rtol and allclose.atol
+# below which pcc won't be calculated and therefore test will be able to pass without pcc comparison.
 @dataclass
 class PccConfig(ConfigBase):
     required_pcc: float = 0.99
