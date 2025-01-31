@@ -80,7 +80,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }
-  tt::runtime::Tensor tensor =
+  std::unique_ptr<tt::runtime::Tensor> tensor =
       MakeDeviceTensor(data, shape, strides, element_size, element_type);
   BufferInstance *buffer_instance =
       new BufferInstance(*this, tensor, shape, strides);
@@ -100,15 +100,15 @@ size_t DeviceInstance::getSize(const std::vector<std::uint32_t> &shape, size_t e
   return size*element_size;
 }
 
-tt::runtime::Tensor DeviceInstance::MakeDeviceTensor(
+std::unique_ptr<tt::runtime::Tensor> DeviceInstance::MakeDeviceTensor(
     const void *data, std::vector<std::uint32_t> &shape,
     std::vector<std::uint32_t> &strides, size_t element_size,
     tt::target::DataType element_type) {
   size_t tensor_size = getSize(shape, element_size);
   std::shared_ptr<void> new_memory(new char[tensor_size], [](void *) {});
   std::memcpy(new_memory.get(), data, tensor_size);
-  return tt::runtime::createTensor(
-      new_memory, shape, strides, element_size, element_type);
+  return std::make_unique<tt::runtime::Tensor>(tt::runtime::createTensor(
+      new_memory, shape, strides, element_size, element_type));
 }
 
 } // namespace tt::pjrt
