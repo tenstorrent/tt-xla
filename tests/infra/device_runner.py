@@ -17,6 +17,10 @@ class DeviceRunner:
     """
     Class providing methods to put and run workload on any supported device.
     """
+    @staticmethod
+    def run_manual(workload: Workload) -> Tensor:
+        """Runs `workload` on TT device."""
+        return DeviceRunner._run_manual(workload)
 
     @staticmethod
     def run_on_tt_device(workload: Workload) -> Tensor:
@@ -62,6 +66,11 @@ class DeviceRunner:
     def put_tensors_on_gpu(*tensors: Tensor) -> Sequence[Tensor]:
         """Puts `tensors` on GPU."""
         raise NotImplementedError("Support for GPUs not implemented")
+
+    @staticmethod
+    def _run_manual(workload: Workload) -> Tensor:
+        """Runs `workload` on multiple devices identified by."""
+        return workload.execute().block_until_ready()
 
     @staticmethod
     def _run_on_device(device_type: DeviceType, workload: Workload) -> Tensor:
