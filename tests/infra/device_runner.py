@@ -10,6 +10,8 @@ from .device_connector import DeviceType, device_connector
 from .types import Tensor
 from .workload import Workload
 
+from jax.sharding import Mesh, PartitionSpec, NamedSharding
+
 import inspect
 
 
@@ -17,6 +19,10 @@ class DeviceRunner:
     """
     Class providing methods to put and run workload on any supported device.
     """
+    @staticmethod
+    def run_manual(workload: Workload) -> Tensor:
+        """Runs `workload` on TT device."""
+        return DeviceRunner._run_manual(workload)
 
     @staticmethod
     def run_on_tt_device(workload: Workload, num_device: int = 0) -> Tensor:
@@ -64,6 +70,33 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
+    def put_manual_non_sharded(workload: Workload, mesh: jax.sharding.Mesh, in_specs: Sequence[jax.sharding.PartitionSpec]) -> Tensor:
+        """Gives inputs shardings for multichip workloads"""
+        args_on_device = []
+        spec_index = 0
+        for arg in workload.args:
+            if not isinstance(arg, Tensor):
+                args_on_device.append(arg)
+            else:
+                args_on_device.append(DeviceRunner._put_tensor_on_device_none_sharding(arg, mesh, in_specs[spec_index]))
+                spec_index+=1
+
+        kwargs_on_device = {}
+        for key, value in workload.kwargs.items():
+            if not isinstance(value, Tensor):
+                kwargs_on_device[key] = value
+            else:
+                kwargs_on_device[key] = DeviceRunner._put_tensor_on_device_none_sharding(value, mesh, in_specs[spec_index])
+                spec_index+=1
+
+        return Workload(workload.executable, args_on_device, kwargs_on_device)
+
+    @staticmethod
+    def _run_manual(workload: Workload) -> Tensor:
+        """Runs `workload` on a device."""
+        return workload.execute().block_until_ready()
+
+    @staticmethod
     def _run_on_device(
         device_type: DeviceType, workload: Workload, num_device: int = 0
     ) -> Tensor:
@@ -73,6 +106,13 @@ class DeviceRunner:
 
         with jax.default_device(device):
             return device_workload.execute()
+
+    @staticmethod
+    def _put_tensor_on_device_none_sharding(tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec) -> Tensor:
+        """Needed for multichip: Uses put_device to give inputs shardings."""
+        none_tuple = (None,) * len(in_spec)
+        none_spec = PartitionSpec(*none_tuple)
+        return jax.device_put(tensor, NamedSharding(mesh, none_spec), may_alias=True)
 
     @staticmethod
     def _put_on_device(
