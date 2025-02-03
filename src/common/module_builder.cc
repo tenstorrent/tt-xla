@@ -43,7 +43,7 @@
 namespace tt::pjrt {
 
 ModuleBuilder::ModuleBuilder()
-    : m_status(tt_pjrt_status::kSuccess), m_num_inputs(0), m_num_outputs(0) {
+    : m_status(tt_pjrt_status::kSuccess), m_flatbuffer_binary(nullptr) {
   m_context = std::make_unique<mlir::MLIRContext>();
 
   // Register all the required dialects and passes.
@@ -64,11 +64,6 @@ ModuleBuilder::ModuleBuilder()
   mlir::tt::ttnn::registerPasses();
 
   m_context->appendDialectRegistry(registry);
-}
-
-bool ModuleBuilder::isOutputScalar(const size_t index) const {
-  assert(index < m_is_output_scalar.size() && "Output index out of range");
-  return m_is_output_scalar[index];
 }
 
 tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
@@ -219,21 +214,8 @@ void ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   m_flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
-  if (m_flatbuffer_binary == nullptr) {
+  if (m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
-    m_status = tt_pjrt_status::kInternal;
-    return;
-  }
-
-  tt::runtime::Binary runtime_binary_handle(m_flatbuffer_binary);
-  m_num_inputs = runtime_binary_handle.getProgramInputs(0).size();
-  m_num_outputs = runtime_binary_handle.getProgramOutputs(0).size();
-
-  if (m_num_outputs != m_is_output_scalar.size()) {
-    DLOG_F(ERROR,
-           "Created flatbuffer binary contains different number of outputs %ld "
-           "than expected %ld",
-           m_num_outputs, m_is_output_scalar.size());
     m_status = tt_pjrt_status::kInternal;
   }
 }

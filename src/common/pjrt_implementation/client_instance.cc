@@ -197,8 +197,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
       *this,
       new ExecutableImage(module_builder_->getBinary(),
                           std::string(program->code, program->code_size),
-                          module_builder_->getNumInputs(),
-                          module_builder_->getNumOutputs()),
+                          module_builder_->getIsOutputScalar()),
       addressable_devices_);
   *out_executable = executable.release();
 
