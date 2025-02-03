@@ -16,7 +16,7 @@ from utils import compile_fail, record_model_test_properties
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
 MODEL_PATH = "squeezebert/squeezebert-uncased"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "squeezebert"
 
 # ----- Tester -----
 

@@ -11,7 +11,7 @@ from utils import record_model_test_properties, runtime_fail
 from ..tester import AlbertV2Tester
 
 MODEL_PATH = "albert/albert-base-v2"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "albert-v2-base"
 
 
 # ----- Fixtures -----

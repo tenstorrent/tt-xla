@@ -12,7 +12,7 @@ from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM
 from utils import record_model_test_properties, runtime_fail
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "distilbert"
 
 # ----- Tester -----
 

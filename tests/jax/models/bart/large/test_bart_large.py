@@ -11,7 +11,7 @@ from utils import compile_fail, record_model_test_properties
 from ..tester import FlaxBartForCausalLMTester
 
 MODEL_PATH = "facebook/bart-large"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "bart-large"
 
 
 # ----- Fixtures -----

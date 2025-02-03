@@ -100,7 +100,7 @@ def test_mlpmixer_inference(
     inference_tester: MlpMixerTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MlpMixer.__qualname__)
+    record_model_test_properties(record_tt_xla_property, "mlpmixer")
 
     inference_tester.test()
 
@@ -110,6 +110,6 @@ def test_mlpmixer_training(
     training_tester: MlpMixerTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MlpMixer.__qualname__)
+    record_model_test_properties(record_tt_xla_property, "mlpmixer")
 
     training_tester.test()
