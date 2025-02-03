@@ -91,6 +91,7 @@ class DeviceConnector:
         possible to choose between them. By default, returns first available device.
         """
         assert device_num < self._number_of_devices(device_type)
+        assert device_num >= 0
 
         return jax.devices(device_type.value)[device_num]
 

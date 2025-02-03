@@ -34,12 +34,12 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     DLOG_F(
         LOG_DEBUG,
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
+    LoadedExecutableInstance *loaded_executable =
+        LoadedExecutableInstance::Unwrap(args->executable);
     const std::vector<DeviceInstance *> &addressable_devices =
-        LoadedExecutableInstance::Unwrap(args->executable)
-            ->addressable_devices();
+        loaded_executable->addressable_devices();
     int num_addressable_devices =
-        LoadedExecutableInstance::Unwrap(args->executable)
-            ->image_->get_num_addressable_devices();
+        loaded_executable->image_->get_num_addressable_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -104,9 +104,16 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
-  assert(device_ids.size() == 1);
-
   std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
+
+  // If there are no input buffers, we still want to run on a device.
+  // TODO: Now we will run only on the first one, but this should be somehow
+  // explicit.
+  if (device_ids.size() == 0) {
+    device_ids_vector.push_back(chip_ids[0]);
+  }
+
+  assert(device_ids_vector.size() == 1);
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
 

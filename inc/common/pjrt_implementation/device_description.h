@@ -20,8 +20,7 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id)
-      : client_id_(client_id), device_id_(static_device_id++) {};
+  DeviceDescription(int32_t device_id) : device_id_(device_id) {};
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -44,13 +43,9 @@ public:
 
   int64_t device_id() { return device_id_; }
 
-  int client_id() { return client_id_; }
-
   int process_index() { return 0; }
 
 private:
-  static int static_device_id;
-  int client_id_;
   int device_id_;
 
   // TODO We should understand better how these are used.
