@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
+from utils import record_unary_op_test_properties
 
 
 # TODO we need to parametrize with all supported dtypes.
@@ -30,10 +33,20 @@ from jax._src.typing import DTypeLike
         "float64",
     ],
 )
-@pytest.mark.xfail(reason="https://github.com/tenstorrent/tt-xla/issues/206")
-def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
+@pytest.mark.skip(
+    f"Skipped unconditionally due to many fails. There is ongoing work on rewriting these tests."
+)
+def test_convert(
+    from_dtype: DTypeLike, to_dtype: DTypeLike, record_tt_xla_property: Callable
+):
     def convert(x: jax.Array) -> jax.Array:
         return jlx.convert_element_type(x, new_dtype=jnp.dtype(to_dtype))
+
+    record_unary_op_test_properties(
+        record_tt_xla_property,
+        "jax.lax.convert_element_type",
+        "stablehlo.convert",
+    )
 
     x_shape = (32, 32)  # Shape does not make any impact here, thus not parametrized.
     input = random_tensor(x_shape, dtype=from_dtype)

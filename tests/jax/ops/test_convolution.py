@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import jax
 import pytest
 from infra import ComparisonConfig, random_tensor, run_op_test
+from utils import record_op_test_properties
 
 
 # TODO investigate why conv has such poor precision.
@@ -25,9 +28,13 @@ def comparison_config() -> ComparisonConfig:
         ((1, 512, 256), (512, 512, 1)),
         ((1, 512, 512), (1024, 512, 1)),
     ],
+    ids=lambda val: f"{val}",
 )
 def test_conv1d(
-    img_shape: tuple, kernel_shape: tuple, comparison_config: ComparisonConfig
+    img_shape: tuple,
+    kernel_shape: tuple,
+    comparison_config: ComparisonConfig,
+    record_tt_xla_property: Callable,
 ):
     def conv1d(img, weights):
         return jax.lax.conv_general_dilated(
@@ -41,6 +48,13 @@ def test_conv1d(
             feature_group_count=1,
             batch_group_count=1,
         )
+
+    record_op_test_properties(
+        record_tt_xla_property,
+        "Convolution op",
+        "jax.lax.conv_general_dilated",
+        "stablehlo.convolution",
+    )
 
     img = random_tensor(img_shape, dtype="bfloat16")
     kernel = random_tensor(kernel_shape, dtype="bfloat16")
@@ -90,6 +104,7 @@ def test_conv1d(
         (1, 256, 256, 7, 7, 3, 3, 1, 1, 1),
         (1, 256, 64, 56, 56, 1, 1, 2, 2, 0),
     ],
+    ids=lambda val: f"{val}",
 )
 def test_conv2d(
     batch_size: int,
@@ -103,6 +118,7 @@ def test_conv2d(
     stride_w: int,
     padding: int,
     comparison_config: ComparisonConfig,
+    record_tt_xla_property: Callable,
 ):
     def conv2d(img: jax.Array, kernel: jax.Array):
         return jax.lax.conv_general_dilated(
@@ -112,6 +128,13 @@ def test_conv2d(
             [[padding] * 2] * 2,
             dimension_numbers=("NHWC", "OIHW", "NHWC"),
         )
+
+    record_op_test_properties(
+        record_tt_xla_property,
+        "Convolution op",
+        "jax.lax.conv_general_dilated",
+        "stablehlo.convolution",
+    )
 
     img_shape = (batch_size, input_height, input_width, input_channels)
     kernel_shape = (output_channels, input_channels, filter_height, filter_width)

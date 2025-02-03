@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from utils import record_binary_op_test_properties
 
 
 @pytest.mark.parametrize(
@@ -14,9 +17,16 @@ from infra import run_op_test_with_random_inputs
         [(32, 32), (32, 32)],
         [(64, 64), (64, 64)],
     ],
+    ids=lambda val: f"{val}",
 )
-def test_minimum(x_shape: tuple, y_shape: tuple):
+def test_minimum(x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable):
     def minimum(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.minimum(x, y)
+
+    record_binary_op_test_properties(
+        record_tt_xla_property,
+        "jax.numpy.minimum",
+        "stablehlo.minimum",
+    )
 
     run_op_test_with_random_inputs(minimum, [x_shape, y_shape])

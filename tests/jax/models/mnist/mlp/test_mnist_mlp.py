@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Callable, Sequence
 
 import jax
 import pytest
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
+from utils import record_model_test_properties
 
 from .model_implementation import MNISTMLPModel
 
@@ -75,15 +76,22 @@ def training_tester(request) -> MNISTMLPTester:
         (256, 128, 64),
     ],
     indirect=True,
+    ids=lambda val: f"{val}",
 )
-def test_mnist_inference(
+def test_mnist_mlp_inference(
     inference_tester: MNISTMLPTester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, "mnist-mlp")
+
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_training(
+def test_mnist_mlp_training(
     training_tester: MNISTMLPTester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, MNISTMLPModel.__qualname__)
+
     training_tester.test()

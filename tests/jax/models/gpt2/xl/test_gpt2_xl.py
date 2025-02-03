@@ -2,13 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
 
 import pytest
 from infra import ModelTester, RunMode
+from utils import record_model_test_properties
 
 from ..tester import GPT2Tester
 
 MODEL_PATH = "openai-community/gpt2-xl"
+MODEL_NAME = "gpt2-xl"
 
 
 # ----- Fixtures -----
@@ -27,18 +30,23 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
-# @pytest.mark.xfail(
-#    reason="Cannot get the device from a tensor with host storage (https://github.com/tenstorrent/tt-xla/issues/171)"
-# )
-@pytest.mark.skip(reason="OOMs in CI")
+@pytest.mark.skip(
+    reason="OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+)
 def test_gpt2_xl_inference(
     inference_tester: GPT2Tester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
+
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt2_xl_training(
     training_tester: GPT2Tester,
+    record_tt_xla_property: Callable,
 ):
+    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
+
     training_tester.test()

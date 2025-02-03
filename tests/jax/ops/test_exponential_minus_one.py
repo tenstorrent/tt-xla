@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
 import pytest
 from infra import ComparisonConfig, run_op_test_with_random_inputs
+from utils import record_unary_op_test_properties
 
 
 @pytest.fixture
@@ -20,10 +23,20 @@ def comparison_config() -> ComparisonConfig:
     return config
 
 
-@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)])
-def test_exponential_minus_one(x_shape: tuple, comparison_config: ComparisonConfig):
+@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
+def test_exponential_minus_one(
+    x_shape: tuple,
+    comparison_config: ComparisonConfig,
+    record_tt_xla_property: Callable,
+):
     def expm1(x: jax.Array) -> jax.Array:
         return jnp.expm1(x)
+
+    record_unary_op_test_properties(
+        record_tt_xla_property,
+        "jax.numpy.expm1",
+        "stablehlo.exponential_minus_one",
+    )
 
     run_op_test_with_random_inputs(
         expm1, [x_shape], comparison_config=comparison_config

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Sequence
+from typing import Any, Callable, Dict, Sequence
 
 import flax.traverse_util
 import fsspec
@@ -12,6 +12,7 @@ import numpy
 import pytest
 from flax import linen as nn
 from infra import ModelTester, RunMode
+from utils import record_model_test_properties, runtime_fail
 
 from .model_implementation import MlpMixer
 
@@ -88,17 +89,27 @@ def training_tester() -> MlpMixerTester:
 
 
 @pytest.mark.skip(
-    reason=(
+    reason=runtime_fail(
         "Statically allocated circular buffers in program 16 clash with L1 buffers "
         "on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and "
         "static circular buffer region ends at 951136 "
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )  # segfault
-def test_mlpmixer_inference(inference_tester: MlpMixerTester):
+def test_mlpmixer_inference(
+    inference_tester: MlpMixerTester,
+    record_tt_xla_property: Callable,
+):
+    record_model_test_properties(record_tt_xla_property, "mlpmixer")
+
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mlpmixer_training(training_tester: MlpMixerTester):
+def test_mlpmixer_training(
+    training_tester: MlpMixerTester,
+    record_tt_xla_property: Callable,
+):
+    record_model_test_properties(record_tt_xla_property, "mlpmixer")
+
     training_tester.test()
