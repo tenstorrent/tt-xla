@@ -11,7 +11,7 @@ from utils import record_model_test_properties
 from ..tester import LLamaTester
 
 MODEL_PATH = "openlm-research/open_llama_3b_v2"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "open-llama-3b-v2"
 
 
 # ----- Fixtures -----

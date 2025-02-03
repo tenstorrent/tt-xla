@@ -11,7 +11,7 @@ from utils import record_model_test_properties, runtime_fail
 from ..tester import GPT2Tester
 
 MODEL_PATH = "openai-community/gpt2"
-MODEL_NAME = MODEL_PATH.split("/")[1]
+MODEL_NAME = "gpt2-base"
 
 # ----- Fixtures -----
 

@@ -76,18 +76,19 @@ def training_tester(request) -> MNISTMLPTester:
         (256, 128, 64),
     ],
     indirect=True,
+    ids=lambda val: f"{val}",
 )
-def test_mnist_inference(
+def test_mnist_mlp_inference(
     inference_tester: MNISTMLPTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MNISTMLPModel.__qualname__)
+    record_model_test_properties(record_tt_xla_property, "mnist-mlp")
 
     inference_tester.test()
 
 
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_training(
+def test_mnist_mlp_training(
     training_tester: MNISTMLPTester,
     record_tt_xla_property: Callable,
 ):

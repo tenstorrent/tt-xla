@@ -31,9 +31,7 @@ def test_mnist_cnn_dropout_inference(
     inference_tester: MNISTCNNTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(
-        record_tt_xla_property, MNISTCNNDropoutModel.__qualname__
-    )
+    record_model_test_properties(record_tt_xla_property, "mnist-cnn-dropout")
 
     inference_tester.test()
 
@@ -43,8 +41,6 @@ def test_mnist_cnn_nodropout_training(
     training_tester: MNISTCNNTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(
-        record_tt_xla_property, MNISTCNNDropoutModel.__qualname__
-    )
+    record_model_test_properties(record_tt_xla_property, "mnist-cnn-dropout")
 
     training_tester.test()
