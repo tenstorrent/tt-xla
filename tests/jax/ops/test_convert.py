@@ -9,33 +9,92 @@ import pytest
 from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
 
+# Allow 64bit precision in jax which is disabled by default.
+jax.config.update("jax_enable_x64", True)
 
-# TODO we need to parametrize with all supported dtypes.
+# NOTE Use test_data_types.py as reference for all supported data types.
+
+
 @pytest.mark.parametrize(
     "from_dtype",
     [
-        "bfloat16",
-        "float32",
+        # uints
+        pytest.param(
+            jnp.uint8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.uint16,
+        jnp.uint32,
+        jnp.uint64,
+        # ints
+        pytest.param(
+            jnp.int8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.int16,
+        jnp.int32,
+        jnp.int64,
+        # floats
+        pytest.param(
+            jnp.float16,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.float32,
+        jnp.float64,
+        # bfloat
+        jnp.bfloat16,
+        # bool
+        pytest.param(
+            jnp.bool,
+            marks=pytest.mark.skip(
+                reason="Cannot make random tensor of bools in current infra"
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize(
     "to_dtype",
     [
-        "uint32",
-        "uint64",
-        "int32",
-        "int64",
-        "bfloat16",
-        "float32",
-        "float64",
+        # uints
+        pytest.param(
+            jnp.uint8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.uint16,
+        jnp.uint32,
+        jnp.uint64,
+        # ints
+        pytest.param(
+            jnp.int8,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.int16,
+        jnp.int32,
+        jnp.int64,
+        # floats
+        pytest.param(
+            jnp.float16,
+            marks=pytest.mark.skip(reason="Unsupported data type"),
+        ),
+        jnp.float32,
+        jnp.float64,
+        # bfloat
+        jnp.bfloat16,
+        # bool
+        pytest.param(
+            jnp.bool,
+            marks=pytest.mark.skip(
+                reason="Cannot make random tensor of bools in current infra"
+            ),
+        ),
     ],
 )
-@pytest.mark.xfail(reason="https://github.com/tenstorrent/tt-xla/issues/206")
+@pytest.mark.skip(reason="https://github.com/tenstorrent/tt-xla/issues/206")
 def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
     def convert(x: jax.Array) -> jax.Array:
-        return jlx.convert_element_type(x, new_dtype=jnp.dtype(to_dtype))
+        return jlx.convert_element_type(x, new_dtype=to_dtype)
 
     x_shape = (32, 32)  # Shape does not make any impact here, thus not parametrized.
-    input = random_tensor(x_shape, dtype=from_dtype)
+    input = random_tensor(x_shape, from_dtype, minval=0.0, maxval=10.0)
 
     run_op_test(convert, [input])
