@@ -26,9 +26,9 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
       m_arg_count(binary.getProgramInputs(0).size()),
       m_result_count(binary.getProgramOutputs(0).size()),
       m_is_output_scalar(is_output_scalar) {
-  // TODO: We should throw error instead, otherwise execution will continue and
-  // then crash later.
   if (m_result_count != m_is_output_scalar.size()) {
+    // TODO: We should throw error instead, otherwise execution will continue
+    // and crash later.
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %ld "
            "than expected %ld",
