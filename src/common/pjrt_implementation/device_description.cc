@@ -15,11 +15,11 @@
 namespace tt::pjrt {
 
 DeviceDescription::DeviceDescription(int32_t client_id, tt::target::Arch arch)
-    : client_id_(client_id) {
-  kind_string_ = tt::target::EnumNameArch(arch);
+    : m_client_id(client_id) {
+  m_device_kind = tt::target::EnumNameArch(arch);
   std::stringstream ss;
-  ss << "TTDevice(id=" << device_id() << ", arch=" << kind_string_ << ")";
-  user_string_ = ss.str();
+  ss << "TTDevice(id=" << deviceId() << ", arch=" << m_device_kind << ")";
+  m_user_string = ss.str();
 }
 
 DeviceDescription::~DeviceDescription() = default;
@@ -28,14 +28,14 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
   api->PJRT_DeviceDescription_Id =
       +[](PJRT_DeviceDescription_Id_Args *args) -> PJRT_Error * {
-    args->id = DeviceDescription::Unwrap(args->device_description)->client_id();
+    args->id = DeviceDescription::Unwrap(args->device_description)->clientId();
     return nullptr;
   };
   api->PJRT_DeviceDescription_ProcessIndex =
       +[](PJRT_DeviceDescription_ProcessIndex_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
     args->process_index =
-        DeviceDescription::Unwrap(args->device_description)->process_index();
+        DeviceDescription::Unwrap(args->device_description)->processIndex();
     return nullptr;
   };
   api->PJRT_DeviceDescription_Attributes =
@@ -50,7 +50,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
       +[](PJRT_DeviceDescription_Kind_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
     std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->kind_string();
+        DeviceDescription::Unwrap(args->device_description)->getDeviceKind();
     args->device_kind = sv.data();
     args->device_kind_size = sv.size();
     return nullptr;
@@ -59,7 +59,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
       +[](PJRT_DeviceDescription_DebugString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
     std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->debug_string();
+        DeviceDescription::Unwrap(args->device_description)->toDebugString();
     args->debug_string = sv.data();
     args->debug_string_size = sv.size();
     return nullptr;
@@ -68,7 +68,7 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
       +[](PJRT_DeviceDescription_ToString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
     std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->to_string();
+        DeviceDescription::Unwrap(args->device_description)->toString();
     args->to_string = sv.data();
     args->to_string_size = sv.size();
     return nullptr;

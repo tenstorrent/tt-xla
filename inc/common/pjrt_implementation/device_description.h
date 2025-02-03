@@ -10,8 +10,10 @@
 
 #include <sstream>
 
-#include "types_generated.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
+
+// tt-mlir includes
+#include "types_generated.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_
@@ -32,22 +34,31 @@ public:
     return reinterpret_cast<DeviceDescription *>(device);
   }
 
-  std::string_view kind_string() { return kind_string_; }
-  std::string_view debug_string() { return user_string_; }
-  std::string_view to_string() { return user_string_; }
+  // Returns a vendor-dependent string that uniquely identifies the kind of
+  // device, e.g. `Wormhole_b0`.
+  std::string getDeviceKind() { return m_device_kind; }
+
+  // Returns a debug string suitable for logging when errors occur. Should be
+  // verbose enough to describe the current device unambiguously.
+  std::string toDebugString() { return m_user_string; }
+
+  // Returns a device description string suitable for reading by end users,
+  // should be reasonably terse.
+  std::string toString() { return m_user_string; }
 
   // TODO
-  int64_t device_id() { return 0; }
+  int64_t deviceId() { return 0; }
 
-  int client_id() { return client_id_; }
+  int clientId() { return m_client_id; }
 
-  int process_index() { return 0; }
+  int processIndex() { return 0; }
 
 private:
-  int client_id_;
+  int m_client_id;
 
-  std::string kind_string_;
-  std::string user_string_;
+  std::string m_device_kind;
+
+  std::string m_user_string;
 };
 
 } // namespace tt::pjrt
