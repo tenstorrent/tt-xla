@@ -48,6 +48,7 @@ public:
 
   const std::string &get_code() const { return m_code; }
 
+  // Checks if the output on the i-th index is a scalar.
   bool isOutputScalar(size_t index) const;
 
 private:

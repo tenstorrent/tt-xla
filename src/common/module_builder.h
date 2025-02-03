@@ -15,9 +15,11 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 
+// tt-mlir includes
+#include "tt/runtime/types.h"
+
 // tt-xla includes
 #include "status.h"
-#include "tt/runtime/types.h"
 
 namespace tt::pjrt {
 

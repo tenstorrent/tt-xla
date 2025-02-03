@@ -217,7 +217,6 @@ void ModuleBuilder::createFlatbufferBinary(
   if (m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
-    return;
   }
 }
 
