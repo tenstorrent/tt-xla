@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from utils import record_unary_op_test_properties
 
 dim0_cases = []
 for begin in jnp.arange(10).tolist():
@@ -29,9 +32,11 @@ for begin in jnp.arange(0, 64, 32).tolist():
 
 # TODO investigate if this test can be rewritten to make it easier for understanding.
 @pytest.mark.parametrize(
-    ["begin", "end", "dim"], [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases]
+    ["begin", "end", "dim"],
+    [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases],
+    ids=lambda val: f"{val}",
 )
-def test_slice(begin, end, dim):
+def test_slice(begin: int, end: int, dim: int, record_tt_xla_property: Callable):
     def module_slice(a):
         if dim == 0:
             return a[begin:end, :, :, :]
@@ -41,6 +46,12 @@ def test_slice(begin, end, dim):
             return a[:, :, begin:end, :]
         else:
             return a[:, :, :, begin:end]
+
+    record_unary_op_test_properties(
+        record_tt_xla_property,
+        "jax.lax.slice",
+        "stablehlo.slice",
+    )
 
     shape = [10, 10, 10, 10]
     shape[dim] = 128
