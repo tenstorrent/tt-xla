@@ -12,8 +12,10 @@
 #include <memory>
 #include <string>
 
-#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
+
+// tt-mlir includes
+#include "tt/runtime/types.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
