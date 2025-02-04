@@ -12,7 +12,7 @@ from utils import compile_fail, record_model_test_properties
 from ..tester import FlaxBeitForImageClassificationTester
 
 MODEL_PATH = "microsoft/beit-base-patch16-224"
-MODEL_NAME = "albert-v2-base"
+MODEL_NAME = "beit-base"
 
 
 # ----- Fixtures -----
