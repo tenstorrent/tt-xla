@@ -133,7 +133,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
         std::make_unique<tt::runtime::Tensor>(rt_outputs[i]);
     auto result_buffer = std::make_unique<BufferInstance>(
         *this->addressable_devices_[dev_index], tensor_ptr, output_shape,
-        output_specs[i].stride);
+        output_specs[i].stride, nullptr);
     result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
         output_specs[i].dataType));
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());

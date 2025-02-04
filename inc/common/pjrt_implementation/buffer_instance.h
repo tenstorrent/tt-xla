@@ -26,7 +26,8 @@ public:
   BufferInstance(DeviceInstance &device,
                  std::unique_ptr<tt::runtime::Tensor> &tensor,
                  std::vector<std::uint32_t> shape,
-                 std::vector<std::uint32_t> stride);
+                 std::vector<std::uint32_t> stride,
+                 std::shared_ptr<void> host_buffer_ptr);
   BufferInstance(DeviceInstance &device);
   ~BufferInstance();
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
@@ -85,7 +86,11 @@ private:
   std::optional<PJRT_Buffer_Type> DataType;
 
   // OnReady event - currently not used.
-  EventInstance *on_ready_event_;
+  std::shared_ptr<EventInstance> on_ready_event_;
+
+  // Pointer to the host memory used to create this buffer, if buffer is created
+  // on device, the value of this pointer is nullptr.
+  std::shared_ptr<void> host_buffer_ptr_;
 };
 
 } // namespace tt::pjrt

@@ -71,10 +71,11 @@ private:
 
   size_t getSize(const std::vector<std::uint32_t> &shape, size_t element_size);
 
-  std::unique_ptr<tt::runtime::Tensor>
-  MakeDeviceTensor(const void *data_ptr, std::vector<std::uint32_t> &shape,
-                   std::vector<std::uint32_t> &strides, size_t element_size,
-                   tt::target::DataType element_type);
+  BufferInstance *MakeDeviceBuffer(const void *data_ptr,
+                                   std::vector<std::uint32_t> &shape,
+                                   std::vector<std::uint32_t> &strides,
+                                   size_t element_size,
+                                   tt::target::DataType element_type);
 
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;

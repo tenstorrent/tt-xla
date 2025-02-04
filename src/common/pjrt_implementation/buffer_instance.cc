@@ -21,8 +21,9 @@ BufferInstance::~BufferInstance() = default;
 BufferInstance::BufferInstance(DeviceInstance &device,
                                std::unique_ptr<tt::runtime::Tensor> &tensor,
                                std::vector<std::uint32_t> shape,
-                               std::vector<std::uint32_t> stride)
-    : device_(device) {
+                               std::vector<std::uint32_t> stride,
+                               std::shared_ptr<void> host_buffer_ptr)
+    : device_(device), host_buffer_ptr_(host_buffer_ptr) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
   tensor_ = std::move(tensor);
   dims_.resize(shape.size());
@@ -132,7 +133,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    buffer->on_ready_event_ = new EventInstance();
+    buffer->on_ready_event_ = std::make_shared<EventInstance>();
     args->event = *buffer->on_ready_event_;
     return nullptr;
   };
