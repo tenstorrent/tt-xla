@@ -168,7 +168,8 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
-    devices_[i] = new DeviceInstance(i, *this);
+    devices_[i] =
+        new DeviceInstance(i, *this, system_desc->chip_descs()->Get(i)->arch());
   }
 
   // For now, just make all devices addressable.
