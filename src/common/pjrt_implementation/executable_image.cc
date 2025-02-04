@@ -21,11 +21,13 @@ const std::string_view kMlirFormat = "mlir";
 
 ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  std::string code,
-                                 const std::vector<bool> &is_output_scalar)
+                                 const std::vector<bool> &is_output_scalar,
+                                 size_t num_addressable_devices)
     : m_ref_count(1), m_binary(binary), m_code(code),
       m_arg_count(binary.getProgramInputs(0).size()),
       m_result_count(binary.getProgramOutputs(0).size()),
-      m_is_output_scalar(is_output_scalar) {
+      m_is_output_scalar(is_output_scalar),
+      num_addressable_devices(num_addressable_devices) {
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
     // and crash later.
@@ -138,7 +140,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
 }
 
 bool ExecutableImage::isOutputScalar(const size_t index) const {
-  assert(index < is_output_scalar.size() && "Output index out of range");
+  assert(index < m_is_output_scalar.size() && "Output index out of range");
   return m_is_output_scalar[index];
 }
 
