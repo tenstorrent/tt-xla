@@ -45,73 +45,13 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
 )
 
-set(STABLEHLO_LIBS
-StablehloBase
-StablehloReferenceIndex
-StablehloReferenceErrors
-StablehloReferenceElement
-StablehloReferenceAxes
-StablehloReferenceValue
-StablehloReferenceTypes
-StablehloReferenceToken
-StablehloReferenceTensor
-StablehloReferenceScope
-StablehloReferenceProcessGrid
-StablehloReferenceProcess
-StablehloReferenceOps
-StablehloPasses
-ChloOps
-Version
-VhloOps
-VhloTypes
-StablehloOps
-StablehloRegister
-StablehloReferenceToken
-StablehloLinalgTransforms
-StablehloReferenceValue
-StablehloReferenceScope
-StablehloPasses
-StablehloReferenceOps
-StablehloSerialization
-InterpreterOps
-StablehloPortableApi
-StablehloPasses
-StablehloAssemblyFormat
-StablehloOps
-StablehloReferenceElement
-StablehloReferenceOps
-StablehloReferenceTensor
-StablehloRegister
-StablehloBase
-StablehloPasses
-StablehloReferenceErrors
-StablehloReferenceProcess
-StablehloReferenceToken
-StablehloSerialization
-StablehloBroadcastUtils
-StablehloPortableApi
-StablehloReferenceIndex
-StablehloReferenceProcessGrid
-StablehloReferenceTypes
-StablehloTypeInference
-StablehloLinalgTransforms
-StablehloReferenceAxes
-StablehloReferenceNumPy
-StablehloReferenceScope
-StablehloReferenceValue
-)
-
 target_link_libraries(TTPJRTCommon PUBLIC
     loguru
     LLVM
     MLIR
-    TTMLIR
     TTPJRTCommonDylibPlatform
-    TTMLIRStatic
-    TTMLIRTosaToTTIR
-    MLIRTTIRPipelines
-    TTMLIRStableHLOToTTIR
-    ${STABLEHLO_LIBS}
+    TTMLIRCompiler
+    TTMLIRRuntime
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
