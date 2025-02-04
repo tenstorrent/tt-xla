@@ -47,11 +47,11 @@ public:
   const std::string &toString() const { return m_user_string; }
 
   // TODO
-  int64_t deviceId() { return 0; }
+  int64_t getDeviceId() const { return 0; }
 
-  int clientId() { return m_client_id; }
+  int getClientId() const { return m_client_id; }
 
-  int processIndex() { return 0; }
+  int getProcessIndex() const { return 0; }
 
 private:
   int m_client_id;

@@ -17,7 +17,7 @@ namespace tt::pjrt {
 DeviceDescription::DeviceDescription(int32_t client_id, tt::target::Arch arch)
     : m_client_id(client_id), m_device_kind(tt::target::EnumNameArch(arch)) {
   std::stringstream ss;
-  ss << "TTDevice(id=" << deviceId() << ", arch=" << m_device_kind << ")";
+  ss << "TTDevice(id=" << getDeviceId() << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
 }
 
@@ -27,14 +27,15 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
   api->PJRT_DeviceDescription_Id =
       +[](PJRT_DeviceDescription_Id_Args *args) -> PJRT_Error * {
-    args->id = DeviceDescription::Unwrap(args->device_description)->clientId();
+    args->id =
+        DeviceDescription::Unwrap(args->device_description)->getClientId();
     return nullptr;
   };
   api->PJRT_DeviceDescription_ProcessIndex =
       +[](PJRT_DeviceDescription_ProcessIndex_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
     args->process_index =
-        DeviceDescription::Unwrap(args->device_description)->processIndex();
+        DeviceDescription::Unwrap(args->device_description)->getProcessIndex();
     return nullptr;
   };
   api->PJRT_DeviceDescription_Attributes =
