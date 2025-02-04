@@ -6,19 +6,20 @@ from typing import Dict, Sequence
 
 import jax
 import jax.numpy as jnp
-import pytest
 from flax import linen as nn
-from infra import ModelTester, RunMode
-
-from tests.jax.models.mnist.cnn.model_implementation import MNISTCNNModel
+from infra import ModelTester
 
 
 class MNISTCNNTester(ModelTester):
     """Tester for MNIST CNN model."""
 
+    def __init__(self, cls):
+        self._model_class = cls
+        super().__init__()
+
     # @override
     def _get_model(self) -> nn.Module:
-        return MNISTCNNModel()
+        return self._model_class()
 
     # @override
     def _get_forward_method_name(self) -> str:
@@ -47,39 +48,3 @@ class MNISTCNNTester(ModelTester):
     # @override
     def _get_static_argnames(self):
         return ["train"]
-
-
-# ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester()
-
-
-@pytest.fixture
-def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(RunMode.TRAINING)
-
-
-# ----- Tests -----
-
-
-@pytest.mark.skip(
-    reason='void mlir::OperationConverter::finalize(mlir::ConversionPatternRewriter &): Assertion `newValue && "replacement value not found"\' failed.'
-)
-def test_mnist_inference(
-    inference_tester: MNISTCNNTester,
-):
-    inference_tester.test()
-
-
-@pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_training(
-    training_tester: MNISTCNNTester,
-):
-    training_tester.test()
-
-
-if __name__ == "__main__":
-    MNISTCNNTester().test()

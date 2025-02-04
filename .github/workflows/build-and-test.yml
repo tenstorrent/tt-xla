@@ -2,7 +2,35 @@ name: Build and Test
 
 on:
   workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      test_mark:
+        description: 'Test mark to run'
+        required: true
+        default: 'push'
+        type: choice
+        options:
+          - push
+          - nightly
   workflow_call:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      test_mark:
+        description: 'Test mark to run'
+        required: false
+        default: 'push'
+        type: string
+
+permissions:
+  packages: write
+  checks: write
+  pull-requests: write
 
 jobs:
   # build-ttxla:
@@ -144,6 +172,13 @@ jobs:
         submodules: recursive
         lfs: true
 
+    - name: Override tt-mlir SHA mlir_override is set
+      if: ${{ inputs.mlir_override }}
+      shell: bash
+      run: |
+          # Update the CMakeLists.txt file with the new SHA
+          sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+
     - name: Set reusable strings
       id: strings
       shell: bash
@@ -187,6 +222,21 @@ jobs:
         cmake --build ${{ steps.strings.outputs.build-output-dir }}
         cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
+    - name: Verify tt-mlir SHA override
+      if: ${{ inputs.mlir_override }}
+      continue-on-error: true
+      shell: bash
+      run: |
+          cd third_party/tt-mlir
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          commit_sha=$(git rev-parse HEAD)
+          commit_title=$(git log -1 --pretty=%s)
+          echo "Branch name: $branch_name"
+          echo "Commit SHA: $commit_sha"
+          echo "Commit title: $commit_title"
+          echo "::notice::Using tt-mlir: $branch_name, commit: $commit_sha, title: $commit_title"
+          cd ../..
+
     - name: Run tests
       shell: bash
       run: |
@@ -203,14 +253,36 @@ jobs:
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
-      uses: mikepenz/action-junit-report@v4
+      uses: mikepenz/action-junit-report@v5
       if: success() || failure()
       with:
         report_paths: ${{ steps.strings.outputs.test_report_path }}
         check_name: TT-XLA Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
 
     - name: Prepare code coverage report
+      if: matrix.build.runs-on == 'n300' && (success() || failure())
       run: |
         lcov --directory build --capture --output-file coverage.info
-        lcov --extract coverage.info '**/src/*' --output-file coverage.info
+        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
         lcov --list coverage.info
+
+    - name: Upload coverage reports to Codecov
+      if: matrix.build.runs-on == 'n300' && (success() || failure())
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload test results to Codecov
+      if: success() || failure()
+      uses: codecov/test-results-action@v1
+      with:
+        files: ${{ steps.strings.outputs.test_report_path }}
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}

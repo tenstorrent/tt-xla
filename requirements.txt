@@ -13,3 +13,7 @@ lit
 pybind11
 pytest
 transformers
+fsspec
+einops
+torch
+ml_collections

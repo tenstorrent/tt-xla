@@ -7,7 +7,7 @@ from typing import Dict, Sequence
 import jax
 import pytest
 from flax import nnx
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ModelTester, RunMode
 
 from ..model import ExampleModel
 

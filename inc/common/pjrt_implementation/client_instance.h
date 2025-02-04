@@ -55,11 +55,6 @@ public:
     return cached_platform_version_;
   }
 
-  // Checks if the output on the i-th index is a scalar.
-  bool isOutputScalar(const size_t index) const {
-    return module_builder_->isOutputScalar(index);
-  }
-
   // Compiles.
   // See TODOs in PJRT_Client_Compile.
   PJRT_Error *
