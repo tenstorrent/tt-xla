@@ -36,15 +36,15 @@ public:
 
   // Returns a vendor-dependent string that uniquely identifies the kind of
   // device, e.g. `Wormhole_b0`.
-  std::string &getDeviceKind() { return m_device_kind; }
+  const std::string &getDeviceKind() const { return m_device_kind; }
 
   // Returns a debug string suitable for logging when errors occur. Should be
   // verbose enough to describe the current device unambiguously.
-  std::string &toDebugString() { return m_user_string; }
+  const std::string &toDebugString() const { return m_user_string; }
 
   // Returns a device description string suitable for reading by end users,
   // should be reasonably terse.
-  std::string &toString() { return m_user_string; }
+  const std::string &toString() const { return m_user_string; }
 
   // TODO
   int64_t deviceId() { return 0; }

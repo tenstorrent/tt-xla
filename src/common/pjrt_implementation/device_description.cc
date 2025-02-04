@@ -15,8 +15,7 @@
 namespace tt::pjrt {
 
 DeviceDescription::DeviceDescription(int32_t client_id, tt::target::Arch arch)
-    : m_client_id(client_id) {
-  m_device_kind = tt::target::EnumNameArch(arch);
+    : m_client_id(client_id), m_device_kind(tt::target::EnumNameArch(arch)) {
   std::stringstream ss;
   ss << "TTDevice(id=" << deviceId() << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
