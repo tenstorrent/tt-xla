@@ -15,6 +15,9 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 
+// tt-mlir includes
+#include "tt/runtime/types.h"
+
 // tt-xla includes
 #include "status.h"
 
@@ -27,13 +30,15 @@ public:
   tt_pjrt_status buildModule(const std::string_view &code,
                              const std::string_view &format);
 
-  std::shared_ptr<void> getBinary() const { return m_flatbuffer_binary; }
+  const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
-  size_t getNumInputs() const { return m_num_inputs; };
+  const std::vector<bool> &getIsOutputScalar() const {
+    return m_is_output_scalar;
+  };
 
-  size_t getNumOutputs() const { return m_num_outputs; };
-
-  bool isOutputScalar(size_t index) const;
+  // This needs to return the number of addressable devices from the StableHLO
+  // code. Currently hardcoded to one, as we only support one-chip execution.
+  size_t getNumAddressableDevices() const { return 1; }
 
 private:
   // Creates VHLO module from the input program code.
@@ -66,14 +71,8 @@ private:
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
-  // Flatbuffer binary handle.
-  std::shared_ptr<void> m_flatbuffer_binary;
-
-  // Number of binary program inputs.
-  size_t m_num_inputs;
-
-  // Number of binary program outputs.
-  size_t m_num_outputs;
+  // Flatbuffer binary.
+  tt::runtime::Binary m_flatbuffer_binary;
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;

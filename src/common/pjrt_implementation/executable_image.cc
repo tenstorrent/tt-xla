@@ -19,6 +19,25 @@ namespace tt::pjrt {
 
 const std::string_view kMlirFormat = "mlir";
 
+ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
+                                 std::string code,
+                                 const std::vector<bool> &is_output_scalar,
+                                 size_t num_addressable_devices)
+    : m_ref_count(1), m_binary(binary), m_code(code),
+      m_arg_count(binary.getProgramInputs(0).size()),
+      m_result_count(binary.getProgramOutputs(0).size()),
+      m_is_output_scalar(is_output_scalar),
+      num_addressable_devices(num_addressable_devices) {
+  if (m_result_count != m_is_output_scalar.size()) {
+    // TODO: We should throw error instead, otherwise execution will continue
+    // and crash later.
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %ld "
+           "than expected %ld",
+           m_result_count, m_is_output_scalar.size());
+  }
+}
+
 void ExecutableImage::BindApi(PJRT_Api *api) {
   api->PJRT_Executable_Destroy =
       +[](PJRT_Executable_Destroy_Args *args) -> PJRT_Error * {
@@ -48,7 +67,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_NumOutputs_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->num_outputs = exec->result_count;
+    args->num_outputs = exec->get_result_count();
     return nullptr;
   };
   api->PJRT_Executable_NumPartitions =
@@ -86,15 +105,14 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     PJRT_Program *program = args->program;
     program->format = kMlirFormat.data();
     program->format_size = kMlirFormat.size();
-    size_t code_size = executable->code.size();
+    size_t code_size = executable->get_code().size();
     if (program->code == nullptr) {
       program->code_size = code_size;
     } else {
       if (program->code_size < code_size) {
         return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
       }
-      std::memcpy(program->code, executable->code.c_str(),
-                  executable->code.size());
+      std::memcpy(program->code, executable->get_code().c_str(), code_size);
     }
     return nullptr;
   };
@@ -119,6 +137,11 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
     return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
+}
+
+bool ExecutableImage::isOutputScalar(const size_t index) const {
+  assert(index < m_is_output_scalar.size() && "Output index out of range");
+  return m_is_output_scalar[index];
 }
 
 } // namespace tt::pjrt

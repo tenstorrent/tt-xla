@@ -14,6 +14,9 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// tt-mlir includes
+#include "tt/runtime/types.h"
+
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
@@ -22,10 +25,10 @@ namespace tt::pjrt {
 class ExecutableImage {
 
 public:
-  ExecutableImage(std::shared_ptr<void> binary, std::string code,
-                  size_t arg_count, size_t result_count)
-      : ref_count(1), binary(std::move(binary)), code(code),
-        arg_count(arg_count), result_count(result_count) {}
+  ExecutableImage(const tt::runtime::Binary &binary, std::string code,
+                  const std::vector<bool> &is_output_scalar,
+                  size_t num_addressable_devices);
+
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
   }
@@ -34,33 +37,44 @@ public:
   }
   static void BindApi(PJRT_Api *api);
 
-  void AddRef() { ref_count.fetch_add(1); }
+  void AddRef() { m_ref_count.fetch_add(1); }
   void DecRef() {
-    if (ref_count.fetch_sub(1) == 0) {
+    if (m_ref_count.fetch_sub(1) == 0) {
       delete this;
     }
   }
 
-  const size_t get_arg_count() const { return arg_count; }
+  const size_t get_arg_count() const { return m_arg_count; }
 
-  const size_t get_result_count() const { return result_count; }
+  const size_t get_result_count() const { return m_result_count; }
 
-  std::shared_ptr<void> get_binary() { return binary; }
+  const tt::runtime::Binary &get_binary() const { return m_binary; }
 
-  const std::string &get_code() const { return code; }
+  const std::string &get_code() const { return m_code; }
+
+  // Checks if the output on the i-th index is a scalar.
+  bool isOutputScalar(size_t index) const;
+
+  const size_t get_num_addressable_devices() const {
+    return num_addressable_devices;
+  }
 
 private:
   // The reference count. Must be disposed when reaching zero.
-  std::atomic<int> ref_count;
+  std::atomic<int> m_ref_count;
 
   // Raw compiler output.
-  std::shared_ptr<void> binary;
+  tt::runtime::Binary m_binary;
 
   // Original code fed to the compiler. Stored for debugging.
-  const std::string code;
+  const std::string m_code;
 
-  size_t arg_count;
-  size_t result_count;
+  size_t m_arg_count;
+  size_t m_result_count;
+  size_t num_addressable_devices;
+
+  // For every output, holds if the type is a scalar or not.
+  std::vector<bool> m_is_output_scalar;
 };
 
 } // namespace tt::pjrt

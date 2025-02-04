@@ -25,8 +25,8 @@ class BufferInstance;
 class DeviceInstance {
 
 public:
-  DeviceInstance(int client_id, ClientInstance &client)
-      : client_(client), description_(client_id) {}
+  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch)
+      : client_(client), description_(device_id, arch) {}
   ~DeviceInstance();
   operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
   static void BindApi(PJRT_Api *api);
