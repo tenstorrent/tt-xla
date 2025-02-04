@@ -20,7 +20,8 @@ void DeviceDescription::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
   api->PJRT_DeviceDescription_Id =
       +[](PJRT_DeviceDescription_Id_Args *args) -> PJRT_Error * {
-    args->id = DeviceDescription::Unwrap(args->device_description)->client_id();
+    args->id =
+        DeviceDescription::Unwrap(args->device_description)->getDeviceId();
     return nullptr;
   };
   api->PJRT_DeviceDescription_ProcessIndex =

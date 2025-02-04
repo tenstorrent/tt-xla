@@ -36,6 +36,10 @@ public:
     return m_is_output_scalar;
   };
 
+  // This needs to return the number of addressable devices from the StableHLO
+  // code. Currently hardcoded to one, as we only support one-chip execution.
+  size_t getNumAddressableDevices() const { return 1; }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>

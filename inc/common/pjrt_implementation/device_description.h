@@ -20,7 +20,7 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id) : client_id_(client_id) {};
+  DeviceDescription(int32_t device_id) : m_device_id(device_id) {};
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -35,21 +35,18 @@ public:
   std::string_view debug_string() { return to_string(); }
   std::string_view to_string() {
     std::stringstream ss;
-    ss << kind_string_ << "(id=" << device_id() << ", arch=" << arch_string_
+    ss << kind_string_ << "(id=" << getDeviceId() << ", arch=" << arch_string_
        << ")";
     user_string_ = ss.str();
     return user_string_;
   }
 
-  // TODO
-  int64_t device_id() { return 0; }
-
-  int client_id() { return client_id_; }
+  int getDeviceId() { return m_device_id; }
 
   int process_index() { return 0; }
 
 private:
-  int client_id_;
+  int m_device_id;
 
   // TODO We should understand better how these are used.
   // See https://github.com/tenstorrent/tt-xla/issues/125
