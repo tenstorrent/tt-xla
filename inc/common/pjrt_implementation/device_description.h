@@ -23,7 +23,7 @@ namespace tt::pjrt {
 class DeviceDescription {
 
 public:
-  DeviceDescription(int32_t client_id, tt::target::Arch arch);
+  DeviceDescription(int32_t device_id, tt::target::Arch arch);
   ~DeviceDescription();
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
@@ -46,15 +46,12 @@ public:
   // should be reasonably terse.
   const std::string &toString() const { return m_user_string; }
 
-  // TODO
-  int64_t getDeviceId() const { return 0; }
-
-  int getClientId() const { return m_client_id; }
+  int getDeviceId() const { return m_device_id; }
 
   int getProcessIndex() const { return 0; }
 
 private:
-  int m_client_id;
+  int m_device_id;
 
   std::string m_device_kind;
 
