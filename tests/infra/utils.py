@@ -2,17 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 from jax import export
+from jax._src.typing import DTypeLike
 
 from .device_runner import run_on_cpu
 from .types import Framework, Tensor
 from .workload import Workload
-
-# List of all data types that runtime currently supports.
-supported_dtypes = [jnp.float32, jnp.bfloat16, jnp.uint32, jnp.uint16]
 
 
 def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):
@@ -26,7 +25,7 @@ def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):
 @run_on_cpu
 def random_tensor(
     shape: tuple,
-    dtype: str = "float32",
+    dtype: Union[str, DTypeLike] = jnp.float32,
     random_seed: int = 0,
     minval: float = 0.0,
     maxval: float = 1.0,
@@ -36,20 +35,41 @@ def random_tensor(
     Generates a random tensor of `shape`, `dtype`, and `random_seed` in range
     [`minval`, `maxval`) for the desired `framework`.
     """
-    # Convert dtype string to actual dtype for the selected framework.
-    dtype_converted = _str_to_dtype(dtype, framework)
+    dtype_converted = (
+        _str_to_dtype(dtype, framework) if isinstance(dtype, str) else dtype
+    )
 
-    # Generate random tensor based on framework type
+    # Generate random tensor based on framework type.
     if framework == Framework.JAX:
         prng_key = jax.random.PRNGKey(random_seed)
 
-        return jax.random.uniform(
-            key=prng_key,
-            shape=shape,
-            dtype=dtype_converted,
-            minval=minval,
-            maxval=maxval,
-        )
+        if jnp.issubdtype(dtype_converted, jnp.integer):
+            return jax.random.randint(
+                key=prng_key,
+                shape=shape,
+                dtype=dtype_converted,
+                minval=int(minval),
+                maxval=int(maxval),
+            )
+        elif jnp.issubdtype(dtype_converted, jnp.floating):
+            return jax.random.uniform(
+                key=prng_key,
+                shape=shape,
+                dtype=dtype_converted,
+                minval=minval,
+                maxval=maxval,
+            )
+        elif jnp.issubdtype(dtype_converted, jnp.bool):
+            # Generate random tensor of 0s and 1s and interpret is as a bool tensor.
+            return jax.random.randint(
+                key=prng_key,
+                shape=shape,
+                dtype=jnp.int32,
+                minval=0,
+                maxval=1,
+            ).astype(dtype_converted)
+        else:
+            raise TypeError(f"Unsupported dtype: {dtype}")
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")
 

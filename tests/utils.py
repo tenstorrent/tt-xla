@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import contextmanager
 from typing import Callable
 
+import jax
 from conftest import RecordProperties
 
 
@@ -41,3 +43,20 @@ def record_op_test_properties(
 
 def record_model_test_properties(record_property: Callable, model_name: str):
     record_property(RecordProperties.MODEL_NAME.value, model_name)
+
+
+@contextmanager
+def enable_x64():
+    """
+    Context manager that temporarily enables x64 in jax.config.
+
+    Isolated as a context manager so that it doesn't change global config for all jax
+    imports and cause unexpected fails elsewhere.
+    """
+    try:
+        # Set the config to True within this block, and yield back control.
+        jax.config.update("jax_enable_x64", True)
+        yield
+    finally:
+        # After `with` statement ends, turn it off again.
+        jax.config.update("jax_enable_x64", False)

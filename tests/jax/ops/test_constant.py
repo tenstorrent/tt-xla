@@ -7,7 +7,7 @@ from typing import Callable
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test
-from utils import record_op_test_properties
+from utils import compile_fail, record_op_test_properties
 
 
 @pytest.mark.parametrize("shape", [(32, 32), (1, 1)], ids=lambda val: f"{val}")
@@ -40,7 +40,7 @@ def test_constant_ones(shape: tuple, record_tt_xla_property: Callable):
     run_op_test(module_constant_ones, [])
 
 
-@pytest.mark.xfail(reason="failed to legalize operation 'ttir.constant'")
+@pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.constant'"))
 def test_constant_multi_value(record_tt_xla_property: Callable):
     def module_constant_multi():
         return jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)
