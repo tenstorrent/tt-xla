@@ -70,61 +70,54 @@ tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  // Sanity check, as we only support execution on one chip currently.
-  assert(args->num_devices == num_addressable_devices_);
+  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
+  size_t num_devices = args->num_devices;
 
-  int dev_index = 0;
-  const tt::runtime::Binary &binary = image_->get_binary();
+  tt::runtime::Binary binary(image_->get_binary());
 
   std::vector<tt::runtime::Tensor> rt_inputs;
-  rt_inputs.reserve(args->num_args);
 
   std::unordered_set<int> device_ids;
 
+  for (size_t i = 0; i < num_devices; i++) {
+    BufferInstance *buffer =
+      BufferInstance::Unwrap(args->argument_lists[i][0]);
+    device_ids.insert(
+      chip_ids[buffer->device().device_description()->getDeviceId()]);
+  }
+
   for (size_t i = 0; i < args->num_args; ++i) {
     BufferInstance *buffer =
-        BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
-    rt_inputs.emplace_back(buffer->getTensor());
-    int64_t buffer_device_id =
-        buffer->device().device_description()->getDeviceId();
-    device_ids.insert(buffer_device_id);
+        BufferInstance::Unwrap(args->argument_lists[0][i]);
+    rt_inputs.push_back(buffer->getTensor());
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
+  assert(device_ids.size() == num_devices);
+
   std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
 
-  // If there are no input buffers, we still want to run on a device.
-  // TODO: Now we will run only on the first one, but this should be somehow
-  // explicit.
-  if (device_ids.size() == 0) {
-    device_ids_vector.push_back(
-        addressable_devices_[0]->device_description()->getDeviceId());
-  }
-
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
+  std::vector<tt::runtime::Tensor> input_tensors;
+  int size_inputs = rt_inputs.size();
+  std::vector<tt::runtime::Tensor> rt_outputs = tt::runtime::submit(device, binary, 0, rt_inputs);
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      binary.getProgramOutputs(0);
 
-  std::vector<tt::runtime::Tensor> rt_outputs =
-      tt::runtime::submit(device, binary, 0, rt_inputs);
-
-  assert(rt_outputs.size() == image_->get_num_outputs());
-
-  for (size_t i = 0; i < image_->get_num_outputs(); ++i) {
-
-    tt::runtime::Tensor untilized_output_tensor =
-        tt::runtime::toHost(rt_outputs[i], /*untilize=*/true);
-    auto result_buffer = std::make_unique<BufferInstance>(
-        *this->addressable_devices_[dev_index], untilized_output_tensor,
-        image_->get_output_shape(i), image_->get_output_stride(i));
-    tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
-
-    result_buffer->setType(image_->get_output_types()[i]);
-
-    DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
-    args->output_lists[dev_index][i] = *(result_buffer.release());
+  for (int k=0;k<num_devices;k++)
+  {
+    for (size_t i = 0; i < image_->get_num_outputs(); ++i) {
+      auto result_buffer = std::make_unique<BufferInstance>(
+          *this->addressable_devices_[k], rt_outputs[i], image_->get_output_shape(i), image_->get_output_stride(i));
+      result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
+          output_specs[i].dataType));
+      DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
+      args->output_lists[k][i] = *(result_buffer.release());
+    }
   }
 
   if (args->device_complete_events) {
-    args->device_complete_events[dev_index] = *(new EventInstance());
+    for (int i=0;i<num_devices;i++) args->device_complete_events[i] = *(new EventInstance());
   }
 
   tt::runtime::closeDevice(device);
