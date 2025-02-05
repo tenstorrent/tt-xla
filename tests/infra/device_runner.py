@@ -9,7 +9,7 @@ from typing import Callable, Sequence
 
 
 from .device_connector import DeviceType, device_connector
-from .mulitchip_workload import MultichipWorkload
+from .multichip_workload import MultichipWorkload
 from .types import Tensor
 from .workload import Workload
 

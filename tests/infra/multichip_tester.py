@@ -12,7 +12,7 @@ from typing import Callable, Sequence
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
-from .mulitchip_workload import MultichipWorkload
+from .multichip_workload import MultichipWorkload
 from .workload import Workload
 
 
