@@ -59,6 +59,9 @@ public:
 
   const std::vector<std::uint32_t> &get_output_shape(size_t index) const;
 
+  void get_output_dims_concatenated(const size_t **dim_sizes,
+                                    const int64_t **dims);
+
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
   size_t num_output_types() { return m_output_types.size(); }
 
@@ -83,7 +86,15 @@ private:
   std::vector<PJRT_Buffer_Type> m_output_types;
 
   // For every output, holds a list of its dimensions.
-  std::vector<std::vector<uint32_t>> m_output_dimensions;
+  std::vector<std::vector<uint32_t>> m_output_dims;
+
+  // For every output, holds how many dimensions it has. Nullptr until
+  // get_output_dims_concatenated is called.
+  std::unique_ptr<size_t[]> m_output_dim_sizes;
+
+  // Holds all output dimensions concatenated. Nullptr until
+  // get_output_dims_concatenated is called.
+  std::unique_ptr<int64_t[]> m_output_dims_concatenated;
 };
 
 } // namespace tt::pjrt

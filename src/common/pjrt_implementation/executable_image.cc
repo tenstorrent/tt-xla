@@ -43,15 +43,14 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
   }
 
   m_output_types.resize(m_result_count);
-  m_output_dimensions.resize(m_result_count);
+  m_output_dims.resize(m_result_count);
   for (int i = 0; i < m_result_count; i++) {
     m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
         output_specs[i].dataType);
 
     // PJRT expects an empty shape for scalars.
-    m_output_dimensions[i] = m_is_output_scalar[i]
-                                 ? std::vector<std::uint32_t>()
-                                 : output_specs[i].shape;
+    m_output_dims[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()
+                                             : output_specs[i].shape;
   }
 }
 
@@ -152,27 +151,9 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    size_t num_outputs = exec->get_result_count();
-    args->num_outputs = num_outputs;
-    size_t num_dims = 0;
 
-    auto dim_sizes = std::make_unique<size_t[]>(num_outputs);
-    for (size_t i = 0; i < num_outputs; i++) {
-      dim_sizes[i] = exec->m_output_dimensions[i].size();
-      num_dims += dim_sizes[i];
-    }
-
-    auto dims = std::make_unique<int64_t[]>(num_dims);
-    size_t dims_index = 0;
-    for (size_t i = 0; i < num_outputs; i++) {
-      for (size_t j = 0; j < dim_sizes[i]; j++) {
-        dims[dims_index + j] = exec->m_output_dimensions[i][j];
-      }
-      dims_index += dim_sizes[i];
-    }
-
-    args->dims = dims.release();
-    args->dim_sizes = dim_sizes.release();
+    args->num_outputs = exec->get_result_count();
+    exec->get_output_dims_concatenated(&args->dim_sizes, &args->dims);
 
     return nullptr;
   };
@@ -185,8 +166,33 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
 
 const std::vector<std::uint32_t> &
 ExecutableImage::get_output_shape(const size_t index) const {
-  assert(index < m_output_dimensions.size() && "Output index out of range");
-  return m_output_dimensions[index];
+  assert(index < m_output_dims.size() && "Output index out of range");
+  return m_output_dims[index];
+}
+
+void ExecutableImage::get_output_dims_concatenated(const size_t **dim_sizes,
+                                                   const int64_t **dims) {
+  if (!m_output_dim_sizes || !m_output_dims_concatenated) {
+    size_t num_dims = 0;
+
+    m_output_dim_sizes = std::make_unique<size_t[]>(m_result_count);
+    for (size_t i = 0; i < m_result_count; i++) {
+      m_output_dim_sizes[i] = m_output_dims[i].size();
+      num_dims += m_output_dim_sizes[i];
+    }
+
+    m_output_dims_concatenated = std::make_unique<int64_t[]>(num_dims);
+    size_t dims_index = 0;
+    for (size_t i = 0; i < m_result_count; i++) {
+      for (size_t j = 0; j < m_output_dim_sizes[i]; j++) {
+        m_output_dims_concatenated[dims_index + j] = m_output_dims[i][j];
+      }
+      dims_index += m_output_dim_sizes[i];
+    }
+  }
+
+  *dim_sizes = m_output_dim_sizes.get();
+  *dims = m_output_dims_concatenated.get();
 }
 
 } // namespace tt::pjrt
