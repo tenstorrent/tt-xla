@@ -27,7 +27,7 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
       m_arg_count(binary.getProgramInputs(0).size()),
       m_result_count(binary.getProgramOutputs(0).size()),
       m_is_output_scalar(is_output_scalar),
-      num_addressable_devices(num_addressable_devices) {
+      m_num_addressable_devices(num_addressable_devices) {
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
     // and crash later.
