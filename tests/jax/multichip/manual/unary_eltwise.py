@@ -13,7 +13,6 @@ import pytest
 
 
 @pytest.mark.parametrize("x_shape", [(256, 256)])
-@pytest.mark.skip(reason="Multichip still in development")
 def test_unary_eltwise(x_shape: tuple):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
