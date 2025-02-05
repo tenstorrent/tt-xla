@@ -14,6 +14,6 @@ class MultichipWorkload(Workload):
     """
     Convenience dataclass storing a callable and its positional and keyword arguments.
     """
+
     mesh: jax.sharding.Mesh = None
     in_specs: Sequence[jax.sharding.PartitionSpec] = None
-    

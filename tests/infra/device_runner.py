@@ -69,7 +69,9 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
-    def put_with_none_sharding(multichip_workload: MultichipWorkload) -> MultichipWorkload:
+    def put_with_none_sharding(
+        multichip_workload: MultichipWorkload,
+    ) -> MultichipWorkload:
         """Gives inputs shardings for multichip workloads"""
         args_on_device = []
         spec_index = 0
@@ -77,18 +79,34 @@ class DeviceRunner:
             if not isinstance(arg, Tensor):
                 args_on_device.append(arg)
             else:
-                args_on_device.append(DeviceRunner._put_tensor_none_sharding(arg, multichip_workload.mesh, multichip_workload.in_specs[spec_index]))
-                spec_index+=1
+                args_on_device.append(
+                    DeviceRunner._put_tensor_none_sharding(
+                        arg,
+                        multichip_workload.mesh,
+                        multichip_workload.in_specs[spec_index],
+                    )
+                )
+                spec_index += 1
 
         kwargs_on_device = {}
         for key, value in multichip_workload.kwargs.items():
             if not isinstance(value, Tensor):
                 kwargs_on_device[key] = value
             else:
-                kwargs_on_device[key] = DeviceRunner._put_tensor_none_sharding(value, multichip_workload.mesh, multichip_workload.in_specs[spec_index])
-                spec_index+=1
+                kwargs_on_device[key] = DeviceRunner._put_tensor_none_sharding(
+                    value,
+                    multichip_workload.mesh,
+                    multichip_workload.in_specs[spec_index],
+                )
+                spec_index += 1
 
-        return MultichipWorkload(multichip_workload.executable, args_on_device, kwargs_on_device, mesh = multichip_workload.mesh, in_specs = multichip_workload.in_specs) 
+        return MultichipWorkload(
+            multichip_workload.executable,
+            args_on_device,
+            kwargs_on_device,
+            mesh=multichip_workload.mesh,
+            in_specs=multichip_workload.in_specs,
+        )
 
     @staticmethod
     def _run_manual(workload: Workload) -> Tensor:
@@ -107,7 +125,9 @@ class DeviceRunner:
             return device_workload.execute()
 
     @staticmethod
-    def _put_tensor_none_sharding(tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec) -> Tensor:
+    def _put_tensor_none_sharding(
+        tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
+    ) -> Tensor:
         """Needed for multichip: Uses put_device to give inputs shardings."""
         none_tuple = (None,) * len(in_spec)
         none_spec = PartitionSpec(*none_tuple)

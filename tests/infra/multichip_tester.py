@@ -20,7 +20,11 @@ class MultichipTester(BaseTester):
     """Specific tester for ops."""
 
     def __init__(
-        self, mesh: jax.Mesh, in_specs: tuple, out_specs: jax.sharding.PartitionSpec, comparison_config: ComparisonConfig = ComparisonConfig()
+        self,
+        mesh: jax.Mesh,
+        in_specs: tuple,
+        out_specs: jax.sharding.PartitionSpec,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
     ) -> None:
         self.mesh = mesh
         self.in_specs = in_specs
@@ -38,13 +42,14 @@ class MultichipTester(BaseTester):
     ) -> Callable:
         """Sets up `executable` for just-in-time compile."""
         module_sharded = shard_map(
-            executable,
-            mesh=self.mesh,
-            in_specs=self.in_specs, 
-            out_specs=self.out_specs  
+            executable, mesh=self.mesh, in_specs=self.in_specs, out_specs=self.out_specs
         )
         output_sharding = NamedSharding(self.mesh, self.out_specs)
-        return jax.jit(module_sharded, out_shardings=output_sharding, static_argnames=static_argnames)
+        return jax.jit(
+            module_sharded,
+            out_shardings=output_sharding,
+            static_argnames=static_argnames,
+        )
 
     def test(self, workload: Workload, cpu_workload: Workload) -> None:
         """
@@ -58,7 +63,11 @@ class MultichipTester(BaseTester):
         )
 
         compiled_workload = MultichipWorkload(
-            compiled_executable, workload.args, workload.kwargs, mesh = self.mesh, in_specs=self.in_specs
+            compiled_executable,
+            workload.args,
+            workload.kwargs,
+            mesh=self.mesh,
+            in_specs=self.in_specs,
         )
 
         non_sharded_workload = DeviceRunner.put_with_none_sharding(compiled_workload)
@@ -81,7 +90,10 @@ class MultichipTester(BaseTester):
         TT device and CPU and comparing the results.
         """
         inputs = [
-            jax.random.uniform(key = jax.random.key(0), shape = shape, minval=minval, maxval=maxval) for shape in input_shapes
+            jax.random.uniform(
+                key=jax.random.key(0), shape=shape, minval=minval, maxval=maxval
+            )
+            for shape in input_shapes
         ]
         workload = Workload(f, inputs)
         cpu_workload = Workload(golden_f, inputs)
@@ -92,8 +104,8 @@ def run_multichip_test_with_random_inputs(
     mesh_test: Callable,
     golden_test: Callable,
     input_shapes: Sequence[tuple],
-    mesh: jax.Mesh, 
-    in_specs: Sequence[jax.sharding.PartitionSpec], 
+    mesh: jax.Mesh,
+    in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
     minval: float = 0.0,
     maxval: float = 1.0,
