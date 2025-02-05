@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 from flax import linen as nn
@@ -27,7 +27,7 @@ class FlaxBeitForImageClassificationTester(ModelTester):
         return FlaxBeitForImageClassification.from_pretrained(self._model_name)
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict:
         image = jax.random.uniform(jax.random.PRNGKey(42), (1, 3, 224, 224))
         preprocessor = BeitImageProcessor.from_pretrained(
             self._model_name, do_rescale=False
