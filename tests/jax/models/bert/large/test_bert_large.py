@@ -29,6 +29,7 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Cannot get the device from a tensor with host storage "
@@ -44,6 +45,7 @@ def test_flax_bert_large_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bert_large_training(
     training_tester: FlaxBertForMaskedLMTester,

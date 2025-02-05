@@ -20,6 +20,8 @@ def comparison_config() -> ComparisonConfig:
     return config
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["img_shape", "kernel_shape"],
     [
@@ -62,6 +64,8 @@ def test_conv1d(
     run_op_test(conv1d, [img, kernel], comparison_config)
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     [
         "batch_size",

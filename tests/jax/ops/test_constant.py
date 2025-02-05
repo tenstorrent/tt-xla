@@ -10,6 +10,8 @@ from infra import run_op_test
 from utils import compile_fail, record_op_test_properties
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize("shape", [(32, 32), (1, 1)], ids=lambda val: f"{val}")
 def test_constant_zeros(shape: tuple, record_tt_xla_property: Callable):
     def module_constant_zeros():
@@ -25,6 +27,8 @@ def test_constant_zeros(shape: tuple, record_tt_xla_property: Callable):
     run_op_test(module_constant_zeros, [])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize("shape", [(32, 32), (1, 1)], ids=lambda val: f"{val}")
 def test_constant_ones(shape: tuple, record_tt_xla_property: Callable):
     def module_constant_ones():
@@ -40,6 +44,8 @@ def test_constant_ones(shape: tuple, record_tt_xla_property: Callable):
     run_op_test(module_constant_ones, [])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.constant'"))
 def test_constant_multi_value(record_tt_xla_property: Callable):
     def module_constant_multi():

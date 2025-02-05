@@ -27,3 +27,4 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      test_mark: 'push'

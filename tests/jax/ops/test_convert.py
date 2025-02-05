@@ -143,6 +143,8 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
         )
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "from_dtype",
     [

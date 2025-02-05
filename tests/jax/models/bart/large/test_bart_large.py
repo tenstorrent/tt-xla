@@ -30,6 +30,7 @@ def training_tester() -> FlaxBartForCausalLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=compile_fail(
         "Unsupported data type (https://github.com/tenstorrent/tt-xla/issues/214)"
@@ -44,6 +45,7 @@ def test_flax_bart_large_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bart_large_training(
     training_tester: FlaxBartForCausalLMTester,

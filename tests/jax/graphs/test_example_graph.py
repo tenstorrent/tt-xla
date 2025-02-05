@@ -15,6 +15,8 @@ def example_graph(x: jax.Array, y: jax.Array) -> jax.Array:
     return jnp.exp(c)
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [

@@ -11,6 +11,8 @@ from infra import run_op_test_with_random_inputs
 from utils import record_unary_op_test_properties
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize("input_shapes", [[(2, 1)]], ids=lambda val: f"{val}")
 def test_broadcast_in_dim(input_shapes: tuple, record_tt_xla_property: Callable):
     def broadcast(a: jax.Array):

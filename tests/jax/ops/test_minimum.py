@@ -11,6 +11,8 @@ from infra import run_op_test_with_random_inputs
 from utils import record_binary_op_test_properties
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [

@@ -29,6 +29,8 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
@@ -46,6 +48,8 @@ def test_flax_bert_base_inference(
     inference_tester.test()
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bert_base_training(
     training_tester: FlaxBertForMaskedLMTester,

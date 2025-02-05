@@ -8,6 +8,8 @@ import pytest
 from infra import run_graph_test_with_random_inputs
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape", "bias_shape"],
     [

@@ -29,6 +29,8 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Cannot get the device from a tensor with host storage "
@@ -44,6 +46,8 @@ def test_gpt2_base_inference(
     inference_tester.test()
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt2_base_training(
     training_tester: GPT2Tester,

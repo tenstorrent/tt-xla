@@ -30,6 +30,7 @@ def training_tester() -> FlaxBartForCausalLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
@@ -47,6 +48,7 @@ def test_flax_bart_base_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bart_base_training(
     training_tester: FlaxBartForCausalLMTester,
