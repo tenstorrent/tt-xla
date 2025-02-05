@@ -15,6 +15,8 @@ def comparison_config() -> ComparisonConfig:
     return config
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["W1", "b1", "W2", "b2", "X", "y"],
     [

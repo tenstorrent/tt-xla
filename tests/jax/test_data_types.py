@@ -15,6 +15,8 @@ from jax._src.typing import DTypeLike
 from tests.utils import enable_x64
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "dtype",
     [

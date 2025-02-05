@@ -65,6 +65,8 @@ def training_tester(request) -> MNISTMLPTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "inference_tester",
     [
@@ -87,6 +89,8 @@ def test_mnist_mlp_inference(
     inference_tester.test()
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mnist_mlp_training(
     training_tester: MNISTMLPTester,

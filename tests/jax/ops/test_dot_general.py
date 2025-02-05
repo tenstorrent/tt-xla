@@ -13,6 +13,8 @@ from utils import record_binary_op_test_properties
 # Tests for dot_general op where vectors containing indices of contracting dimensions
 # are of size 1 and are equal. In training models, besides cases that correspond to matmul,
 # this is the most common one we have.
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -37,6 +39,8 @@ def test_dot_general_common(
 
 
 # Tests for dot_general op where this operation corresponds to regular matmul.
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -59,6 +63,8 @@ def test_dot_general_matmul(
 
 # Tests for dot_general op where vectors containing indices of
 # contracting dimensions are of size greater than 1.
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [

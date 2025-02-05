@@ -12,6 +12,8 @@ from infra import run_op_test
 from jax import numpy as jnp
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 def test_scalar_scalar_add():
     """Tests adding two scalars."""
 
@@ -21,6 +23,8 @@ def test_scalar_scalar_add():
     run_op_test(add, [])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.skip("Fails due to https://github.com/tenstorrent/tt-metal/issues/16701")
 def test_scalar_array_add():
     """

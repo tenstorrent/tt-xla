@@ -30,6 +30,7 @@ def training_tester() -> LLamaTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(
     reason="OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
 )
@@ -42,6 +43,7 @@ def test_openllama3b_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_openllama3b_training(
     training_tester: LLamaTester,

@@ -8,6 +8,8 @@ import pytest
 from infra import run_graph_test_with_random_inputs
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)])
 def test_relu(x_shape: tuple):
     """Test ReLU activation function."""

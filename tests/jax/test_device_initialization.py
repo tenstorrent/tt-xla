@@ -48,6 +48,8 @@ def is_tt_device(device: jax.Device) -> bool:
 # ---------- Tests ----------
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 def test_devices_are_connected():
     cpus = jax.devices("cpu")
 
@@ -60,6 +62,8 @@ def test_devices_are_connected():
     assert is_tt_device(tt_devices[0])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 def test_put_tensor_on_device(cpu: jax.Device, tt_device: jax.Device):
     # `random_tensor` is executed on cpu due to `@run_on_cpu` decorator so we don't have
     # to put it explicitly on cpu, but we will just for demonstration purposes.
@@ -72,6 +76,8 @@ def test_put_tensor_on_device(cpu: jax.Device, tt_device: jax.Device):
     assert is_tt_device(x.device)
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 def test_device_output_comparison(cpu: jax.Device, tt_device: jax.Device):
     @jax.jit  # Apply jit to this function.
     def add(x: jax.Array, y: jax.Array):

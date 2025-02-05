@@ -12,6 +12,8 @@ from infra import run_op_test_with_random_inputs
 from jax import numpy as jnp
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "x_shape",
     [
@@ -39,6 +41,8 @@ def test_unary_op(x_shape: tuple):
     run_op_test_with_random_inputs(negate, [x_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "shape",
     [

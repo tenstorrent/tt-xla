@@ -30,6 +30,7 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Cannot get the device from a tensor with host storage "
@@ -45,6 +46,7 @@ def test_gpt2_large_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt2_large_training(
     training_tester: GPT2Tester,

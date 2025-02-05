@@ -55,6 +55,7 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Cannot get the device from a tensor with host storage "
@@ -70,6 +71,7 @@ def test_flax_distilbert_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_distilbert_training(
     training_tester: FlaxDistilBertForMaskedLMTester,

@@ -30,6 +30,7 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(
     reason="OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
 )
@@ -42,6 +43,7 @@ def test_gpt2_xl_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt2_xl_training(
     training_tester: GPT2Tester,

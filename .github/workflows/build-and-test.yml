@@ -242,8 +242,17 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
-        pytest -v tests/ \
-          --junitxml=${{ steps.strings.outputs.test_report_path }}
+        pytest ./tests \
+               -m "${{ inputs.test_mark }}" \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               2>&1 | tee pytest.log
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}
+        path: pytest.log
 
     - name: Upload Test Report
       uses: actions/upload-artifact@v4

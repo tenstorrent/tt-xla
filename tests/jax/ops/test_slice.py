@@ -31,6 +31,8 @@ for begin in jnp.arange(0, 64, 32).tolist():
 
 
 # TODO investigate if this test can be rewritten to make it easier for understanding.
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["begin", "end", "dim"],
     [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases],

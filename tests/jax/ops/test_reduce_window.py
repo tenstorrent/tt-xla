@@ -20,6 +20,8 @@ def comparison_config() -> ComparisonConfig:
     return config
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "img_shape",  ## NHWC
     [

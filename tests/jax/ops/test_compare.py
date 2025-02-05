@@ -34,6 +34,8 @@ def convert_output_to_bfloat16(f: Callable):
     return wrapper
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -58,6 +60,8 @@ def test_compare_equal(
     run_op_test_with_random_inputs(equal, [x_shape, y_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -82,6 +86,8 @@ def test_compare_not_equal(
     run_op_test_with_random_inputs(not_equal, [x_shape, y_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -106,6 +112,8 @@ def test_compare_greater(
     run_op_test_with_random_inputs(greater, [x_shape, y_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -130,6 +138,8 @@ def test_compare_greater_equal(
     run_op_test_with_random_inputs(greater_equal, [x_shape, y_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -152,6 +162,8 @@ def test_compare_less(x_shape: tuple, y_shape: tuple, record_tt_xla_property: Ca
     run_op_test_with_random_inputs(less, [x_shape, y_shape])
 
 
+@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
