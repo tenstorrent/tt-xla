@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import ModelTester, RunMode
-from utils import record_model_test_properties
+from utils import compile_fail, record_model_test_properties
 
 from ..tester import BloomTester
 
@@ -30,7 +30,7 @@ def training_tester() -> BloomTester:
 # ----- Tests -----
 
 
-@pytest.mark.skip(reason="Unsupported data type")  # segfault
+@pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
 def test_bloom_3b_inference(
     inference_tester: BloomTester,
     record_tt_xla_property: Callable,

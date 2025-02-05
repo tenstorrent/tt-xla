@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import ModelTester, RunMode
-from utils import record_model_test_properties
+from utils import compile_fail, record_model_test_properties
 
 from ..tester import BloomTester
 
@@ -29,8 +29,11 @@ def training_tester() -> BloomTester:
 
 # ----- Tests -----
 
-
-@pytest.mark.skip(reason="Unsupported data type")  # segfault
+# This is an interesting one.
+# The error message seems to happen before the compile even begins
+# And then then compile segfaults with no useful information
+# It is highly likely that both are caused by the same root cause
+@pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
 def test_bloom_1b1_inference(
     inference_tester: BloomTester,
     record_tt_xla_property: Callable,
