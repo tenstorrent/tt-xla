@@ -5,9 +5,8 @@
 from typing import Dict, Sequence
 
 import jax
-from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxBloomForCausalLM
+from transformers import AutoTokenizer, FlaxBloomForCausalLM, FlaxPreTrainedModel
 
 
 class BloomTester(ModelTester):
@@ -23,7 +22,7 @@ class BloomTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
 
     # @override

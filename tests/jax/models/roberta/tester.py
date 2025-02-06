@@ -5,9 +5,8 @@
 from typing import Dict, Sequence
 
 import jax
-from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxRobertaForMaskedLM
+from transformers import AutoTokenizer, FlaxPreTrainedModel, FlaxRobertaForMaskedLM
 
 
 class FlaxRobertaForMaskedLMTester(ModelTester):
@@ -25,7 +24,7 @@ class FlaxRobertaForMaskedLMTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxRobertaForMaskedLM.from_pretrained(self._model_name)
 
     # @override
