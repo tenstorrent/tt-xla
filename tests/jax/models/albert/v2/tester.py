@@ -5,9 +5,8 @@
 from typing import Dict, Sequence
 
 import jax
-from flax import linen as nn
-from infra import ModelTester, RunMode, ComparisonConfig
-from transformers import AutoTokenizer, FlaxAlbertForMaskedLM
+from infra import ComparisonConfig, ModelTester, RunMode
+from transformers import AutoTokenizer, FlaxAlbertForMaskedLM, FlaxPreTrainedModel
 
 
 class AlbertV2Tester(ModelTester):
@@ -23,7 +22,7 @@ class AlbertV2Tester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxAlbertForMaskedLM.from_pretrained(self._model_name)
 
     # @override

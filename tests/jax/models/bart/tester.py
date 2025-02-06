@@ -5,9 +5,8 @@
 from typing import Dict, Sequence
 
 import jax
-from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxBartForCausalLM
+from transformers import AutoTokenizer, FlaxBartForCausalLM, FlaxPreTrainedModel
 
 
 class FlaxBartForCausalLMTester(ModelTester):
@@ -25,7 +24,7 @@ class FlaxBartForCausalLMTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxBartForCausalLM.from_pretrained(self._model_name)
 
     # @override

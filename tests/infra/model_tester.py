@@ -14,7 +14,6 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
-from .types import Model
 from .workload import Workload
 
 
@@ -80,12 +79,12 @@ class ModelTester(BaseTester, ABC):
         )
 
     @abstractmethod
-    def _get_model(self) -> Model:
+    def _get_model(self) -> Any:
         """Returns model instance."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _get_input_activations(self) -> Sequence[Any]:
+    def _get_input_activations(self) -> Any:
         """Returns input activations."""
         raise NotImplementedError("Subclasses must implement this method.")
 

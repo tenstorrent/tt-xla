@@ -6,9 +6,8 @@ from typing import Callable, Dict, Sequence
 
 import jax
 import pytest
-from flax import linen as nn
 from infra import ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM
+from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
 from utils import record_model_test_properties, runtime_fail
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"
@@ -21,7 +20,7 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
     """Tester for DistilBert model on a masked language modeling task"""
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxDistilBertForMaskedLM.from_pretrained(MODEL_PATH)
 
     # @override
