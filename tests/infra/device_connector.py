@@ -69,9 +69,13 @@ class DeviceConnector:
 
         return False
 
-    def connect_tt_device(self, num_device: int = 0) -> jax.Device:
+    def get_tt_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
+        tt_devices = jax.devices(DeviceType.TT.value)
+        return jax.make_mesh(shape, axis_names, devices=tt_devices)
+
+    def connect_tt_device(self, device_num: int = 0) -> jax.Device:
         """Returns TTDevice handle."""
-        return self.connect_device(DeviceType.TT, num_device)
+        return self.connect_device(DeviceType.TT, device_num)
 
     def connect_cpu(self) -> jax.Device:
         """Returns CPUDevice handle."""
@@ -81,16 +85,23 @@ class DeviceConnector:
         """Returns GPUDevice handle."""
         return self.connect_device(DeviceType.GPU)
 
-    def _number_of_devices(self, device_type: DeviceType) -> int:
-        """Returns the number of devices of specifed type."""
-        return len(jax.devices(device_type.value))
-
     def connect_device(
-        self, device_type: DeviceType, num_device: int = 0
+        self, device_type: DeviceType, device_num: int = 0
     ) -> jax.Device:
-        """Returns handle for device identified by `device_type`."""
-        assert num_device < self._number_of_devices(device_type)
-        return jax.devices(device_type.value)[num_device]
+        """
+        Returns handle for device identified by `device_type`.
+
+        If there are multiple available devices of `device_type`, `device_num` makes it
+        possible to choose between them. By default, returns first available device.
+        """
+        assert device_num < self._number_of_devices(device_type)
+        assert device_num >= 0
+
+        return jax.devices(device_type.value)[device_num]
+
+    def _number_of_devices(self, device_type: DeviceType) -> int:
+        """Returns the number of available devices of specified type."""
+        return len(jax.devices(device_type.value))
 
     def _supported_devices(self) -> Sequence[DeviceType]:
         """Returns list of supported device types."""

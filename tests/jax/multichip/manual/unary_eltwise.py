@@ -4,11 +4,9 @@
 
 import jax
 import jax.numpy as jnp
-from jax import jit
-from jax.experimental.shard_map import shard_map
 from jax.sharding import PartitionSpec
-from functools import partial
-from infra import run_multichip_test_with_random_inputs
+from infra import run_multichip_test_with_random_inputs, make_partition_spec
+from utils import compile_fail
 import pytest
 
 
@@ -27,11 +25,9 @@ def test_unary_eltwise(x_shape: tuple):
         stitched_result = b1 + b2
         return stitched_result
 
-    devices = jax.devices("tt")
-    mesh = jax.make_mesh((1, 2), ("x", "y"), devices=devices)
-    in_specs = (PartitionSpec("x", "y"),)
-    out_specs = PartitionSpec(None, None)
+    in_specs = (make_partition_spec((("x", "y"))),)
+    out_specs = make_partition_spec((None, None))
 
     run_multichip_test_with_random_inputs(
-        fwd, fwd_single_device, [x_shape], mesh, in_specs, out_specs
+        fwd, fwd_single_device, [x_shape], (1, 2), ("x", "y"), in_specs, out_specs
     )
