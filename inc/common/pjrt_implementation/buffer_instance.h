@@ -82,6 +82,9 @@ private:
 
   // Underlying datatype of tensor.
   std::optional<PJRT_Buffer_Type> DataType;
+
+  // OnReady event - currently not used.
+  EventInstance *on_ready_event_;
 };
 
 } // namespace tt::pjrt

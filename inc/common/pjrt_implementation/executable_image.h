@@ -9,7 +9,6 @@
 // https://llvm.org/LICENSE.txt
 
 #include <atomic>
-#include <memory>
 #include <string>
 
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -56,7 +55,7 @@ public:
   bool isOutputScalar(size_t index) const;
 
   const size_t get_num_addressable_devices() const {
-    return num_addressable_devices;
+    return m_num_addressable_devices;
   }
 
 private:
@@ -71,7 +70,7 @@ private:
 
   size_t m_arg_count;
   size_t m_result_count;
-  size_t num_addressable_devices;
+  size_t m_num_addressable_devices;
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
