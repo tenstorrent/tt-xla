@@ -11,13 +11,24 @@ from typing import Callable, Sequence
 
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
-from .device_runner import DeviceRunner
-from .multichip_workload import MultichipWorkload
+from .device_runner import DeviceRunner, device_connector
+from .workload import MultichipWorkload
 from .workload import Workload
 
 
 class MultichipTester(BaseTester):
-    """Specific tester for ops."""
+    """
+    A tester for evaluating operations in a multichip JAX execution environment.
+
+    This class extends `BaseTester` and provides functionality for testing
+    operations using a specified device mesh, input sharding specifications,
+    and output sharding specifications.
+
+    Attributes:
+        mesh (jax.Mesh): The device mesh over which the computation is distributed.
+        in_specs (tuple): The sharding specifications for the input tensors.
+        out_specs (jax.sharding.PartitionSpec): The sharding specification for the output tensor.
+    """
 
     def __init__(
         self,
@@ -31,16 +42,16 @@ class MultichipTester(BaseTester):
         self.out_specs = out_specs
         super().__init__(comparison_config)
 
-    def _compile_cpu(
+    def _compile_for_cpu(
         self, executable: Callable, static_argnames: Sequence[str] = None
     ) -> Callable:
-        """Sets up `executable` for just-in-time compile - specifically for CPU."""
+        """Sets up `executable` for just-in-time compile and execution on CPU"""
         return jax.jit(executable, static_argnames=static_argnames)
 
-    def _compile(
+    def _compile_for_device(
         self, executable: Callable, static_argnames: Sequence[str] = None
     ) -> Callable:
-        """Sets up `executable` for just-in-time compile."""
+        """Sets up executable for just-in-time compile and execution on multichip device."""
         module_sharded = shard_map(
             executable, mesh=self.mesh, in_specs=self.in_specs, out_specs=self.out_specs
         )
@@ -51,43 +62,44 @@ class MultichipTester(BaseTester):
             static_argnames=static_argnames,
         )
 
-    def test(self, workload: Workload, cpu_workload: Workload) -> None:
+    def test(
+        self, multichip_workload: MultichipWorkload, cpu_workload: Workload
+    ) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        compiled_executable = self._compile(workload.executable)
-        cpu_compiled_executable = self._compile_cpu(cpu_workload.executable)
-
-        cpu_compiled_workload = Workload(
-            cpu_compiled_executable, cpu_workload.args, cpu_workload.kwargs
-        )
-
-        compiled_workload = MultichipWorkload(
-            compiled_executable,
-            workload.args,
-            workload.kwargs,
+        multichip_compiled_workload = MultichipWorkload(
+            self._compile_for_device(multichip_workload.executable),
+            multichip_workload.args,
+            multichip_workload.kwargs,
             mesh=self.mesh,
             in_specs=self.in_specs,
         )
 
-        non_sharded_workload = DeviceRunner.put_with_none_sharding(compiled_workload)
+        cpu_compiled_workload = Workload(
+            self._compile_for_cpu(cpu_workload.executable),
+            cpu_workload.args,
+            cpu_workload.kwargs,
+        )
 
-        tt_res = DeviceRunner.run_manual(non_sharded_workload)
+        tt_multichip_res = DeviceRunner.run_on_multichip_device(
+            multichip_compiled_workload
+        )
         cpu_res = DeviceRunner.run_on_cpu(cpu_compiled_workload)
 
-        self._compare(tt_res, cpu_res)
+        self._compare(tt_multichip_res, cpu_res)
 
     def test_with_random_inputs(
         self,
-        f: Callable,
-        golden_f: Callable,
+        device_executable: Callable,
+        cpu_executable: Callable,
         input_shapes: Sequence[tuple],
         minval: float = 0.0,
         maxval: float = 1.0,
     ) -> None:
         """
-        Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
-        TT device and CPU and comparing the results.
+        Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
+        TT devices and comparing it to output of the cpu executable ran with the same input.
         """
         inputs = [
             jax.random.uniform(
@@ -95,16 +107,19 @@ class MultichipTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        workload = Workload(f, inputs)
-        cpu_workload = Workload(golden_f, inputs)
-        self.test(workload, cpu_workload)
+        multichip_workload = MultichipWorkload(
+            device_executable, inputs, mesh=self.mesh, in_specs=self.in_specs
+        )
+        cpu_workload = Workload(cpu_executable, inputs)
+        self.test(multichip_workload, cpu_workload)
 
 
 def run_multichip_test_with_random_inputs(
-    mesh_test: Callable,
-    golden_test: Callable,
+    device_executable: Callable,
+    cpu_executable: Callable,
     input_shapes: Sequence[tuple],
-    mesh: jax.Mesh,
+    mesh_shape: tuple,
+    axis_names: tuple,
     in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
     minval: float = 0.0,
@@ -112,8 +127,11 @@ def run_multichip_test_with_random_inputs(
     comparison_config: ComparisonConfig = ComparisonConfig(),
 ) -> None:
     """
-    Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
-    TT device and CPU and comparing the results based on `comparison_config`.
+    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
+    TT devices and comparing it to output of the cpu executable ran with the same input.
     """
+    mesh = device_connector.get_tt_device_mesh(mesh_shape, axis_names)
     tester = MultichipTester(mesh, in_specs, out_specs, comparison_config)
-    tester.test_with_random_inputs(mesh_test, golden_test, input_shapes, minval, maxval)
+    tester.test_with_random_inputs(
+        device_executable, cpu_executable, input_shapes, minval, maxval
+    )

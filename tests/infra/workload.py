@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
+import jax
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 
@@ -27,3 +28,13 @@ class Workload:
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
         return self.executable(*self.args, **self.kwargs)
+
+
+@dataclass
+class MultichipWorkload(Workload):
+    """
+    An extension of the Workload dataclass that includes a mesh and partition specs, necessary for multichip sharding.
+    """
+
+    mesh: jax.sharding.Mesh = None
+    in_specs: Sequence[jax.sharding.PartitionSpec] = None

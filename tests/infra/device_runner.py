@@ -9,7 +9,7 @@ from typing import Callable, Sequence
 
 
 from .device_connector import DeviceType, device_connector
-from .multichip_workload import MultichipWorkload
+from .workload import MultichipWorkload
 from .types import Tensor
 from .workload import Workload
 
@@ -20,14 +20,17 @@ class DeviceRunner:
     """
 
     @staticmethod
-    def run_manual(workload: Workload) -> Tensor:
-        """Runs `workload` on TT device."""
-        return DeviceRunner._run_manual(workload)
-
-    @staticmethod
     def run_on_tt_device(workload: Workload, device_num: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
         return DeviceRunner._run_on_device(workload, DeviceType.TT, device_num)
+
+    @staticmethod
+    def run_on_multichip_device(multichip_workload: MultichipWorkload) -> Tensor:
+        """Runs `workload` on a multichip device."""
+        sharded_workload = DeviceRunner._safely_put_sharding_on_workload(
+            multichip_workload
+        )
+        return sharded_workload.execute().block_until_ready()
 
     @staticmethod
     def run_on_cpu(workload: Workload) -> Tensor:
@@ -70,10 +73,10 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
-    def put_with_none_sharding(
+    def _safely_put_sharding_on_workload(
         multichip_workload: MultichipWorkload,
     ) -> MultichipWorkload:
-        """Gives inputs shardings for multichip workloads"""
+        """Gives the workload inputs shardings, necessary for multichip workloads"""
         args_on_device = []
         spec_index = 0
         for arg in multichip_workload.args:
@@ -108,11 +111,6 @@ class DeviceRunner:
             mesh=multichip_workload.mesh,
             in_specs=multichip_workload.in_specs,
         )
-
-    @staticmethod
-    def _run_manual(workload: Workload) -> Tensor:
-        """Runs `workload` on a device."""
-        return workload.execute().block_until_ready()
 
     @staticmethod
     def _run_on_device(
