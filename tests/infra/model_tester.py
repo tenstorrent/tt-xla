@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Dict, Mapping, Sequence, Union
 
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
@@ -14,6 +14,7 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
+from .types import Model
 from .workload import Workload
 
 
@@ -79,12 +80,12 @@ class ModelTester(BaseTester, ABC):
         )
 
     @abstractmethod
-    def _get_model(self) -> Any:
+    def _get_model(self) -> Model:
         """Returns model instance."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _get_input_activations(self) -> Any:
+    def _get_input_activations(self) -> Union[Dict, Sequence[Any]]:
         """Returns input activations."""
         raise NotImplementedError("Subclasses must implement this method.")
 
