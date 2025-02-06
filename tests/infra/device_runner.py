@@ -9,9 +9,8 @@ from typing import Callable, Sequence
 
 
 from .device_connector import DeviceType, device_connector
-from .workload import MultichipWorkload
 from .types import Tensor
-from .workload import Workload
+from .workload import MultichipWorkload, Workload
 
 
 class DeviceRunner:

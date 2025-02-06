@@ -4,14 +4,14 @@
 
 import jax
 import jax.numpy as jnp
-from jax.sharding import PartitionSpec
-from infra import run_multichip_test_with_random_inputs
+from infra import run_multichip_test_with_random_inputs, make_partition_spec
 import pytest
-from tests.utils import compile_failed, make_partition_spec
+from utils import compile_fail
+from tests.utils import make_partition_spec
 
 
 @pytest.mark.parametrize("x_shape", [(8192, 784)])
-@pytest.mark.skip(reason=compile_failed("Multichip still in development"))
+@pytest.mark.skip(reason=compile_fail("Multichip still in development"))
 def test_all_gather(x_shape: tuple):
     def fwd(batch):
         act = jax.lax.all_gather(batch, "batch", axis=0, tiled=True)

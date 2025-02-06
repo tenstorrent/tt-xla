@@ -5,8 +5,8 @@
 import jax
 import jax.numpy as jnp
 from infra import run_multichip_test_with_random_inputs, make_partition_spec
-from utils import compile_fail
 import pytest
+from utils import compile_fail
 from tests.utils import make_partition_spec
 
 
