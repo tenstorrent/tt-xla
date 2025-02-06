@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence, Dict
+from typing import Dict, Sequence
 
 import jax
-from flax import linen as nn
-from infra import ModelTester, RunMode, ComparisonConfig
-from transformers import LlamaTokenizer, FlaxLlamaForCausalLM
+from infra import ComparisonConfig, ModelTester, RunMode
+from transformers import FlaxLlamaForCausalLM, FlaxPreTrainedModel, LlamaTokenizer
 
 
 class LLamaTester(ModelTester):
@@ -25,7 +24,7 @@ class LLamaTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxLlamaForCausalLM.from_pretrained(self._model_name, from_pt=True)
 
     # @override

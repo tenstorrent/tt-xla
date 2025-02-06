@@ -7,7 +7,11 @@ from typing import Dict
 import jax
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import BeitImageProcessor, FlaxBeitForImageClassification
+from transformers import (
+    BeitImageProcessor,
+    FlaxBeitForImageClassification,
+    FlaxPreTrainedModel,
+)
 
 
 class FlaxBeitForImageClassificationTester(ModelTester):
@@ -23,7 +27,7 @@ class FlaxBeitForImageClassificationTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
+    def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxBeitForImageClassification.from_pretrained(self._model_name)
 
     # @override

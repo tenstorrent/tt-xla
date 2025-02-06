@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Dict, Mapping, Sequence, Union
 
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
@@ -85,7 +85,7 @@ class ModelTester(BaseTester, ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _get_input_activations(self) -> Sequence[Any]:
+    def _get_input_activations(self) -> Union[Dict, Sequence[Any]]:
         """Returns input activations."""
         raise NotImplementedError("Subclasses must implement this method.")
 
