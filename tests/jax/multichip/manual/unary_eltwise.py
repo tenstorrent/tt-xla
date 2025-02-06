@@ -4,14 +4,14 @@
 
 import jax
 import jax.numpy as jnp
-from jax.sharding import PartitionSpec
-from infra import run_multichip_test_with_random_inputs
+from infra import run_multichip_test_with_random_inputs, make_partition_spec
+from utils import compile_fail
 import pytest
-from tests.utils import compile_failed, make_partition_spec
+from tests.utils import make_partition_spec
 
 
 @pytest.mark.parametrize("x_shape", [(256, 256)])
-@pytest.mark.skip(reason=compile_failed("Multichip still in development"))
+@pytest.mark.skip(reason=compile_fail("Multichip still in development"))
 def test_unary_eltwise(x_shape: tuple):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
