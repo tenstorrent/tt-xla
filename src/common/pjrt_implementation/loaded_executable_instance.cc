@@ -97,7 +97,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (size_t i = 0; i < args->num_args; ++i) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
-    rt_inputs.emplace_back(buffer->tensor());
+    rt_inputs.emplace_back(buffer->getTensor());
     int64_t buffer_device_id =
         buffer->device().device_description()->getDeviceId();
     device_ids.insert(chip_ids[buffer_device_id]);
@@ -129,11 +129,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     // PJRT expects an empty shape for scalars.
     std::vector<std::uint32_t> output_shape =
         is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
-    std::unique_ptr<tt::runtime::Tensor> tensor_ptr =
-        std::make_unique<tt::runtime::Tensor>(rt_outputs[i]);
     auto result_buffer = std::make_unique<BufferInstance>(
-        *this->addressable_devices_[dev_index], tensor_ptr, output_shape,
-        output_specs[i].stride, nullptr);
+        *this->addressable_devices_[dev_index], rt_outputs[i], output_shape,
+        output_specs[i].stride);
     result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
         output_specs[i].dataType));
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());

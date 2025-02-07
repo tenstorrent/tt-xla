@@ -19,19 +19,26 @@ int BufferInstance::id_counter_ = 0;
 BufferInstance::~BufferInstance() = default;
 
 BufferInstance::BufferInstance(DeviceInstance &device,
-                               std::unique_ptr<tt::runtime::Tensor> &tensor,
-                               std::vector<std::uint32_t> shape,
-                               std::vector<std::uint32_t> stride,
-                               std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), host_buffer_ptr_(host_buffer_ptr) {
+                               tt::runtime::Tensor &tensor,
+                               const std::vector<std::uint32_t> &shape,
+                               const std::vector<std::uint32_t> &stride)
+    : device_(device), tensor_(tensor) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
-  tensor_ = std::move(tensor);
   dims_.resize(shape.size());
   for (int i = 0; i < shape.size(); i++) {
     dims_[i] = shape[i];
   }
   stride_ = stride;
   unique_id_ = id_counter_++;
+}
+
+BufferInstance::BufferInstance(DeviceInstance &device,
+                               tt::runtime::Tensor &tensor,
+                               const std::vector<std::uint32_t> &shape,
+                               const std::vector<std::uint32_t> &stride,
+                               std::shared_ptr<void> host_buffer_ptr)
+    : BufferInstance(device, tensor, shape, stride) {
+  host_buffer_ptr_ = host_buffer_ptr;
 }
 
 void BufferInstance::ComputeLayout() {
@@ -133,8 +140,12 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    buffer->on_ready_event_ = std::make_shared<EventInstance>();
-    args->event = *buffer->on_ready_event_;
+    std::unique_ptr<EventInstance> onReadyEvent =
+        std::make_unique<EventInstance>();
+    buffer->on_ready_event_ = onReadyEvent.get();
+    // Releasing the ownership to the PJRT API caller since the caller is
+    // responsible for calling PJRT_Event_Destroy on event.
+    args->event = *onReadyEvent.release();
     return nullptr;
   };
   // TODO: Rework the API to be Aliases(b1, b2) to let the plugin explicitly
@@ -209,7 +220,7 @@ tt_pjrt_status BufferInstance::CopyToHost(void *dst, size_t dst_size,
   };
 
   DLOG_F(INFO, "Copy to host id: %d", unique_id());
-  tt::runtime::memcpy(dst, tensor());
+  tt::runtime::memcpy(dst, getTensor());
 
   EventInstance *copy_done_event = new EventInstance();
   copy_done_event->OnReady(copy_done_callback, nullptr);
@@ -220,7 +231,7 @@ tt_pjrt_status BufferInstance::CopyToHost(void *dst, size_t dst_size,
 
 PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
-  tt::target::DataType Type = tt::runtime::getTensorDataType(tensor());
+  tt::target::DataType Type = tt::runtime::getTensorDataType(getTensor());
   return tt::pjrt::utils::convertElementTypeToBufferType(Type);
 }
 
