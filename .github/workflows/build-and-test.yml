@@ -165,6 +165,7 @@ jobs:
         - /etc/udev/rules.d:/etc/udev/rules.d
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
 
     steps:
     - uses: actions/checkout@v4
@@ -236,6 +237,8 @@ jobs:
           cd ../..
 
     - name: Run tests
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
