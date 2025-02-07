@@ -30,7 +30,7 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
     # returned by the MLIR runtime will reference the same data as the input.
     # If the input tensor is deallocated, the output tensor will lose access
     # to valid data and may contain garbage.
-    # See issue #244 for more details.
+    # See issue #248 for more details.
     if from_dtype == to_dtype or (from_dtype == jnp.uint32 and to_dtype == jnp.uint64):
         pytest.xfail(
             runtime_fail(

@@ -22,9 +22,7 @@ BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &shape,
                                const std::vector<std::uint32_t> &stride)
-    : BufferInstance(device, tensor, shape, stride, nullptr) {
-
-}
+    : BufferInstance(device, tensor, shape, stride, nullptr) {}
 
 BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor &tensor,

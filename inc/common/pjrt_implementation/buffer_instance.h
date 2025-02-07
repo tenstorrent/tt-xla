@@ -91,7 +91,7 @@ private:
   // OnReady event - currently not used.
   EventInstance *on_ready_event_;
 
-  // Pointer to the host memory used to create this buffer. 
+  // Pointer to the host memory used to create this buffer.
   // If buffer is created
   // on device, the value of this pointer is nullptr. It is necessary to keep
   // track of this memory since the runtime will not clean it, and we need to
