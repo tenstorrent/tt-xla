@@ -90,7 +90,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   return tt_pjrt_status::kSuccess;
 }
 
-size_t DeviceInstance::getSize(const std::vector<std::uint32_t> &shape,
+size_t DeviceInstance::getTensorSize(const std::vector<std::uint32_t> &shape,
                                size_t element_size) {
   size_t size = 1;
   for (auto dim : shape) {
@@ -103,7 +103,7 @@ BufferInstance *DeviceInstance::MakeDeviceBuffer(
     const void *data, std::vector<std::uint32_t> &shape,
     std::vector<std::uint32_t> &strides, size_t element_size,
     tt::target::DataType element_type) {
-  size_t tensor_size = getSize(shape, element_size);
+  size_t tensor_size = getTensorSize(shape, element_size);
   std::shared_ptr<void> new_memory(new char[tensor_size], [](void *ptr) {
     delete[] static_cast<char *>(ptr);
   });

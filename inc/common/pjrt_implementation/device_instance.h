@@ -69,7 +69,7 @@ public:
 private:
   tt_pjrt_status OpenDevice();
 
-  size_t getSize(const std::vector<std::uint32_t> &shape, size_t element_size);
+  static size_t getTensorSize(const std::vector<std::uint32_t> &shape, size_t element_size);
 
   BufferInstance *MakeDeviceBuffer(const void *data_ptr,
                                    std::vector<std::uint32_t> &shape,
