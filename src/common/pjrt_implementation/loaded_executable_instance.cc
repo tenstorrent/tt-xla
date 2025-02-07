@@ -97,7 +97,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (size_t i = 0; i < args->num_args; ++i) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[dev_index][i]);
-    rt_inputs.emplace_back(buffer->tensor());
+    rt_inputs.emplace_back(buffer->getTensor());
     int64_t buffer_device_id =
         buffer->device().device_description()->getDeviceId();
     device_ids.insert(chip_ids[buffer_device_id]);

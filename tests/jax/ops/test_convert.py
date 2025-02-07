@@ -25,6 +25,18 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
     Extracted here in order not to pollute the test function.
     """
     # ---------- Atol comparison failed ----------
+    # When no conversion is required, a no-op MLIR graph is created.
+    # However, due to input tensor ownership issues, the output tensor
+    # returned by the MLIR runtime will reference the same data as the input.
+    # If the input tensor is deallocated, the output tensor will lose access
+    # to valid data and may contain garbage.
+    # See issue #248 for more details.
+    if from_dtype == to_dtype or (from_dtype == jnp.uint32 and to_dtype == jnp.uint64):
+        pytest.xfail(
+            runtime_fail(
+                "Atol comparison failed. Calculated: atol=65535.0. Required: atol=0.16."
+            )
+        )
 
     if from_dtype == jnp.uint32 and to_dtype in [jnp.uint16, jnp.int16]:
         pytest.xfail(

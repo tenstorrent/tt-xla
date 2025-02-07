@@ -10,6 +10,8 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+#include "tt/runtime/runtime.h"
+
 #include "common/pjrt_implementation/device_description.h"
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/status.h"
@@ -66,6 +68,18 @@ public:
 
 private:
   tt_pjrt_status OpenDevice();
+
+  static size_t getTensorSize(const std::vector<std::uint32_t> &shape,
+                              size_t element_size);
+
+  // Create a buffer instance from a host data pointer, by copying it into
+  // another memory. This is necessary as we have no ownership of the passed
+  // pointer, and it might happen that the pointer is deallocated before the
+  // buffer is used. See issue #248 for more details.
+  std::unique_ptr<BufferInstance>
+  MakeDeviceBuffer(const void *data_ptr, std::vector<std::uint32_t> &shape,
+                   std::vector<std::uint32_t> &strides, size_t element_size,
+                   tt::target::DataType element_type);
 
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
