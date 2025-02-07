@@ -23,7 +23,7 @@ def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
   return tensor
 
 def initializePJRT():
-  path = os.path.join(os.path.dirname(__file__), "/localdev/ajakovljevic/tt-xla/build/src/tt/pjrt_plugin_tt.so")
+  path = os.path.join(os.path.dirname(__file__), "/proj_sw/user_dev/sdjukic/tt-xla/tt-xla/build/src/tt/pjrt_plugin_tt.so")
   if not os.path.exists(path):
     raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}, have you compiled the project?")
   plugin = xb.register_plugin('tt', priority=10, library_path=path, options=None)
