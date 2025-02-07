@@ -3,7 +3,6 @@
 build_type="$1"
 shift
 
-# If first_param is empty, set it to a default value
 if [ -z "$build_type" ]; then
     build_type="Release"
 fi
