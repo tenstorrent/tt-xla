@@ -19,7 +19,7 @@ git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
 source venv/activate
 ./configure # first parameter is build type, ie ./configure Debug builds in debug, parameters after the first are passed down to CMake directly
-cmake --build build
+./build
 ```
 
 ## Testing
