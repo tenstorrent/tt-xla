@@ -91,11 +91,12 @@ private:
   // OnReady event - currently not used.
   EventInstance *on_ready_event_;
 
-  // Pointer to the host memory used to create this buffer, if buffer is created
+  // Pointer to the host memory used to create this buffer. 
+  // If buffer is created
   // on device, the value of this pointer is nullptr. It is necessary to keep
   // track of this memory since the runtime will not clean it, and we need to
   // pass the shared pointer to the runtime.
-  std::shared_ptr<void> host_buffer_ptr_ = nullptr;
+  std::shared_ptr<void> host_buffer_ptr_;
 };
 
 } // namespace tt::pjrt

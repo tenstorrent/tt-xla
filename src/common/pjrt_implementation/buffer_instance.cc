@@ -22,14 +22,8 @@ BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &shape,
                                const std::vector<std::uint32_t> &stride)
-    : device_(device), tensor_(tensor) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
-  dims_.resize(shape.size());
-  for (int i = 0; i < shape.size(); i++) {
-    dims_[i] = shape[i];
-  }
-  stride_ = stride;
-  unique_id_ = id_counter_++;
+    : BufferInstance(device, tensor, shape, stride, nullptr) {
+
 }
 
 BufferInstance::BufferInstance(DeviceInstance &device,
@@ -37,8 +31,14 @@ BufferInstance::BufferInstance(DeviceInstance &device,
                                const std::vector<std::uint32_t> &shape,
                                const std::vector<std::uint32_t> &stride,
                                std::shared_ptr<void> host_buffer_ptr)
-    : BufferInstance(device, tensor, shape, stride) {
-  host_buffer_ptr_ = host_buffer_ptr;
+    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
+  dims_.resize(shape.size());
+  for (int i = 0; i < shape.size(); i++) {
+    dims_[i] = shape[i];
+  }
+  stride_ = stride;
+  unique_id_ = id_counter_++;
 }
 
 void BufferInstance::ComputeLayout() {
