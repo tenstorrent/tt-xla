@@ -37,10 +37,10 @@ class MultichipTester(BaseTester):
         out_specs: jax.sharding.PartitionSpec,
         comparison_config: ComparisonConfig = ComparisonConfig(),
     ) -> None:
-        self.mesh = mesh
+        super().__init__(comparison_config)
+        self.device_mesh = mesh
         self.in_specs = in_specs
         self.out_specs = out_specs
-        super().__init__(comparison_config)
 
     def _compile_for_cpu(
         self, executable: Callable, static_argnames: Sequence[str] = None
@@ -53,9 +53,12 @@ class MultichipTester(BaseTester):
     ) -> Callable:
         """Sets up executable for just-in-time compile and execution on multichip device."""
         module_sharded = shard_map(
-            executable, mesh=self.mesh, in_specs=self.in_specs, out_specs=self.out_specs
+            executable,
+            mesh=self.device_mesh,
+            in_specs=self.in_specs,
+            out_specs=self.out_specs,
         )
-        output_sharding = NamedSharding(self.mesh, self.out_specs)
+        output_sharding = NamedSharding(self.device_mesh, self.out_specs)
         return jax.jit(
             module_sharded,
             out_shardings=output_sharding,
@@ -66,13 +69,13 @@ class MultichipTester(BaseTester):
         self, multichip_workload: MultichipWorkload, cpu_workload: Workload
     ) -> None:
         """
-        Runs test by running `workload` on TT device and CPU and comparing the results.
+        Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and comparing the results.
         """
         multichip_compiled_workload = MultichipWorkload(
             self._compile_for_device(multichip_workload.executable),
             multichip_workload.args,
             multichip_workload.kwargs,
-            mesh=self.mesh,
+            mesh=self.device_mesh,
             in_specs=self.in_specs,
         )
 
@@ -107,11 +110,11 @@ class MultichipTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        multichip_workload = MultichipWorkload(
-            device_executable, inputs, mesh=self.mesh, in_specs=self.in_specs
+        device_workload = MultichipWorkload(
+            device_executable, inputs, mesh=self.device_mesh, in_specs=self.in_specs
         )
         cpu_workload = Workload(cpu_executable, inputs)
-        self.test(multichip_workload, cpu_workload)
+        self.test(device_workload, cpu_workload)
 
 
 def run_multichip_test_with_random_inputs(
