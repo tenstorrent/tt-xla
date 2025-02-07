@@ -70,6 +70,7 @@ class DeviceConnector:
         return False
 
     def get_tt_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
+        """Returns TTDevice mesh with specified `shape` and `axis_names`."""
         tt_devices = jax.devices(DeviceType.TT.value)
         return jax.make_mesh(shape, axis_names, devices=tt_devices)
 

@@ -25,22 +25,23 @@ class MultichipTester(BaseTester):
     and output sharding specifications.
 
     Attributes:
-        mesh (jax.Mesh): The device mesh over which the computation is distributed.
+        device_mesh (jax.Mesh): The device mesh over which the computation is distributed.
         in_specs (tuple): The sharding specifications for the input tensors.
         out_specs (jax.sharding.PartitionSpec): The sharding specification for the output tensor.
     """
 
     def __init__(
         self,
-        mesh: jax.Mesh,
-        in_specs: tuple,
+        in_specs: tuple[jax.sharding.PartitionSpec],
         out_specs: jax.sharding.PartitionSpec,
+        mesh_shape: tuple,
+        axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
     ) -> None:
-        self.mesh = mesh
+        super().__init__(comparison_config)
         self.in_specs = in_specs
         self.out_specs = out_specs
-        super().__init__(comparison_config)
+        self.device_mesh = device_connector.get_tt_device_mesh(mesh_shape, axis_names)
 
     def _compile_for_cpu(
         self, executable: Callable, static_argnames: Sequence[str] = None
@@ -53,9 +54,12 @@ class MultichipTester(BaseTester):
     ) -> Callable:
         """Sets up executable for just-in-time compile and execution on multichip device."""
         module_sharded = shard_map(
-            executable, mesh=self.mesh, in_specs=self.in_specs, out_specs=self.out_specs
+            executable,
+            mesh=self.device_mesh,
+            in_specs=self.in_specs,
+            out_specs=self.out_specs,
         )
-        output_sharding = NamedSharding(self.mesh, self.out_specs)
+        output_sharding = NamedSharding(self.device_mesh, self.out_specs)
         return jax.jit(
             module_sharded,
             out_shardings=output_sharding,
@@ -66,28 +70,26 @@ class MultichipTester(BaseTester):
         self, multichip_workload: MultichipWorkload, cpu_workload: Workload
     ) -> None:
         """
-        Runs test by running `workload` on TT device and CPU and comparing the results.
+        Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and comparing the results.
         """
-        multichip_compiled_workload = MultichipWorkload(
+        compiled_device_workload = MultichipWorkload(
             self._compile_for_device(multichip_workload.executable),
             multichip_workload.args,
             multichip_workload.kwargs,
-            mesh=self.mesh,
+            device_mesh=self.device_mesh,
             in_specs=self.in_specs,
         )
 
-        cpu_compiled_workload = Workload(
+        compiled_cpu_workload = Workload(
             self._compile_for_cpu(cpu_workload.executable),
             cpu_workload.args,
             cpu_workload.kwargs,
         )
 
-        tt_multichip_res = DeviceRunner.run_on_multichip_device(
-            multichip_compiled_workload
-        )
-        cpu_res = DeviceRunner.run_on_cpu(cpu_compiled_workload)
+        device_res = DeviceRunner.run_on_multichip_device(compiled_device_workload)
+        cpu_res = DeviceRunner.run_on_cpu(compiled_cpu_workload)
 
-        self._compare(tt_multichip_res, cpu_res)
+        self._compare(device_res, cpu_res)
 
     def test_with_random_inputs(
         self,
@@ -107,11 +109,11 @@ class MultichipTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        multichip_workload = MultichipWorkload(
-            device_executable, inputs, mesh=self.mesh, in_specs=self.in_specs
+        device_workload = MultichipWorkload(
+            device_executable, inputs, mesh=self.device_mesh, in_specs=self.in_specs
         )
         cpu_workload = Workload(cpu_executable, inputs)
-        self.test(multichip_workload, cpu_workload)
+        self.test(device_workload, cpu_workload)
 
 
 def run_multichip_test_with_random_inputs(
@@ -130,8 +132,9 @@ def run_multichip_test_with_random_inputs(
     Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
     TT devices and comparing it to output of the cpu executable ran with the same input.
     """
-    mesh = device_connector.get_tt_device_mesh(mesh_shape, axis_names)
-    tester = MultichipTester(mesh, in_specs, out_specs, comparison_config)
+    tester = MultichipTester(
+        in_specs, out_specs, mesh_shape, axis_names, comparison_config
+    )
     tester.test_with_random_inputs(
         device_executable, cpu_executable, input_shapes, minval, maxval
     )

@@ -26,10 +26,10 @@ class DeviceRunner:
     @staticmethod
     def run_on_multichip_device(multichip_workload: MultichipWorkload) -> Tensor:
         """Runs `workload` on a multichip device."""
-        sharded_workload = DeviceRunner._safely_put_sharding_on_workload(
+        sharded_workload = DeviceRunner._put_multichip_workload_on_device(
             multichip_workload
         )
-        return sharded_workload.execute().block_until_ready()
+        return sharded_workload.execute()
 
     @staticmethod
     def run_on_cpu(workload: Workload) -> Tensor:
@@ -72,18 +72,54 @@ class DeviceRunner:
         raise NotImplementedError("Support for GPUs not implemented")
 
     @staticmethod
-    def _safely_put_sharding_on_workload(
+    def _run_on_device(
+        workload: Workload, device_type: DeviceType, device_num: int = 0
+    ) -> Tensor:
+        """Runs `workload` on device identified by `device_type`."""
+        device_workload = DeviceRunner._put_on_device(workload, device_type, device_num)
+        device = device_connector.connect_device(device_type, device_num)
+
+        with jax.default_device(device):
+            return device_workload.execute()
+
+    @staticmethod
+    def _put_sharded_tensor_on_multichip_device(
+        tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
+    ) -> Tensor:
+        """
+        Needed for multichip: Uses put_device to give inputs shardings.
+        We just put dummy sharding equal to none, since jax needs to have some notion of sharding
+        when running graph with these buffers as input.
+        TODO: This can be omitted when we find a way to get sharding information from the StableHLO
+        code back to jax through a protobuf (issue #227).
+        """
+        none_tuple = (None,) * len(in_spec)
+        none_spec = PartitionSpec(*none_tuple)
+        return jax.device_put(tensor, NamedSharding(mesh, none_spec), may_alias=True)
+
+    @staticmethod
+    def _put_on_device(
+        workload: Workload, device_type: DeviceType, device_num: int = 0
+    ) -> Workload:
+        """Puts `workload` on device and returns it."""
+        device = device_connector.connect_device(device_type, device_num)
+        return DeviceRunner._safely_put_workload_on_device(workload, device)
+
+    @staticmethod
+    def _put_multichip_workload_on_device(
         multichip_workload: MultichipWorkload,
     ) -> MultichipWorkload:
         """Gives the workload inputs shardings, necessary for multichip workloads"""
         args_on_device = []
         spec_index = 0
+        # TODO: It might necessary to put a try-except block here, but holding that off until we
+        # come across a case where it's needed.
         for arg in multichip_workload.args:
             if not isinstance(arg, Tensor):
                 args_on_device.append(arg)
             else:
                 args_on_device.append(
-                    DeviceRunner._put_tensor_none_sharding(
+                    DeviceRunner._put_sharded_tensor_on_multichip_device(
                         arg,
                         multichip_workload.mesh,
                         multichip_workload.in_specs[spec_index],
@@ -96,7 +132,9 @@ class DeviceRunner:
             if not isinstance(value, Tensor):
                 kwargs_on_device[key] = value
             else:
-                kwargs_on_device[key] = DeviceRunner._put_tensor_none_sharding(
+                kwargs_on_device[
+                    key
+                ] = DeviceRunner._put_sharded_tensor_on_multichip_device(
                     value,
                     multichip_workload.mesh,
                     multichip_workload.in_specs[spec_index],
@@ -110,34 +148,6 @@ class DeviceRunner:
             mesh=multichip_workload.mesh,
             in_specs=multichip_workload.in_specs,
         )
-
-    @staticmethod
-    def _run_on_device(
-        workload: Workload, device_type: DeviceType, device_num: int = 0
-    ) -> Tensor:
-        """Runs `workload` on device identified by `device_type`."""
-        device_workload = DeviceRunner._put_on_device(workload, device_type, device_num)
-        device = device_connector.connect_device(device_type, device_num)
-
-        with jax.default_device(device):
-            return device_workload.execute()
-
-    @staticmethod
-    def _put_tensor_none_sharding(
-        tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
-    ) -> Tensor:
-        """Needed for multichip: Uses put_device to give inputs shardings."""
-        none_tuple = (None,) * len(in_spec)
-        none_spec = PartitionSpec(*none_tuple)
-        return jax.device_put(tensor, NamedSharding(mesh, none_spec), may_alias=True)
-
-    @staticmethod
-    def _put_on_device(
-        workload: Workload, device_type: DeviceType, device_num: int = 0
-    ) -> Workload:
-        """Puts `workload` on device and returns it."""
-        device = device_connector.connect_device(device_type, device_num)
-        return DeviceRunner._safely_put_workload_on_device(workload, device)
 
     @staticmethod
     def _put_tensors_on_device(
