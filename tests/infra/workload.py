@@ -36,5 +36,5 @@ class MultichipWorkload(Workload):
     An extension of the Workload dataclass that includes a mesh and partition specs, necessary for multichip sharding.
     """
 
-    mesh: jax.sharding.Mesh = None
+    device_mesh: jax.sharding.Mesh = None
     in_specs: Sequence[jax.sharding.PartitionSpec] = None
