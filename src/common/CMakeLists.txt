@@ -61,5 +61,5 @@ target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/runtime/lib
 )
