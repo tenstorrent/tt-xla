@@ -48,8 +48,6 @@ target_include_directories(TTPJRTCommon PUBLIC
 
 target_link_libraries(TTPJRTCommon PUBLIC
     loguru
-    LLVM
-    MLIR
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
@@ -60,6 +58,5 @@ target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
 target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/runtime/lib
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
 )
