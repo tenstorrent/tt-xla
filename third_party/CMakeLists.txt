@@ -26,7 +26,7 @@ else()
     add_subdirectory(pjrt_c_api)
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
-    set(TTMLIR_LIB_DIR ${TTPJRT_SOURCE_DIR}/install)
+    set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
