@@ -32,7 +32,7 @@ else()
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        INSTALL_COMMAND "${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib"
+        INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
