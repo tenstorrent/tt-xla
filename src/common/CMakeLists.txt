@@ -35,12 +35,7 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include/ttmlir/Target/Common
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/shardy/
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
