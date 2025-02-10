@@ -50,6 +50,8 @@ else()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
+    install(DIRECTORY ${TTMLIR_LIB_DIR}/lib DESTINATION "${CMAKE_INSTALL_PREFIX}")
+
     # Link to all TTMLIR libraries in ${TTMLIR_INSTALL_DIR}/install/lib
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
