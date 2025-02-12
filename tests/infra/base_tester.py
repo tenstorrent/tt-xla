@@ -67,7 +67,9 @@ class BaseTester(ABC):
 
         Tensors need to be in same data format in order to compare them.
         """
-        return [
-            tensor.astype("float32") if tensor.dtype.str != "float32" else tensor
-            for tensor in tensors
-        ]
+        return jax.tree.map(
+            lambda tensor: tensor.astype("float32")
+            if tensor.dtype.str != "float32"
+            else tensor,
+            tensors,
+        )
