@@ -75,25 +75,20 @@ class ComparisonConfig:
 
 @run_on_cpu
 def compare_equal(device_output: Tensor, golden_output: Tensor) -> None:
-    assert isinstance(device_output, jax.Array) and isinstance(
-        golden_output, jax.Array
-    ), f"Currently only jax.Array is supported"
-
-    eq = (device_output == golden_output).all()
-
-    assert eq, f"Equal comparison failed."
+    passed = jax.tree.map(lambda x, y: (x == y).all(), device_output, golden_output)
+    assert jax.tree.all(passed), f"Equal comparison failed."
 
 
 @run_on_cpu
 def compare_atol(
     device_output: Tensor, golden_output: Tensor, atol_config: AtolConfig
 ) -> None:
-    assert isinstance(device_output, jax.Array) and isinstance(
-        golden_output, jax.Array
-    ), f"Currently only jax.Array is supported {type(device_output)}, {type(golden_output)}"
-
-    atol = jnp.max(jnp.abs(device_output - golden_output))
-
+    leaf_atols = jax.tree.map(
+        lambda x, y: jnp.max(jnp.abs(x - y)),
+        device_output,
+        golden_output,
+    )
+    atol = jax.tree.reduce(lambda x, y: jnp.max(x, y), leaf_atols)
     assert atol <= atol_config.required_atol, (
         f"Atol comparison failed. "
         f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
@@ -104,17 +99,18 @@ def compare_atol(
 def compare_pcc(
     device_output: Tensor, golden_output: Tensor, pcc_config: PccConfig
 ) -> None:
-    assert isinstance(device_output, jax.Array) and isinstance(
-        golden_output, jax.Array
-    ), f"Currently only jax.Array is supported"
-
-    # If tensors are really close, pcc will be nan. Handle that before calculating pcc.
-    try:
+    # Note, minmimum of pccs is not the same as pcc across all elements.
+    # If the user wants to compare pcc across all elements, they should concatenate the tensors themselves
+    # This should be fine, as it's effectively what would be done if n comparisons are done independently.
+    try:  # If tensors are really close, pcc will be nan. Handle that before calculating pcc.
         compare_allclose(device_output, golden_output, pcc_config.allclose)
     except AssertionError:
-        pcc = jnp.corrcoef(device_output.flatten(), golden_output.flatten())
-        pcc = jnp.min(pcc)
-
+        leaf_pccs = jax.tree.map(
+            lambda x, y: jnp.min(jnp.corrcoef(x.flatten(), y.flatten())),
+            device_output,
+            golden_output,
+        )
+        pcc = jax.tree.reduce(lambda x, y: jnp.min(x, y), leaf_pccs)
         assert pcc >= pcc_config.required_pcc, (
             f"PCC comparison failed. "
             f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
@@ -125,18 +121,15 @@ def compare_pcc(
 def compare_allclose(
     device_output: Tensor, golden_output: Tensor, allclose_config: AllcloseConfig
 ) -> None:
-    assert isinstance(device_output, jax.Array) and isinstance(
-        golden_output, jax.Array
-    ), f"Currently only jax.Array is supported"
-
-    allclose = jnp.allclose(
+    all_close = jax.tree.map(
+        lambda x, y: jnp.allclose(
+            x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
+        ),
         device_output,
         golden_output,
-        rtol=allclose_config.rtol,
-        atol=allclose_config.atol,
     )
-
-    assert allclose, (
+    passed = jax.tree.reduce(lambda x, y: x and y, all_close)
+    assert passed, (
         f"Allclose comparison failed. "
         f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
     )
