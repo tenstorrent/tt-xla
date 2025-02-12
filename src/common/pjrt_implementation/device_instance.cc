@@ -15,6 +15,7 @@
 #include "common/status.h"
 
 #include <iostream>
+#include <numeric>
 
 namespace tt::pjrt {
 
@@ -78,19 +79,44 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }
-  std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
-  std::cout << "data_host=" << data << std::endl;
-  tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      data_ptr, shape, strides, element_size, element_type, true);
-  std::cerr << "please work=" << tensor.data << std::endl;
-  BufferInstance *buffer_instance =
-      new BufferInstance(*this, tensor, shape, strides);
+  
+  std::unique_ptr<BufferInstance> buffer_instance =
+      MakeDeviceBuffer(data, shape, strides, element_size, element_type);
+  
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
-  *out_buffer = buffer_instance;
+  *out_buffer = buffer_instance.release();
   EventInstance *event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
 }
+
+size_t DeviceInstance::getTensorSize(const std::vector<std::uint32_t> &shape,
+                                     size_t element_size) {
+  std::uint32_t elementsCount = std::accumulate(
+      shape.begin(), shape.end(), 1, std::multiplies<std::uint32_t>());
+
+  return static_cast<size_t>(elementsCount) * element_size;
+}
+
+std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
+    const void *data, std::vector<std::uint32_t> &shape,
+    std::vector<std::uint32_t> &strides, size_t element_size,
+    tt::target::DataType element_type) {
+  size_t tensor_size = getTensorSize(shape, element_size);
+
+  std::shared_ptr<void> new_memory(new std::byte[tensor_size], [](void *ptr) {
+    delete[] static_cast<std::byte *>(ptr);
+  });
+
+  std::memcpy(new_memory.get(), data, tensor_size);
+
+  tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
+      new_memory, shape, strides, element_size, element_type, true);
+
+  return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides,
+                                          new_memory);
+}
+
 
 } // namespace tt::pjrt

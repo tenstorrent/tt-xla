@@ -91,7 +91,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (size_t i = 0; i < args->num_args; ++i) {
     BufferInstance *buffer =
         BufferInstance::Unwrap(args->argument_lists[0][i]);
-    rt_inputs.push_back(buffer->tensor());
+    rt_inputs.emplace_back(buffer->getTensor());
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
