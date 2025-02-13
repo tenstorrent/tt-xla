@@ -32,7 +32,8 @@ class ResNetTester(ModelTester):
         if model_variant == "resnet-50":
             return FlaxResNetForImageClassification.from_pretrained(self._model_name)
 
-        # for other models, there is a naming mismatch when using 'from_pt' and all the weights fail to load
+        # for other variants, we would ideally rely on 'from_pt' functionality in HF,
+        # however, it is broken, there is a naming mismatch between the checkpoints and the model so all the weights fail to load
         # so we instantiate the model from config, load the checkpoint manually, fix up the keys and load weights into the model
         model_config = ResNetConfig.from_pretrained(self._model_name)
         model = FlaxResNetForImageClassification(model_config)
