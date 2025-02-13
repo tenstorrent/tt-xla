@@ -32,8 +32,8 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
-        "Cannot get the device from a tensor with host storage "
-        "(https://github.com/tenstorrent/tt-xla/issues/171)"
+        "Host data with total size 16B does not match expected size 8B of device buffer! "
+        "(https://github.com/tenstorrent/tt-xla/issues/182)"
     )
 )
 def test_flax_bert_large_inference(
