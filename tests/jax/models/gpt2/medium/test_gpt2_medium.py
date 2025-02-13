@@ -33,8 +33,8 @@ def training_tester() -> GPT2Tester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
-        "Cannot get the device from a tensor with host storage "
-        "(https://github.com/tenstorrent/tt-xla/issues/171)"
+        "Host data with total size 4B does not match expected size 2B of device buffer! "
+        "(https://github.com/tenstorrent/tt-xla/issues/182)"
     )
 )
 def test_gpt2_medium_inference(
