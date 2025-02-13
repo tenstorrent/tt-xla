@@ -99,3 +99,10 @@ def workload_as_mlir_module(
             return ""
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")
+
+
+def make_partition_spec(axis_names: tuple) -> jax.sharding.PartitionSpec:
+    """
+    Returns a PartitionSpec object for the given `axis_names`.
+    """
+    return jax.sharding.PartitionSpec(*axis_names)
