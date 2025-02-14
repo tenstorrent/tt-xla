@@ -44,7 +44,7 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
             ->image_->get_num_addresible_devices();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
-    args->num_addressable_devices = num_addressable_devices;
+    args->num_addressable_devices = addressable_devices.size();
     return nullptr;
   };
   api->PJRT_LoadedExecutable_Delete =
@@ -124,9 +124,12 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       // PJRT expects an empty shape for scalars.
       std::vector<std::uint32_t> output_shape =
           is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
+      tt::runtime::Tensor untilized_output_tensor =
+        tt::runtime::toHost(rt_outputs[i], /*untilize=*/true);
       auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[k], rt_outputs[i], output_shape,
+          *this->addressable_devices_[k], untilized_output_tensor, output_shape,
           output_specs[i].stride);
+           tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[i].dataType));
       DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
@@ -135,7 +138,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   if (args->device_complete_events) {
-    for (int i=0;i<2;i++) args->device_complete_events[i] = *(new EventInstance());
+    for (int i=0;i<1;i++) args->device_complete_events[i] = *(new EventInstance());
   }
 
   tt::runtime::closeDevice(device);

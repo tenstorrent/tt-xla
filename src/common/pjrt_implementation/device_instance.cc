@@ -91,7 +91,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
   std::cout << "data_host=" << data << std::endl;
   tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      data_ptr, shape, strides, element_size, element_type, true);
+      data_ptr, shape, strides, element_size, element_type);
   std::cerr << "please work=" << tensor.data << std::endl;
   BufferInstance *buffer_instance =
       new BufferInstance(*this, tensor, shape, strides);
