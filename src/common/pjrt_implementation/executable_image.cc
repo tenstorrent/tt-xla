@@ -82,22 +82,6 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     args->num_replicas = 1;
     return nullptr;
   };
-  api->PJRT_Executable_Serialize =
-      +[](PJRT_Executable_Serialize_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Serialize");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_Executable_DeserializeAndLoad =
-      +[](PJRT_Executable_DeserializeAndLoad_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "ExecutableImage::PJRT_Executable_DeserializeAndLoad_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_Executable_Serialize =
-      +[](PJRT_Executable_Serialize_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Serialize_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
   api->PJRT_Executable_OptimizedProgram =
       +[](PJRT_Executable_OptimizedProgram_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OptimizedProgram");
@@ -115,27 +99,6 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       std::memcpy(program->code, executable->get_code().c_str(), code_size);
     }
     return nullptr;
-  };
-  api->PJRT_Executable_GetCostAnalysis =
-      +[](PJRT_Executable_GetCostAnalysis_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_GetCostAnalysis_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_Executable_OutputElementTypes =
-      +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "ExecutableImage::PJRT_Executable_OutputElementTypes_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_Executable_OutputDimensions =
-      +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_Executable_OutputMemoryKinds =
-      +[](PJRT_Executable_OutputMemoryKinds_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
 }
 
