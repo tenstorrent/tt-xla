@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-set(TT_MLIR_VERSION "6836cbd96b4ac5c402944eb038f01f2aa21c6901")
+set(TT_MLIR_VERSION "947aed03c54a92612c9e3bb2f172c252f867b13f")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -50,7 +50,7 @@ else()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-    install(DIRECTORY ${TTMLIR_LIB_DIR}/lib DESTINATION "${CMAKE_INSTALL_PREFIX}")
+    install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}")
 
     # Link to all TTMLIR libraries in ${TTMLIR_INSTALL_DIR}/install/lib
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
