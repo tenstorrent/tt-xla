@@ -36,14 +36,17 @@ public:
     return m_is_output_scalar;
   };
 
-  // This needs to return the number of addressable devices from the StableHLO
-  // code. Currently hardcoded to one, as we only support one-chip execution.
-  size_t getNumAddressableDevices() const { return 1; }
+  size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
 
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
+
+  // Gets the number of devices the binary is intended to run on from the VHLO
+  // module.
+  void
+  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -79,6 +82,9 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // Number of devices the binary is intended to run on.
+  size_t m_num_devices_to_utilize;
 };
 
 } // namespace tt::pjrt

@@ -22,12 +22,9 @@ const std::string_view kMlirFormat = "mlir";
 
 ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  std::string code,
-                                 const std::vector<bool> &is_output_scalar,
-                                 size_t num_addressable_devices)
+                                 const std::vector<bool> &is_output_scalar)
     : m_ref_count(1), m_binary(binary), m_code(code),
-      m_is_output_scalar(is_output_scalar),
-      m_num_addressable_devices(num_addressable_devices) {
-
+      m_is_output_scalar(is_output_scalar) {
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_binary.getProgramOutputs(0);
   m_result_count = output_specs.size();
