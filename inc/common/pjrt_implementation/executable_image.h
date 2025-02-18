@@ -26,8 +26,7 @@ class ExecutableImage {
 
 public:
   ExecutableImage(const tt::runtime::Binary &binary, std::string code,
-                  const std::vector<bool> &is_output_scalar,
-                  size_t num_addressable_devices);
+                  const std::vector<bool> &is_output_scalar);
 
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
@@ -63,6 +62,8 @@ public:
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
   size_t get_num_outputs() const { return m_output_types.size(); }
+  // Checks if the output on the i-th index is a scalar.
+  bool isOutputScalar(size_t index) const;
 
 private:
   // Retrieves pointers to the concatenated list of output dimensions and the
@@ -91,7 +92,6 @@ private:
 
   size_t m_arg_count;
   size_t m_result_count;
-  size_t m_num_addressable_devices;
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
