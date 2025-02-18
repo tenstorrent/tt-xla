@@ -21,13 +21,11 @@ const std::string_view kMlirFormat = "mlir";
 
 ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  std::string code,
-                                 const std::vector<bool> &is_output_scalar,
-                                 size_t num_addressable_devices)
+                                 const std::vector<bool> &is_output_scalar)
     : m_ref_count(1), m_binary(binary), m_code(code),
       m_arg_count(binary.getProgramInputs(0).size()),
       m_result_count(binary.getProgramOutputs(0).size()),
-      m_is_output_scalar(is_output_scalar),
-      m_num_addressable_devices(num_addressable_devices) {
+      m_is_output_scalar(is_output_scalar) {
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
     // and crash later.
