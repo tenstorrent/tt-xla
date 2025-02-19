@@ -35,11 +35,7 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/include/ttmlir/Target/Common
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/runtime/include
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/stablehlo/
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
@@ -47,8 +43,6 @@ target_include_directories(TTPJRTCommon PUBLIC
 
 target_link_libraries(TTPJRTCommon PUBLIC
     loguru
-    LLVM
-    MLIR
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
@@ -59,6 +53,5 @@ target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
 target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir-build/lib/SharedLib
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
 )

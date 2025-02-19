@@ -115,8 +115,8 @@ BufferInstance* DeviceInstance::MakeDeviceBuffer(
 
   std::memcpy(new_memory.get(), data, tensor_size);
 
-  tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
-      new_memory, shape, strides, element_size, element_type, true);
+  tt::runtime::Tensor device_tensor = tt::runtime::createOwnedTensor(
+      new_memory, shape, strides, element_size, element_type);
 
   return new BufferInstance(*this, device_tensor, shape, strides,
                                           new_memory);
