@@ -13,7 +13,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
-#include "types_generated.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_
