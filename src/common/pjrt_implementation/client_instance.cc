@@ -164,6 +164,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
+  system_desc.store("system_desc.ttsys");
   int devices_count = chip_ids.size();
 
   devices_.resize(devices_count);

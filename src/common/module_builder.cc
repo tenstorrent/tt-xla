@@ -197,6 +197,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  options.systemDescPath = "system_desc.ttsys";
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.
