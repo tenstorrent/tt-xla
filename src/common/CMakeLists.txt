@@ -37,6 +37,8 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
     ${TTMLIR_TOOLCHAIN_DIR}/include
+    ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
+    ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
