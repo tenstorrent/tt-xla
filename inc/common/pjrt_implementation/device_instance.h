@@ -10,6 +10,8 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+#include "tt/runtime/runtime.h"
+
 #include "common/pjrt_implementation/device_description.h"
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/status.h"
@@ -25,8 +27,8 @@ class BufferInstance;
 class DeviceInstance {
 
 public:
-  DeviceInstance(int client_id, ClientInstance &client)
-      : client_(client), description_(client_id) {}
+  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch)
+      : client_(client), description_(device_id, arch) {}
   ~DeviceInstance();
   operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
   static void BindApi(PJRT_Api *api);
@@ -66,6 +68,18 @@ public:
 
 private:
   tt_pjrt_status OpenDevice();
+
+  static size_t getTensorSize(const std::vector<std::uint32_t> &shape,
+                              size_t element_size);
+
+  // Create a buffer instance from a host data pointer, by copying it into
+  // another memory. This is necessary as we have no ownership of the passed
+  // pointer, and it might happen that the pointer is deallocated before the
+  // buffer is used. See issue #248 for more details.
+ BufferInstance*
+  MakeDeviceBuffer(const void *data_ptr, std::vector<std::uint32_t> &shape,
+                   std::vector<std::uint32_t> &strides, size_t element_size,
+                   tt::target::DataType element_type);
 
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;

@@ -23,9 +23,14 @@ class DeviceInstance;
 
 class BufferInstance {
 public:
-  BufferInstance(DeviceInstance &device, tt::runtime::Tensor tensor,
-                 std::vector<std::uint32_t> shape,
-                 std::vector<std::uint32_t> stride);
+  BufferInstance(DeviceInstance &device, tt::runtime::Tensor &tensor,
+                 const std::vector<std::uint32_t> &shape,
+                 const std::vector<std::uint32_t> &stride);
+
+  BufferInstance(DeviceInstance &device, tt::runtime::Tensor &tensor,
+                 const std::vector<std::uint32_t> &shape,
+                 const std::vector<std::uint32_t> &stride,
+                 std::shared_ptr<void> host_buffer_ptr);
   BufferInstance(DeviceInstance &device);
   ~BufferInstance();
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
@@ -44,7 +49,7 @@ public:
     // the hook to get an unsafe pointer (avoids a copy).
     return false;
   }
-  tt::runtime::Tensor tensor() { return tensor_.value(); }
+  const tt::runtime::Tensor &getTensor() const { return tensor_; }
 
   PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
   // Gets the required host size in bytes to copy to host.
@@ -74,7 +79,7 @@ private:
   // API elements that must have the same lifetime as BufferInstance.
   std::vector<int64_t> dims_;
   std::vector<std::uint32_t> stride_;
-  std::optional<tt::runtime::Tensor> tensor_;
+  tt::runtime::Tensor tensor_;
 
   std::vector<int64_t> minor_to_major_;
   std::vector<int64_t> tile_dims_;
@@ -82,6 +87,16 @@ private:
 
   // Underlying datatype of tensor.
   std::optional<PJRT_Buffer_Type> DataType;
+
+  // OnReady event - currently not used.
+  EventInstance *on_ready_event_;
+
+  // Pointer to the host memory used to create this buffer.
+  // If buffer is created
+  // on device, the value of this pointer is nullptr. It is necessary to keep
+  // track of this memory since the runtime will not clean it, and we need to
+  // pass the shared pointer to the runtime.
+  std::shared_ptr<void> host_buffer_ptr_;
 };
 
 } // namespace tt::pjrt

@@ -8,13 +8,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include <numeric>
+#include <iostream>
+
 #include "common/pjrt_implementation/device_instance.h"
+
+#include "tt/runtime/runtime.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
-
-#include <iostream>
 
 namespace tt::pjrt {
 
@@ -67,8 +70,6 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     BufferInstance **out_buffer) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
 
-  std::cerr << "my_device=" << device_description()->to_string() << std::endl;
-
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
       tt::pjrt::utils::MapBufferTypeToElementType(type);
   tt::target::DataType element_type = tt_buffer_type.first;
@@ -81,26 +82,44 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   }
   assert(num_byte_strides == num_dims);
   for (size_t i = 0; i < num_dims; ++i) {
-    std::cerr << "shape=" << dims[i] << std::endl;
-    std::cerr << "strides=" << byte_strides[i] / element_size << std::endl;
-    std::cerr << "element_size=" << element_size << std::endl;
-    std::cerr << "element_type=" << (int)element_type << std::endl;
     shape.push_back(dims[i]);
     strides.push_back(byte_strides[i] / element_size);
   }
-  std::shared_ptr<void> data_ptr(const_cast<void *>(data), [](void *) {});
-  std::cout << "data_host=" << data << std::endl;
-  tt::runtime::Tensor tensor = tt::runtime::createTensor(
-      data_ptr, shape, strides, element_size, element_type, true);
-  std::cerr << "please work=" << tensor.data << std::endl;
-  BufferInstance *buffer_instance =
-      new BufferInstance(*this, tensor, shape, strides);
+  BufferInstance* buffer_instance =
+      MakeDeviceBuffer(data, shape, strides, element_size, element_type);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance;
   EventInstance *event_instance = new EventInstance();
   *out_done_with_host_buffer_event = event_instance;
   return tt_pjrt_status::kSuccess;
+}
+
+size_t DeviceInstance::getTensorSize(const std::vector<std::uint32_t> &shape,
+                                     size_t element_size) {
+  std::uint32_t elementsCount = std::accumulate(
+      shape.begin(), shape.end(), 1, std::multiplies<std::uint32_t>());
+
+  return static_cast<size_t>(elementsCount) * element_size;
+}
+
+BufferInstance* DeviceInstance::MakeDeviceBuffer(
+    const void *data, std::vector<std::uint32_t> &shape,
+    std::vector<std::uint32_t> &strides, size_t element_size,
+    tt::target::DataType element_type) {
+  size_t tensor_size = getTensorSize(shape, element_size);
+
+  std::shared_ptr<void> new_memory(new std::byte[tensor_size], [](void *ptr) {
+    delete[] static_cast<std::byte *>(ptr);
+  });
+
+  std::memcpy(new_memory.get(), data, tensor_size);
+
+  tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
+      new_memory, shape, strides, element_size, element_type, true);
+
+  return new BufferInstance(*this, device_tensor, shape, strides,
+                                          new_memory);
 }
 
 } // namespace tt::pjrt
