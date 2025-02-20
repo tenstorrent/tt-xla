@@ -16,7 +16,12 @@ else
     python3.10 -m venv $TTMLIR_VENV_DIR
     source $TTMLIR_VENV_DIR/bin/activate
     pip install --upgrade pip
-    pip install -r $TT_MLIR_HOME/env/build-requirements.txt
+    # Installing tt-mlir requirements first
+    TT_MLIR_VERSION=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
+    wget -P tmp/ "https://github.com/tenstorrent/tt-mlir/raw/$TT_MLIR_VERSION/env/build-requirements.txt"
+    pip install -r tmp/build-requirements.txt
+    rm -rf tmp/
+    # Installing tt-xla requirements
     pip install -r requirements.txt
   fi
 
