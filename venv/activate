@@ -16,6 +16,7 @@ else
     python3.10 -m venv $TTMLIR_VENV_DIR
     source $TTMLIR_VENV_DIR/bin/activate
     pip install --upgrade pip
+    pip install -r $TT_MLIR_HOME/env/build-requirements.txt
     pip install -r requirements.txt
   fi
 
