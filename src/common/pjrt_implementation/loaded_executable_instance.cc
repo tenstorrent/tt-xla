@@ -71,7 +71,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
   // Sanity check, as we only support execution on one chip currently.
-  assert(args->num_devices == 1);
+  assert(args->num_devices == num_addressable_devices_);
 
   int dev_index = 0;
   const tt::runtime::Binary &binary = image_->get_binary();
@@ -100,8 +100,6 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     device_ids_vector.push_back(
         addressable_devices_[0]->device_description()->getDeviceId());
   }
-
-  assert(device_ids_vector.size() == 1);
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
 
