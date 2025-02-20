@@ -26,7 +26,7 @@ else
     TT_MLIR_REQUIREMENTS_PATH="$TT_MLIR_HOME/env/build-requirements.txt"
     if [ ! -e $TT_MLIR_REQUIREMENTS_PATH ]; then
       TT_MLIR_VERSION=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
-      wget -P $TT_MLIR_HOME "https://github.com/tenstorrent/tt-mlir/raw/$TT_MLIR_VERSION/env/build-requirements.txt"
+      wget -P "$TT_MLIR_HOME/env" "https://github.com/tenstorrent/tt-mlir/raw/$TT_MLIR_VERSION/env/build-requirements.txt" --quiet
     fi
     pip install -r $TT_MLIR_REQUIREMENTS_PATH
     # Installing tt-xla requirements
