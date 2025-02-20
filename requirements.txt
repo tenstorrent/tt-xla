@@ -11,6 +11,7 @@ black
 pre-commit
 lit
 pybind11
+nanobind
 pytest
 transformers
 fsspec
