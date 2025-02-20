@@ -47,6 +47,11 @@ else()
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
     )
+    ExternalProject_Add_Step(
+        tt-mlir installBuildRequirements
+        COMMAND pip install -r ${TTMLIR_SOURCE_DIR}/env/build-requirements.txt
+        DEPENDERS build
+    )
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
