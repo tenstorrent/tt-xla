@@ -114,11 +114,6 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     args->is_deleted = buffer->is_deleted();
     return nullptr;
   };
-  api->PJRT_Buffer_CopyToDevice =
-      +[](PJRT_Buffer_CopyToDevice_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
   api->PJRT_Buffer_IsOnCpu =
       +[](PJRT_Buffer_IsOnCpu_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
@@ -129,10 +124,6 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
     args->device = BufferInstance::Unwrap(args->buffer)->device();
     return nullptr;
-  };
-  api->PJRT_Buffer_Memory = +[](PJRT_Buffer_Memory_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   };
   api->PJRT_Buffer_ReadyEvent =
       +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {

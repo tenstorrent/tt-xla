@@ -83,10 +83,6 @@ void EventInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Error");
     return (PJRT_Error *)EventInstance::Unwrap(args->event)->error();
   };
-  api->PJRT_Event_Await = +[](PJRT_Event_Await_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Await");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
   api->PJRT_Event_OnReady = +[](PJRT_Event_OnReady_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_OnReady");
     return ErrorInstance::MakeError(

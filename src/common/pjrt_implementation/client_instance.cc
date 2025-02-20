@@ -154,11 +154,6 @@ void ClientInstance::BindApi(PJRT_Api *api) {
                 reinterpret_cast<BufferInstance **>(&args->buffer));
     return ErrorInstance::MakeError(status);
   };
-  api->PJRT_LoadedExecutable_Fingerprint =
-      +[](PJRT_LoadedExecutable_Fingerprint_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_LoadedExecutable_Fingerprint");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
 }
 
 tt_pjrt_status ClientInstance::PopulateDevices() {

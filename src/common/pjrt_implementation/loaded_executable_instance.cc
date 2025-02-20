@@ -45,17 +45,6 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     args->num_addressable_devices = num_addressable_devices;
     return nullptr;
   };
-  api->PJRT_LoadedExecutable_Delete =
-      +[](PJRT_LoadedExecutable_Delete_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
-  api->PJRT_LoadedExecutable_IsDeleted =
-      +[](PJRT_LoadedExecutable_IsDeleted_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted_Args");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-  };
   api->PJRT_LoadedExecutable_Execute =
       +[](PJRT_LoadedExecutable_Execute_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
