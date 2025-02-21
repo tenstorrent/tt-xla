@@ -40,6 +40,8 @@ public:
   // code. Currently hardcoded to one, as we only support one-chip execution.
   size_t getNumAddressableDevices() const { return 1; }
 
+  static constexpr char const *system_desc_path = "system_desc.ttsys";
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>

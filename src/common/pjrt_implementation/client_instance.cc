@@ -27,6 +27,7 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
 }
 
 ClientInstance::~ClientInstance() {
+  std::remove(ModuleBuilder::system_desc_path);
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 }
 
@@ -164,7 +165,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  system_desc.store("system_desc.ttsys");
+  system_desc.store(ModuleBuilder::system_desc_path);
   int devices_count = chip_ids.size();
 
   devices_.resize(devices_count);
