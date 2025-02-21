@@ -21,15 +21,17 @@ BufferInstance::~BufferInstance() = default;
 BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &shape,
-                               const std::vector<std::uint32_t> &stride)
-    : BufferInstance(device, tensor, shape, stride, nullptr) {}
+                               const std::vector<std::uint32_t> &stride,
+                               std::pair<tt::target::DataType, size_t> tt_buffer_type)
+    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {}
 
 BufferInstance::BufferInstance(DeviceInstance &device,
                                tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &shape,
                                const std::vector<std::uint32_t> &stride,
+                               std::pair<tt::target::DataType, size_t> tt_buffer_type,
                                std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr) {
+    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr), tt_buffer_type_(tt_buffer_type) { 
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
   dims_.resize(shape.size());
   for (int i = 0; i < shape.size(); i++) {
@@ -231,6 +233,16 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
   tt::target::DataType Type = tt::runtime::getTensorDataType(getTensor());
   return tt::pjrt::utils::convertElementTypeToBufferType(Type);
+}
+
+const std::vector<std::uint32_t> BufferInstance::get_shape()
+{
+  DLOG_F(LOG_DEBUG, "BufferInstance::get_shape");
+  std::vector<std::uint32_t> shape;
+  for (int i = 0; i < dims_.size(); i++) {
+    shape.push_back(dims_[i]);
+  }
+  return shape;
 }
 
 } // namespace tt::pjrt

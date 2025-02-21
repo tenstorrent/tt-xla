@@ -118,7 +118,7 @@ BufferInstance* DeviceInstance::MakeDeviceBuffer(
   tt::runtime::Tensor device_tensor = tt::runtime::createOwnedTensor(
       new_memory, shape, strides, element_size, element_type);
 
-  return new BufferInstance(*this, device_tensor, shape, strides,
+  return new BufferInstance(*this, device_tensor, shape, strides, {element_type, element_size},
                                           new_memory);
 }
 
