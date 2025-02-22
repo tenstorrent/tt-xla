@@ -15,10 +15,10 @@ TT_MLIR_ENV_DIR=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/env
 # Install llvm requirements
 LLVM_VERSION=$(grep -oP 'set\(LLVM_PROJECT_VERSION "\K[^"]+' ${TT_MLIR_ENV_DIR}/CMakeLists.txt)
 REQUIREMENTS_CASHE_DIR=${TTPJRT_SOURCE_DIR}/venv/bin/requirements_cashe
-LLVM_REQUIREMENTS_NAME=llvm-requirements-${LLVM_VERSION}.txt
-LLVM_REQUIREMENTS_PATH=${REQUIREMENTS_CASHE_DIR}/${LLVM_REQUIREMENTS_NAME}
+LLVM_REQUIREMENTS_PATH=${REQUIREMENTS_CASHE_DIR}/llvm-requirements-${LLVM_VERSION}.txt
 if [ ! -e $LLVM_REQUIREMENTS_PATH ]; then
-  wget -P $REQUIREMENTS_CASHE_DIR -O $LLVM_REQUIREMENTS_NAME "https://github.com/llvm/llvm-project/raw/$LLVM_VERSION/mlir/python/requirements.txt" --quiet
+  mkdir -p $REQUIREMENTS_CASHE_DIR
+  wget -O $LLVM_REQUIREMENTS_PATH "https://github.com/llvm/llvm-project/raw/$LLVM_VERSION/mlir/python/requirements.txt" --quiet
 fi
 pip install -r $LLVM_REQUIREMENTS_PATH
 
