@@ -7,12 +7,6 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
   echo "TTMLIR_TOOLCHAIN_DIR not set. Please set it and re-run"
 else
   export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
-  export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
-  export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
-  export PYTHONPATH="$(pwd):$(pwd)/tests"
-  export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
-  export TT_METAL_HOME="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"
-  export TT_METAL_LOGGER_LEVEL="ERROR"
 
   export TTMLIR_VENV_DIR="$(pwd)/venv"
   if [ -d $TTMLIR_VENV_DIR/bin ]; then
@@ -22,17 +16,17 @@ else
     python3.10 -m venv $TTMLIR_VENV_DIR
     source $TTMLIR_VENV_DIR/bin/activate
     pip install --upgrade pip
-    # Installing tt-mlir requirements first
-    TT_MLIR_REQUIREMENTS_PATH="$TT_MLIR_HOME/env/build-requirements.txt"
-    if [ ! -e $TT_MLIR_REQUIREMENTS_PATH ]; then
-      TT_MLIR_VERSION=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
-      wget -P "$TT_MLIR_HOME/env" "https://github.com/tenstorrent/tt-mlir/raw/$TT_MLIR_VERSION/env/build-requirements.txt" --quiet
-    fi
-    pip install -r $TT_MLIR_REQUIREMENTS_PATH
-    # Installing tt-xla requirements
+    # Requirements for third party projects are installed during their build in `CMakeLists.txt`
     pip install -r requirements.txt
   fi
 
   export TTXLA_ENV_ACTIVATED=1
   export TTMLIR_ENV_ACTIVATED=1
+  export TT_METAL_LOGGER_LEVEL="ERROR"
+  export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
+
+  export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
+  export PYTHONPATH="$(pwd):$(pwd)/tests"
+  export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+  export TT_METAL_HOME="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"
 fi

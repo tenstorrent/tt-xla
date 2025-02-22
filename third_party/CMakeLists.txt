@@ -30,6 +30,8 @@ else()
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
+        # Installing the python dependencies before the build
+        PATCH_COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
