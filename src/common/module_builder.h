@@ -38,7 +38,7 @@ public:
 
   size_t getNumAddressableDevices() const { return m_num_addressable_devices; }
 
-  static constexpr char const *system_desc_path = "system_desc.ttsys";
+  static constexpr std::string_view system_desc_path = "system_desc.ttsys";
 
 private:
   // Creates VHLO module from the input program code.
