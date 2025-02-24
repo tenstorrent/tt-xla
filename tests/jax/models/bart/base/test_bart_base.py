@@ -34,8 +34,8 @@ def training_tester() -> FlaxBartForCausalLMTester:
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Cannot get the device from a tensor with host storage "
-            "(https://github.com/tenstorrent/tt-xla/issues/171)"
+            "Host data with total size 12B does not match expected size 6B of device buffer! "
+            "(https://github.com/tenstorrent/tt-xla/issues/182)"
         )
     )
 )
