@@ -8,9 +8,9 @@ from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import PyTree
 
 from .device_runner import run_on_cpu
-from .types import Tensor
 
 
 @dataclass
@@ -74,14 +74,14 @@ class ComparisonConfig:
 
 
 @run_on_cpu
-def compare_equal(device_output: Tensor, golden_output: Tensor) -> None:
+def compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
     passed = jax.tree.map(lambda x, y: (x == y).all(), device_output, golden_output)
     assert jax.tree.all(passed), f"Equal comparison failed."
 
 
 @run_on_cpu
 def compare_atol(
-    device_output: Tensor, golden_output: Tensor, atol_config: AtolConfig
+    device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
 ) -> None:
     leaf_atols = jax.tree.map(
         lambda x, y: jnp.max(jnp.abs(x - y)),
@@ -97,7 +97,7 @@ def compare_atol(
 
 @run_on_cpu
 def compare_pcc(
-    device_output: Tensor, golden_output: Tensor, pcc_config: PccConfig
+    device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
 ) -> None:
     # Note, minmimum of pccs is not the same as pcc across all elements.
     # If the user wants to compare pcc across all elements, they should concatenate the tensors themselves
@@ -119,7 +119,7 @@ def compare_pcc(
 
 @run_on_cpu
 def compare_allclose(
-    device_output: Tensor, golden_output: Tensor, allclose_config: AllcloseConfig
+    device_output: PyTree, golden_output: PyTree, allclose_config: AllcloseConfig
 ) -> None:
     all_close = jax.tree.map(
         lambda x, y: jnp.allclose(
