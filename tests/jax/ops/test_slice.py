@@ -38,7 +38,9 @@ for begin in jnp.arange(0, 64, 32).tolist():
     [*dim2_cases, *dim3_cases, *dim0_cases, *dim1_cases],
     ids=lambda val: f"{val}",
 )
-def test_slice(begin: int, end: int, dim: int, record_tt_xla_property: Callable):
+def test_slice(
+    begin: int, end: int, dim: int, record_tt_xla_property: Callable
+):
     def module_slice(a):
         if dim == 0:
             return a[begin:end, :, :, :]

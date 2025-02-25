@@ -75,7 +75,9 @@ def training_tester() -> ExampleModelOnlyKwargsTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
-def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester):
+def test_example_model_inference(
+    inference_tester: ExampleModelOnlyKwargsTester,
+):
     inference_tester.test()
 
 

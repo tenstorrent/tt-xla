@@ -50,7 +50,9 @@ class SqueezeBertEmbedding(nn.Module):
         position_embeddings = self.position_embedding(position_ids)
         token_type_embeddings = self.token_type_embedding(token_type_ids)
 
-        embeddings = word_embeddings + position_embeddings + token_type_embeddings
+        embeddings = (
+            word_embeddings + position_embeddings + token_type_embeddings
+        )
         embeddings = self.layernorm(embeddings)
         embeddings = self.dropout(embeddings, deterministic=deterministic)
         return embeddings
@@ -83,7 +85,9 @@ class SqueezeBertSelfAttention(nn.Module):
             feature_group_count=self.config.post_attention_groups,
         )
 
-        self.attn_dropout = nn.Dropout(rate=self.config.attention_probs_dropout_prob)
+        self.attn_dropout = nn.Dropout(
+            rate=self.config.attention_probs_dropout_prob
+        )
         self.resid_dropout = nn.Dropout(rate=self.config.hidden_dropout_prob)
         self.layernorm = nn.LayerNorm()
 
@@ -127,7 +131,9 @@ class SqueezeBertSelfAttention(nn.Module):
             attention_probs, deterministic=deterministic
         )
 
-        context = jnp.einsum("B H s S, B S H d -> B s H d", attention_probs, value)
+        context = jnp.einsum(
+            "B H s S, B S H d -> B s H d", attention_probs, value
+        )
         context = einops.rearrange(context, "b s H d -> b s (H d)")
 
         output = self.output(context)
@@ -203,7 +209,8 @@ class SqueezeBertEncoder(nn.Module):
 
     def setup(self):
         self.layers = [
-            SqueezeBertLayer(self.config) for _ in range(self.config.num_hidden_layers)
+            SqueezeBertLayer(self.config)
+            for _ in range(self.config.num_hidden_layers)
         ]
 
     def __call__(
@@ -308,7 +315,9 @@ class SqueezeBertForMaskedLM(nn.Module):
         return prediction_scores
 
     @staticmethod
-    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def init_from_pytorch_statedict(
+        state_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
         # Key substitutions for remapping huggingface checkpoints to this implementation
         PATTERNS = [
             ("transformer.", "squeezebert."),
@@ -328,7 +337,10 @@ class SqueezeBertForMaskedLM(nn.Module):
             ("output.conv1d.bias", "mlp.w2.bias"),
             ("output.layernorm", "mlp.layernorm"),
             ("pooler.dense.weight", "pooler.dense.kernel"),
-            ("cls.predictions.transform.dense.weight", "transform_dense.kernel"),
+            (
+                "cls.predictions.transform.dense.weight",
+                "transform_dense.kernel",
+            ),
             ("cls.predictions.transform.dense.bias", "transform_dense.bias"),
             ("cls.predictions.transform.layernorm", "transform_layernorm"),
             ("cls.predictions.decoder.weight", "decoder.kernel"),
@@ -356,7 +368,9 @@ class SqueezeBertForMaskedLM(nn.Module):
             state_dict[k] = jnp.array(v)
 
         state_dict = {
-            rewrite_key(k): v for k, v in state_dict.items() if not is_banned_key(k)
+            rewrite_key(k): v
+            for k, v in state_dict.items()
+            if not is_banned_key(k)
         }
         state_dict = {k: process_value(k, v) for k, v in state_dict.items()}
         state_dict = flax.traverse_util.unflatten_dict(state_dict, sep=".")

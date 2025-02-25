@@ -68,7 +68,9 @@ class DeviceRunner:
         workload: Workload, device_type: DeviceType, device_num: int = 0
     ) -> Tensor:
         """Runs `workload` on device identified by `device_type`."""
-        device_workload = DeviceRunner._put_on_device(workload, device_type, device_num)
+        device_workload = DeviceRunner._put_on_device(
+            workload, device_type, device_num
+        )
         device = device_connector.connect_device(device_type, device_num)
 
         with jax.default_device(device):
@@ -106,7 +108,9 @@ class DeviceRunner:
         To avoid that, we try to `jax.device_put` arg or kwarg, and if it doesn't
         succeed, we leave it as is.
         """
-        fn_params = list(inspect.signature(workload.executable).parameters.keys())
+        fn_params = list(
+            inspect.signature(workload.executable).parameters.keys()
+        )
 
         args_on_device = []
         for i, arg in enumerate(workload.args):

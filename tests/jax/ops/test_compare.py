@@ -148,7 +148,9 @@ def test_compare_greater_equal(
     ],
     ids=lambda val: f"{val}",
 )
-def test_compare_less(x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable):
+def test_compare_less(
+    x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
+):
     @convert_output_to_bfloat16
     def less(x: jax.Array, y: jax.Array) -> jax.Array:
         return x < y

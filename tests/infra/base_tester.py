@@ -53,9 +53,13 @@ class BaseTester(ABC):
         if self._comparison_config.equal.enabled:
             compare_equal(device_output, golden_output)
         if self._comparison_config.atol.enabled:
-            compare_atol(device_output, golden_output, self._comparison_config.atol)
+            compare_atol(
+                device_output, golden_output, self._comparison_config.atol
+            )
         if self._comparison_config.pcc.enabled:
-            compare_pcc(device_output, golden_output, self._comparison_config.pcc)
+            compare_pcc(
+                device_output, golden_output, self._comparison_config.pcc
+            )
         if self._comparison_config.allclose.enabled:
             compare_allclose(
                 device_output, golden_output, self._comparison_config.allclose
@@ -68,6 +72,8 @@ class BaseTester(ABC):
         Tensors need to be in same data format in order to compare them.
         """
         return [
-            tensor.astype("float32") if tensor.dtype.str != "float32" else tensor
+            tensor.astype("float32")
+            if tensor.dtype.str != "float32"
+            else tensor
             for tensor in tensors
         ]

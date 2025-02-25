@@ -96,6 +96,8 @@ def test_mnist_mlp_training(
     training_tester: MNISTMLPTester,
     record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MNISTMLPModel.__qualname__)
+    record_model_test_properties(
+        record_tt_xla_property, MNISTMLPModel.__qualname__
+    )
 
     training_tester.test()

@@ -61,7 +61,9 @@ class ModelTester(BaseTester, ABC):
         kwargs = self._get_forward_method_kwargs()
 
         if len(args) == 0 and len(kwargs) == 0:
-            raise ValueError(f"Forward method args or kwargs or both must be provided")
+            raise ValueError(
+                f"Forward method args or kwargs or both must be provided"
+            )
 
         forward_method_name = self._get_forward_method_name()
 

@@ -25,7 +25,9 @@ def comparison_config() -> ComparisonConfig:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
+@pytest.mark.parametrize(
+    "x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}"
+)
 def test_exponential_minus_one(
     x_shape: tuple,
     comparison_config: ComparisonConfig,

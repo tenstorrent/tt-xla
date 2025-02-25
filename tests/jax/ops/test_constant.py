@@ -46,7 +46,9 @@ def test_constant_ones(shape: tuple, record_tt_xla_property: Callable):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.constant'"))
+@pytest.mark.xfail(
+    reason=compile_fail("failed to legalize operation 'ttir.constant'")
+)
 def test_constant_multi_value(record_tt_xla_property: Callable):
     def module_constant_multi():
         return jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)

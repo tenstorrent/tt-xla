@@ -6,7 +6,11 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxBloomForCausalLM, FlaxPreTrainedModel
+from transformers import (
+    AutoTokenizer,
+    FlaxBloomForCausalLM,
+    FlaxPreTrainedModel,
+)
 
 
 class BloomTester(ModelTester):
@@ -23,7 +27,9 @@ class BloomTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        return FlaxBloomForCausalLM.from_pretrained(
+            self._model_name, from_pt=True
+        )
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:

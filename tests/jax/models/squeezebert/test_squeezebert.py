@@ -42,7 +42,8 @@ class SqueezeBertTester(ModelTester):
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
         model_file = hf_hub_download(
-            repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
+            repo_id="squeezebert/squeezebert-uncased",
+            filename="pytorch_model.bin",
         )
         state_dict = torch.load(model_file, weights_only=True)
 

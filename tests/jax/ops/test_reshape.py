@@ -22,7 +22,9 @@ from utils import record_unary_op_test_properties
     ],
     ids=lambda val: f"{val}",
 )
-def test_reshape(in_shape: tuple, out_shape: tuple, record_tt_xla_property: Callable):
+def test_reshape(
+    in_shape: tuple, out_shape: tuple, record_tt_xla_property: Callable
+):
     def reshape(x: jax.Array):
         return jnp.reshape(x, out_shape)
 

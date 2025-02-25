@@ -6,7 +6,11 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import FlaxLlamaForCausalLM, FlaxPreTrainedModel, LlamaTokenizer
+from transformers import (
+    FlaxLlamaForCausalLM,
+    FlaxPreTrainedModel,
+    LlamaTokenizer,
+)
 
 
 class LLamaTester(ModelTester):
@@ -25,7 +29,9 @@ class LLamaTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxLlamaForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        return FlaxLlamaForCausalLM.from_pretrained(
+            self._model_name, from_pt=True
+        )
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:

@@ -123,7 +123,9 @@ def compare_pcc(
 
 @run_on_cpu
 def compare_allclose(
-    device_output: Tensor, golden_output: Tensor, allclose_config: AllcloseConfig
+    device_output: Tensor,
+    golden_output: Tensor,
+    allclose_config: AllcloseConfig,
 ) -> None:
     assert isinstance(device_output, jax.Array) and isinstance(
         golden_output, jax.Array

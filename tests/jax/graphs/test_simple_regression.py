@@ -15,7 +15,9 @@ from infra import run_graph_test_with_random_inputs
 def test_simple_regression(weights, bias, X, y):
     def simple_regression(weights, bias, X, y):
         def loss(weights, bias, X, y):
-            predict = X.dot(weights) + bias if bias is not None else X.dot(weights)
+            predict = (
+                X.dot(weights) + bias if bias is not None else X.dot(weights)
+            )
             return ((predict - y) ** 2).sum()
 
         # Compute gradient and update weights.

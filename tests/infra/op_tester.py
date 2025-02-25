@@ -49,7 +49,8 @@ class OpTester(BaseTester):
         TT device and CPU and comparing the results.
         """
         inputs = [
-            random_tensor(shape, minval=minval, maxval=maxval) for shape in input_shapes
+            random_tensor(shape, minval=minval, maxval=maxval)
+            for shape in input_shapes
         ]
         workload = Workload(f, inputs)
         self.test(workload)

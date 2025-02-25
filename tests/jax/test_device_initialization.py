@@ -58,7 +58,9 @@ def test_devices_are_connected():
 
     tt_devices = jax.devices("tt")
 
-    assert len(tt_devices) > 0, f"Expected at least one TT device to be connected"
+    assert (
+        len(tt_devices) > 0
+    ), f"Expected at least one TT device to be connected"
     assert is_tt_device(tt_devices[0])
 
 
