@@ -11,7 +11,7 @@ from typing import Callable, Sequence
 from .device_connector import DeviceType, device_connector
 from .workload import MultichipWorkload
 from .types import Tensor
-from .workload import Workload
+from .workload import MultichipWorkload, Workload
 
 
 class DeviceRunner:
@@ -30,7 +30,7 @@ class DeviceRunner:
         sharded_workload = DeviceRunner._put_multichip_workload_on_device(
             multichip_workload
         )
-        return sharded_workload.execute().block_until_ready()
+        return sharded_workload.execute()
 
     @staticmethod
     def run_on_cpu(workload: Workload) -> Tensor:
@@ -84,12 +84,15 @@ class DeviceRunner:
             return device_workload.execute()
 
     @staticmethod
-    def _put_sharded_tensors_on_multichip_device(
+    def _put_sharded_tensor_on_multichip_device(
         tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
     ) -> Tensor:
         """
         Needed for multichip: Uses put_device to give inputs shardings.
-        We just put dummy sharding equal to none, since jax needs to have some notion of sharding when running graph with these buffers as input.
+        We just put dummy sharding equal to none, since jax needs to have some notion of sharding
+        when running graph with these buffers as input.
+        TODO: This can be omitted when we find a way to get sharding information from the StableHLO
+        code back to jax through a protobuf (issue #227).
         """
         none_tuple = (None,) * len(in_spec)
         none_spec = PartitionSpec(*none_tuple)
@@ -110,15 +113,16 @@ class DeviceRunner:
         """Gives the workload inputs shardings, necessary for multichip workloads"""
         args_on_device = []
         spec_index = 0
-        # TODO: It might necessary to put a try-except block here, but holding that off until we come across a case where it's needed.
+        # TODO: It might necessary to put a try-except block here, but holding that off until we
+        # come across a case where it's needed.
         for arg in multichip_workload.args:
             if not isinstance(arg, Tensor):
                 args_on_device.append(arg)
             else:
                 args_on_device.append(
-                    DeviceRunner._put_sharded_tensors_on_multichip_device(
+                    DeviceRunner._put_sharded_tensor_on_multichip_device(
                         arg,
-                        multichip_workload.mesh,
+                        multichip_workload.device_mesh,
                         multichip_workload.in_specs[spec_index],
                     )
                 )
@@ -131,7 +135,7 @@ class DeviceRunner:
             else:
                 kwargs_on_device[
                     key
-                ] = DeviceRunner._put_sharded_tensors_on_multichip_device(
+                ] = DeviceRunner._put_sharded_tensor_on_multichip_device(
                     value,
                     multichip_workload.mesh,
                     multichip_workload.in_specs[spec_index],
@@ -142,7 +146,7 @@ class DeviceRunner:
             multichip_workload.executable,
             args_on_device,
             kwargs_on_device,
-            mesh=multichip_workload.mesh,
+            device_mesh=multichip_workload.device_mesh,
             in_specs=multichip_workload.in_specs,
         )
 

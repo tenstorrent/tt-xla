@@ -4,17 +4,17 @@
 
 import jax
 import jax.numpy as jnp
-from jax.sharding import PartitionSpec
 from infra import run_multichip_test_with_random_inputs, make_partition_spec
-from utils import compile_fail
 import pytest
+from utils import compile_fail
+from infra import make_partition_spec
 
 
-@pytest.mark.parametrize("x_shape", [(256, 256)])
-def test_unary_eltwise(x_shape: tuple):
+@pytest.mark.parametrize(("x_shape", "axis_names"), [((256, 256), ("x", "y"))])
+def test_unary_eltwise(x_shape: tuple, axis_names: tuple):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
-        stitched_result = jax.lax.psum(b_block, ("x", "y"))
+        stitched_result = jax.lax.psum(b_block, axis_names)
         return stitched_result
 
     def fwd_single_device(a_block):
@@ -25,9 +25,9 @@ def test_unary_eltwise(x_shape: tuple):
         stitched_result = b1 + b2
         return stitched_result
 
-    in_specs = (make_partition_spec((("x", "y"))),)
+    in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec((None, None))
 
     run_multichip_test_with_random_inputs(
-        fwd, fwd_single_device, [x_shape], (1, 2), ("x", "y"), in_specs, out_specs
+        fwd, fwd_single_device, [x_shape], (1, 2), axis_names, in_specs, out_specs
     )
