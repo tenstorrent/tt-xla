@@ -9,6 +9,7 @@ from typing import Callable, Sequence
 
 
 from .device_connector import DeviceType, device_connector
+from .workload import MultichipWorkload
 from .types import Tensor
 from .workload import MultichipWorkload, Workload
 
@@ -121,7 +122,7 @@ class DeviceRunner:
                 args_on_device.append(
                     DeviceRunner._put_sharded_tensor_on_multichip_device(
                         arg,
-                        multichip_workload.mesh,
+                        multichip_workload.device_mesh,
                         multichip_workload.in_specs[spec_index],
                     )
                 )
@@ -145,7 +146,7 @@ class DeviceRunner:
             multichip_workload.executable,
             args_on_device,
             kwargs_on_device,
-            mesh=multichip_workload.mesh,
+            device_mesh=multichip_workload.device_mesh,
             in_specs=multichip_workload.in_specs,
         )
 
