@@ -2,28 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from infra import run_multichip_test_with_random_inputs, make_partition_spec
 import jax
 import jax.numpy as jnp
-from jax import jit
-from jax.experimental.shard_map import shard_map
-from jax.sharding import PartitionSpec
-from functools import partial
-from infra import run_multichip_test_with_random_inputs
 import pytest
+from utils import compile_fail
 
 
 @pytest.mark.parametrize(
-    ["batch_shape", "W1_shape", "B1_shape", "mesh_shape"],
+    ["batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"],
     [
-        [(8192, 784), (784, 2048), (2048), (1,2)],
+        [(8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")],
     ],
 )
-@pytest.mark.skip(reason="Does not compile in TT-mlir")
-def test_psum_scatter(batch_shape: tuple, W1_shape: tuple, B1_shape: tuple, mesh_shape: tuple):
-
+@pytest.mark.skip(reason=compile_fail("Multichip still in development"))
+def test_psum_scatter(
+    batch_shape: tuple,
+    W1_shape: tuple,
+    B1_shape: tuple,
+    mesh_shape: tuple,
+    axis_names: tuple,
+):
     def fwd(batch, W1_block, B1_block):
         act = jnp.dot(batch, W1_block)
-        act = jax.lax.psum_scatter(act, 'model', scatter_dimension=1, tiled=True)
+        act = jax.lax.psum_scatter(act, "model", scatter_dimension=1, tiled=True)
         act = act + B1_block
         return act
 
@@ -32,12 +34,20 @@ def test_psum_scatter(batch_shape: tuple, W1_shape: tuple, B1_shape: tuple, mesh
         act = act + B1
         return act
 
-    devices = jax.devices("tt")
-    mesh = jax.make_mesh(mesh_shape, ('batch', 'model'), devices=devices)
-
-    in_specs = (PartitionSpec('batch', 'model'), PartitionSpec('model', None), PartitionSpec('model'),)
-    out_specs=PartitionSpec('batch', 'model')
+    in_specs = (
+        make_partition_spec(axis_names),
+        make_partition_spec((axis_names[1], None)),
+        make_partition_spec((axis_names[1],)),
+    )
+    out_specs = make_partition_spec(axis_names)
 
     run_multichip_test_with_random_inputs(
-        fwd, golden_fwd, [batch_shape, W1_shape, B1_shape], mesh, in_specs, out_specs, maxval=0.1
+        fwd,
+        golden_fwd,
+        [batch_shape, W1_shape, B1_shape],
+        mesh_shape,
+        axis_names,
+        in_specs,
+        out_specs,
+        maxval=0.1,
     )

@@ -110,7 +110,10 @@ class MultichipTester(BaseTester):
             for shape in input_shapes
         ]
         device_workload = MultichipWorkload(
-            device_executable, inputs, device_mesh=self.device_mesh, in_specs=self.in_specs
+            device_executable,
+            inputs,
+            device_mesh=self.device_mesh,
+            in_specs=self.in_specs,
         )
         cpu_workload = Workload(cpu_executable, inputs)
         self.test(device_workload, cpu_workload)

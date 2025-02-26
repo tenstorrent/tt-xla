@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 def compile_fail(reason: str) -> str:
     return f"Compile failed: {reason}"
 
