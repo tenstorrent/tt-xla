@@ -9,6 +9,10 @@ on:
         type: string
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+        - '**/*.md'
+        - '.gitignore'
+        - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +34,7 @@ jobs:
       test_mark: 'push'
 
   check-all-green:
-    if: always()
+    if: always() && needs.build-and-test.result != 'skipped'
     needs:
       - pre-commit
       - spdx
