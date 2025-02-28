@@ -34,8 +34,6 @@ class FlaxCLIPTester(ModelTester):
             images=image,
             return_tensors="np",
         )
-        print(inputs)
-        input()
         return inputs
 
     # @override
