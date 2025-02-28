@@ -20,17 +20,18 @@ namespace tt::pjrt {
 
 const std::string_view kMlirFormat = "mlir";
 
-ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
-                                 std::string code,
-                                 const std::vector<bool> &is_output_scalar)
+ExecutableImage::ExecutableImage(
+    const tt::runtime::Binary &binary, std::string code,
+    const std::vector<bool> &is_output_scalar,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
+    size_t num_addressable_devices)
     : m_ref_count(1), m_binary(binary), m_code(code),
       m_arg_count(binary.getProgramInputs(0).size()),
       m_result_count(binary.getProgramOutputs(0).size()),
-      m_is_output_scalar(is_output_scalar) {
-
-  std::vector<tt::runtime::TensorDesc> output_specs =
-      m_binary.getProgramOutputs(0);
-
+      m_is_output_scalar(is_output_scalar), m_input_sharding(input_sharding),
+      m_output_sharding(output_sharding),
+      m_num_addressable_devices(num_addressable_devices) {
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
     // and crash later.

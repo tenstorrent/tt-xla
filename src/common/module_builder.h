@@ -18,6 +18,9 @@
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
+#define TTMLIR_ENABLE_STABLEHLO 1
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+
 // tt-xla includes
 #include "status.h"
 
@@ -40,6 +43,16 @@ public:
 
   static constexpr std::string_view system_desc_path = "system_desc.ttsys";
 
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
+  getInputShardings() const {
+    return m_input_shardings;
+  }
+
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
+  getOutputShardings() const {
+    return m_output_shardings;
+  }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -57,6 +70,12 @@ private:
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Collects the information about the sharding of specifc inputs.
+  void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the information about the sharding of specifc outputs.
+  void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -73,6 +92,12 @@ private:
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
 
+  // Fills sharding_utils::MeshSharding object with sharding info stored in a
+  // StringAttribute.
+  mlir::LogicalResult fillMeshShardingFromGSPMDString(
+      mlir::StringAttr shardingStr,
+      mlir::tt::sharding_utils::MeshSharding &meshSharding);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
@@ -87,6 +112,12 @@ private:
 
   // Number of devices the binary is intended to run on.
   size_t m_num_addressable_devices;
+  
+  // For every input, holds the sharding information.
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
+
+  // For every output, holds the sharding information.
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
 };
 
 } // namespace tt::pjrt
