@@ -11,6 +11,10 @@
 // loguru includes
 #include "loguru/loguru.hpp"
 
+// llvm includes
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/LogicalResult.h"
+
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/Extensions/AllExtensions.h"
@@ -27,6 +31,7 @@
 #include "stablehlo/dialect/Register.h"
 #include "stablehlo/dialect/Version.h"
 #include "stablehlo/transforms/Passes.h"
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
@@ -36,8 +41,9 @@
 #include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO
+#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/runtime.h"
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
@@ -93,6 +99,8 @@ ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
+  collectInputShardings(mlir_module);
+  collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
@@ -180,6 +188,92 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
+}
+
+mlir::LogicalResult ModuleBuilder::fillMeshShardingFromGSPMDString(
+    mlir::StringAttr shardingStr,
+    mlir::tt::sharding_utils::MeshSharding &meshSharding) {
+  auto error =
+      meshSharding.convertGSPMDShardingToMeshSharding(shardingStr.getValue());
+  if (auto e = error.takeError()) {
+    DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
+    return llvm::LogicalResult::failure();
+  }
+  return llvm::LogicalResult::success();
+}
+
+void ModuleBuilder::collectInputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectInputShardings");
+  m_input_shardings.clear();
+
+  module.get().walk([&](mlir::Operation *op) {
+    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
+    mlir::ModuleOp moduleOp = mlir::dyn_cast<mlir::ModuleOp>(op);
+
+    if (!funcOp || !funcOp.isPublic()) {
+      return;
+    }
+
+    for (unsigned i = 0; i < funcOp.getNumArguments(); ++i) {
+
+      mlir::tt::sharding_utils::MeshSharding meshSharding;
+
+      auto shardingAttr = llvm::dyn_cast_if_present<mlir::StringAttr>(
+          funcOp.getArgAttr(i, mlir::tt::sharding_utils::kXlaShardingAttr));
+
+      if (!shardingAttr) {
+        m_input_shardings.push_back(meshSharding);
+        continue;
+      }
+
+      mlir::LogicalResult conversionResult =
+          fillMeshShardingFromGSPMDString(shardingAttr, meshSharding);
+
+      if (conversionResult.failed()) {
+        m_status = tt_pjrt_status::kInternal;
+        return;
+      }
+      m_input_shardings.push_back(meshSharding);
+    }
+  });
+}
+
+void ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
+  m_output_shardings.clear();
+
+  module.get().walk([&](mlir::Operation *op) {
+    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
+    mlir::ModuleOp moduleOp = mlir::dyn_cast<mlir::ModuleOp>(op);
+
+    if (!funcOp || !funcOp.isPublic()) {
+      return;
+    }
+
+    for (unsigned i = 0; i < funcOp.getNumResults(); ++i) {
+
+      mlir::tt::sharding_utils::MeshSharding meshSharding;
+
+      auto shardingAttr = llvm::dyn_cast_if_present<mlir::StringAttr>(
+          funcOp.getResultAttr(i, mlir::tt::sharding_utils::kXlaShardingAttr));
+
+      if (!shardingAttr) {
+        m_output_shardings.push_back(meshSharding);
+        continue;
+      }
+
+      mlir::LogicalResult conversionResult =
+          fillMeshShardingFromGSPMDString(shardingAttr, meshSharding);
+
+      if (conversionResult.failed()) {
+        m_status = tt_pjrt_status::kInternal;
+        return;
+      }
+      m_output_shardings.push_back(meshSharding);
+    }
+  });
 }
 
 void ModuleBuilder::collectOutputTypes(
