@@ -12,6 +12,7 @@ on:
     paths-ignore:
         - '**/*.md'
         - '.gitignore'
+        - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - '.gitignore'
+      - 'LICENSE'
 
 jobs:
   pre-commit:
