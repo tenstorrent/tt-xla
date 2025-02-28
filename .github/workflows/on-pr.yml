@@ -32,7 +32,7 @@ jobs:
       test_mark: 'push'
 
   check-all-green:
-    if: always()
+    if: always() && needs.build-and-test.result != 'skipped'
     needs:
       - pre-commit
       - spdx
