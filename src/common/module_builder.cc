@@ -29,6 +29,10 @@
 #include "stablehlo/dialect/Version.h"
 #include "stablehlo/transforms/Passes.h"
 
+// shardy includes
+#include "shardy/dialect/sdy/ir/register.h"
+#include "shardy/round_trip_import/pipelines.h"
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO
 #include "tt/runtime/runtime.h"
@@ -56,6 +60,7 @@ ModuleBuilder::ModuleBuilder()
 
   mlir::tt::registerAllDialects(registry);
   mlir::stablehlo::registerAllDialects(registry);
+  mlir::sdy::registerAllDialects(registry);
 
   mlir::func::registerAllExtensions(registry);
   mlir::tt::registerAllExtensions(registry);
@@ -126,6 +131,18 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  // This is a temporary solution for the "roundtrip" mlir from openXLA.
+  // Once openXLA natively supports Shardy, we can remvoe following import
+  // passes. https://github.com/tenstorrent/tt-xla/issues/284
+  mlir::PassManager shardy_pm(mlir_module.get()->getName());
+  mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
+
+  if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to convert from Shardy roundtrip import pass module");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
