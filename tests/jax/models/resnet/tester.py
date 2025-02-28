@@ -83,8 +83,7 @@ class ResNetTester(ModelTester):
 
     # @override
     def _get_input_activations(self):
-        data = jax.random.uniform(jax.random.PRNGKey(0), (1, 3, 224, 224))
-        return data
+        return jax.random.uniform(jax.random.PRNGKey(0), (1, 3, 224, 224))
 
     # @override
     def _get_forward_method_kwargs(self):
