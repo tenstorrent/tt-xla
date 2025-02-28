@@ -31,7 +31,9 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
     # If the input tensor is deallocated, the output tensor will lose access
     # to valid data and may contain garbage.
     # See issue #248 for more details.
-    if from_dtype == to_dtype or (from_dtype == jnp.uint32 and to_dtype == jnp.uint64):
+    if from_dtype == to_dtype or (
+        from_dtype == jnp.uint32 and to_dtype == jnp.uint64
+    ):
         pytest.xfail(
             runtime_fail(
                 "Atol comparison failed. Calculated: atol=65535.0. Required: atol=0.16."

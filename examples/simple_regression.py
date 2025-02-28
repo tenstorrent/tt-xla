@@ -16,14 +16,20 @@ import jax._src.xla_bridge as xb
 # program will execute on tt device if not specified otherwise.
 def initialize():
     backend = "tt"
-    path = os.path.join(os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so")
+    path = os.path.join(
+        os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
+    )
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}")
+        raise FileNotFoundError(
+            f"Could not find tt_pjrt C API plugin at {path}"
+        )
 
     print("Loading tt_pjrt C API plugin", file=sys.stderr)
     xb.discover_pjrt_plugins()
 
-    plugin = xb.register_plugin("tt", priority=500, library_path=path, options=None)
+    plugin = xb.register_plugin(
+        "tt", priority=500, library_path=path, options=None
+    )
     print("Loaded", file=sys.stderr)
     jax.config.update("jax_platforms", "tt,cpu")
 
@@ -33,7 +39,9 @@ def random_input_tensor(shape, key=42, on_device=False):
     def random_input(shape, key):
         return jax.random.uniform(jax.random.PRNGKey(key), shape=shape)
 
-    jitted_tensor_creator = jax.jit(random_input, static_argnums=[0, 1], backend="cpu")
+    jitted_tensor_creator = jax.jit(
+        random_input, static_argnums=[0, 1], backend="cpu"
+    )
     tensor = jitted_tensor_creator(shape, key)
     if on_device:
         tensor = jax.device_put(tensor, jax.devices()[0])

@@ -13,7 +13,9 @@ from utils import record_unary_op_test_properties
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
+@pytest.mark.parametrize(
+    "x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}"
+)
 def test_sign(x_shape: tuple, record_tt_xla_property: Callable):
     def sign(x: jax.Array) -> jax.Array:
         return jnp.sign(x)

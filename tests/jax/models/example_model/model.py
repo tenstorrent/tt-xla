@@ -23,7 +23,12 @@ class ExampleModel(nnx.Module):
         self.b1 = random_tensor(b1_shape, minval=-0.01, maxval=0.01)
 
     def __call__(
-        self, act: jax.Array, w0: jax.Array, b0: jax.Array, w1: jax.Array, b1: jax.Array
+        self,
+        act: jax.Array,
+        w0: jax.Array,
+        b0: jax.Array,
+        w1: jax.Array,
+        b1: jax.Array,
     ) -> jax.Array:
         # Note how activations, weights and biases are directly passed to the forward
         # method as inputs, `self` is not accessed. Otherwise they would be embedded

@@ -25,7 +25,9 @@ def test_scalar_scalar_add():
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.skip("Fails due to https://github.com/tenstorrent/tt-metal/issues/16701")
+@pytest.mark.skip(
+    "Fails due to https://github.com/tenstorrent/tt-metal/issues/16701"
+)
 def test_scalar_array_add():
     """
     Tests adding scalar and an array.

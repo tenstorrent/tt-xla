@@ -24,7 +24,9 @@ def comparison_config() -> ComparisonConfig:
 # TODO axis should be parametrized as well.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
+@pytest.mark.parametrize(
+    "x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}"
+)
 def test_reduce_sum(
     x_shape: tuple,
     comparison_config: ComparisonConfig,
@@ -48,7 +50,9 @@ def test_reduce_sum(
 # TODO axis should be parametrized as well.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
+@pytest.mark.parametrize(
+    "x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}"
+)
 def test_reduce_max(
     x_shape: tuple,
     comparison_config: ComparisonConfig,

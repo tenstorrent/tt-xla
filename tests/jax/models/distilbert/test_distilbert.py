@@ -7,7 +7,11 @@ from typing import Callable, Dict, Sequence
 import jax
 import pytest
 from infra import ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
+from transformers import (
+    AutoTokenizer,
+    FlaxDistilBertForMaskedLM,
+    FlaxPreTrainedModel,
+)
 from utils import record_model_test_properties, runtime_fail
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"

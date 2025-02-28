@@ -76,7 +76,9 @@ def test_dot_general_multiple_contract(
     x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
 ):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
-        return jax.lax.dot_general(x, y, dimension_numbers=(((1, 3), (1, 2)), (0, 0)))
+        return jax.lax.dot_general(
+            x, y, dimension_numbers=(((1, 3), (1, 2)), (0, 0))
+        )
 
     record_binary_op_test_properties(
         record_tt_xla_property, "jax.lax.dot_general", "stablehlo.dot_general"

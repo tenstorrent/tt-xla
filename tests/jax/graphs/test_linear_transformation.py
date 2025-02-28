@@ -19,8 +19,12 @@ from infra import run_graph_test_with_random_inputs
         [(64, 32), (32, 64), (1, 64)],
     ],
 )
-def test_linear_transformation(x_shape: tuple, y_shape: tuple, bias_shape: tuple):
-    def linear_transformation(x: jax.Array, y: jax.Array, bias: jax.Array) -> jax.Array:
+def test_linear_transformation(
+    x_shape: tuple, y_shape: tuple, bias_shape: tuple
+):
+    def linear_transformation(
+        x: jax.Array, y: jax.Array, bias: jax.Array
+    ) -> jax.Array:
         return jnp.matmul(x, y) + bias
 
     run_graph_test_with_random_inputs(
