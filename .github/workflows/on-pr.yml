@@ -9,6 +9,8 @@ on:
         type: string
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+        - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
