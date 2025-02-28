@@ -11,6 +11,7 @@ on:
     branches: [ "main" ]
     paths-ignore:
         - '**/*.md'
+        - '.gitignore'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
