@@ -29,9 +29,11 @@ class LoadedExecutableInstance {
 public:
   LoadedExecutableInstance(
       ClientInstance &client, ExecutableImage *image,
-      const std::vector<DeviceInstance *> &addressable_devices)
+      const std::vector<DeviceInstance *> &addressable_devices,
+      size_t num_addressable_devices)
       : client_(client), image_(image),
-        addressable_devices_(addressable_devices) {}
+        addressable_devices_(addressable_devices),
+        num_addressable_devices_(num_addressable_devices) {}
   ~LoadedExecutableInstance();
 
   operator PJRT_LoadedExecutable *() {
@@ -44,6 +46,10 @@ public:
 
   const std::vector<DeviceInstance *> &addressable_devices() {
     return addressable_devices_;
+  }
+
+  const size_t get_num_addressable_devices() const {
+    return num_addressable_devices_;
   }
 
   // Loads all executables to addressable devices.
@@ -59,6 +65,7 @@ private:
   ClientInstance &client_;
   ExecutableImage *image_; // Ref-counted semantics.
   std::vector<DeviceInstance *> addressable_devices_;
+  size_t num_addressable_devices_;
   std::vector<ResidentExecutable> resident_executables_;
 };
 
