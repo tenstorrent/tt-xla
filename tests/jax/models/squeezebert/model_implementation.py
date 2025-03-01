@@ -2,15 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import re
 from typing import Any, Dict, Tuple
 
 import einops
-import flax.traverse_util
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+from jaxtyping import PyTree
 from transformers import SqueezeBertConfig
+
+from tests.jax.models.model_utils import torch_statedict_to_pytree
 
 
 class SqueezeBertEmbedding(nn.Module):
@@ -308,7 +309,7 @@ class SqueezeBertForMaskedLM(nn.Module):
         return prediction_scores
 
     @staticmethod
-    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> PyTree:
         # Key substitutions for remapping huggingface checkpoints to this implementation
         PATTERNS = [
             ("transformer.", "squeezebert."),
@@ -335,29 +336,6 @@ class SqueezeBertForMaskedLM(nn.Module):
             ("cls.predictions.bias", "decoder.bias"),
         ]
 
-        def is_banned_key(key: str) -> bool:
-            return "seq_relationship" in key
+        BANNED_KEYS = ["seq_relationship"]
 
-        def rewrite_key(key: str) -> str:
-            for pattern in PATTERNS:
-                key = re.sub(pattern[0], pattern[1], key)
-            return key
-
-        def process_value(k: str, v) -> jnp.ndarray:
-            if "kernel" in k:
-                if len(v.shape) == 2:
-                    return jnp.transpose(v)
-                if len(v.shape) == 3:
-                    return jnp.transpose(v, (2, 1, 0))
-            return v
-
-        for k, v in state_dict.items():
-            # Inplace conversion might lower peak memory usage
-            state_dict[k] = jnp.array(v)
-
-        state_dict = {
-            rewrite_key(k): v for k, v in state_dict.items() if not is_banned_key(k)
-        }
-        state_dict = {k: process_value(k, v) for k, v in state_dict.items()}
-        state_dict = flax.traverse_util.unflatten_dict(state_dict, sep=".")
-        return {"params": state_dict}
+        return torch_statedict_to_pytree(state_dict, PATTERNS, BANNED_KEYS)
