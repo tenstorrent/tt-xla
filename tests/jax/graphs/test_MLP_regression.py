@@ -23,7 +23,9 @@ def comparison_config() -> ComparisonConfig:
         [(784, 64), (32, 64), (64, 10), (32, 10), (32, 784), (32, 10)]
     ],  # 32 samples, 784 features (28x28), 10 output classes
 )
-def test_nn_with_relu(W1, b1, W2, b2, X, y, comparison_config: ComparisonConfig):
+def test_nn_with_relu(
+    W1, b1, W2, b2, X, y, comparison_config: ComparisonConfig
+):
     def simple_nn(W1, b1, W2, b2, X, y):
         def forward(W1, b1, W2, b2, X):
             hidden = jnp.dot(X, W1) + b1

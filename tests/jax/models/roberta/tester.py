@@ -6,7 +6,11 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxPreTrainedModel, FlaxRobertaForMaskedLM
+from transformers import (
+    AutoTokenizer,
+    FlaxPreTrainedModel,
+    FlaxRobertaForMaskedLM,
+)
 
 
 class FlaxRobertaForMaskedLMTester(ModelTester):

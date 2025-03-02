@@ -30,7 +30,9 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.gather'"))
+@pytest.mark.xfail(
+    reason=compile_fail("failed to legalize operation 'ttir.gather'")
+)
 def test_flax_beit_large_inference(
     inference_tester: FlaxBeitForImageClassificationTester,
     record_tt_xla_property: Callable,

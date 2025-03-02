@@ -44,7 +44,9 @@ class MlpMixerTester(ModelTester):
     def _retrieve_pretrained_weights() -> Dict:
         # TODO(stefan): Discuss how weights should be handled org wide
         link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
-        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
+        with fsspec.open(
+            "filecache::" + link, cache_storage="/tmp/files/"
+        ) as f:
             weights = numpy.load(f, encoding="bytes")
             state_dict = {k: v for k, v in weights.items()}
             pytree = flax.traverse_util.unflatten_dict(state_dict, sep="/")

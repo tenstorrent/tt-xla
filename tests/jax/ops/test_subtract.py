@@ -21,7 +21,9 @@ from utils import record_binary_op_test_properties
     ],
     ids=lambda val: f"{val}",
 )
-def test_subtract(x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable):
+def test_subtract(
+    x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
+):
     def subtract(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.subtract(x, y)
 

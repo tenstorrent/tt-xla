@@ -62,7 +62,10 @@ class MlpMixer(nn.Module):
     @nn.compact
     def __call__(self, inputs: jax.Array) -> jax.Array:
         x = nn.Conv(
-            self.hidden_dim, self.patches.size, strides=self.patches.size, name="stem"
+            self.hidden_dim,
+            self.patches.size,
+            strides=self.patches.size,
+            name="stem",
         )(
             inputs
         )  # Patch embedding

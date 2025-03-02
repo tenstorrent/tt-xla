@@ -141,7 +141,12 @@ def test_conv2d(
     )
 
     img_shape = (batch_size, input_height, input_width, input_channels)
-    kernel_shape = (output_channels, input_channels, filter_height, filter_width)
+    kernel_shape = (
+        output_channels,
+        input_channels,
+        filter_height,
+        filter_width,
+    )
 
     # NOTE Some resnet convolutions seem to require bfloat16, ttnn throws in runtime
     # otherwise. On another note, MaxPool2d is also only supported for bfloat16 in ttnn,

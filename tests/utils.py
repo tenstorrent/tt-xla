@@ -34,7 +34,10 @@ def record_binary_op_test_properties(
 
 
 def record_op_test_properties(
-    record_property: Callable, op_kind: str, framework_op_name: str, op_name: str
+    record_property: Callable,
+    op_kind: str,
+    framework_op_name: str,
+    op_name: str,
 ):
     record_property(RecordProperties.OP_KIND.value, op_kind)
     record_property(RecordProperties.FRAMEWORK_OP_NAME.value, framework_op_name)
