@@ -18,8 +18,11 @@ Before running these commands to build tt-xla, please ensure that the environtme
 git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
 source venv/activate
-cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
-cmake --build build
+# First parameter to configure is the build type and second is the tt-mlir build type.
+# For example ./configure Debug Debug builds both tt-xla and tt-mlir in Debug mode.
+# Parameters after the second are passed trough directly to cmake
+./configure.sh
+./bld.sh
 ```
 
 ## Testing
