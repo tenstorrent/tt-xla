@@ -8,6 +8,7 @@ from abc import ABC
 from typing import Callable, Sequence
 
 import jax
+from jaxtyping import PyTree
 
 from .comparison import (
     ComparisonConfig,
@@ -61,13 +62,15 @@ class BaseTester(ABC):
                 device_output, golden_output, self._comparison_config.allclose
             )
 
-    def _match_data_types(self, *tensors: Tensor) -> Sequence[Tensor]:
+    def _match_data_types(self, *tensors: PyTree) -> PyTree:
         """
         Casts all tensors to float32 if not already in that format.
 
         Tensors need to be in same data format in order to compare them.
         """
-        return [
-            tensor.astype("float32") if tensor.dtype.str != "float32" else tensor
-            for tensor in tensors
-        ]
+        return jax.tree.map(
+            lambda tensor: tensor.astype("float32")
+            if tensor.dtype.str != "float32"
+            else tensor,
+            tensors,
+        )
