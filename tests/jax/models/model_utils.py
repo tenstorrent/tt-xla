@@ -20,7 +20,7 @@ def _process_value(k: str, v: jax.Array) -> jax.Array:
         Used as a hint which conversion to apply.
     v: The value to convert.
     """
-    if "kernel" in k:
+    if k.endswith(".kernel"):
         if len(v.shape) == 2:
             return jnp.transpose(v)
         if len(v.shape) == 3:
@@ -32,7 +32,9 @@ def _process_value(k: str, v: jax.Array) -> jax.Array:
 
 
 def torch_statedict_to_pytree(
-    state_dict: Dict[str, Any], patterns: List[Tuple[str, str]], banned_keys: List[str]
+    state_dict: Dict[str, Any],
+    patterns: List[Tuple[str, str]],
+    banned_subkeys: List[str],
 ) -> PyTree:
     """
     Helper function to convert a PyTorch state dict to a JAX pytree.
@@ -40,11 +42,11 @@ def torch_statedict_to_pytree(
     Args:
     state_dict: The PyTorch state dict to convert.
     patterns: Key renamings to apply to flattened(dot separated) keys.
-    banned_keys: Keys to exclude from the result.
+    banned_subkeys: Keys to exclude from the result.
     """
     # Note that is_banned_key and rewrite_key capture arguments from the outer scope
     def is_banned_key(key: str) -> bool:
-        return any(banned_key in key for banned_key in banned_keys)
+        return any(banned_subkey in key for banned_subkey in banned_subkeys)
 
     def rewrite_key(key: str) -> str:
         is_batch_stat = "running_" in key
