@@ -4,7 +4,6 @@ install/
 third_party/loguru
 third_party/tt-mlir
 
-
 # IDE
 .vscode/
 

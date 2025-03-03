@@ -9,10 +9,6 @@ on:
         type: string
   pull_request:
     branches: [ "main" ]
-    paths-ignore:
-        - '**/*.md'
-        - '.gitignore'
-        - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,8 +21,33 @@ jobs:
   spdx:
     uses: ./.github/workflows/spdx.yml
     secrets: inherit
+
+  check-files:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Check if ignored files are modified
+        id: check
+        run: |
+          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+          all_match=true
+          for file in $CHANGED_FILES;
+          do
+            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
+              all_match=false
+              break
+            fi
+          done
+          if [ "$all_match" = true ]; then
+            echo "::set-output name=skip::true"
+          else
+            echo "::set-output name=skip::false"
+          fi
+
   build-and-test:
-    needs: [pre-commit, spdx]
+    needs: [pre-commit, spdx, check-files]
+    if: ${{ needs.check-files.outputs.skip == 'false' }}
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:
@@ -34,14 +55,16 @@ jobs:
       test_mark: 'push'
 
   check-all-green:
-    if: always() && needs.build-and-test.result != 'skipped'
+    if: always()
     needs:
       - pre-commit
       - spdx
+      - check-files
       - build-and-test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
+        allowed-skips: build-and-test
         jobs: ${{ toJSON(needs) }}
