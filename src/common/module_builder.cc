@@ -77,6 +77,8 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
+  collectNumAddressableDevices(mlir_module);
+
   convertFromVHLOToSHLO(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
@@ -116,6 +118,19 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   printModule(vhlo_module);
 
   return vhlo_module;
+}
+
+void ModuleBuilder::collectNumAddressableDevices(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  if (auto attr = mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions")) {
+    m_num_addressable_devices = attr.getInt();
+  } else {
+    m_num_addressable_devices = 1;
+    DLOG_F(
+        WARNING,
+        "mhlo.num_partitions not found, using default number of devices: 1.");
+  }
 }
 
 void ModuleBuilder::convertFromVHLOToSHLO(
