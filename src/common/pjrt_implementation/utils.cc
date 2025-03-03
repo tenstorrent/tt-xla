@@ -27,6 +27,8 @@ convertElementTypeToBufferType(tt::target::DataType ElementType) {
     return PJRT_Buffer_Type_F32;
   case tt::target::DataType::BFloat16:
     return PJRT_Buffer_Type_BF16;
+  case tt::target::DataType::Int32:
+    return PJRT_Buffer_Type_S32;
   default:
     assert(false && "Unsupported data type");
     return PJRT_Buffer_Type_BF16;
@@ -48,11 +50,12 @@ MapBufferTypeToElementType(PJRT_Buffer_Type buffer_type) {
     return std::make_pair(tt::target::DataType::Float32, 4);
   case PJRT_Buffer_Type_BF16:
     return std::make_pair(tt::target::DataType::BFloat16, 2);
+  case PJRT_Buffer_Type_S32:
+    return std::make_pair(tt::target::DataType::Int32, 4);
   case PJRT_Buffer_Type_INVALID:
   case PJRT_Buffer_Type_S4:
   case PJRT_Buffer_Type_S8:
   case PJRT_Buffer_Type_S16:
-  case PJRT_Buffer_Type_S32:
   case PJRT_Buffer_Type_S64:
   case PJRT_Buffer_Type_U4:
   case PJRT_Buffer_Type_PRED:

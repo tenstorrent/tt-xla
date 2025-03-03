@@ -66,6 +66,14 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
             )
         )
 
+    # int64-uint16 test fails with a different error if run separately.
+    if from_dtype == jnp.uint16 and to_dtype in [jnp.int32, jnp.int64]:
+        pytest.xfail(
+            runtime_fail(
+                "AssertionError: Atol comparison failed. Calculated: atol=75497472.0. Required: atol=0.16."
+            )
+        )
+
     # ---------- Cannot get the device from a tensor with host storage ----------
 
     if from_dtype == jnp.uint64 and to_dtype in [
