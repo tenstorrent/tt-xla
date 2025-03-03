@@ -7,7 +7,12 @@ import torch
 from huggingface_hub import hf_hub_download
 from infra import ComparisonConfig, ModelTester, RunMode
 from safetensors import safe_open
-from transformers import FlaxResNetForImageClassification, ResNetConfig
+from transformers import (
+    FlaxResNetForImageClassification,
+    ResNetConfig,
+    FlaxPreTrainedModel,
+)
+from typing import List, Tuple, Dict, Union, Sequence
 
 from tests.jax.models.model_utils import torch_statedict_to_pytree
 
@@ -25,7 +30,7 @@ class ResNetTester(ModelTester):
         super().__init__(comparison_config, run_mode)
 
     @staticmethod
-    def _get_rename_patterns(name):
+    def _get_renaming_patterns(name) -> List[Tuple[str, str]]:
         PATTERNS = [
             (r"convolution.weight", r"convolution.kernel"),
             (r"normalization.running_mean", r"normalization.mean"),
@@ -40,15 +45,18 @@ class ResNetTester(ModelTester):
         return PATTERNS
 
     @staticmethod
-    def _get_banned_keys():
+    def _get_banned_subkeys() -> List[str]:
         return ["num_batches_tracked"]
 
-    def _download_weights(self, name):
+    @staticmethod
+    def _download_weights(
+        model_name: str,
+    ) -> Union[Dict[str, jax.Array], Dict[str, torch.Tensor]]:
         filename = "model.safetensors"
-        if name == "resnet-101":
+        if "resnet-101" in model_name:
             filename = "pytorch_model.bin"
 
-        ckpt_path = hf_hub_download(repo_id=self._model_name, filename=filename)
+        ckpt_path = hf_hub_download(repo_id=model_name, filename=filename)
         if filename == "model.safetensors":
             with safe_open(ckpt_path, framework="flax", device="cpu") as f:
                 return {key: f.get_tensor(key) for key in f.keys()}
@@ -56,7 +64,7 @@ class ResNetTester(ModelTester):
             return torch.load(ckpt_path, map_location="cpu")
 
     # @override
-    def _get_model(self):
+    def _get_model(self) -> FlaxPreTrainedModel:
         model_variant = self._model_name.split("/")[-1]
         # Resnet-50 has a flax checkpoint on HF, so we can just load it directly.
         if model_variant == "resnet-50":
@@ -74,7 +82,7 @@ class ResNetTester(ModelTester):
         variables = torch_statedict_to_pytree(
             state_dict,
             patterns=self._get_rename_patterns(model_variant),
-            banned_keys=self._get_banned_keys(),
+            banned_subkeys=self._get_banned_subkeys(),
         )
 
         model.params = variables
@@ -82,11 +90,11 @@ class ResNetTester(ModelTester):
         return model
 
     # @override
-    def _get_input_activations(self):
+    def _get_input_activations(self) -> jax.Array:
         return jax.random.uniform(jax.random.PRNGKey(0), (1, 3, 224, 224))
 
     # @override
-    def _get_forward_method_kwargs(self):
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
@@ -94,5 +102,5 @@ class ResNetTester(ModelTester):
         }
 
     # @override
-    def _get_static_argnames(self):
+    def _get_static_argnames(self) -> Sequence[str]:
         return ["train"]

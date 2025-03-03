@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, List
 
 import einops
 import jax
@@ -309,9 +309,8 @@ class SqueezeBertForMaskedLM(nn.Module):
         return prediction_scores
 
     @staticmethod
-    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> PyTree:
-        # Key substitutions for remapping huggingface checkpoints to this implementation
-        PATTERNS = [
+    def _get_renaming_patterns() -> List[Tuple[str, str]]:
+        return [
             ("transformer.", "squeezebert."),
             ("LayerNorm", "layernorm"),
             ("layernorm.weight", "layernorm.scale"),
@@ -336,6 +335,14 @@ class SqueezeBertForMaskedLM(nn.Module):
             ("cls.predictions.bias", "decoder.bias"),
         ]
 
-        BANNED_KEYS = ["seq_relationship"]
+    @staticmethod
+    def _get_banned_subkeys() -> List[str]:
+        return ["cls.seq_relationship"]
 
-        return torch_statedict_to_pytree(state_dict, PATTERNS, BANNED_KEYS)
+    @staticmethod
+    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> PyTree:
+        return torch_statedict_to_pytree(
+            state_dict,
+            patterns=SqueezeBertForMaskedLM._getrenaming_patterns(),
+            banned_subkeys=SqueezeBertForMaskedLM._get_banned_subkeys(),
+        )
