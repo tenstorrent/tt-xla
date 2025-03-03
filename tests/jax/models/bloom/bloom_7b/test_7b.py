@@ -29,6 +29,7 @@ def training_tester() -> BloomTester:
 # ----- Tests -----
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
 def test_bloom_7b_inference(
     inference_tester: BloomTester,
@@ -39,6 +40,7 @@ def test_bloom_7b_inference(
     inference_tester.test()
 
 
+@pytest.mark.nightly
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_bloom_7b_training(
     training_tester: BloomTester,
