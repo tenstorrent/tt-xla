@@ -18,8 +18,11 @@ Before running these commands to build tt-xla, please ensure that the environtme
 git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
 source venv/activate
-./configure # first parameter is build type, ie ./configure Debug builds in debug, parameters after the first are passed down to CMake directly
-./build
+# First parameter to configure is the build type and second is the tt-mlir build type.
+# For example ./configure Debug Debug builds both tt-xla and tt-mlir in Debug mode.
+# Parameters after the second are passed trough directly to cmake
+./configure.sh
+./bld.sh
 ```
 
 ## Testing

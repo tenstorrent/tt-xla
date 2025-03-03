@@ -23,6 +23,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
+if(NOT TTMLIR_BUILD_TYPE)
+    set(TTMLIR_BUILD_TYPE Release)
+endif()
+
 set(CMAKE_INSTALL_PREFIX ${TTPJRT_SOURCE_DIR}/install)
 
 add_library(coverage_config INTERFACE)
