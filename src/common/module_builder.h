@@ -18,6 +18,9 @@
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
+#define TTMLIR_ENABLE_STABLEHLO
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+
 // tt-xla includes
 #include "status.h"
 
@@ -36,6 +39,11 @@ public:
     return m_is_output_scalar;
   };
 
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
+  getInputShardings() const {
+    return m_input_shardings;
+  }
+
   // This needs to return the number of addressable devices from the StableHLO
   // code. Currently hardcoded to one, as we only support one-chip execution.
   size_t getNumAddressableDevices() const { return 1; }
@@ -51,6 +59,10 @@ private:
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Fills up the m_input_shardings array with information about the sharding of
+  // specifc inputs.
+  void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -68,6 +80,12 @@ private:
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
 
+  // Fills sharding_utils::MeshSharding object with sharding info stored in a
+  // StringAttribute.
+  mlir::LogicalResult fillMeshShardingFromGSPMDString(
+      mlir::StringAttr shardingStr,
+      mlir::tt::sharding_utils::MeshSharding &meshSharding);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
@@ -79,6 +97,9 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // For every input, holds the sharding information.
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
 };
 
 } // namespace tt::pjrt
