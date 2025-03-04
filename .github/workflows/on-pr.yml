@@ -23,6 +23,7 @@ jobs:
     secrets: inherit
 
   check-files:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       skip: ${{ steps.check.outputs.skip }}
@@ -53,7 +54,7 @@ jobs:
 
   build-and-test:
     needs: [pre-commit, spdx, check-files]
-    if: ${{ needs.check-files.outputs.skip == 'false' }}
+    if: github.event_name != 'pull_request' || needs.check-files.outputs.skip == 'false'
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:
