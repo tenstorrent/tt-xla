@@ -44,6 +44,7 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
 
   m_output_types.resize(m_result_count);
   m_output_dims.resize(m_result_count);
+  m_output_strides.resize(m_result_count);
   for (int i = 0; i < m_result_count; i++) {
     m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
         output_specs[i].dataType);
@@ -51,6 +52,8 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
     // PJRT expects an empty shape for scalars.
     m_output_dims[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()
                                              : output_specs[i].shape;
+
+    m_output_strides[i] = output_specs[i].stride;
   }
 }
 
@@ -121,7 +124,7 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
     args->output_types = exec->get_output_types();
-    args->num_output_types = exec->get_num_output_types();
+    args->num_output_types = exec->get_num_outputs();
     return nullptr;
   };
   api->PJRT_Executable_OutputDimensions =
@@ -140,6 +143,12 @@ const std::vector<std::uint32_t> &
 ExecutableImage::get_output_shape(const size_t index) const {
   assert(index < m_output_dims.size() && "Output index out of range");
   return m_output_dims[index];
+}
+
+const std::vector<std::uint32_t> &
+ExecutableImage::get_output_stride(const size_t index) const {
+  assert(index < m_output_strides.size() && "Output index out of range");
+  return m_output_strides[index];
 }
 
 void ExecutableImage::populateOutputDimsConcatenated() {
@@ -163,7 +172,7 @@ void ExecutableImage::populateOutputDimsConcatenated() {
 
 void ExecutableImage::get_output_dims_concatenated(const size_t **dim_sizes,
                                                    const int64_t **dims) {
-  if (!areOutputDimsConcatinated()) {
+  if (!areOutputDimsConcatenated()) {
     populateOutputDimsConcatenated();
   }
 
