@@ -58,9 +58,11 @@ public:
 
   const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
 
+  const std::vector<std::uint32_t> &get_output_stride(const size_t index) const;
+
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
-  size_t get_num_output_types() const { return m_output_types.size(); }
+  size_t get_num_outputs() const { return m_output_types.size(); }
 
 private:
   // Retrieves pointers to the concatenated list of output dimensions and the
@@ -107,6 +109,9 @@ private:
   // Stores all output dimensions concatenated in a flat array. Nullptr until
   // its getter is called.
   std::unique_ptr<int64_t[]> m_output_dims_concatenated;
+
+  // For every output, holds its stride.
+  std::vector<std::vector<uint32_t>> m_output_strides;
 };
 
 } // namespace tt::pjrt
