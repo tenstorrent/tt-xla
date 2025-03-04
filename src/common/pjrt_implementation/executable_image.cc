@@ -25,13 +25,13 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
                                  const std::vector<bool> &is_output_scalar,
                                  size_t num_addressable_devices)
     : m_ref_count(1), m_binary(binary), m_code(code),
-      m_arg_count(binary.getProgramInputs(0).size()),
       m_is_output_scalar(is_output_scalar),
       m_num_addressable_devices(num_addressable_devices) {
 
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_binary.getProgramOutputs(0);
   m_result_count = output_specs.size();
+  m_arg_count = m_binary.getProgramInputs(0).size();
 
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
@@ -120,10 +120,8 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    // There is a possibility that this method should return unique types, and
-    // not a type for every output.
     args->output_types = exec->get_output_types();
-    args->num_output_types = exec->num_output_types();
+    args->num_output_types = exec->get_num_output_types();
     return nullptr;
   };
   api->PJRT_Executable_OutputDimensions =
