@@ -56,22 +56,26 @@ public:
     return m_num_addressable_devices;
   }
 
-  const std::vector<std::uint32_t> &get_output_shape(size_t index) const;
+  const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
 
+  PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
+
+  size_t get_num_output_types() const { return m_output_types.size(); }
+
+private:
+  // Retrieves pointers to the concatenated list of output dimensions and the
+  // corresponding list of ranks (number of dimensions per output tensor).
   void get_output_dims_concatenated(const size_t **dim_sizes,
                                     const int64_t **dims);
 
-  PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
-  size_t num_output_types() { return m_output_types.size(); }
-
-private:
-  // Checks whether m_output_dim_sizes and m_output_dims_concatenated have been
-  // filled.
-  bool areOutputDimsConcatinated() const {
+  // Checks if the concatenated output dimensions and the corresponding rank
+  // list have been initialized.
+  bool areOutputDimsConcatenated() const {
     return m_output_dim_sizes && m_output_dims_concatenated;
   }
 
-  // Fills the m_output_dim_sizes and m_output_dims_concatenated array.
+  // Populates the concatenated list of output dimensions and the corresponding
+  // list of ranks.
   void populateOutputDimsConcatenated();
 
   // The reference count. Must be disposed when reaching zero.
@@ -96,12 +100,12 @@ private:
   // For every output, holds a list of its dimensions.
   std::vector<std::vector<uint32_t>> m_output_dims;
 
-  // For every output, holds how many dimensions it has. Nullptr until getter
-  // get_output_dims_concatenated is called.
+  // For every output, stores rank (number of dimensions). Nullptr until its
+  // getter is called.
   std::unique_ptr<size_t[]> m_output_dim_sizes;
 
-  // Holds all output dimensions concatenated. Nullptr until getter
-  // get_output_dims_concatenated is called.
+  // Stores all output dimensions concatenated in a flat array. Nullptr until
+  // its getter is called.
   std::unique_ptr<int64_t[]> m_output_dims_concatenated;
 };
 
