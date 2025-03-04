@@ -72,6 +72,8 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
 
   m_status = tt_pjrt_status::kSuccess;
 
+  DLOG_F(LOG_DEBUG, "TEST");
+
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(code);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
