@@ -77,13 +77,15 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<tt::runtime::Tensor> rt_inputs;
 
-  std::unordered_set<int> device_ids;
+  
+  std::vector<int> device_ids;
 
-  for (size_t i = 0; i < num_devices; i++) {
+  for (size_t i = 0; args->num_args && i < num_devices; i++) {
     BufferInstance *buffer =
       BufferInstance::Unwrap(args->argument_lists[i][0]);
-    device_ids.insert(
-      chip_ids[buffer->device().device_description()->getDeviceId()]);
+    int64_t buffer_device_id =
+        buffer->device().device_description()->getDeviceId();
+    device_ids.push_back(buffer_device_id);
   }
 
   for (size_t i = 0; i < args->num_args; ++i) {
@@ -93,11 +95,15 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
-  assert(device_ids.size() == num_devices);
+  // TODO: Now we will run only on the first one, but this should be somehow
+  // explicit.
+  if (device_ids.size() == 0) {
+    device_ids.push_back(chip_ids[0]);
+    device_ids.push_back(
+        addressable_devices_[0]->device_description()->getDeviceId());
+  }
 
-  std::vector<int> device_ids_vector(device_ids.begin(), device_ids.end());
-
-  tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
+  tt::runtime::Device device = tt::runtime::openDevice(device_ids);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();
   std::vector<tt::runtime::Tensor> rt_outputs = tt::runtime::submit(device, binary, 0, rt_inputs);
@@ -107,8 +113,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (int k=0;k<num_devices;k++)
   {
     for (size_t i = 0; i < image_->get_num_outputs(); ++i) {
+      tt::runtime::Tensor untilized_output_tensor =
+        tt::runtime::toHost(rt_outputs[i], /*untilize=*/true);
       auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[k], rt_outputs[i], image_->get_output_shape(i), image_->get_output_stride(i));
+          *this->addressable_devices_[k], untilized_output_tensor, image_->get_output_shape(i), image_->get_output_stride(i));
+      tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[i].dataType));
       DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
