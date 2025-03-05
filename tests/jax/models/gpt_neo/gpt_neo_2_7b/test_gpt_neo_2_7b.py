@@ -30,7 +30,7 @@ def training_tester() -> GPTNeoTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(reason="OOMs on CI.")
+@pytest.mark.skip(reason="OOMs in CI.")
 def test_gpt_neo_2_7b_inference(
     inference_tester: GPTNeoTester,
     record_tt_xla_property: Callable,

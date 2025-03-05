@@ -30,11 +30,7 @@ def training_tester() -> GPTNeoTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
-    reason=runtime_fail(
-        "Host data with total size 4B does not match expected size 2B of device buffer!"
-    )
-)
+@pytest.mark.skip(reason=runtime_fail("OOMs in CI"))
 def test_gpt_neo_1_3b_inference(
     inference_tester: GPTNeoTester,
     record_tt_xla_property: Callable,
