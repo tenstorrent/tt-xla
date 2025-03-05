@@ -34,8 +34,8 @@ def training_tester() -> FlaxBartForCausalLMTester:
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Host data with total size 12B does not match expected size 6B of device buffer! "
-            "(https://github.com/tenstorrent/tt-xla/issues/182)"
+            "Invalid arguments to reshape "
+            "(https://github.com/tenstorrent/tt-xla/issues/307)"
         )
     )
 )

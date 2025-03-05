@@ -5,7 +5,7 @@
 from typing import Callable
 
 import pytest
-from infra import ModelTester, RunMode
+from infra import RunMode
 from utils import record_model_test_properties, runtime_fail
 
 from ..tester import GPTNeoTester
@@ -23,18 +23,14 @@ def inference_tester() -> GPTNeoTester:
 
 @pytest.fixture
 def training_tester() -> GPTNeoTester:
-    return GPTNeoTester(ModelTester, run_mode=RunMode.TRAINING)
+    return GPTNeoTester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
 @pytest.mark.nightly
-@pytest.mark.xfail(
-    reason=runtime_fail(
-        "Host data with total size 4B does not match expected size 2B of device buffer!"
-    )
-)
+@pytest.mark.skip(reason=runtime_fail("OOMs in CI"))
 def test_gpt_neo_1_3b_inference(
     inference_tester: GPTNeoTester,
     record_tt_xla_property: Callable,

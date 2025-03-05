@@ -32,15 +32,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           all_match=true
-          for file in $CHANGED_FILES;
-          do
-            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
-              all_match=false
-              break
-            fi
-          done
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
+            for file in $CHANGED_FILES;
+            do
+              if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
+                all_match=false
+                break
+              fi
+            done
+          else
+            all_match=false
+          fi
           if [ "$all_match" = true ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "> --- Build is skipped. Files in PR:"
@@ -53,7 +57,7 @@ jobs:
 
   build-and-test:
     needs: [pre-commit, spdx, check-files]
-    if: ${{ needs.check-files.outputs.skip == 'false' }}
+    if: needs.check-files.outputs.skip == 'false'
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:

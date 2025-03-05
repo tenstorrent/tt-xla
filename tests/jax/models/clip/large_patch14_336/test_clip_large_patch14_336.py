@@ -32,9 +32,9 @@ def training_tester() -> FlaxCLIPTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=compile_fail(
-        'Assertion `llvm::isUIntN(BitWidth, val) && "Value is not an N-bit unsigned value"\' failed.'
+        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
     )
 )
 def test_clip_large_patch14_336_inference(
