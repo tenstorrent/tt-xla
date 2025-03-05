@@ -34,8 +34,7 @@ public:
       const std::vector<bool> &is_output_scalar,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_sharding,
-      size_t num_addressable_devices);
+          &output_sharding);
 
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
