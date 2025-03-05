@@ -33,8 +33,8 @@ def training_tester() -> GPT2Tester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
-        "Host data with total size 4B does not match expected size 2B of device buffer! "
-        "(https://github.com/tenstorrent/tt-xla/issues/182)"
+        "Invalid arguments to reshape "
+        "(https://github.com/tenstorrent/tt-xla/issues/307)"
     )
 )
 def test_gpt2_large_inference(
