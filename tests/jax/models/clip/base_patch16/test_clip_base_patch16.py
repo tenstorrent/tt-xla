@@ -2,12 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
-from typing import Callable
-
 import pytest
 from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import compile_fail
 
 from ..tester import FlaxCLIPTester
 
@@ -33,26 +30,26 @@ def training_tester() -> FlaxCLIPTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(
     reason=compile_fail(
         "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
     )
 )
-def test_clip_base_patch16_inference(
-    inference_tester: FlaxCLIPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_clip_base_patch16_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
 
 
 @pytest.mark.push
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_clip_base_patch16_training(
-    training_tester: FlaxCLIPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_clip_base_patch16_training(training_tester: FlaxCLIPTester):
     training_tester.test()

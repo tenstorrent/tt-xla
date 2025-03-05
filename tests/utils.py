@@ -8,7 +8,6 @@ from typing import Callable
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
-from conftest import RecordProperties
 
 
 def compile_fail(reason: str) -> str:
@@ -19,47 +18,15 @@ def runtime_fail(reason: str) -> str:
     return f"Runtime failed: {reason}"
 
 
-def record_unary_op_test_properties(
-    record_property: Callable, framework_op_name: str, op_name: str
-):
-    record_property(RecordProperties.OP_KIND.value, "Unary op")
-    record_property(RecordProperties.FRAMEWORK_OP_NAME.value, framework_op_name)
-    record_property(RecordProperties.OP_NAME.value, op_name)
-
-
-def record_binary_op_test_properties(
-    record_property: Callable, framework_op_name: str, op_name: str
-):
-    record_property(RecordProperties.OP_KIND.value, "Binary op")
-    record_property(RecordProperties.FRAMEWORK_OP_NAME.value, framework_op_name)
-    record_property(RecordProperties.OP_NAME.value, op_name)
-
-
-def record_op_test_properties(
-    record_property: Callable, op_kind: str, framework_op_name: str, op_name: str
-):
-    record_property(RecordProperties.OP_KIND.value, op_kind)
-    record_property(RecordProperties.FRAMEWORK_OP_NAME.value, framework_op_name)
-    record_property(RecordProperties.OP_NAME.value, op_name)
-
-
-def record_model_test_properties(record_property: Callable, model_name: str):
-    record_property(RecordProperties.MODEL_NAME.value, model_name)
-
-
 # NOTE TTNN does not support boolean data type, so bfloat16 is used instead.
 # The output of logical operation (and other similar ops) is bfloat16. JAX can
 # not perform any computation due to mismatch in output data type (in testing
 # infrastructure). The following tests explicitly convert data type of logical
 # operation output for the verification purposes.
-
 # TODO Remove this workaround once the data type issue is resolved.
 # https://github.com/tenstorrent/tt-xla/issues/93
-
 # TODO investigate why this decorator cannot be removed. See issue
 # https://github.com/tenstorrent/tt-xla/issues/156
-
-
 def convert_output_to_bfloat16(f: Callable):
     """Decorator to work around the mentioned issue."""
 

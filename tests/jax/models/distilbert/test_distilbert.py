@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Dict, Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
 from infra import ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
-from utils import record_model_test_properties, runtime_fail
+from utils import runtime_fail
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"
 MODEL_NAME = "distilbert"
@@ -55,6 +55,11 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 
 
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
@@ -63,21 +68,16 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
         )
     )
 )
-def test_flax_distilbert_inference(
-    inference_tester: FlaxDistilBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
     inference_tester.test()
 
 
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_distilbert_training(
-    training_tester: FlaxDistilBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_distilbert_training(training_tester: FlaxDistilBertForMaskedLMTester):
     training_tester.test()

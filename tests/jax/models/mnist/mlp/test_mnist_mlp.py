@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Sequence
+from typing import Sequence
 
 import jax
 import pytest
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
-from utils import record_model_test_properties
 
 from .model_implementation import MNISTMLPModel
 
@@ -51,6 +50,8 @@ class MNISTMLPTester(ModelTester):
 
 # ----- Fixtures -----
 
+MODEL_NAME = "mnist-mlp"
+
 
 @pytest.fixture
 def inference_tester(request) -> MNISTMLPTester:
@@ -67,6 +68,11 @@ def training_tester(request) -> MNISTMLPTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.parametrize(
     "inference_tester",
     [
@@ -80,22 +86,17 @@ def training_tester(request) -> MNISTMLPTester:
     indirect=True,
     ids=lambda val: f"{val}",
 )
-def test_mnist_mlp_inference(
-    inference_tester: MNISTMLPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mnist-mlp")
-
+def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     inference_tester.test()
 
 
 @pytest.mark.push
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_mlp_training(
-    training_tester: MNISTMLPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MNISTMLPModel.__qualname__)
-
+def test_mnist_mlp_training(training_tester: MNISTMLPTester):
     training_tester.test()

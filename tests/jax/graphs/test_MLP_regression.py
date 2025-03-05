@@ -17,6 +17,7 @@ def comparison_config() -> ComparisonConfig:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(test_category="graph_test")
 @pytest.mark.parametrize(
     ["W1", "b1", "W2", "b2", "X", "y"],
     [

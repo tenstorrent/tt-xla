@@ -2,101 +2,67 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import datetime
-from enum import Enum
-from typing import Callable
-
 import pytest
 
 
-class RecordProperties(Enum):
-    """Properties we can record."""
-
-    # Timestamp of test start.
-    START_TIMESTAMP = "start_timestamp"
-    # Timestamp of test end.
-    END_TIMESTAMP = "end_timestamp"
-    # Frontend or framework used to run the test.
-    FRONTEND = "frontend"
-    # Kind of operation. e.g. eltwise.
-    OP_KIND = "op_kind"
-    # Name of the operation in the framework. e.g. torch.conv2d.
-    FRAMEWORK_OP_NAME = "framework_op_name"
-    # Name of the operation. e.g. ttir.conv2d.
-    OP_NAME = "op_name"
-    # Name of the model in which this op appears.
-    MODEL_NAME = "model_name"
-
-
-@pytest.fixture(scope="function", autouse=True)
-def record_test_timestamp(record_property: Callable):
+def pytest_configure(config: pytest.Config):
     """
-    Autouse fixture used to capture execution time of a test.
+    Registers custom pytest marker `record_properties(key1=val1, key2=val2, ...)`.
 
-    Parameters:
-    ----------
-    record_property: Callable
-        A pytest built-in function used to record test metadata, such as custom
-        properties or additional information about the test execution.
+    Allowed keys are ["test_category", "jax_op_name", "op_name", "model_name"].
+        - `test_category`: one of ["op_test", "graph_test", "model_test", "multichip_test", "other"]
+        - `jax_op_name`: name of the operation in jax, e.g. `jax.numpy.exp`
+        - `shlo_op_name`: name of the matching stablehlo operation
+        - `model_name`: name of the model under test (if recorded from a model test, or op
+          under test comes from some model and we want to note that in the report)
+        - `run_mode`: one of ["inference", "training"]. Only exists for model tests.
 
-    Yields:
-    -------
-    Callable
-        The `record_property` callable, allowing tests to add additional properties if
-        needed.
-
-
-    Example:
-    --------
-    ```
-    def test_model(fixture1, fixture2, ..., record_tt_xla_property):
-        record_tt_xla_property("key", value)
-
-        # Test logic...
-    ```
+    These are used to tag the function under test with properties which will be dumped
+    to the final XML test report. These reports get picked up by other CI workflows and
+    are used to display state of tests on a dashboard.
     """
-    start_timestamp = datetime.strftime(datetime.now(), "%Y-%m-%dT%H:%M:%S%z")
-    record_property(RecordProperties.START_TIMESTAMP.value, start_timestamp)
-
-    # Run the test.
-    yield
-
-    end_timestamp = datetime.strftime(datetime.now(), "%Y-%m-%dT%H:%M:%S%z")
-    record_property(RecordProperties.END_TIMESTAMP.value, end_timestamp)
+    config.addinivalue_line(
+        "markers",
+        "record_properties(key_value_pairs): Record custom properties for the test",
+    )
 
 
-@pytest.fixture(scope="function", autouse=True)
-def record_tt_xla_property(record_property: Callable):
+def pytest_collection_modifyitems(items):
     """
-    Autouse fixture that automatically records some test properties for each test
-    function.
-
-    It also yields back callable which can be explicitly used in tests to record
-    additional properties.
-
-    Example:
-
-    ```
-    def test_model(fixture1, fixture2, ..., record_tt_xla_property):
-        record_tt_xla_property("key", value)
-
-        # Test logic...
-    ```
-
-    Parameters:
-    ----------
-    record_property: Callable
-        A pytest built-in function used to record test metadata, such as custom
-        properties or additional information about the test execution.
-
-    Yields:
-    -------
-    Callable
-        The `record_property` callable, allowing tests to add additional properties if
-        needed.
+    Pytest hook to process the custom marker and attach recorder properties to the test.
     """
-    # Record default properties for tt-xla.
-    record_property(RecordProperties.FRONTEND.value, "tt-xla")
 
-    # Run the test.
-    yield record_property
+    def validate_keys(keys):
+        valid_keys = [
+            "test_category",
+            "jax_op_name",
+            "shlo_op_name",
+            "model_name",
+            "run_mode",
+        ]
+
+        if not all(key in valid_keys for key in keys):
+            raise KeyError(
+                f"Invalid keys found in 'record_properties' marker: {', '.join(keys)}. "
+                f"Allowed keys are: {', '.join(valid_keys)}"
+            )
+
+    for item in items:
+        # Add some test metadata in a 'tags' dictionary.
+        tags = {"test_name": item.originalname, "specific_test_case": item.name}
+
+        # Look for the custom marker.
+        properties_marker = item.get_closest_marker(name="record_properties")
+
+        if properties_marker:
+            # Extract the key-value pairs passed to the marker.
+            properties: dict = properties_marker.kwargs
+            # Validate that only allowed keys are used.
+            validate_keys(properties.keys())
+
+            # Tag them.
+            for key, value in properties.items():
+                tags[key] = value
+
+        # Attach the tags dictionary as a single property.
+        item.user_properties.append(("tags", tags))

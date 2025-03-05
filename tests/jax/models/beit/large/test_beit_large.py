@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
 from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import compile_fail
 
 from ..tester import FlaxBeitForImageClassificationTester
 
@@ -31,22 +29,26 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 
 
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.gather'"))
 def test_flax_beit_large_inference(
     inference_tester: FlaxBeitForImageClassificationTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     inference_tester.test()
 
 
 @pytest.mark.model_test
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_beit_large_training(
     training_tester: FlaxBeitForImageClassificationTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     training_tester.test()

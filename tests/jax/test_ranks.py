@@ -14,6 +14,7 @@ from jax import numpy as jnp
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(test_category="other")
 @pytest.mark.parametrize(
     "x_shape",
     [
@@ -43,6 +44,7 @@ def test_unary_op(x_shape: tuple):
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(test_category="other")
 @pytest.mark.parametrize(
     "shape",
     [

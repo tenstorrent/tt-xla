@@ -4,11 +4,12 @@
 
 import jax
 import jax.numpy as jnp
-from infra import run_multichip_test_with_random_inputs, make_partition_spec
 import pytest
+from infra import make_partition_spec, run_multichip_test_with_random_inputs
 from utils import compile_fail
 
 
+@pytest.mark.record_properties(test_category="multichip_test")
 @pytest.mark.parametrize(
     ["batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"],
     [
