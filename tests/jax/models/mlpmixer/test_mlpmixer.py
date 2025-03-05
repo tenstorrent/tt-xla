@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, Sequence
+from typing import Any, Dict, Sequence
 
 import flax.traverse_util
 import fsspec
@@ -12,9 +12,11 @@ import numpy
 import pytest
 from flax import linen as nn
 from infra import ModelTester, RunMode
-from utils import record_model_test_properties, runtime_fail
+from utils import runtime_fail
 
 from .model_implementation import MlpMixer
+
+MODEL_NAME = "mlpmixer"
 
 # Hyperparameters for Mixer-B/16
 patch_size = 16
@@ -90,6 +92,11 @@ def training_tester() -> MlpMixerTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.skip(
     reason=runtime_fail(
         "Statically allocated circular buffers in program 16 clash with L1 buffers "
@@ -98,22 +105,17 @@ def training_tester() -> MlpMixerTester:
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )  # segfault
-def test_mlpmixer_inference(
-    inference_tester: MlpMixerTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mlpmixer")
-
+def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     inference_tester.test()
 
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mlpmixer_training(
-    training_tester: MlpMixerTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mlpmixer")
-
+def test_mlpmixer_training(training_tester: MlpMixerTester):
     training_tester.test()

@@ -2,12 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import jax
 import pytest
 from infra import run_op_test_with_random_inputs
-from utils import record_binary_op_test_properties
 
 
 # Tests for dot_general op where vectors containing indices of contracting dimensions
@@ -15,6 +12,11 @@ from utils import record_binary_op_test_properties
 # this is the most common one we have.
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="op_test",
+    jax_op_name="jax.lax.dot_general",
+    shlo_op_name="stablehlo.dot_general",
+)
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -25,15 +27,9 @@ from utils import record_binary_op_test_properties
     ],
     ids=lambda val: f"{val}",
 )
-def test_dot_general_common(
-    x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
-):
+def test_dot_general_common(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=((1, 1), (0, 0)))
-
-    record_binary_op_test_properties(
-        record_tt_xla_property, "jax.lax.dot_general", "stablehlo.dot_general"
-    )
 
     run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
 
@@ -41,6 +37,11 @@ def test_dot_general_common(
 # Tests for dot_general op where this operation corresponds to regular matmul.
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="op_test",
+    jax_op_name="jax.lax.dot_general",
+    shlo_op_name="stablehlo.dot_general",
+)
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -48,15 +49,9 @@ def test_dot_general_common(
         [(2, 32, 64), (2, 64, 64)],
     ],
 )
-def test_dot_general_matmul(
-    x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
-):
+def test_dot_general_matmul(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=((2, 1), (0, 0)))
-
-    record_binary_op_test_properties(
-        record_tt_xla_property, "jax.lax.dot_general", "stablehlo.dot_general"
-    )
 
     run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
 
@@ -65,6 +60,11 @@ def test_dot_general_matmul(
 # contracting dimensions are of size greater than 1.
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="op_test",
+    jax_op_name="jax.lax.dot_general",
+    shlo_op_name="stablehlo.dot_general",
+)
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
@@ -72,14 +72,8 @@ def test_dot_general_matmul(
         [(2, 8, 8, 16), (2, 8, 16, 8)],
     ],
 )
-def test_dot_general_multiple_contract(
-    x_shape: tuple, y_shape: tuple, record_tt_xla_property: Callable
-):
+def test_dot_general_multiple_contract(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=(((1, 3), (1, 2)), (0, 0)))
-
-    record_binary_op_test_properties(
-        record_tt_xla_property, "jax.lax.dot_general", "stablehlo.dot_general"
-    )
 
     run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])

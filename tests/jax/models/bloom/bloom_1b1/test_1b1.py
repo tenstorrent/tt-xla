@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
 from infra import ModelTester, RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import compile_fail
 
 from ..tester import BloomTester
 
@@ -29,27 +27,28 @@ def training_tester() -> BloomTester:
 
 # ----- Tests -----
 
+
 # This is an interesting one.
 # The error message seems to happen before the compile even begins
 # And then then compile segfaults with no useful information
 # It is highly likely that both are caused by the same root cause
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
-def test_bloom_1b1_inference(
-    inference_tester: BloomTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_bloom_1b1_inference(inference_tester: BloomTester):
     inference_tester.test()
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_bloom_1b1_training(
-    training_tester: BloomTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_bloom_1b1_training(training_tester: BloomTester):
     training_tester.test()

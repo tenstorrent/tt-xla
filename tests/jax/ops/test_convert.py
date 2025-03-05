@@ -2,15 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
-from utils import compile_fail, record_unary_op_test_properties, runtime_fail
+from utils import compile_fail, runtime_fail
 
 from tests.utils import enable_x64
 
@@ -165,6 +163,11 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="op_test",
+    jax_op_name="jax.lax.convert_element_type",
+    shlo_op_name="stablehlo.convert",
+)
 @pytest.mark.parametrize(
     "from_dtype",
     [
@@ -239,17 +242,9 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
         ),
     ],
 )
-def test_convert(
-    from_dtype: DTypeLike, to_dtype: DTypeLike, record_tt_xla_property: Callable
-):
+def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
     def convert(x: jax.Array) -> jax.Array:
         return jlx.convert_element_type(x, new_dtype=to_dtype)
-
-    record_unary_op_test_properties(
-        record_tt_xla_property,
-        "jax.lax.convert_element_type",
-        "stablehlo.convert",
-    )
 
     # Some dtype conversions are not supported. Check and decide whether to skip or
     # proceed.

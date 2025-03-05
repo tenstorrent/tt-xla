@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
 from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import compile_fail
 
 from ..tester import OPTTester
 
@@ -31,22 +29,22 @@ def training_tester() -> OPTTester:
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
-def test_opt_1_3b_inference(
-    inference_tester: OPTTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_opt_1_3b_inference(inference_tester: OPTTester):
     inference_tester.test()
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_opt_1_3b_training(
-    training_tester: OPTTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_opt_1_3b_training(training_tester: OPTTester):
     training_tester.test()

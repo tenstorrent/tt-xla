@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Dict, Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
@@ -12,7 +12,7 @@ from transformers import (
     FlaxPreTrainedModel,
     FlaxRobertaPreLayerNormForMaskedLM,
 )
-from utils import record_model_test_properties, runtime_fail
+from utils import runtime_fail
 
 MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
 MODEL_NAME = "roberta-prelayernorm"
@@ -72,6 +72,11 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Host data with total size 20B does not match expected size 10B of device buffer! "
@@ -80,19 +85,18 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 )
 def test_flax_roberta_prelayernorm_inference(
     inference_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     inference_tester.test()
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_roberta_prelayernorm_training(
     training_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     training_tester.test()

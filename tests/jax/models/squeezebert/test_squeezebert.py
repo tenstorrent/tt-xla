@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Dict, Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
@@ -11,7 +11,7 @@ from flax import linen as nn
 from huggingface_hub import hf_hub_download
 from infra import ModelTester, RunMode
 from transformers import AutoTokenizer
-from utils import compile_fail, record_model_test_properties
+from utils import compile_fail
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
@@ -76,24 +76,24 @@ def training_tester() -> SqueezeBertTester:
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(
     reason=compile_fail("Failed to legalize operation 'ttir.convolution'")
 )
-def test_squeezebert_inference(
-    inference_tester: SqueezeBertTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()
 
 
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_squeezebert_training(
-    training_tester: SqueezeBertTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_squeezebert_training(training_tester: SqueezeBertTester):
     training_tester.test()

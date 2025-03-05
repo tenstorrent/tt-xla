@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
 from infra import RunMode
-from utils import record_model_test_properties, runtime_fail
+from utils import runtime_fail
 
 from ..tester import FlaxBertForMaskedLMTester
 
@@ -31,6 +29,11 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
@@ -39,22 +42,17 @@ def training_tester() -> FlaxBertForMaskedLMTester:
         )
     )
 )
-def test_flax_bert_base_inference(
-    inference_tester: FlaxBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_bert_base_inference(inference_tester: FlaxBertForMaskedLMTester):
     inference_tester.test()
 
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_bert_base_training(
-    training_tester: FlaxBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_bert_base_training(training_tester: FlaxBertForMaskedLMTester):
     training_tester.test()

@@ -75,12 +75,22 @@ def training_tester() -> ExampleModelOnlyKwargsTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name="Example",
+    run_mode=RunMode.INFERENCE.value,
+)
 def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester):
     inference_tester.test()
 
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_properties(
+    test_category="model_test",
+    model_name="Example",
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyKwargsTester):
     training_tester.test()
