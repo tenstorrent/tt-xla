@@ -5,7 +5,7 @@
 from typing import Callable
 
 import pytest
-from infra import ModelTester, RunMode
+from infra import RunMode
 from utils import record_model_test_properties
 
 from ..tester import GPTNeoTester
@@ -23,14 +23,14 @@ def inference_tester() -> GPTNeoTester:
 
 @pytest.fixture
 def training_tester() -> GPTNeoTester:
-    return GPTNeoTester(ModelTester, run_mode=RunMode.TRAINING)
+    return GPTNeoTester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(reason="OOMs on CI.")
+@pytest.mark.skip(reason="OOMs in CI.")
 def test_gpt_neo_2_7b_inference(
     inference_tester: GPTNeoTester,
     record_tt_xla_property: Callable,

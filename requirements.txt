@@ -14,3 +14,4 @@ pybind11
 pytest
 torch
 transformers
+jaxtyping

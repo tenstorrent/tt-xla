@@ -5,7 +5,7 @@
 from typing import Callable
 
 import pytest
-from infra import ModelTester, RunMode
+from infra import RunMode
 from utils import record_model_test_properties, runtime_fail
 
 from ..tester import GPTNeoTester
@@ -23,7 +23,7 @@ def inference_tester() -> GPTNeoTester:
 
 @pytest.fixture
 def training_tester() -> GPTNeoTester:
-    return GPTNeoTester(ModelTester, run_mode=RunMode.TRAINING)
+    return GPTNeoTester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
