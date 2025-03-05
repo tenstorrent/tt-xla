@@ -30,7 +30,7 @@ def training_tester() -> GPTNeoTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=runtime_fail(
         "Host data with total size 4B does not match expected size 2B of device buffer!"
     )
