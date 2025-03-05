@@ -28,6 +28,9 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
       m_result_count(binary.getProgramOutputs(0).size()),
       m_is_output_scalar(is_output_scalar) {
 
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      m_binary.getProgramOutputs(0);
+
   if (m_result_count != m_is_output_scalar.size()) {
     // TODO: We should throw error instead, otherwise execution will continue
     // and crash later.
@@ -42,7 +45,7 @@ ExecutableImage::ExecutableImage(const tt::runtime::Binary &binary,
   m_output_strides.resize(m_result_count);
   for (int i = 0; i < m_result_count; i++) {
     m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
-        output_specs[i].dataType);
+       output_specs[i].dataType);
 
     // PJRT expects an empty shape for scalars.
     m_output_dims[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()

@@ -51,10 +51,6 @@ public:
 
   const std::string &get_code() const { return m_code; }
 
-  const size_t get_num_addressable_devices() const {
-    return m_num_addressable_devices;
-  }
-
   const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
 
   const std::vector<std::uint32_t> &get_output_stride(const size_t index) const;
