@@ -34,8 +34,8 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Host data with total size 16B does not match expected size 8B of device buffer! "
-            "(https://github.com/tenstorrent/tt-xla/issues/182)"
+            "Unsupported data type DataType::INT32 "
+            "(https://github.com/tenstorrent/tt-xla/issues/308)"
         )
     )
 )
