@@ -38,6 +38,15 @@ class ModelTester(BaseTester, ABC):
     ```
     """
 
+    # ---------- Public methods ----------
+
+    def test(self) -> None:
+        """Tests the model depending on test type with which tester was configured."""
+        if self._run_mode == RunMode.INFERENCE:
+            self._test_inference()
+        else:
+            self._test_training()
+
     def __init__(
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -48,6 +57,8 @@ class ModelTester(BaseTester, ABC):
         self._run_mode = run_mode
 
         self._init_model_hooks()
+
+    # ---------- Private methods ----------
 
     def _init_model_hooks(self) -> None:
         """
@@ -131,13 +142,6 @@ class ModelTester(BaseTester, ABC):
         By default no arguments are static.
         """
         return []
-
-    def test(self) -> None:
-        """Tests the model depending on test type with which tester was configured."""
-        if self._run_mode == RunMode.INFERENCE:
-            self._test_inference()
-        else:
-            self._test_training()
 
     def _test_inference(self) -> None:
         """

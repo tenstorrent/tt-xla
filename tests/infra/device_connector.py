@@ -37,30 +37,14 @@ class DeviceConnector:
 
     _instance = None
 
+    # ---------- Public methods ----------
+
     def __new__(cls, *args, **kwargs):
         # Ensure that only one instance of the class is created.
         if cls._instance is None:
             cls._instance = super().__new__(cls, *args, **kwargs)
 
         return cls._instance
-
-    def __init__(self) -> None:
-        """Don't use directly, use provided factory method instead."""
-        # We need to ensure __init__ body is executed once. It will be called each time
-        # `DeviceConnector()` is called.
-        if self.is_initialized():
-            return
-
-        self._initialized = False
-
-        plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
-        if not os.path.exists(plugin_path):
-            raise FileNotFoundError(
-                f"Could not find tt_pjrt C API plugin at {plugin_path}"
-            )
-
-        self._plugin_path = plugin_path
-        self._initialize_backend()
 
     def is_initialized(self) -> bool:
         """Checks if connector is already initialized."""
@@ -99,6 +83,26 @@ class DeviceConnector:
         assert device_num >= 0
 
         return jax.devices(device_type.value)[device_num]
+
+    # ---------- Private methods ----------
+
+    def __init__(self) -> None:
+        """Don't use directly, use provided factory method instead."""
+        # We need to ensure __init__ body is executed once. It will be called each time
+        # `DeviceConnector()` is called.
+        if self.is_initialized():
+            return
+
+        self._initialized = False
+
+        plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
+        if not os.path.exists(plugin_path):
+            raise FileNotFoundError(
+                f"Could not find tt_pjrt C API plugin at {plugin_path}"
+            )
+
+        self._plugin_path = plugin_path
+        self._initialize_backend()
 
     def _number_of_devices(self, device_type: DeviceType) -> int:
         """Returns the number of available devices of specified type."""

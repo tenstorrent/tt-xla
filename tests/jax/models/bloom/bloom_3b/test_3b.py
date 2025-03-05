@@ -5,7 +5,7 @@
 from typing import Callable
 
 import pytest
-from infra import ModelTester, RunMode
+from infra import RunMode
 from utils import compile_fail, record_model_test_properties
 
 from ..tester import BloomTester
@@ -24,7 +24,7 @@ def inference_tester() -> BloomTester:
 
 @pytest.fixture
 def training_tester() -> BloomTester:
-    return BloomTester(ModelTester, run_mode=RunMode.TRAINING)
+    return BloomTester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

@@ -23,7 +23,7 @@ def inference_tester() -> BloomTester:
 
 @pytest.fixture
 def training_tester() -> BloomTester:
-    return BloomTester(ModelTester, run_mode=RunMode.TRAINING)
+    return BloomTester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
