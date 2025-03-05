@@ -7,7 +7,6 @@
 
 // c++ standard library includes
 #include <cstdlib>
-#include <iostream>
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -77,7 +76,7 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
-  collectNumAddressableDevices(mlir_module);
+  collectNumDevicesToUtilize(mlir_module);
 
   convertFromVHLOToSHLO(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -120,16 +119,21 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   return vhlo_module;
 }
 
-void ModuleBuilder::collectNumAddressableDevices(
+void ModuleBuilder::collectNumDevicesToUtilize(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  if (auto attr = mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-          "mhlo.num_partitions")) {
-    m_num_addressable_devices = attr.getInt();
+  auto num_partitions_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions");
+  auto num_replicas_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_replicas");
+  if (num_partitions_attr && num_replicas_attr) {
+    m_num_devices_to_utilize =
+        num_partitions_attr.getInt() * num_replicas_attr.getInt();
   } else {
-    m_num_addressable_devices = 1;
-    DLOG_F(
-        WARNING,
-        "mhlo.num_partitions not found, using default number of devices: 1.");
+    m_num_devices_to_utilize = 1;
+    DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
+                    "default number of devices: 1");
   }
 }
 

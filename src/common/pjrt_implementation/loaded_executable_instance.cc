@@ -39,7 +39,7 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     const std::vector<DeviceInstance *> &addressable_devices =
         loaded_executable->addressable_devices();
     int num_addressable_devices =
-        loaded_executable->get_num_addressable_devices();
+        loaded_executable->get_num_devices_to_utilize();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -70,8 +70,9 @@ tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  // Sanity check, as we only support execution on one chip currently.
-  assert(args->num_devices == num_addressable_devices_);
+  // Check that the number of devices matches the number of devices counted
+  // from the VHLO module.
+  assert(args->num_devices == num_devices_to_utilize_);
 
   int dev_index = 0;
   const tt::runtime::Binary &binary = image_->get_binary();

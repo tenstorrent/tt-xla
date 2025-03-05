@@ -36,17 +36,17 @@ public:
     return m_is_output_scalar;
   };
 
-  size_t getNumAddressableDevices() const { return m_num_addressable_devices; }
+  size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
 
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
 
-  // Sets m_num_addressable_devices to the number of devices from the VHLO
+  // Gets the number of devices the binary is intended to run on from the VHLO
   // module.
   void
-  collectNumAddressableDevices(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -84,7 +84,7 @@ private:
   std::vector<bool> m_is_output_scalar;
 
   // Number of devices the binary is intended to run on.
-  size_t m_num_addressable_devices;
+  size_t m_num_devices_to_utilize;
 };
 
 } // namespace tt::pjrt
