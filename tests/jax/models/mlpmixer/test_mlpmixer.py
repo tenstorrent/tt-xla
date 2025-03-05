@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, Sequence
+from typing import Any, Dict, Sequence
 
 import flax.traverse_util
 import fsspec
@@ -11,10 +11,27 @@ import ml_collections
 import numpy
 import pytest
 from flax import linen as nn
-from infra import ModelTester, RunMode
-from utils import record_model_test_properties, runtime_fail
+from infra import Framework, ModelTester, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_runtime,
+)
 
 from .model_implementation import MlpMixer
+
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "mlpmixer",
+    None,
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.CUSTOM,
+)
 
 # Hyperparameters for Mixer-B/16
 patch_size = 16
@@ -90,30 +107,33 @@ def training_tester() -> MlpMixerTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
 @pytest.mark.skip(
-    reason=runtime_fail(
+    reason=failed_runtime(
         "Statically allocated circular buffers in program 16 clash with L1 buffers "
         "on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and "
-        "static circular buffer region ends at 951136 "
+        "static circular buffer region ends at 951136 (segfault)"
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
-)  # segfault
-def test_mlpmixer_inference(
-    inference_tester: MlpMixerTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mlpmixer")
-
+)
+def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     inference_tester.test()
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mlpmixer_training(
-    training_tester: MlpMixerTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mlpmixer")
-
+def test_mlpmixer_training(training_tester: MlpMixerTester):
     training_tester.test()

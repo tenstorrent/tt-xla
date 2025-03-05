@@ -7,6 +7,8 @@ import pytest
 from infra import random_tensor
 from infra.device_connector import DeviceConnector
 
+from tests.utils import Category
+
 # ---------- Fixtures ----------
 
 
@@ -50,6 +52,7 @@ def is_tt_device(device: jax.Device) -> bool:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OTHER)
 def test_devices_are_connected():
     cpus = jax.devices("cpu")
 
@@ -64,6 +67,7 @@ def test_devices_are_connected():
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OTHER)
 def test_put_tensor_on_device(cpu: jax.Device, tt_device: jax.Device):
     # `random_tensor` is executed on cpu due to `@run_on_cpu` decorator so we don't have
     # to put it explicitly on cpu, but we will just for demonstration purposes.
@@ -78,6 +82,7 @@ def test_put_tensor_on_device(cpu: jax.Device, tt_device: jax.Device):
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OTHER)
 def test_device_output_comparison(cpu: jax.Device, tt_device: jax.Device):
     @jax.jit  # Apply jit to this function.
     def add(x: jax.Array, y: jax.Array):

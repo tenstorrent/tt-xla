@@ -8,6 +8,7 @@ import jax
 import pytest
 from flax import nnx
 from infra import ModelTester, RunMode
+from utils import failed_fe_compilation
 
 from ..model import ExampleModel
 
@@ -74,13 +75,11 @@ def training_tester() -> ExampleModelOnlyKwargsTester:
 
 
 @pytest.mark.push
-@pytest.mark.model_test
 def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester):
     inference_tester.test()
 
 
 @pytest.mark.push
-@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyKwargsTester):
     training_tester.test()

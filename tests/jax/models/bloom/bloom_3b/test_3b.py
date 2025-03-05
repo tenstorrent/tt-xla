@@ -2,16 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_runtime,
+)
 
 from ..tester import BloomTester
 
 MODEL_PATH = "bigscience/bloom-3b"
-MODEL_NAME = "bloom-3b"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "bloom",
+    "3b",
+    ModelTask.NLP_CAUSAL_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -31,22 +44,25 @@ def training_tester() -> BloomTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
-def test_bloom_3b_inference(
-    inference_tester: BloomTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+def test_bloom_3b_inference(inference_tester: BloomTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_bloom_3b_training(
-    training_tester: BloomTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_bloom_3b_training(training_tester: BloomTester):
     training_tester.test()
