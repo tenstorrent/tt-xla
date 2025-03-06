@@ -23,7 +23,11 @@ class FlaxCLIPTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxCLIPModel.from_pretrained(self._model_name)
+        from_pt = False
+        if self._model_name == "openai/clip-vit-large-patch14-336":
+            from_pt = True
+
+        return FlaxCLIPModel.from_pretrained(self._model_name, from_pt=from_pt)
 
     # @override
     def _get_input_activations(self) -> Dict:
