@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import RunMode
-from utils import accuracy_fail, record_model_test_properties
+from utils import record_model_test_properties, runtime_fail
 
 from ..tester import AlbertV2Tester
 
@@ -33,7 +33,7 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=(
-        accuracy_fail(
+        runtime_fail(
             "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16"
         )
     )

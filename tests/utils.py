@@ -17,10 +17,6 @@ def runtime_fail(reason: str) -> str:
     return f"Runtime failed: {reason}"
 
 
-def accuracy_fail(reason: str) -> str:
-    return f"Accuracy failed: {reason}"
-
-
 def record_unary_op_test_properties(
     record_property: Callable, framework_op_name: str, op_name: str
 ):

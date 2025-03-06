@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import RunMode
-from utils import accuracy_fail, record_model_test_properties
+from utils import record_model_test_properties, runtime_fail
 
 from ..tester import FlaxRobertaForMaskedLMTester
 
@@ -31,7 +31,7 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 
 @pytest.mark.nightly
 @pytest.mark.xfail(
-    reason=accuracy_fail(
+    reason=runtime_fail(
         "Atol comparison failed. Calculated: atol=131078.359375. Required: atol=0.16"
     )
 )

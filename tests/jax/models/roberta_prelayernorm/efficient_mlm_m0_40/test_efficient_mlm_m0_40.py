@@ -12,7 +12,7 @@ from transformers import (
     FlaxPreTrainedModel,
     FlaxRobertaPreLayerNormForMaskedLM,
 )
-from utils import accuracy_fail, record_model_test_properties
+from utils import record_model_test_properties, runtime_fail
 
 MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
 MODEL_NAME = "roberta-prelayernorm"
@@ -73,7 +73,7 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 @pytest.mark.nightly
 @pytest.mark.xfail(
-    reason=accuracy_fail(
+    reason=runtime_fail(
         "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16"
     )
 )
