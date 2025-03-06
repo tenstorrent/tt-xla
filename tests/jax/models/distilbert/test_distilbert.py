@@ -56,9 +56,11 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 
 @pytest.mark.nightly
 @pytest.mark.xfail(
-    reason=runtime_fail(
-        "Unsupported data type DataType::INT32 "
-        "(https://github.com/tenstorrent/tt-xla/issues/308)"
+    reason=(
+        runtime_fail(
+            "Invalid arguments to reshape "
+            "(https://github.com/tenstorrent/tt-xla/issues/307)"
+        )
     )
 )
 def test_flax_distilbert_inference(

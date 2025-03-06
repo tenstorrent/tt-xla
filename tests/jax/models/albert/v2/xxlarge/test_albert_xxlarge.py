@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import RunMode
-from utils import record_model_test_properties, runtime_fail
+from utils import accuracy_fail, record_model_test_properties
 
 from ..tester import AlbertV2Tester
 
@@ -33,9 +33,8 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=(
-        runtime_fail(
-            "Unsupported data type DataType::INT32 "
-            "(https://github.com/tenstorrent/tt-xla/issues/308)"
+        accuracy_fail(
+            "Atol comparison failed. Calculated: atol=131022.7578125. Required: atol=0.16."
         )
     )
 )
