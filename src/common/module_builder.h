@@ -27,8 +27,7 @@ class ModuleBuilder {
 public:
   ModuleBuilder();
 
-  tt_pjrt_status buildModule(const std::string_view &code,
-                             const std::string_view &format);
+  tt_pjrt_status buildModule(const std::string_view &code, const std::string_view &format, const std::string& system_descriptor_path);
 
   const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
@@ -39,8 +38,6 @@ public:
   // This needs to return the number of addressable devices from the StableHLO
   // code. Currently hardcoded to one, as we only support one-chip execution.
   size_t getNumAddressableDevices() const { return 1; }
-
-  static constexpr std::string_view system_desc_path = "system_desc.ttsys";
 
 private:
   // Creates VHLO module from the input program code.
@@ -58,7 +55,7 @@ private:
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts TTIR module to TTNN module.
-  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string& system_descriptor_path);
 
   // Creates flatbuffer binary from the built TTNN module.
   void

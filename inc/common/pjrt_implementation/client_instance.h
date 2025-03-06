@@ -79,6 +79,12 @@ private:
 
   std::unique_ptr<ModuleBuilder> module_builder_;
 
+  // System descriptor (that TTIR to TTNN backend pipeline needs).
+  tt::runtime::SystemDesc system_descriptor_;
+
+  // TODO: Remove once tt-mlir supports passing the system descriptor object to TTIR to TTNN backend pipeline.
+  std::string cached_system_descriptor_path_;
+
   // Synchronization.
   // We keep one global execution timeline across all devices. The management
   // of this is currently somewhat primitive: we increment it by one for each

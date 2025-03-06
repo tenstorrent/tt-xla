@@ -10,9 +10,12 @@
 
 #include "common/pjrt_implementation/client_instance.h"
 
+#include <cstddef>
+#include <filesystem>
 #include <string>
 
 #include "common/pjrt_implementation/utils.h"
+#include "tt/runtime/types.h"
 
 namespace tt::pjrt {
 
@@ -21,14 +24,15 @@ namespace tt::pjrt {
 //===----------------------------------------------------------------------===//
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
-    : platform_(std::move(platform)) {
+    : platform_(std::move(platform)), system_descriptor_(nullptr) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
   module_builder_ = std::make_unique<ModuleBuilder>();
+  cached_system_descriptor_path_ = std::filesystem::temp_directory_path().concat("/tt_pjrt_system_descriptor");
 }
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
-  std::remove(ModuleBuilder::system_desc_path.data());
+  std::remove(cached_system_descriptor_path_.data());
 }
 
 PJRT_Error *ClientInstance::Initialize() {
@@ -165,9 +169,11 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-  system_desc.store(ModuleBuilder::system_desc_path.data());
-  int devices_count = chip_ids.size();
 
+  system_descriptor_ = system_desc;
+  system_descriptor_.store(cached_system_descriptor_path_.data());
+
+  int devices_count = chip_ids.size();
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
     devices_[i] =
@@ -189,7 +195,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
   std::string_view code(program->code, program->code_size);
   std::string_view format(program->format, program->format_size);
 
-  tt_pjrt_status status = module_builder_->buildModule(code, format);
+  tt_pjrt_status status = module_builder_->buildModule(code, format, cached_system_descriptor_path_);
   if (!tt_pjrt_status_is_ok(status)) {
     return ErrorInstance::MakeError(status);
   }

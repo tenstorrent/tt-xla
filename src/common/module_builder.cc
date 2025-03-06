@@ -66,8 +66,7 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
-                                          const std::string_view &format) {
+tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code, const std::string_view &format, const std::string& system_descriptor_path) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
@@ -89,7 +88,7 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
-  convertFromTTIRToTTNN(mlir_module);
+  convertFromTTIRToTTNN(mlir_module, system_descriptor_path);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -192,12 +191,11 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   printModule(mlir_module);
 }
 
-void ModuleBuilder::convertFromTTIRToTTNN(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+void ModuleBuilder::convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string& system_descriptor_path) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
-  options.systemDescPath = system_desc_path.data();
+  options.systemDescPath = system_descriptor_path.data();
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.
