@@ -24,7 +24,7 @@ def inference_tester() -> GPT2Tester:
 
 @pytest.fixture
 def training_tester() -> GPT2Tester:
-    return GPT2Tester(ModelTester, run_mode=RunMode.TRAINING)
+    return GPT2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

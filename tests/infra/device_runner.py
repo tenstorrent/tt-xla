@@ -3,13 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
-import jax
-from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from typing import Callable, Sequence
 
+import jax
+from jax.sharding import NamedSharding, PartitionSpec
 
 from .device_connector import DeviceType, device_connector
-from .workload import MultichipWorkload
 from .types import Tensor
 from .workload import MultichipWorkload, Workload
 
@@ -18,6 +17,8 @@ class DeviceRunner:
     """
     Class providing methods to put and run workload on any supported device.
     """
+
+    # ---------- Public methods ----------
 
     @staticmethod
     def run_on_tt_device(workload: Workload, device_num: int = 0) -> Tensor:
@@ -71,6 +72,8 @@ class DeviceRunner:
     def put_tensors_on_gpu(*tensors: Tensor) -> Sequence[Tensor]:
         """Puts `tensors` on GPU."""
         raise NotImplementedError("Support for GPUs not implemented")
+
+    # ---------- Private methods ----------
 
     @staticmethod
     def _run_on_device(

@@ -30,6 +30,8 @@ class MultichipTester(BaseTester):
         out_specs (jax.sharding.PartitionSpec): The sharding specification for the output tensor.
     """
 
+    # ---------- Public methods ----------
+
     def __init__(
         self,
         in_specs: tuple[jax.sharding.PartitionSpec],
@@ -42,29 +44,6 @@ class MultichipTester(BaseTester):
         self.in_specs = in_specs
         self.out_specs = out_specs
         self.device_mesh = device_connector.get_tt_device_mesh(mesh_shape, axis_names)
-
-    def _compile_for_cpu(
-        self, executable: Callable, static_argnames: Sequence[str] = None
-    ) -> Callable:
-        """Sets up `executable` for just-in-time compile and execution on CPU"""
-        return jax.jit(executable, static_argnames=static_argnames)
-
-    def _compile_for_device(
-        self, executable: Callable, static_argnames: Sequence[str] = None
-    ) -> Callable:
-        """Sets up executable for just-in-time compile and execution on multichip device."""
-        module_sharded = shard_map(
-            executable,
-            mesh=self.device_mesh,
-            in_specs=self.in_specs,
-            out_specs=self.out_specs,
-        )
-        output_sharding = NamedSharding(self.device_mesh, self.out_specs)
-        return jax.jit(
-            module_sharded,
-            out_shardings=output_sharding,
-            static_argnames=static_argnames,
-        )
 
     def test(
         self, multichip_workload: MultichipWorkload, cpu_workload: Workload
@@ -141,3 +120,28 @@ def run_multichip_test_with_random_inputs(
     tester.test_with_random_inputs(
         device_executable, cpu_executable, input_shapes, minval, maxval
     )
+
+    # ---------- Private methods ----------
+
+    def _compile_for_cpu(
+        self, executable: Callable, static_argnames: Sequence[str] = None
+    ) -> Callable:
+        """Sets up `executable` for just-in-time compile and execution on CPU"""
+        return jax.jit(executable, static_argnames=static_argnames)
+
+    def _compile_for_device(
+        self, executable: Callable, static_argnames: Sequence[str] = None
+    ) -> Callable:
+        """Sets up executable for just-in-time compile and execution on multichip device."""
+        module_sharded = shard_map(
+            executable,
+            mesh=self.device_mesh,
+            in_specs=self.in_specs,
+            out_specs=self.out_specs,
+        )
+        output_sharding = NamedSharding(self.device_mesh, self.out_specs)
+        return jax.jit(
+            module_sharded,
+            out_shardings=output_sharding,
+            static_argnames=static_argnames,
+        )

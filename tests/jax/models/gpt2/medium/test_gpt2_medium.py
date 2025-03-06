@@ -5,7 +5,7 @@
 from typing import Callable
 
 import pytest
-from infra import ModelTester, RunMode
+from infra import RunMode
 from utils import record_model_test_properties, runtime_fail
 
 from ..tester import GPT2Tester
@@ -24,7 +24,7 @@ def inference_tester() -> GPT2Tester:
 
 @pytest.fixture
 def training_tester() -> GPT2Tester:
-    return GPT2Tester(ModelTester, run_mode=RunMode.TRAINING)
+    return GPT2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
