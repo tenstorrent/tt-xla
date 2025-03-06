@@ -70,11 +70,13 @@ public:
   // Checks if the output on the i-th index is a scalar.
   bool isOutputScalar(size_t index) const;
 
-  const mlir::tt::sharding_utils::MeshSharding& getInputSharding(size_t index) const {
+  const mlir::tt::sharding_utils::MeshSharding &
+  getInputSharding(size_t index) const {
     return m_input_sharding[index];
   }
 
-  const mlir::tt::sharding_utils::MeshSharding& getOutputSharding(size_t index) const {
+  const mlir::tt::sharding_utils::MeshSharding &
+  getOutputSharding(size_t index) const {
     return m_output_sharding[index];
   }
 
@@ -125,7 +127,7 @@ private:
 
   // For every output, holds its stride.
   std::vector<std::vector<uint32_t>> m_output_strides;
-  
+
   // Hold the sharding information for each input.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_sharding;
 

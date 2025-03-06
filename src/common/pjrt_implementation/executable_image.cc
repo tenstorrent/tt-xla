@@ -41,13 +41,13 @@ ExecutableImage::ExecutableImage(
 
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_binary.getProgramOutputs(0);
-      
+
   m_output_types.resize(m_result_count);
   m_output_dims.resize(m_result_count);
   m_output_strides.resize(m_result_count);
   for (int i = 0; i < m_result_count; i++) {
     m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
-       output_specs[i].dataType);
+        output_specs[i].dataType);
 
     // PJRT expects an empty shape for scalars.
     m_output_dims[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()

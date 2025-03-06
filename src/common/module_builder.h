@@ -112,7 +112,7 @@ private:
 
   // Number of devices the binary is intended to run on.
   size_t m_num_addressable_devices;
-  
+
   // For every input, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
 

@@ -106,10 +106,11 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
   tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
       new_memory, shape, strides, element_size, element_type);
 
-   std::pair<tt::target::DataType, size_t> tt_buffer_type = {element_type, element_size};
+  std::pair<tt::target::DataType, size_t> tt_buffer_type = {element_type,
+                                                            element_size};
 
-  return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides, tt_buffer_type,
-                                          new_memory);
+  return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides,
+                                          tt_buffer_type, new_memory);
 }
 
 } // namespace tt::pjrt

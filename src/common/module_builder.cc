@@ -218,9 +218,7 @@ void ModuleBuilder::collectOutputShardings(
     if (!funcOp || !funcOp.isPublic()) {
       return;
     }
-    std::cerr << "^^^^^^^^^^^^^^^^^" << std::endl;
-    funcOp.dump();
-    std::cerr << "^^^^^^^^^^^^^^^^^" << std::endl;
+
     for (unsigned i = 0; i < funcOp.getNumResults(); ++i) {
 
       mlir::tt::sharding_utils::MeshSharding meshSharding;
