@@ -82,7 +82,8 @@ private:
   // System descriptor (that TTIR to TTNN backend pipeline needs).
   tt::runtime::SystemDesc system_descriptor_;
 
-  // TODO: Remove once tt-mlir supports passing the system descriptor object to TTIR to TTNN backend pipeline.
+  // TODO: Remove once tt-mlir supports passing the system descriptor object to
+  // TTIR to TTNN backend pipeline.
   std::string cached_system_descriptor_path_;
 
   // Synchronization.

@@ -27,7 +27,9 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), system_descriptor_(nullptr) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
   module_builder_ = std::make_unique<ModuleBuilder>();
-  cached_system_descriptor_path_ = std::filesystem::temp_directory_path().concat("/tt_pjrt_system_descriptor");
+  cached_system_descriptor_path_ =
+      std::filesystem::temp_directory_path().concat(
+          "/tt_pjrt_system_descriptor");
 }
 
 ClientInstance::~ClientInstance() {
@@ -195,7 +197,8 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
   std::string_view code(program->code, program->code_size);
   std::string_view format(program->format, program->format_size);
 
-  tt_pjrt_status status = module_builder_->buildModule(code, format, cached_system_descriptor_path_);
+  tt_pjrt_status status = module_builder_->buildModule(
+      code, format, cached_system_descriptor_path_);
   if (!tt_pjrt_status_is_ok(status)) {
     return ErrorInstance::MakeError(status);
   }

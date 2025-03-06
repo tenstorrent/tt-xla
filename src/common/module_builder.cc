@@ -66,7 +66,10 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code, const std::string_view &format, const std::string& system_descriptor_path) {
+tt_pjrt_status
+ModuleBuilder::buildModule(const std::string_view &code,
+                           const std::string_view &format,
+                           const std::string &system_descriptor_path) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
@@ -191,7 +194,9 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   printModule(mlir_module);
 }
 
-void ModuleBuilder::convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string& system_descriptor_path) {
+void ModuleBuilder::convertFromTTIRToTTNN(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::string &system_descriptor_path) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;

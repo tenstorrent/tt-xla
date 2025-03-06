@@ -27,7 +27,9 @@ class ModuleBuilder {
 public:
   ModuleBuilder();
 
-  tt_pjrt_status buildModule(const std::string_view &code, const std::string_view &format, const std::string& system_descriptor_path);
+  tt_pjrt_status buildModule(const std::string_view &code,
+                             const std::string_view &format,
+                             const std::string &system_descriptor_path);
 
   const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
@@ -55,7 +57,8 @@ private:
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts TTIR module to TTNN module.
-  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string& system_descriptor_path);
+  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                             const std::string &system_descriptor_path);
 
   // Creates flatbuffer binary from the built TTNN module.
   void
