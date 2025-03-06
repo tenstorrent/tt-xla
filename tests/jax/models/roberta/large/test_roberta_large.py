@@ -32,8 +32,7 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 @pytest.mark.nightly
 @pytest.mark.xfail(
     reason=runtime_fail(
-        "Unsupported data type DataType::INT32 "
-        "(https://github.com/tenstorrent/tt-xla/issues/308)"
+        "Atol comparison failed. Calculated: atol=131078.359375. Required: atol=0.16"
     )
 )
 def test_flax_roberta_large_inference(

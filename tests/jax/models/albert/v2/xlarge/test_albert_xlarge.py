@@ -34,8 +34,7 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Unsupported data type DataType::INT32 "
-            "(https://github.com/tenstorrent/tt-xla/issues/308)"
+            "Atol comparison failed. Calculated: atol=131030.6953125. Required: atol=0.16."
         )
     )
 )
