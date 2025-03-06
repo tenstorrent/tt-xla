@@ -2,17 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Dict, List, Sequence, Tuple, Union
+
 import jax
 import torch
 from huggingface_hub import hf_hub_download
 from infra import ComparisonConfig, ModelTester, RunMode
 from safetensors import safe_open
 from transformers import (
+    FlaxPreTrainedModel,
     FlaxResNetForImageClassification,
     ResNetConfig,
-    FlaxPreTrainedModel,
 )
-from typing import List, Tuple, Dict, Union, Sequence
 
 from tests.jax.models.model_utils import torch_statedict_to_pytree
 
@@ -81,7 +82,7 @@ class ResNetTester(ModelTester):
 
         variables = torch_statedict_to_pytree(
             state_dict,
-            patterns=self._get_rename_patterns(model_variant),
+            patterns=self._get_renaming_patterns(model_variant),
             banned_subkeys=self._get_banned_subkeys(),
         )
 
