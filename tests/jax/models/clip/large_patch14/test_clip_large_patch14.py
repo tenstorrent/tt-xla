@@ -33,9 +33,7 @@ def training_tester() -> FlaxCLIPTester:
 
 @pytest.mark.nightly
 @pytest.mark.xfail(
-    reason=compile_fail(
-        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
-    )
+    reason=compile_fail("failed to legalize operation 'stablehlo.reduce'")
 )
 def test_clip_large_patch14_inference(
     inference_tester: FlaxCLIPTester,
