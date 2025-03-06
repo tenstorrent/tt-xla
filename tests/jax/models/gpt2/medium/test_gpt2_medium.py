@@ -30,7 +30,7 @@ def training_tester() -> GPT2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Invalid arguments to reshape "
@@ -46,7 +46,7 @@ def test_gpt2_medium_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt2_medium_training(
     training_tester: GPT2Tester,

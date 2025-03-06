@@ -89,7 +89,7 @@ def training_tester() -> MlpMixerTester:
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(
     reason=runtime_fail(
         "Statically allocated circular buffers in program 16 clash with L1 buffers "
@@ -108,7 +108,7 @@ def test_mlpmixer_inference(
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mlpmixer_training(
     training_tester: MlpMixerTester,

@@ -6,8 +6,16 @@ on:
     - cron: '0 0 * * *'
 
 jobs:
-  build-and-test:
+  nightly_tests:
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:
       test_mark: 'nightly'
+
+  test_full_model:
+    uses: ./.github/workflows/build-and-test.yml
+    secrets: inherit
+    needs: nightly_tests
+    if: always()  # This ensures the job runs regardless of success or failure of `nightly_tests`
+    with:
+      test_mark: 'model_test'

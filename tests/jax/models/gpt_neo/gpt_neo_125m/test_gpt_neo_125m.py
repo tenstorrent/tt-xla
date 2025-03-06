@@ -29,7 +29,7 @@ def training_tester() -> GPTNeoTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Host data with total size 4B does not match expected size 2B of device buffer!"
@@ -44,7 +44,7 @@ def test_gpt_neo_125m_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt_neo_125m_training(
     training_tester: GPTNeoTester,
