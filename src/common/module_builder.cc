@@ -91,6 +91,7 @@ tt_pjrt_status ModuleBuilder::buildModule(const std::string_view &code,
   }
 
   collectInputShardings(mlir_module);
+  collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
@@ -217,7 +218,9 @@ void ModuleBuilder::collectOutputShardings(
     if (!funcOp || !funcOp.isPublic()) {
       return;
     }
-
+    std::cerr << "^^^^^^^^^^^^^^^^^" << std::endl;
+    funcOp.dump();
+    std::cerr << "^^^^^^^^^^^^^^^^^" << std::endl;
     for (unsigned i = 0; i < funcOp.getNumResults(); ++i) {
 
       mlir::tt::sharding_utils::MeshSharding meshSharding;

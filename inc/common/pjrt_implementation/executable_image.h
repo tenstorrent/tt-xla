@@ -66,8 +66,17 @@ public:
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
   size_t get_num_outputs() const { return m_output_types.size(); }
+
   // Checks if the output on the i-th index is a scalar.
   bool isOutputScalar(size_t index) const;
+
+  const mlir::tt::sharding_utils::MeshSharding& getInputSharding(size_t index) const {
+    return m_input_sharding[index];
+  }
+
+  const mlir::tt::sharding_utils::MeshSharding& getOutputSharding(size_t index) const {
+    return m_output_sharding[index];
+  }
 
 private:
   // Retrieves pointers to the concatenated list of output dimensions and the

@@ -10,13 +10,15 @@
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
-#include <unordered_set>
+#include <unordered_map>
 #include <iostream>
+#include <string>
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/utils.h"
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 namespace tt::pjrt {
 
@@ -93,42 +95,16 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   for (size_t i = 0; i < args->num_args; ++i)
   {
-    std::cerr << "i=" << i << std::endl;
     std::vector<std::shared_ptr<void>> data;
     BufferInstance* buffer;
     for (size_t j = 0; j < num_devices; ++j) {
-      std::cerr << "j=" << j << std::endl;
       buffer =
         BufferInstance::Unwrap(args->argument_lists[j][i]);
       data.push_back(buffer->get_host_buffer_ptr());
-      std::cerr << "j=" << j << std::endl;
     }
-    std::pair<tt::target::DataType, size_t> tt_buffer_type = buffer->get_tt_buffer_type();
-    std::unordered_map<std::string, std::string> strategy;
-    if (i==0)
-    {
-      strategy = {{"strategy", "shard_2d"}, {"mesh_shape_y", "1"}, {"mesh_shape_x" , "2"}};
-    }
-    else if (i==1)
-    {
-      strategy = {{"strategy", "shard_2d"}, {"mesh_shape_y", "1"}, {"mesh_shape_x" , "2"}};
-    }
-    tt::runtime::TensorDesc tensor_desc = { buffer->get_shape(), buffer->get_stride(), static_cast<std::uint32_t>(tt_buffer_type.second), tt_buffer_type.first};
-    std::cerr << "before" << std::endl;
-    tt::runtime::Tensor multichip_tensor = tt::runtime::createTensor(data, tensor_desc, strategy);
-    std::cerr << "after" << std::endl;
-    rt_inputs.push_back(multichip_tensor);
-    std::cerr << "i=" << i << std::endl;
+    std::unordered_map<std::string, std::string> strategy = getStrategyMapFromSharding(image_->getInputSharding(i), num_devices);
+    rt_inputs.push_back(getTensorFromStrategy(strategy, buffer, data));
   }
-
-  std::cerr << "I AM HERE" << std::endl;
-
-  /*for (size_t i = 0; i < args->num_args; ++i) {
-    BufferInstance *buffer =
-        BufferInstance::Unwrap(args->argument_lists[0][i]);
-    rt_inputs.push_back(buffer->getTensor());
-    DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
-  }*/
 
   // TODO: Now we will run only on the first one, but this should be somehow
   // explicit.
@@ -144,7 +120,6 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<tt::runtime::Tensor> rt_outputs = tt::runtime::submit(device, binary, 0, rt_inputs);
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0);
-  std::cerr << "OUTPUTS=" << rt_outputs.size() << std::endl;
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
@@ -157,31 +132,22 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  for (int i=0;i<rt_outputs_list.size();i++)
-  {
-    std::cerr << "ggg=" << rt_outputs_list[i].size() << std::endl;
-  }
-
   for (int k=0;k<num_devices;k++)
   {
     std::cerr << "k=" << k << std::endl;
     for (size_t i = 0; i < rt_outputs_list[k].size(); ++i) {
       std::cerr << "i=" << i << std::endl;
-      std::vector<std::uint32_t> output_shape = image_->get_output_shape(i);
-      output_shape[1] = output_shape[1]/2;
+      std::vector<std::uint32_t> output_shape = getOuputShape(i, num_devices);
       std::pair<tt::target::DataType, size_t> type_pair = {output_specs[i].dataType, output_specs[i].itemsize};
-      std::cerr << "yyyy=" << output_specs[i].shape[0] << "  " << output_specs[i].shape[1] << std::endl;
       auto result_buffer = std::make_unique<BufferInstance>(
           *this->addressable_devices_[k], rt_outputs_list[k][i], output_shape,
           output_specs[i].stride, type_pair);
-      std::cerr << "zzzz" << std::endl;
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[i].dataType));
       DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
       args->output_lists[k][i] = *(result_buffer.release());
     }
   }
-  std::cerr << "WEEEE" << std::endl;
   for (size_t i = 0; i < rt_outputs.size(); ++i) {
     tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
   }
@@ -190,11 +156,79 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     for (int i=0;i<num_devices;i++) args->device_complete_events[i] = *(new EventInstance());
   }
 
-  std::cerr << "tttt" << std::endl;
-
   tt::runtime::closeDevice(device);
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::unordered_map<std::string, std::string> LoadedExecutableInstance::getStrategyMapFromSharding(const mlir::tt::sharding_utils::MeshSharding& meshSharding, size_t num_devices)
+{
+  mlir::tt::MeshShardType meshType = meshSharding.getShardType();
+  std::unordered_map<std::string, std::string> strategy; 
+  if (meshType == mlir::tt::MeshShardType::Replicate)
+  {
+      strategy["strategy"] = "replicate";
+      strategy["replication_factor"] = std::to_string(num_devices);
+  }
+  else if (meshType == mlir::tt::MeshShardType::Devices)
+  {
+    llvm::ArrayRef<int64_t> shardShape = meshSharding.getShardShape();
+    if (shardShape.size() == 2)
+    {
+      strategy["strategy"] = "shard_2d";
+      strategy["mesh_shape_y"] = std::to_string(shardShape[0]);
+      strategy["mesh_shape_x"] = std::to_string(shardShape[1]);
+    }
+    else if (shardShape.size() == 1)
+    {
+      strategy["strategy"] = "shard";
+      strategy["shard_dim"] = "0";
+    }
+    else
+    {
+      DLOG_F(ERROR, "Invalid mesh sharding type");
+      return strategy;
+    }
+  }
+  else if (meshType == mlir::tt::MeshShardType::Manual)
+  {
+    strategy["strategy"] = "manual";
+  }
+  else 
+  {
+    DLOG_F(ERROR, "Invalid mesh sharding type");
+    return strategy;
+  }
+  return strategy;
+}
+
+tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(const std::unordered_map<std::string, std::string>& strategy, 
+                                                                    BufferInstance* buffer, std::vector<std::shared_ptr<void>>& data)
+{
+  if (strategy.at("strategy") == "manual")
+  {
+    return buffer->getTensor();
+  }
+  std::pair<tt::target::DataType, size_t> tt_buffer_type = buffer->get_tt_buffer_type();
+  tt::runtime::TensorDesc tensor_desc = { buffer->get_shape(), buffer->get_stride(), static_cast<std::uint32_t>(tt_buffer_type.second), tt_buffer_type.first};
+  return tt::runtime::createTensor(data, tensor_desc, strategy);
+}
+
+std::vector<std::uint32_t> LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices)
+{
+  std::vector<std::uint32_t> outputShape = image_->get_output_shape(index);
+  const mlir::tt::sharding_utils::MeshSharding& outputSharding = image_->getOutputSharding(index);
+  std::unordered_map<std::string, std::string> shardingStrategy = getStrategyMapFromSharding(outputSharding, num_devices);
+  if (shardingStrategy.at("strategy") == "shard")
+  {
+    outputShape[0] = outputShape[0] / num_devices;
+  }
+  else if (shardingStrategy.at("strategy") == "shard_2d")
+  {
+    outputShape[0] = outputShape[0] / std::stoi(shardingStrategy.at("mesh_shape_y"));
+    outputShape[1] = outputShape[1] / std::stoi(shardingStrategy.at("mesh_shape_x"));
+  }
+  return outputShape;
 }
 
 } // namespace tt::pjrt
