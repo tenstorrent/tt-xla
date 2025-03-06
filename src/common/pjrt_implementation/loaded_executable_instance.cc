@@ -90,8 +90,6 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
         buffer->device().device_description()->getDeviceId();
     device_ids.push_back(buffer_device_id);
   }
-  std::cerr << "num_args=" << args->num_args << std::endl;
-  std::cerr << "num_devices=" << num_devices << std::endl;
 
   for (size_t i = 0; i < args->num_args; ++i)
   {
@@ -123,20 +121,16 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
-    std::vector<tt::runtime::Tensor> untilized_multichip_output = tt::runtime::multiDeviceToHost(rt_outputs[i], true);
-    std::cerr << "tralalala=" << untilized_multichip_output.size() << std::endl;
-    for (size_t j=0;j<untilized_multichip_output.size();j++)
+    std::vector<tt::runtime::Tensor> unitlized_output = tt::runtime::multiDeviceToHost(rt_outputs[i], true);
+    for (size_t j=0;j<unitlized_output.size();j++)
     {
-      std::cerr << "j=" << j << std::endl;
-      rt_outputs_list[j].push_back(untilized_multichip_output[j]);
+      rt_outputs_list[j].push_back(unitlized_output[j]);
     }
   }
 
   for (int k=0;k<num_devices;k++)
   {
-    std::cerr << "k=" << k << std::endl;
     for (size_t i = 0; i < rt_outputs_list[k].size(); ++i) {
-      std::cerr << "i=" << i << std::endl;
       std::vector<std::uint32_t> output_shape = getOuputShape(i, num_devices);
       std::pair<tt::target::DataType, size_t> type_pair = {output_specs[i].dataType, output_specs[i].itemsize};
       auto result_buffer = std::make_unique<BufferInstance>(
@@ -167,8 +161,15 @@ std::unordered_map<std::string, std::string> LoadedExecutableInstance::getStrate
   std::unordered_map<std::string, std::string> strategy; 
   if (meshType == mlir::tt::MeshShardType::Replicate)
   {
+    if (num_devices == 1)
+    {
+      strategy["strategy"] = "manual";
+    }
+    else 
+    {
       strategy["strategy"] = "replicate";
       strategy["replication_factor"] = std::to_string(num_devices);
+    }
   }
   else if (meshType == mlir::tt::MeshShardType::Devices)
   {
