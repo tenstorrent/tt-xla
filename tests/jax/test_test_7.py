@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import os
 
 # Set this to True to run the model on CPU only.
@@ -35,24 +38,31 @@ from functools import partial
 PyTree = Any
 Metrics = Dict[str, Tuple[jax.Array, ...]]
 
-mesh = jax.make_mesh((4, 2), ('batch', 'model'))
+mesh = jax.make_mesh((4, 2), ("batch", "model"))
 batch = jax.random.normal(jax.random.key(0), (8192, 784))
 W1 = jax.random.normal(jax.random.key(0), (784, 2048))
 B1 = jax.random.normal(jax.random.key(0), (2048))
 
-out_spec = P('batch')
+out_spec = P("batch")
 
-@partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('model', None), P(None)), out_specs=out_spec)
+
+@partial(
+    shard_map,
+    mesh=mesh,
+    in_specs=(P("batch", "model"), P("model", None), P(None)),
+    out_specs=out_spec,
+)
 def fwd(batch, W1_block, B1_block):
     act = jnp.dot(batch, W1_block)
-    act = jax.lax.psum(act, 'model')
+    act = jax.lax.psum(act, "model")
     act = act + B1_block
     return act
+
 
 output_sharding = NamedSharding(mesh, out_spec)
 fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
 fwd_lowered = fwd_jit.lower(batch, W1, B1)
-fwd_stablehlo = fwd_lowered.compiler_ir(dialect='stablehlo')
+fwd_stablehlo = fwd_lowered.compiler_ir(dialect="stablehlo")
 print(fwd_stablehlo.dump())
 output = fwd_jit(batch, W1, B1).block_until_ready()
 

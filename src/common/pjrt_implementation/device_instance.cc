@@ -103,7 +103,7 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
 
   std::memcpy(new_memory.get(), data, tensor_size);
 
-  tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
+  tt::runtime::Tensor device_tensor = tt::runtime::createOwnedTensor(
       new_memory, shape, strides, element_size, element_type);
 
   std::pair<tt::target::DataType, size_t> tt_buffer_type = {element_type,
