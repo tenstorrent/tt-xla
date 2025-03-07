@@ -125,20 +125,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  for (int k = 0; k < num_devices; k++) {
-    for (size_t i = 0; i < rt_outputs_list[k].size(); ++i) {
-      std::vector<std::uint32_t> output_shape = getOuputShape(i, num_devices);
-      std::pair<tt::target::DataType, size_t> type_pair = {
-          output_specs[i].dataType, output_specs[i].itemsize};
-      auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[k], rt_outputs_list[k][i], output_shape,
-          output_specs[i].stride, type_pair);
-      result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
-          output_specs[i].dataType));
-      DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
-      args->output_lists[k][i] = *(result_buffer.release());
-    }
-  }
+  fillPJRTOutputLists(args->output_lists, rt_outputs_list, output_specs,
+                      num_devices);
+
   for (size_t i = 0; i < rt_outputs.size(); ++i) {
     tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
   }
@@ -218,6 +207,42 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
         outputShape[1] / std::stoi(shardingStrategy.at("mesh_shape_x"));
   }
   return outputShape;
+}
+
+bool LoadedExecutableInstance::isOutputReplicated(size_t index)
+{
+  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
+      image_->getOutputSharding(index);
+  mlir::tt::MeshShardType meshType = outputSharding.getShardType();
+  return meshType == mlir::tt::MeshShardType::Replicate;
+}
+
+void LoadedExecutableInstance::fillPJRTOutputLists(PJRT_Buffer **const * output_lists, std::vector<std::vector<tt::runtime::Tensor>>& rt_outputs_list, const std::vector<tt::runtime::TensorDesc>& output_specs, size_t num_devices)
+{
+  std::vector<bool> is_replicated;
+  size_t num_outputs = rt_outputs_list[0].size();
+  for (size_t i = 0; i < rt_outputs_list.size(); i++) {
+    num_outputs = std::max(num_outputs, rt_outputs_list[i].size());
+  }
+  for (size_t i = 0; i < output_specs.size(); ++i) {
+    is_replicated.push_back(isOutputReplicated(i));
+  }
+  for (int k = 0; k < num_devices; k++) {
+    for (size_t i = 0; i < num_outputs; ++i) {
+      // If the output is replicated, we just put the same tensor in all the devices.
+      tt::runtime::Tensor output_tensor = isOutputReplicated(i) ? rt_outputs_list[0][i] : rt_outputs_list[k][i];
+      std::vector<std::uint32_t> output_shape = getOuputShape(i, num_devices);
+      std::pair<tt::target::DataType, size_t> type_pair = {
+          output_specs[i].dataType, output_specs[i].itemsize};
+      auto result_buffer = std::make_unique<BufferInstance>(
+          *this->addressable_devices_[k], output_tensor, output_shape,
+          output_specs[i].stride, type_pair);
+      result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
+          output_specs[i].dataType));
+      DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
+      output_lists[k][i] = *(result_buffer.release());
+    }
+  }
 }
 
 } // namespace tt::pjrt

@@ -77,6 +77,10 @@ private:
       BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data);
 
   std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
+
+  bool isOutputReplicated(size_t index);
+
+  void fillPJRTOutputLists(PJRT_Buffer **const * output_lists, std::vector<std::vector<tt::runtime::Tensor>>& rt_outputs, const std::vector<tt::runtime::TensorDesc>& output_specs, size_t num_devices);
 };
 
 } // namespace tt::pjrt
