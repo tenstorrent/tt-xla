@@ -108,26 +108,19 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0, rt_inputs);
-  std::vector<tt::runtime::TensorDesc> output_specs =
-      binary.getProgramOutputs(0);
 
-  assert(rt_outputs.size() == output_specs.size());
+  assert(rt_outputs.size() == image_->get_num_outputs());
 
-  for (size_t i = 0; i < output_specs.size(); ++i) {
-    bool is_scalar = image_->isOutputScalar(i);
-    // PJRT expects an empty shape for scalars.
-    std::vector<std::uint32_t> output_shape =
-        is_scalar ? std::vector<std::uint32_t>() : output_specs[i].shape;
+  for (size_t i = 0; i < image_->get_num_outputs(); ++i) {
 
     tt::runtime::Tensor untilized_output_tensor =
         tt::runtime::toHost(rt_outputs[i], /*untilize=*/true);
     auto result_buffer = std::make_unique<BufferInstance>(
         *this->addressable_devices_[dev_index], untilized_output_tensor,
-        output_shape, output_specs[i].stride);
+        image_->get_output_shape(i), image_->get_output_stride(i));
     tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
 
-    result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
-        output_specs[i].dataType));
+    result_buffer->setType(image_->get_output_types()[i]);
 
     DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
     args->output_lists[dev_index][i] = *(result_buffer.release());

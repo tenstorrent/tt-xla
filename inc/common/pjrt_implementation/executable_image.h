@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <string>
+#include <vector>
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -51,14 +52,34 @@ public:
 
   const std::string &get_code() const { return m_code; }
 
-  // Checks if the output on the i-th index is a scalar.
-  bool isOutputScalar(size_t index) const;
-
   const size_t get_num_addressable_devices() const {
     return m_num_addressable_devices;
   }
 
+  const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
+
+  const std::vector<std::uint32_t> &get_output_stride(const size_t index) const;
+
+  PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
+
+  size_t get_num_outputs() const { return m_output_types.size(); }
+
 private:
+  // Retrieves pointers to the concatenated list of output dimensions and the
+  // corresponding list of ranks (number of dimensions per output tensor).
+  void get_output_dims_concatenated(const size_t **dim_sizes,
+                                    const int64_t **dims);
+
+  // Checks if the concatenated output dimensions and the corresponding rank
+  // list have been initialized.
+  bool areOutputDimsConcatenated() const {
+    return m_output_dim_sizes && m_output_dims_concatenated;
+  }
+
+  // Populates the concatenated list of output dimensions and the corresponding
+  // list of ranks.
+  void populateOutputDimsConcatenated();
+
   // The reference count. Must be disposed when reaching zero.
   std::atomic<int> m_ref_count;
 
@@ -74,6 +95,23 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // For every output, holds PJRT_Buffer_Type.
+  std::vector<PJRT_Buffer_Type> m_output_types;
+
+  // For every output, holds a list of its dimensions.
+  std::vector<std::vector<uint32_t>> m_output_dims;
+
+  // For every output, stores rank (number of dimensions). Nullptr until its
+  // getter is called.
+  std::unique_ptr<size_t[]> m_output_dim_sizes;
+
+  // Stores all output dimensions concatenated in a flat array. Nullptr until
+  // its getter is called.
+  std::unique_ptr<int64_t[]> m_output_dims_concatenated;
+
+  // For every output, holds its stride.
+  std::vector<std::vector<uint32_t>> m_output_strides;
 };
 
 } // namespace tt::pjrt
