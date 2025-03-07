@@ -9,29 +9,7 @@ import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
-from utils import record_binary_op_test_properties
-
-# NOTE TTNN does not support boolean data type, so bfloat16 is used instead.
-# Hence the output of comparison operation is bfloat16. JAX can not perform any
-# computation due to mismatch in output data type (in testing infrastructure).
-# The following tests explicitly convert data type of comparison operation
-# output for the verification purposes.
-
-# TODO Remove this workaround once the data type issue is resolved.
-# https://github.com/tenstorrent/tt-xla/issues/93
-
-# TODO investigate why this decorator cannot be removed. See issue
-# https://github.com/tenstorrent/tt-xla/issues/156
-
-
-def convert_output_to_bfloat16(f: Callable):
-    """Decorator to work around the mentioned issue."""
-
-    def wrapper(*args, **kwargs):
-        res = f(*args, **kwargs)
-        return jlx.convert_element_type(res, jnp.bfloat16)
-
-    return wrapper
+from utils import convert_output_to_bfloat16, record_binary_op_test_properties
 
 
 @pytest.mark.push

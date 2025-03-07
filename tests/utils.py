@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from typing import Callable
 
 import jax
+import jax.lax as jlx
+import jax.numpy as jnp
 from conftest import RecordProperties
 
 
@@ -43,6 +45,29 @@ def record_op_test_properties(
 
 def record_model_test_properties(record_property: Callable, model_name: str):
     record_property(RecordProperties.MODEL_NAME.value, model_name)
+
+
+# NOTE TTNN does not support boolean data type, so bfloat16 is used instead.
+# The output of logical operation (and other similar ops) is bfloat16. JAX can
+# not perform any computation due to mismatch in output data type (in testing
+# infrastructure). The following tests explicitly convert data type of logical
+# operation output for the verification purposes.
+
+# TODO Remove this workaround once the data type issue is resolved.
+# https://github.com/tenstorrent/tt-xla/issues/93
+
+# TODO investigate why this decorator cannot be removed. See issue
+# https://github.com/tenstorrent/tt-xla/issues/156
+
+
+def convert_output_to_bfloat16(f: Callable):
+    """Decorator to work around the mentioned issue."""
+
+    def wrapper(*args, **kwargs):
+        res = f(*args, **kwargs)
+        return jlx.convert_element_type(res, jnp.bfloat16)
+
+    return wrapper
 
 
 @contextmanager
