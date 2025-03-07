@@ -163,8 +163,8 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
-    devices_[i] =
-        new DeviceInstance(i, *this, system_desc->chip_descs()->Get(i)->arch());
+    devices_[i] = new DeviceInstance(chip_ids[i], *this,
+                                     system_desc->chip_descs()->Get(i)->arch());
   }
 
   // For now, just make all devices addressable.
@@ -191,11 +191,9 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
       *this,
       new ExecutableImage(module_builder_->getBinary(),
                           std::string(program->code, program->code_size),
-                          module_builder_->getIsOutputScalar(),
-                          module_builder_->getNumAddressableDevices()),
-      addressable_devices_);
+                          module_builder_->getIsOutputScalar()),
+      addressable_devices_, module_builder_->getNumDevicesToUtilize());
   *out_executable = executable.release();
-
   return nullptr;
 }
 
