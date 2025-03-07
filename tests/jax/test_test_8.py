@@ -46,18 +46,20 @@ def test_one():
     device_tt = jax.devices("tt")
     print("device:: ", device_tt)
     mesh = jax.make_mesh((1, 2), ("batch", "model"), devices=device_tt)
-    batch = jax.numpy.ones((64, 64))
-    W1 = jax.numpy.ones((64, 64))
+    batch = jax.numpy.ones((256, 256))
+    W1 = jax.numpy.ones((256, 256))
     print(batch)
     print(W1)
 
+    out_spec = P("batch", "model")
+
+    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('batch', 'model')), out_specs=out_spec)
     def fwd(batch, W1_block):
         act = batch + W1_block
         return act
 
     spec_0 = P("batch", "model")
     spec_1 = P("batch", "model")
-    out_spec = P("batch", "model")
     output_sharding = NamedSharding(mesh, out_spec)
     batch_sharded = jax.device_put(batch, NamedSharding(mesh, spec_0), may_alias=True)
     W1_sharded = jax.device_put(W1, NamedSharding(mesh, spec_1), may_alias=True)

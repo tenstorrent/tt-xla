@@ -8,6 +8,13 @@ from jax.sharding import PartitionSpec as P
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 from functools import partial
+
+flags = os.environ.get("XLA_FLAGS", "")
+flags += " --xla_force_host_platform_device_count=2"  # Simulate 8 devices
+# Enforce CPU-only execution
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["XLA_FLAGS"] = flags
+
 def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
   device_cpu = jax.devices('cpu')[0]
   with jax.default_device(device_cpu):
@@ -31,9 +38,7 @@ def initializePJRT():
   #jax.config.update("jax_use_shardy_partitioner", True)
 
 def test_one():
-    device_tt = jax.devices('tt')
-    print("device:: ", device_tt)
-    mesh = jax.make_mesh((1, 2), ('batch', 'model'), devices=device_tt)
+    mesh = jax.make_mesh((1, 2), ('batch', 'model'))
     batch = jax.numpy.ones((256, 256))
     W1 = jax.numpy.ones((256, 256))
     out_spec = P('batch')
@@ -51,6 +56,4 @@ def test_one():
     print(output)
     print(output.shape)
     
-
-initializePJRT()
 test_one()

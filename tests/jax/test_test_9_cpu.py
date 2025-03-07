@@ -8,19 +8,12 @@ from jax.sharding import PartitionSpec as P
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 from functools import partial
-def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
-  device_cpu = jax.devices('cpu')[0]
-  with jax.default_device(device_cpu):
-    tensor = jax.random.uniform(jax.random.PRNGKey(key), shape=shape, dtype=dtype)
-  # Although the random tensor is generated on cpu but it is not committed to
-  # cpu; so this tensor can be moved to the device and subsequent code will
-  # execute on the device. Placing the generated tensor explicitly to cpu or
-  # device to avoid unwanted behavior.
-  if on_device:
-    tensor = jax.device_put(tensor, jax.devices('tt')[0])
-  else:
-    tensor = jax.device_put(tensor, device_cpu)
-  return tensor
+
+flags = os.environ.get("XLA_FLAGS", "")
+flags += " --xla_force_host_platform_device_count=2"  # Simulate 8 devices
+# Enforce CPU-only execution
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["XLA_FLAGS"] = flags
 
 def initializePJRT():
   path = os.path.join(os.path.dirname(__file__), "/localdev/ajakovljevic/tt-xla/build/src/tt/pjrt_plugin_tt.so")
@@ -31,26 +24,23 @@ def initializePJRT():
   #jax.config.update("jax_use_shardy_partitioner", True)
 
 def test_one():
-    device_tt = jax.devices('tt')
-    print("device:: ", device_tt)
-    mesh = jax.make_mesh((1, 2), ('batch', 'model'), devices=device_tt)
+    mesh = jax.make_mesh((1, 2), ('batch', 'model'))
     batch = jax.numpy.ones((256, 256))
     W1 = jax.numpy.ones((256, 256))
-    out_spec = P('batch')
-    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('batch', 'model')), out_specs=out_spec)
+    out_spec = P(None)
+    @partial(shard_map, mesh=mesh, in_specs=(P(None, None), P(None, None)), out_specs=out_spec)
     def fwd(batch, W1_block):
         act = jax.numpy.add(batch, W1_block)
         act = jax.lax.psum(act, 'model')
         return act
   
     output_sharding = NamedSharding(mesh, out_spec)
-    batch_sharded = jax.device_put(batch, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
-    W1_sharded = jax.device_put(W1, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
+    batch_sharded = jax.device_put(batch, NamedSharding(mesh, P(None, None)), may_alias=True)
+    W1_sharded = jax.device_put(W1, NamedSharding(mesh, P(None, None)), may_alias=True)
     fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
     output = fwd_jit(batch_sharded, W1_sharded).block_until_ready()
     print(output)
     print(output.shape)
     
 
-initializePJRT()
 test_one()

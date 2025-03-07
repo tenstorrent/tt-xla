@@ -36,16 +36,16 @@ def test_one():
     mesh = jax.make_mesh((1, 2), ('batch', 'model'), devices=device_tt)
     batch = jax.numpy.ones((256, 256))
     W1 = jax.numpy.ones((256, 256))
-    out_spec = P('batch')
-    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('batch', 'model')), out_specs=out_spec)
+    out_spec = P(None)
+    @partial(shard_map, mesh=mesh, in_specs=(P(None, None), P(None, None)), out_specs=out_spec)
     def fwd(batch, W1_block):
         act = jax.numpy.add(batch, W1_block)
         act = jax.lax.psum(act, 'model')
         return act
   
     output_sharding = NamedSharding(mesh, out_spec)
-    batch_sharded = jax.device_put(batch, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
-    W1_sharded = jax.device_put(W1, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
+    batch_sharded = jax.device_put(batch, NamedSharding(mesh, P(None, None)), may_alias=True)
+    W1_sharded = jax.device_put(W1, NamedSharding(mesh, P(None, None)), may_alias=True)
     fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
     output = fwd_jit(batch_sharded, W1_sharded).block_until_ready()
     print(output)
