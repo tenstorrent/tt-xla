@@ -29,7 +29,7 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Atol comparison failed. Calculated: atol=131037.828125. Required: atol=0.16."
@@ -44,7 +44,7 @@ def test_flax_bert_large_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bert_large_training(
     training_tester: FlaxBertForMaskedLMTester,

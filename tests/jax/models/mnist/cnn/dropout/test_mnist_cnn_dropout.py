@@ -28,7 +28,7 @@ def training_tester() -> MNISTCNNTester:
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 def test_mnist_cnn_dropout_inference(
     inference_tester: MNISTCNNTester,
     record_tt_xla_property: Callable,
@@ -39,7 +39,7 @@ def test_mnist_cnn_dropout_inference(
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mnist_cnn_nodropout_training(
     training_tester: MNISTCNNTester,

@@ -79,7 +79,7 @@ def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 def test_example_model_inference(
     inference_tester: ExampleModelMixedArgsAndKwargsTester,
 ):
@@ -87,7 +87,7 @@ def test_example_model_inference(
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelMixedArgsAndKwargsTester):
     training_tester.test()

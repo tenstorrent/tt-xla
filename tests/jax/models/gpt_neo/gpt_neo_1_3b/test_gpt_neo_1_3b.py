@@ -29,7 +29,7 @@ def training_tester() -> GPTNeoTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason=runtime_fail("OOMs in CI"))
 def test_gpt_neo_1_3b_inference(
     inference_tester: GPTNeoTester,
@@ -40,7 +40,7 @@ def test_gpt_neo_1_3b_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt_neo_1_3b_training(
     training_tester: GPTNeoTester,
