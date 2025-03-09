@@ -205,7 +205,6 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
   mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
   shlo_options.arithDialectConversionsEnabled = true;
-  shlo_options.removeDeadValuesEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
