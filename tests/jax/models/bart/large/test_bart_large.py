@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import record_model_test_properties, runtime_fail
 
 from ..tester import FlaxBartForCausalLMTester
 
