@@ -30,12 +30,8 @@ def training_tester() -> FlaxBartForCausalLMTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
 @pytest.mark.model_test
-@pytest.mark.xfail(
-    reason=compile_fail(
-        "Unsupported data type (https://github.com/tenstorrent/tt-xla/issues/214)"
-    )
-)
 def test_flax_bart_large_inference(
     inference_tester: FlaxBartForCausalLMTester,
     record_tt_xla_property: Callable,
