@@ -69,10 +69,10 @@ private:
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Collects the information about the sharding of specifc inputs.
+  // Collects the information about the sharding of specific inputs.
   void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Collects the information about the sharding of specifc outputs.
+  // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Converts StableHLO module to TTIR module.
@@ -92,11 +92,15 @@ private:
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
 
-  // Fills sharding_utils::MeshSharding object with sharding info stored in a
-  // StringAttribute.
-  mlir::LogicalResult fillMeshShardingFromGSPMDString(
-      mlir::StringAttr shardingStr,
-      mlir::tt::sharding_utils::MeshSharding &meshSharding);
+  // Takes a vector of string attributes representing GSPMD sharding and fills
+  // the vector of tt_mlir Sharding with the appropriate corresponding values.
+  mlir::LogicalResult createShardingsFromGSPMD(
+      const std::vector<mlir::StringAttr> &gspmd_attributes,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
+
+  // Gets all public functions from the module.
+  std::vector<mlir::func::FuncOp>
+  getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;

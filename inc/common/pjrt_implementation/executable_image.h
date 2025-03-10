@@ -15,10 +15,8 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
-#include "tt/runtime/types.h"
-
-// tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/types.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
