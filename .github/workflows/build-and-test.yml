@@ -157,6 +157,7 @@ jobs:
         build: [
           {runs-on: n150, name: "run"},
           {runs-on: n300, name: "run"},
+          {runs-on: llmbox, name: "run"},
         ]
 
     runs-on:
