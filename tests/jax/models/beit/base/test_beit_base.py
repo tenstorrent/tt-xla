@@ -31,7 +31,7 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.gather'"))
 def test_flax_beit_base_inference(
     inference_tester: FlaxBeitForImageClassificationTester,
@@ -42,7 +42,7 @@ def test_flax_beit_base_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_beit_base_training(
     training_tester: FlaxBeitForImageClassificationTester,

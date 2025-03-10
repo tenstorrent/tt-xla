@@ -163,6 +163,9 @@ jobs:
       - in-service
       - ${{ matrix.build.runs-on }}
 
+    # Keep this name in sync with the fetch-job-id step
+    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
       options: --device /dev/tenstorrent/0
@@ -191,7 +194,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "${{ github.job }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
 
     - name: Set reusable strings
       id: strings
@@ -259,7 +262,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}
+        name: test-log-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
 
     - name: Upload Test Report

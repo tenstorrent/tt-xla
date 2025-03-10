@@ -29,7 +29,7 @@ def training_tester() -> ResNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=compile_fail("failed to legalize operation 'stablehlo.reduce_window'")
 )
@@ -42,7 +42,7 @@ def test_resnet_50_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_resnet_50_training(
     training_tester: ResNetTester,

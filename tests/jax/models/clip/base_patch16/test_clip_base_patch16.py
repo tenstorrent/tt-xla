@@ -32,7 +32,7 @@ def training_tester() -> FlaxCLIPTester:
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=compile_fail(
         "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"

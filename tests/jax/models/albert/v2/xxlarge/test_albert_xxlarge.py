@@ -30,12 +30,11 @@ def training_tester() -> AlbertV2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Unsupported data type DataType::INT32 "
-            "(https://github.com/tenstorrent/tt-xla/issues/308)"
+            "Atol comparison failed. Calculated: atol=131022.7578125. Required: atol=0.16."
         )
     )
 )
@@ -48,7 +47,7 @@ def test_flax_albert_v2_xxlarge_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_albert_v2_xxlarge_training(
     training_tester: AlbertV2Tester,

@@ -30,7 +30,7 @@ def training_tester() -> OPTTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
 def test_opt_2_7b_inference(
     inference_tester: OPTTester,
@@ -41,7 +41,7 @@ def test_opt_2_7b_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_opt_2_7b_training(
     training_tester: OPTTester,

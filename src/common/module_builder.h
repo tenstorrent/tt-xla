@@ -18,6 +18,9 @@
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
+#define TTMLIR_ENABLE_STABLEHLO 1
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+
 // tt-xla includes
 #include "status.h"
 
@@ -28,7 +31,8 @@ public:
   ModuleBuilder();
 
   tt_pjrt_status buildModule(const std::string_view &code,
-                             const std::string_view &format);
+                             const std::string_view &format,
+                             const std::string &system_descriptor_path);
 
   const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
 
@@ -36,14 +40,27 @@ public:
     return m_is_output_scalar;
   };
 
-  // This needs to return the number of addressable devices from the StableHLO
-  // code. Currently hardcoded to one, as we only support one-chip execution.
-  size_t getNumAddressableDevices() const { return 1; }
+  size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
+
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
+  getInputShardings() const {
+    return m_input_shardings;
+  }
+
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
+  getOutputShardings() const {
+    return m_output_shardings;
+  }
 
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
+
+  // Gets the number of devices the binary is intended to run on from the VHLO
+  // module.
+  void
+  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -52,11 +69,18 @@ private:
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Collects the information about the sharding of specific inputs.
+  void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the information about the sharding of specific outputs.
+  void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts TTIR module to TTNN module.
-  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
+                             mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Creates flatbuffer binary from the built TTNN module.
   void
@@ -67,6 +91,16 @@ private:
 
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
+
+  // Takes a vector of string attributes representing GSPMD sharding and fills
+  // the vector of tt_mlir Sharding with the appropriate corresponding values.
+  mlir::LogicalResult createShardingsFromGSPMD(
+      const std::vector<mlir::StringAttr> &gspmd_attributes,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
+
+  // Gets all public functions from the module.
+  std::vector<mlir::func::FuncOp>
+  getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
@@ -79,6 +113,15 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // Number of devices the binary is intended to run on.
+  size_t m_num_devices_to_utilize;
+
+  // For every input, holds the sharding information.
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
+
+  // For every output, holds the sharding information.
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
 };
 
 } // namespace tt::pjrt

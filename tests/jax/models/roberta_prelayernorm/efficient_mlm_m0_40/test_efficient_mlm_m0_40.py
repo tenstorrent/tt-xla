@@ -71,11 +71,10 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=runtime_fail(
-        "Unsupported data type DataType::INT32 "
-        "(https://github.com/tenstorrent/tt-xla/issues/308)"
+        "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16"
     )
 )
 def test_flax_roberta_prelayernorm_inference(
@@ -87,7 +86,7 @@ def test_flax_roberta_prelayernorm_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_roberta_prelayernorm_training(
     training_tester: FlaxRobertaPreLayerNormForMaskedLMTester,

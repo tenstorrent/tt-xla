@@ -75,7 +75,7 @@ def training_tester() -> SqueezeBertTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=compile_fail("Failed to legalize operation 'ttir.convolution'")
 )
@@ -88,7 +88,7 @@ def test_squeezebert_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_squeezebert_training(
     training_tester: SqueezeBertTester,

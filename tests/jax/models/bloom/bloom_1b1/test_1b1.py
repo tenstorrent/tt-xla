@@ -33,7 +33,7 @@ def training_tester() -> BloomTester:
 # The error message seems to happen before the compile even begins
 # And then then compile segfaults with no useful information
 # It is highly likely that both are caused by the same root cause
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
 def test_bloom_1b1_inference(
     inference_tester: BloomTester,
@@ -44,7 +44,7 @@ def test_bloom_1b1_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_bloom_1b1_training(
     training_tester: BloomTester,

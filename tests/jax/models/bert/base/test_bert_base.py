@@ -30,12 +30,11 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.xfail(
     reason=(
         runtime_fail(
-            "Unsupported data type DataType::INT32 "
-            "(https://github.com/tenstorrent/tt-xla/issues/308)"
+            "Atol comparison failed. Calculated: atol=131025.0078125. Required: atol=0.16."
         )
     )
 )
@@ -49,7 +48,7 @@ def test_flax_bert_base_inference(
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_bert_base_training(
     training_tester: FlaxBertForMaskedLMTester,
