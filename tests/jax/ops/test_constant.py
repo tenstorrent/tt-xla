@@ -10,7 +10,7 @@ from utils import compile_fail
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.zeros",
     shlo_op_name="stablehlo.constant",
@@ -25,7 +25,7 @@ def test_constant_zeros(shape: tuple):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.ones",
     shlo_op_name="stablehlo.constant",
@@ -40,7 +40,7 @@ def test_constant_ones(shape: tuple):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.array",
     shlo_op_name="stablehlo.constant",

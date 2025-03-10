@@ -68,9 +68,10 @@ def training_tester(request) -> MNISTMLPTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
+    model_group="priority",
     run_mode=RunMode.INFERENCE.value,
 )
 @pytest.mark.parametrize(
@@ -92,9 +93,10 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
+    model_group="priority",
     run_mode=RunMode.TRAINING.value,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

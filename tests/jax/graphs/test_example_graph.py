@@ -17,7 +17,6 @@ def example_graph(x: jax.Array, y: jax.Array) -> jax.Array:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(test_category="graph_test")
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [

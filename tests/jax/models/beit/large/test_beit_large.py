@@ -29,7 +29,7 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -42,7 +42,7 @@ def test_flax_beit_large_inference(
 
 
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

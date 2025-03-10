@@ -30,7 +30,7 @@ for begin in jnp.arange(0, 64, 32).tolist():
 # TODO investigate if this test can be rewritten to make it easier for understanding.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.lax.slice",
     shlo_op_name="stablehlo.slice",

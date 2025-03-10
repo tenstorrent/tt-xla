@@ -10,7 +10,7 @@ from infra import run_op_test_with_random_inputs
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.minimum",
     shlo_op_name="stablehlo.minimum",

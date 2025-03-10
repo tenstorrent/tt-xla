@@ -28,7 +28,7 @@ def training_tester() -> GPTNeoTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -43,7 +43,7 @@ def test_gpt_neo_1_3b_inference(inference_tester: GPTNeoTester):
 
 
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

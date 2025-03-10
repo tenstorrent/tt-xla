@@ -29,7 +29,7 @@ def training_tester() -> FlaxCLIPTester:
 
 
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -43,7 +43,7 @@ def test_clip_large_patch14_336_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
 
 
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

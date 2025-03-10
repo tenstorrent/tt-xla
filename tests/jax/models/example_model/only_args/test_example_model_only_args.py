@@ -75,7 +75,7 @@ def training_tester() -> ExampleModelOnlyArgsTester:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name="Example",
     run_mode=RunMode.INFERENCE.value,
@@ -86,7 +86,7 @@ def test_example_model_inference(inference_tester: ExampleModelOnlyArgsTester):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name="Example",
     run_mode=RunMode.TRAINING.value,

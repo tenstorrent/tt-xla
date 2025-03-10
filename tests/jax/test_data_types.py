@@ -17,7 +17,7 @@ from tests.utils import enable_x64
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(test_category="other")
+@pytest.mark.record_test_properties(test_category="other")
 @pytest.mark.parametrize(
     "dtype",
     [

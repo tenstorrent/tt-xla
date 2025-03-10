@@ -12,7 +12,7 @@ from infra import run_op_test_with_random_inputs
 # this is the most common one we have.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",
@@ -37,7 +37,7 @@ def test_dot_general_common(x_shape: tuple, y_shape: tuple):
 # Tests for dot_general op where this operation corresponds to regular matmul.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",
@@ -60,7 +60,7 @@ def test_dot_general_matmul(x_shape: tuple, y_shape: tuple):
 # contracting dimensions are of size greater than 1.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",

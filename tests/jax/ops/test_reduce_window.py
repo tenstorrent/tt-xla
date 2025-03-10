@@ -19,7 +19,7 @@ def comparison_config() -> ComparisonConfig:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="flax.linen.max_pool",
     shlo_op_name="stablehlo.reduce_window{MAX}",

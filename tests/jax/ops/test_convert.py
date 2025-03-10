@@ -163,7 +163,7 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.lax.convert_element_type",
     shlo_op_name="stablehlo.convert",
