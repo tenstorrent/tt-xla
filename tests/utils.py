@@ -3,11 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from contextlib import contextmanager
+from enum import Enum
 from typing import Callable
 
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
+
+
+class TestCategory(Enum):
+    OP_TEST = "op_test"
+    GRAPH_TEST = "graph_test"
+    MODEL_TEST = "model_test"
+    MULTICHIP_TEST = "multichip_test"
 
 
 def compile_fail(reason: str) -> str:

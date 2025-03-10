@@ -27,8 +27,13 @@ def training_tester() -> MNISTCNNTester:
 
 
 @pytest.mark.push
+<<<<<<< HEAD
 @pytest.mark.model_test
 @pytest.mark.record_properties(
+=======
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+>>>>>>> c69ce13 (Fix)
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -38,8 +43,13 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
 
 
 @pytest.mark.push
+<<<<<<< HEAD
 @pytest.mark.model_test
 @pytest.mark.record_properties(
+=======
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+>>>>>>> c69ce13 (Fix)
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

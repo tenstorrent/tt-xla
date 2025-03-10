@@ -4,7 +4,6 @@
 
 import pytest
 from infra import RunMode
-from utils import compile_fail
 
 from ..tester import OPTTester
 
@@ -29,7 +28,7 @@ def training_tester() -> OPTTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -40,7 +39,7 @@ def test_opt_1_3b_inference(inference_tester: OPTTester):
 
 
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

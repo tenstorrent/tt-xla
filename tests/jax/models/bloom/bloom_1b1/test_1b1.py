@@ -33,7 +33,7 @@ def training_tester() -> BloomTester:
 # And then then compile segfaults with no useful information
 # It is highly likely that both are caused by the same root cause
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -44,7 +44,7 @@ def test_bloom_1b1_inference(inference_tester: BloomTester):
 
 
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

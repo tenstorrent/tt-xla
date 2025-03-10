@@ -92,7 +92,7 @@ def training_tester() -> MlpMixerTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -111,7 +111,7 @@ def test_mlpmixer_inference(inference_tester: MlpMixerTester):
 
 @pytest.mark.push
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

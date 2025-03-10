@@ -6,10 +6,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import make_partition_spec, run_multichip_test_with_random_inputs
-from utils import compile_fail
+from utils import TestCategory, compile_fail
 
 
-@pytest.mark.record_properties(test_category="multichip_test")
+@pytest.mark.record_test_properties(test_category=TestCategory.MULTICHIP_TEST.value)
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"), [((256, 256), (1, 2), ("x", "y"))]
 )

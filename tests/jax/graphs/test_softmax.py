@@ -5,11 +5,12 @@
 import jax
 import pytest
 from infra import run_graph_test_with_random_inputs
+from utils import TestCategory
 
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(test_category="graph_test")
+@pytest.mark.record_test_properties(test_category=TestCategory.GRAPH_TEST.value)
 @pytest.mark.parametrize(
     ["x_shape", "axis"],
     [

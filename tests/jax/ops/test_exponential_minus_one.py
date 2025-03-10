@@ -22,7 +22,7 @@ def comparison_config() -> ComparisonConfig:
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.expm1",
     shlo_op_name="stablehlo.exponential_minus_one",

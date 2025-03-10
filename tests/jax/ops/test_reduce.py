@@ -22,7 +22,7 @@ def comparison_config() -> ComparisonConfig:
 # TODO axis should be parametrized as well.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.sum",
     shlo_op_name="stablehlo.reduce{SUM}",
@@ -40,7 +40,7 @@ def test_reduce_sum(x_shape: tuple, comparison_config: ComparisonConfig):
 # TODO axis should be parametrized as well.
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="op_test",
     jax_op_name="jax.numpy.max",
     shlo_op_name="stablehlo.reduce{MAX}",

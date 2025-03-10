@@ -29,7 +29,12 @@ def training_tester() -> GPTNeoTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.xfail(
+@pytest.mark.record_test_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.INFERENCE.value,
+)
+@pytest.mark.skip(
     reason=runtime_fail(
         "Host data with total size 4B does not match expected size 2B of device buffer!"
     )
@@ -39,6 +44,11 @@ def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
 
 
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    test_category="model_test",
+    model_name=MODEL_NAME,
+    run_mode=RunMode.TRAINING.value,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_gpt_neo_125m_training(training_tester: GPTNeoTester):
     training_tester.test()

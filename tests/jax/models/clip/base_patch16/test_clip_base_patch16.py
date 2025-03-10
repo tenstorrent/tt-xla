@@ -30,7 +30,7 @@ def training_tester() -> FlaxCLIPTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -45,7 +45,7 @@ def test_clip_base_patch16_inference(inference_tester: FlaxCLIPTester):
 
 
 @pytest.mark.push
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,

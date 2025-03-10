@@ -11,7 +11,6 @@ from flax import linen as nn
 from huggingface_hub import hf_hub_download
 from infra import ModelTester, RunMode
 from transformers import AutoTokenizer
-from utils import compile_fail
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
@@ -76,7 +75,7 @@ def training_tester() -> SqueezeBertTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.INFERENCE.value,
@@ -89,7 +88,7 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
 
 
 @pytest.mark.model_test
-@pytest.mark.record_properties(
+@pytest.mark.record_test_properties(
     test_category="model_test",
     model_name=MODEL_NAME,
     run_mode=RunMode.TRAINING.value,
