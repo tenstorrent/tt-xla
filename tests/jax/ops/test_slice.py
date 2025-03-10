@@ -5,6 +5,7 @@
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from utils import TestCategory
 
 dim0_cases = []
 for begin in jnp.arange(10).tolist():
@@ -31,7 +32,7 @@ for begin in jnp.arange(0, 64, 32).tolist():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.slice",
     shlo_op_name="stablehlo.slice",
 )

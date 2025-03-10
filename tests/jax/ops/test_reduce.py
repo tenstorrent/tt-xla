@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import jax
 import jax.numpy as jnp
 import pytest
 from infra import ComparisonConfig, run_op_test_with_random_inputs
+from utils import TestCategory
 
 
 # TODO investigate why this doesn't pass with default comparison config.
@@ -23,7 +23,7 @@ def comparison_config() -> ComparisonConfig:
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.sum",
     shlo_op_name="stablehlo.reduce{SUM}",
 )
@@ -41,7 +41,7 @@ def test_reduce_sum(x_shape: tuple, comparison_config: ComparisonConfig):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.max",
     shlo_op_name="stablehlo.reduce{MAX}",
 )

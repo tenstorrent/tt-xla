@@ -5,6 +5,7 @@
 import jax
 import pytest
 from infra import ComparisonConfig, random_tensor, run_op_test
+from utils import TestCategory
 
 
 # TODO investigate why conv has such poor precision.
@@ -20,7 +21,7 @@ def comparison_config() -> ComparisonConfig:
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.conv_general_dilated",
     shlo_op_name="stablehlo.convolution",
 )
@@ -61,7 +62,7 @@ def test_conv1d(
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.conv_general_dilated",
     shlo_op_name="stablehlo.convolution",
 )

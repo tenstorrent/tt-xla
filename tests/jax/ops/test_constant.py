@@ -5,13 +5,13 @@
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test
-from utils import compile_fail
+from utils import TestCategory, compile_fail
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.zeros",
     shlo_op_name="stablehlo.constant",
 )
@@ -26,7 +26,7 @@ def test_constant_zeros(shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.ones",
     shlo_op_name="stablehlo.constant",
 )
@@ -41,7 +41,7 @@ def test_constant_ones(shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.array",
     shlo_op_name="stablehlo.constant",
 )

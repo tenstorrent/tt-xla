@@ -13,6 +13,7 @@ class TestCategory(Enum):
     GRAPH_TEST = "graph_test"
     MODEL_TEST = "model_test"
     MULTICHIP_TEST = "multichip_test"
+    OTHER = "other"
 
 
 def compile_fail(reason: str) -> str:

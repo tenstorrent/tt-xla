@@ -5,6 +5,7 @@
 import jax
 import pytest
 from infra import run_op_test_with_random_inputs
+from utils import TestCategory
 
 
 # Tests for dot_general op where vectors containing indices of contracting dimensions
@@ -13,7 +14,7 @@ from infra import run_op_test_with_random_inputs
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",
 )
@@ -38,7 +39,7 @@ def test_dot_general_common(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",
 )
@@ -61,7 +62,7 @@ def test_dot_general_matmul(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.dot_general",
     shlo_op_name="stablehlo.dot_general",
 )

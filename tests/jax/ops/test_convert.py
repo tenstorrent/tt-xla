@@ -8,9 +8,7 @@ import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
-from utils import compile_fail, runtime_fail
-
-from tests.utils import enable_x64
+from utils import TestCategory, compile_fail, enable_x64, runtime_fail
 
 # NOTE Use test_data_types.py as reference for all supported data types.
 
@@ -164,7 +162,7 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.lax.convert_element_type",
     shlo_op_name="stablehlo.convert",
 )
