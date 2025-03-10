@@ -163,6 +163,9 @@ jobs:
       - in-service
       - ${{ matrix.build.runs-on }}
 
+    # Keep this name in sync with the fetch-job-id step
+    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
       options: --device /dev/tenstorrent/0
@@ -191,7 +194,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "${{ github.job }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
 
     - name: Set reusable strings
       id: strings
