@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from utils import record_model_test_properties, runtime_fail
 
 from ..tester import FlaxBartForCausalLMTester
 
@@ -32,8 +32,11 @@ def training_tester() -> FlaxBartForCausalLMTester:
 
 @pytest.mark.model_test
 @pytest.mark.xfail(
-    reason=compile_fail(
-        "Unsupported data type (https://github.com/tenstorrent/tt-xla/issues/214)"
+    reason=(
+        runtime_fail(
+            "Invalid arguments to reshape "
+            "(https://github.com/tenstorrent/tt-xla/issues/307)"
+        )
     )
 )
 def test_flax_bart_large_inference(
