@@ -15,7 +15,9 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
+#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
@@ -25,8 +27,12 @@ namespace tt::pjrt {
 class ExecutableImage {
 
 public:
-  ExecutableImage(const tt::runtime::Binary &binary, std::string code,
-                  const std::vector<bool> &is_output_scalar);
+  ExecutableImage(
+      const tt::runtime::Binary &binary, std::string code,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<bool> &is_output_scalar);
 
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
@@ -106,6 +112,12 @@ private:
 
   // For every output, holds its stride.
   std::vector<std::vector<uint32_t>> m_output_strides;
+
+  // Hold the sharding information for each input.
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_sharding;
+
+  // Hold the sharding information for each output.
+  const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
 };
 
 } // namespace tt::pjrt

@@ -11,6 +11,10 @@
 // loguru includes
 #include "loguru/loguru.hpp"
 
+// llvm includes
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/LogicalResult.h"
+
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/Extensions/AllExtensions.h"
@@ -36,9 +40,10 @@
 #include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO
 #include "tt/runtime/runtime.h"
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
@@ -93,6 +98,8 @@ ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
+  collectInputShardings(mlir_module);
+  collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
@@ -182,28 +189,82 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   printModule(mlir_module);
 }
 
+void ModuleBuilder::collectInputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectInputShardings");
+  m_input_shardings.clear();
+
+  std::vector<mlir::StringAttr> gspmd_attributes;
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+
+    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
+      gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
+          func_op.getArgAttr(i, mlir::tt::sharding_utils::kXlaShardingAttr)));
+    }
+  }
+
+  mlir::LogicalResult result =
+      createShardingsFromGSPMD(gspmd_attributes, m_input_shardings);
+  if (result.failed()) {
+    m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
+  m_output_shardings.clear();
+
+  std::vector<mlir::StringAttr> gspmd_attributes;
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+
+    for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
+      gspmd_attributes.push_back(
+          llvm::dyn_cast_if_present<mlir::StringAttr>(func_op.getResultAttr(
+              i, mlir::tt::sharding_utils::kXlaShardingAttr)));
+    }
+  }
+
+  mlir::LogicalResult result =
+      createShardingsFromGSPMD(gspmd_attributes, m_output_shardings);
+  if (result.failed()) {
+    m_status = tt_pjrt_status::kInternal;
+  }
+}
+
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputTypes");
 
   m_is_output_scalar.clear();
 
-  module.get().walk([&](mlir::Operation *op) {
-    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
-    mlir::ModuleOp moduleOp = mlir::dyn_cast<mlir::ModuleOp>(op);
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
-    // We care only about return ops of public functions, as that are the ones
-    // that will produce results in the flatbuffer.
-    if (!funcOp) {
-      return;
-    }
-    if (!funcOp.isPublic()) {
-      return;
-    }
-    for (const mlir::Type &returnType : funcOp.getFunctionType().getResults()) {
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+
+    for (const mlir::Type &returnType :
+         func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
     }
+  }
+}
+
+std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  std::vector<mlir::func::FuncOp> publicFuncOps;
+  module.get().walk([&](mlir::Operation *op) {
+    mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
+    if (funcOp && funcOp.isPublic()) {
+      publicFuncOps.push_back(funcOp);
+    }
   });
+  return publicFuncOps;
 }
 
 bool ModuleBuilder::isScalarType(mlir::Type type) {
@@ -215,6 +276,35 @@ bool ModuleBuilder::isScalarType(mlir::Type type) {
     return tensorType.getRank() == 0;
   }
   return false;
+}
+
+mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
+    const std::vector<mlir::StringAttr> &gspmd_attributes,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+
+  for (const mlir::StringAttr &gspmd_attr : gspmd_attributes) {
+
+    mlir::tt::sharding_utils::MeshSharding mesh_sharding;
+
+    // If there is no sharding attribute, we put the default sharding, marked
+    // as "manual", which means there is no sharding.
+    if (!gspmd_attr) {
+      shardings.push_back(mesh_sharding);
+      continue;
+    }
+
+    llvm::Expected<bool> error =
+        mesh_sharding.convertGSPMDShardingToMeshSharding(gspmd_attr.getValue());
+    if (llvm::Error e = error.takeError()) {
+      DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
+
+      return llvm::LogicalResult::failure();
+    }
+
+    shardings.push_back(mesh_sharding);
+  }
+
+  return llvm::LogicalResult::success();
 }
 
 void ModuleBuilder::convertFromSHLOToTTIR(
