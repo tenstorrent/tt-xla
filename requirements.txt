@@ -16,3 +16,4 @@ torch
 transformers
 ml_collections
 jaxtyping
+pillow
