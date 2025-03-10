@@ -57,8 +57,8 @@ private:
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts TTIR module to TTNN module.
-  void convertFromTTIRToTTNN(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                             const std::string &system_descriptor_path);
+  void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
+                             mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Creates flatbuffer binary from the built TTNN module.
   void

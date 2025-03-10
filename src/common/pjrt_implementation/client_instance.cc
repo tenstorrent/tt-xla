@@ -27,6 +27,9 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), system_descriptor_(nullptr) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
   module_builder_ = std::make_unique<ModuleBuilder>();
+  // TODO: Ensure this name is unique to prevent clashes between multiple
+  // clients. Since we plan to remove the need for storing the descriptor on
+  // disk soon, we’re keeping it simple for now.
   cached_system_descriptor_path_ =
       std::filesystem::temp_directory_path().concat(
           "/tt_pjrt_system_descriptor");
@@ -174,6 +177,12 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 
   system_descriptor_ = system_desc;
   system_descriptor_.store(cached_system_descriptor_path_.data());
+  if (std::filesystem::exists(cached_system_descriptor_path_) == false) {
+    DLOG_F(ERROR,
+           "Failed to store the system descriptor to the disk using path: %s",
+           cached_system_descriptor_path_.c_str());
+    return tt_pjrt_status::kInternal;
+  }
 
   int devices_count = chip_ids.size();
   devices_.resize(devices_count);

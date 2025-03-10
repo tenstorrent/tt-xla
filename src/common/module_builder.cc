@@ -91,7 +91,7 @@ ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
-  convertFromTTIRToTTNN(mlir_module, system_descriptor_path);
+  convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -195,8 +195,8 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 }
 
 void ModuleBuilder::convertFromTTIRToTTNN(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const std::string &system_descriptor_path) {
+    const std::string &system_descriptor_path,
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
