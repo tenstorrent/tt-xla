@@ -36,10 +36,14 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
     LoadedExecutableInstance *loaded_executable =
         LoadedExecutableInstance::Unwrap(args->executable);
+    // TODO: Set addressable devices in the loaded executable class to only the
+    // devices being utilized, rather than all addressable devices. This way,
+    // the number of devices will be determined by the list length instead of a
+    // separate field in the class.
     const std::vector<DeviceInstance *> &addressable_devices =
         loaded_executable->addressable_devices();
     int num_addressable_devices =
-        loaded_executable->image_->get_num_addressable_devices();
+        loaded_executable->get_num_devices_to_utilize();
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -70,10 +74,9 @@ tt_pjrt_status
 LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-
-  // Sanity check, as we only support execution on one chip currently.
-  assert(args->num_devices == 1);
+  // Check that the number of devices matches the number of devices counted
+  // from the VHLO module.
+  assert(args->num_devices == num_devices_to_utilize_);
 
   int dev_index = 0;
   const tt::runtime::Binary &binary = image_->get_binary();
@@ -89,7 +92,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     rt_inputs.emplace_back(buffer->getTensor());
     int64_t buffer_device_id =
         buffer->device().device_description()->getDeviceId();
-    device_ids.insert(chip_ids[buffer_device_id]);
+    device_ids.insert(buffer_device_id);
     DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
   }
 
@@ -99,10 +102,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // TODO: Now we will run only on the first one, but this should be somehow
   // explicit.
   if (device_ids.size() == 0) {
-    device_ids_vector.push_back(chip_ids[0]);
+    device_ids_vector.push_back(
+        addressable_devices_[0]->device_description()->getDeviceId());
   }
-
-  assert(device_ids_vector.size() == 1);
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids_vector);
 
