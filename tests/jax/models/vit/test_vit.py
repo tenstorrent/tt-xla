@@ -13,7 +13,6 @@ import requests
 from utils import record_model_test_properties, runtime_fail
 
 
-
 class FlaxViTForImageClassificationTester(ModelTester):
     """Tester for Vision Transformer model on an image classification task using Flax."""
 
@@ -32,7 +31,7 @@ class FlaxViTForImageClassificationTester(ModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         processor = ViTImageProcessor.from_pretrained(self._model_name)
         inputs = processor(images=image, return_tensors="jax")
@@ -53,6 +52,7 @@ class FlaxViTForImageClassificationTester(ModelTester):
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def inference_tester(request) -> FlaxViTForImageClassificationTester:
     return FlaxViTForImageClassificationTester(request.param)
@@ -65,24 +65,26 @@ def training_tester(request) -> FlaxViTForImageClassificationTester:
 
 # ----- Tests -----
 
+
 @pytest.mark.nightly
 @pytest.mark.parametrize(
-    "inference_tester", 
-   [   
-    "google/vit-base-patch16-384",
-    "google/vit-base-patch32-384",
-    "google/vit-base-patch16-224",
-    "google/vit-base-patch32-224-in21k",
-    "google/vit-base-patch16-224-in21k",
-    "google/vit-large-patch16-224-in21k",
-    "google/vit-large-patch16-224",
-    "google/vit-large-patch16-384",
-    "google/vit-large-patch32-224-in21k",
-    "google/vit-large-patch32-384",
-    "google/vit-huge-patch14-224-in21k", 
-   ],
-   indirect=True, 
-   ids=lambda val: val)
+    "inference_tester",
+    [
+        "google/vit-base-patch16-384",
+        "google/vit-base-patch32-384",
+        "google/vit-base-patch16-224",
+        "google/vit-base-patch32-224-in21k",
+        "google/vit-base-patch16-224-in21k",
+        "google/vit-large-patch16-224-in21k",
+        "google/vit-large-patch16-224",
+        "google/vit-large-patch16-384",
+        "google/vit-large-patch32-224-in21k",
+        "google/vit-large-patch32-384",
+        "google/vit-huge-patch14-224-in21k",
+    ],
+    indirect=True,
+    ids=lambda val: val,
+)
 @pytest.mark.xfail(
     reason=runtime_fail(
         "Out of memory while performing convolution."
@@ -99,22 +101,23 @@ def test_vit_inference(
 
 @pytest.mark.nightly
 @pytest.mark.parametrize(
-    "training_tester", 
-    [   
-    "google/vit-base-patch16-384",
-    "google/vit-base-patch32-384",
-    "google/vit-base-patch16-224",
-    "google/vit-base-patch32-224-in21k",
-    "google/vit-base-patch16-224-in21k",
-    "google/vit-large-patch16-224-in21k",
-    "google/vit-large-patch16-224",
-    "google/vit-large-patch16-384",
-    "google/vit-large-patch32-224-in21k",
-    "google/vit-large-patch32-384",
-    "google/vit-huge-patch14-224-in21k", 
-   ], 
-    indirect=True, 
-    ids=lambda val: val)
+    "training_tester",
+    [
+        "google/vit-base-patch16-384",
+        "google/vit-base-patch32-384",
+        "google/vit-base-patch16-224",
+        "google/vit-base-patch32-224-in21k",
+        "google/vit-base-patch16-224-in21k",
+        "google/vit-large-patch16-224-in21k",
+        "google/vit-large-patch16-224",
+        "google/vit-large-patch16-384",
+        "google/vit-large-patch32-224-in21k",
+        "google/vit-large-patch32-384",
+        "google/vit-huge-patch14-224-in21k",
+    ],
+    indirect=True,
+    ids=lambda val: val,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_vit_training(
     training_tester: FlaxViTForImageClassificationTester,
