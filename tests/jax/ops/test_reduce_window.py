@@ -6,6 +6,7 @@ import flax
 import jax
 import pytest
 from infra import ComparisonConfig, random_tensor, run_op_test
+from utils import TestCategory
 
 
 @pytest.fixture
@@ -20,7 +21,7 @@ def comparison_config() -> ComparisonConfig:
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="flax.linen.max_pool",
     shlo_op_name="stablehlo.reduce_window{MAX}",
 )

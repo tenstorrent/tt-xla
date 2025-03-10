@@ -6,12 +6,13 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from utils import TestCategory
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.sqrt",
     shlo_op_name="stablehlo.sqrt",
 )

@@ -10,11 +10,12 @@ import jax
 import pytest
 from infra import run_op_test_with_random_inputs
 from jax import numpy as jnp
+from utils import TestCategory
 
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_test_properties(test_category="other")
+@pytest.mark.record_test_properties(test_category=TestCategory.OTHER.value)
 @pytest.mark.parametrize(
     "x_shape",
     [
@@ -44,7 +45,7 @@ def test_unary_op(x_shape: tuple):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.record_test_properties(test_category="other")
+@pytest.mark.record_test_properties(test_category=TestCategory.OTHER.value)
 @pytest.mark.parametrize(
     "shape",
     [

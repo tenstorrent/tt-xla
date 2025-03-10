@@ -5,13 +5,13 @@
 import jax
 import pytest
 from infra import run_op_test_with_random_inputs
-from utils import convert_output_to_bfloat16
+from utils import TestCategory, convert_output_to_bfloat16
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.equal",
     shlo_op_name="stablehlo.compare{EQ}",
 )
@@ -34,7 +34,7 @@ def test_compare_equal(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.not_equal",
     shlo_op_name="stablehlo.compare{NE}",
 )
@@ -57,7 +57,7 @@ def test_compare_not_equal(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.greater",
     shlo_op_name="stablehlo.compare{GT}",
 )
@@ -80,7 +80,7 @@ def test_compare_greater(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.greater_equal",
     shlo_op_name="stablehlo.compare{GE}",
 )
@@ -103,7 +103,7 @@ def test_compare_greater_equal(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.less",
     shlo_op_name="stablehlo.compare{LT}",
 )
@@ -126,7 +126,7 @@ def test_compare_less(x_shape: tuple, y_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    test_category="op_test",
+    test_category=TestCategory.OP_TEST.value,
     jax_op_name="jax.numpy.less_equal",
     shlo_op_name="stablehlo.compare{LE}",
 )
