@@ -262,14 +262,14 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-log-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
 
     - name: Upload Test Report
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ matrix.test_group_id }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
