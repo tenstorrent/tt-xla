@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include <memory>
 #include <numeric>
 
 #include "common/pjrt_implementation/device_instance.h"
@@ -102,11 +103,14 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
 
   std::memcpy(new_memory.get(), data, tensor_size);
 
-  tt::runtime::Tensor device_tensor = tt::runtime::createTensor(
+  tt::runtime::Tensor device_tensor = tt::runtime::createOwnedTensor(
       new_memory, shape, strides, element_size, element_type);
 
+  std::pair<tt::target::DataType, size_t> tt_buffer_type = {element_type,
+                                                            element_size};
+
   return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides,
-                                          new_memory);
+                                          tt_buffer_type, new_memory);
 }
 
 } // namespace tt::pjrt
