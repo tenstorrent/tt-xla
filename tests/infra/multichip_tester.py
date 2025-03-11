@@ -97,30 +97,6 @@ class MultichipTester(BaseTester):
         cpu_workload = Workload(cpu_executable, inputs)
         self.test(device_workload, cpu_workload)
 
-
-def run_multichip_test_with_random_inputs(
-    device_executable: Callable,
-    cpu_executable: Callable,
-    input_shapes: Sequence[tuple],
-    mesh_shape: tuple,
-    axis_names: tuple,
-    in_specs: Sequence[jax.sharding.PartitionSpec],
-    out_specs: jax.sharding.PartitionSpec,
-    minval: float = 0.0,
-    maxval: float = 1.0,
-    comparison_config: ComparisonConfig = ComparisonConfig(),
-) -> None:
-    """
-    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
-    TT devices and comparing it to output of the cpu executable ran with the same input.
-    """
-    tester = MultichipTester(
-        in_specs, out_specs, mesh_shape, axis_names, comparison_config
-    )
-    tester.test_with_random_inputs(
-        device_executable, cpu_executable, input_shapes, minval, maxval
-    )
-
     # ---------- Private methods ----------
 
     def _compile_for_cpu(
@@ -145,3 +121,27 @@ def run_multichip_test_with_random_inputs(
             out_shardings=output_sharding,
             static_argnames=static_argnames,
         )
+
+
+def run_multichip_test_with_random_inputs(
+    device_executable: Callable,
+    cpu_executable: Callable,
+    input_shapes: Sequence[tuple],
+    mesh_shape: tuple,
+    axis_names: tuple,
+    in_specs: Sequence[jax.sharding.PartitionSpec],
+    out_specs: jax.sharding.PartitionSpec,
+    minval: float = 0.0,
+    maxval: float = 1.0,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+) -> None:
+    """
+    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
+    TT devices and comparing it to output of the cpu executable ran with the same input.
+    """
+    tester = MultichipTester(
+        in_specs, out_specs, mesh_shape, axis_names, comparison_config
+    )
+    tester.test_with_random_inputs(
+        device_executable, cpu_executable, input_shapes, minval, maxval
+    )

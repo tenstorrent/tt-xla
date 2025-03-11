@@ -257,14 +257,14 @@ void ModuleBuilder::collectOutputTypes(
 
 std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  std::vector<mlir::func::FuncOp> publicFuncOps;
+  std::vector<mlir::func::FuncOp> public_func_ops;
   module.get().walk([&](mlir::Operation *op) {
     mlir::func::FuncOp funcOp = mlir::dyn_cast<mlir::func::FuncOp>(op);
     if (funcOp && funcOp.isPublic()) {
-      publicFuncOps.push_back(funcOp);
+      public_func_ops.push_back(funcOp);
     }
   });
-  return publicFuncOps;
+  return public_func_ops;
 }
 
 bool ModuleBuilder::isScalarType(mlir::Type type) {
@@ -287,7 +287,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
     mlir::tt::sharding_utils::MeshSharding mesh_sharding;
 
     // If there is no sharding attribute, we put the default sharding, marked
-    // as "manual", which means there is no sharding.
+    // as "identity", which means there is no sharding.
     if (!gspmd_attr) {
       shardings.push_back(mesh_sharding);
       continue;

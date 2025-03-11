@@ -34,6 +34,7 @@ public:
       : client_(client), image_(image),
         addressable_devices_(addressable_devices),
         num_devices_to_utilize_(num_devices_to_utilize) {}
+
   ~LoadedExecutableInstance();
 
   operator PJRT_LoadedExecutable *() {
@@ -65,6 +66,24 @@ private:
   std::vector<DeviceInstance *> addressable_devices_;
   size_t num_devices_to_utilize_;
   std::vector<ResidentExecutable> resident_executables_;
+
+  std::unordered_map<std::string, std::string> getStrategyMapFromSharding(
+      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+      size_t num_devices);
+
+  tt::runtime::Tensor getTensorFromStrategy(
+      const std::unordered_map<std::string, std::string> &strategy,
+      BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data);
+
+  std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
+
+  bool isOutputReplicated(size_t index);
+
+  void
+  fillPJRTOutputLists(PJRT_Buffer **const *output_lists,
+                      std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
+                      const std::vector<tt::runtime::TensorDesc> &output_specs,
+                      size_t num_devices);
 };
 
 } // namespace tt::pjrt

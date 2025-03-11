@@ -97,9 +97,7 @@ class DeviceRunner:
         TODO: This can be omitted when we find a way to get sharding information from the StableHLO
         code back to jax through a protobuf (issue #227).
         """
-        none_tuple = (None,) * len(in_spec)
-        none_spec = PartitionSpec(*none_tuple)
-        return jax.device_put(tensor, NamedSharding(mesh, none_spec), may_alias=True)
+        return jax.device_put(tensor, NamedSharding(mesh, in_spec), may_alias=True)
 
     @staticmethod
     def _put_on_device(
