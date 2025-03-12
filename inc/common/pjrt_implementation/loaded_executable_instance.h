@@ -77,6 +77,7 @@ private:
 
   std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
 
+  // Returns is output on the specified index replicated.
   bool isOutputReplicated(size_t index);
 
   void
