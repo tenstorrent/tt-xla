@@ -22,3 +22,6 @@ class Framework(Enum):
     JAX = "jax"
     TORCH = "torch"
     NUMPY = "numpy"
+
+    def __str__(self) -> str:
+        return self.value

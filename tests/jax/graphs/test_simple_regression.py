@@ -6,9 +6,12 @@ import jax
 import pytest
 from infra import run_graph_test_with_random_inputs
 
+from tests.utils import Category
+
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.parametrize(
     ["weights", "bias", "X", "y"], [[(1, 2), (1, 1), (2, 1), (1, 1)]]
 )

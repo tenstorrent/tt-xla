@@ -4,9 +4,10 @@
 
 import jax
 import jax.numpy as jnp
-from infra import run_multichip_test_with_random_inputs, make_partition_spec
 import pytest
-from utils import compile_fail
+from infra import make_partition_spec, run_multichip_test_with_random_inputs
+
+from tests.utils import failed_fe_compilation
 
 
 @pytest.mark.parametrize(
@@ -15,7 +16,7 @@ from utils import compile_fail
         [(8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")],
     ],
 )
-@pytest.mark.skip(reason=compile_fail("Multichip still in development"))
+@pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
 def test_psum(
     batch_shape: tuple,
     W1_shape: tuple,

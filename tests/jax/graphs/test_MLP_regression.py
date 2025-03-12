@@ -1,10 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import jax
 import jax.numpy as jnp
 import pytest
 from infra import ComparisonConfig, run_graph_test_with_random_inputs
+
+from tests.utils import Category
 
 
 @pytest.fixture
@@ -17,6 +20,7 @@ def comparison_config() -> ComparisonConfig:
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.parametrize(
     ["W1", "b1", "W2", "b2", "X", "y"],
     [

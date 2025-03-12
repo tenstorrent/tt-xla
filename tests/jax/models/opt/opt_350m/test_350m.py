@@ -2,16 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_runtime,
+)
 
 from ..tester import OPTTester
 
 MODEL_PATH = "facebook/opt-350m"
-MODEL_NAME = "opt-350m"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "opt",
+    "350m",
+    ModelTask.NLP_CAUSAL_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -31,22 +44,25 @@ def training_tester() -> OPTTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.skip(reason=compile_fail("Unsupported data type"))  # segfault
-def test_opt_350m_inference(
-    inference_tester: OPTTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+def test_opt_350m_inference(inference_tester: OPTTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_opt_350m_training(
-    training_tester: OPTTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_opt_350m_training(training_tester: OPTTester):
     training_tester.test()

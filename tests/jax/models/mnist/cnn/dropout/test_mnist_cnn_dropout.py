@@ -2,16 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import record_model_test_properties
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_fe_compilation,
+)
 
 from ..tester import MNISTCNNTester
 from .model_implementation import MNISTCNNDropoutModel
 
 # ----- Fixtures -----
+
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "mnist",
+    "cnn_dropout",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.CUSTOM,
+)
 
 
 @pytest.fixture
@@ -29,22 +44,25 @@ def training_tester() -> MNISTCNNTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
-def test_mnist_cnn_dropout_inference(
-    inference_tester: MNISTCNNTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mnist-cnn-dropout")
-
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_cnn_nodropout_training(
-    training_tester: MNISTCNNTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mnist-cnn-dropout")
-
+def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()

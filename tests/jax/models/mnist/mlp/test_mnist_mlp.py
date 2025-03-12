@@ -2,13 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Sequence
+from typing import Sequence
 
 import jax
 import pytest
 from flax import linen as nn
-from infra import ComparisonConfig, ModelTester, RunMode
-from utils import record_model_test_properties
+from infra import ComparisonConfig, Framework, ModelTester, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+)
 
 from .model_implementation import MNISTMLPModel
 
@@ -52,6 +60,15 @@ class MNISTMLPTester(ModelTester):
 # ----- Fixtures -----
 
 
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "mnist",
+    "mlp",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.CUSTOM,
+)
+
+
 @pytest.fixture
 def inference_tester(request) -> MNISTMLPTester:
     return MNISTMLPTester(request.param)
@@ -66,7 +83,13 @@ def training_tester(request) -> MNISTMLPTester:
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+)
 @pytest.mark.parametrize(
     "inference_tester",
     [
@@ -75,27 +98,38 @@ def training_tester(request) -> MNISTMLPTester:
         (192, 128),
         (512, 512),
         (128, 128, 128),
-        (256, 128, 64),
     ],
     indirect=True,
     ids=lambda val: f"{val}",
 )
-def test_mnist_mlp_inference(
-    inference_tester: MNISTMLPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, "mnist-mlp")
-
+def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
     inference_tester.test()
 
 
 @pytest.mark.push
 @pytest.mark.model_test
-@pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_mlp_training(
-    training_tester: MNISTMLPTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MNISTMLPModel.__qualname__)
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+@pytest.mark.parametrize(
+    "inference_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
+)
+def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
+    inference_tester.test()
 
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
+@pytest.mark.skip(reason="Support for training not implemented")
+def test_mnist_mlp_training(training_tester: MNISTMLPTester):
     training_tester.test()

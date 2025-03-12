@@ -2,17 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import compile_fail, record_model_test_properties
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_ttmlir_compilation,
+)
 
 from ..tester import FlaxBeitForImageClassificationTester
 
 MODEL_PATH = "microsoft/beit-base-patch16-224"
-MODEL_NAME = "beit-base"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "beit",
+    "base",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -32,22 +44,29 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.xfail(reason=compile_fail("failed to legalize operation 'ttir.gather'"))
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+)
 def test_flax_beit_base_inference(
     inference_tester: FlaxBeitForImageClassificationTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_beit_base_training(
-    training_tester: FlaxBeitForImageClassificationTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_beit_base_training(training_tester: FlaxBeitForImageClassificationTester):
     training_tester.test()
