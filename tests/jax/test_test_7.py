@@ -1,64 +1,54 @@
 import os
-
-# Set this to True to run the model on CPU only.
-USE_CPU_ONLY = True
-
-flags = os.environ.get("XLA_FLAGS", "")
-if USE_CPU_ONLY:
-    flags += " --xla_force_host_platform_device_count=8"  # Simulate 8 devices
-    # Enforce CPU-only execution
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-else:
-    # GPU flags
-    flags += (
-        "--xla_gpu_enable_triton_softmax_fusion=true "
-        "--xla_gpu_triton_gemm_any=false "
-        "--xla_gpu_enable_async_collectives=true "
-        "--xla_gpu_enable_latency_hiding_scheduler=true "
-        "--xla_gpu_enable_highest_priority_async_stream=true "
-    )
-os.environ["XLA_FLAGS"] = flags
-
-import functools
-from typing import Any, Dict, Tuple
-
-import flax.linen as nn
 import jax
 import jax.numpy as jnp
-from jax import jit
-import numpy as np
-from jax.experimental.shard_map import shard_map
-from jax.sharding import Mesh, NamedSharding
+import jax._src.xla_bridge as xb
+from jax.sharding import Mesh
+from jax.sharding import Mesh, PartitionSpec, NamedSharding, SingleDeviceSharding
 from jax.sharding import PartitionSpec as P
+from jax.experimental import mesh_utils
+from jax.experimental.shard_map import shard_map
 from functools import partial
+def random_input_tensor(shape, key=42, on_device=False, dtype=jnp.float32):
+  device_cpu = jax.devices('cpu')[0]
+  with jax.default_device(device_cpu):
+    tensor = jax.random.uniform(jax.random.PRNGKey(key), shape=shape, dtype=dtype)
+  # Although the random tensor is generated on cpu but it is not committed to
+  # cpu; so this tensor can be moved to the device and subsequent code will
+  # execute on the device. Placing the generated tensor explicitly to cpu or
+  # device to avoid unwanted behavior.
+  if on_device:
+    tensor = jax.device_put(tensor, jax.devices('tt')[0])
+  else:
+    tensor = jax.device_put(tensor, device_cpu)
+  return tensor
 
-PyTree = Any
-Metrics = Dict[str, Tuple[jax.Array, ...]]
+def initializePJRT():
+  path = os.path.join(os.path.dirname(__file__), "/localdev/ajakovljevic/tt-xla/build/src/tt/pjrt_plugin_tt.so")
+  if not os.path.exists(path):
+    raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}, have you compiled the project?")
+  plugin = xb.register_plugin('tt', priority=10, library_path=path, options=None)
+  jax.config.update("jax_platforms", "cpu,tt")
+  #jax.config.update("jax_use_shardy_partitioner", True)
 
-mesh = jax.make_mesh((4, 2), ('batch', 'model'))
-batch = jax.random.normal(jax.random.key(0), (8192, 784))
-W1 = jax.random.normal(jax.random.key(0), (784, 2048))
-B1 = jax.random.normal(jax.random.key(0), (2048))
+def test_one():
+    device_tt = jax.devices('tt')
+    print("device:: ", device_tt)
+    mesh = jax.make_mesh((1, 2), ('batch', 'model'), devices=device_tt)
+    batch = jax.random.normal(jax.random.key(0), (128, 128))
+    W1 = jax.random.normal(jax.random.key(0), (128, 128))
+    out_spec = P('batch')
+    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('batch', 'model')), out_specs=out_spec)
+    def fwd(batch, W1_block):
+        act = jax.numpy.add(batch, W1_block)
+        act = jax.lax.psum(act, 'model')
+        return act
+  
+    output_sharding = NamedSharding(mesh, out_spec)
+    batch_sharded = jax.device_put(batch, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
+    W1_sharded = jax.device_put(W1, NamedSharding(mesh, P('batch', 'model')), may_alias=True)
+    fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
+    output = fwd_jit(batch_sharded, W1_sharded).block_until_ready()
+    print(output)
 
-out_spec = P('batch')
-
-@partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('model', None), P(None)), out_specs=out_spec)
-def fwd(batch, W1_block, B1_block):
-    act = jnp.dot(batch, W1_block)
-    act = jax.lax.psum(act, 'model')
-    act = act + B1_block
-    return act
-
-output_sharding = NamedSharding(mesh, out_spec)
-fwd_jit = jax.jit(fwd, out_shardings=output_sharding)
-fwd_lowered = fwd_jit.lower(batch, W1, B1)
-fwd_stablehlo = fwd_lowered.compiler_ir(dialect='stablehlo')
-print(fwd_stablehlo.dump())
-output = fwd_jit(batch, W1, B1).block_until_ready()
-
-jax.debug.visualize_array_sharding(output)
-
-golden = jnp.dot(batch, W1) + B1
-print(output)
-print(jnp.allclose(output, golden, atol=1e-4))
-jax.debug.visualize_array_sharding(golden)
+initializePJRT()
+test_one()

@@ -38,16 +38,16 @@ def test_one():
     W1 = jax.numpy.ones((64, 64))
     print(batch)
     print(W1)
-    out_spec = P('batch')
 
-
-    def fwd(batch, W1_block):
-        act = batch + W1_block
-        act = jax.numpy.sum(act, axis=0)
-        return act
-  
     spec_0 = P('batch', 'model')
     spec_1 = P('batch', 'model')
+    out_spec = P('batch', 'model')
+
+    @partial(shard_map, mesh=mesh, in_specs=(P('batch', 'model'), P('batch', 'model')), out_specs=out_spec)
+    def fwd(batch, W1_block):
+        act = batch + W1_block
+        return act
+  
     output_sharding = NamedSharding(mesh, out_spec)
     batch_sharded = jax.device_put(batch, NamedSharding(mesh, spec_0), may_alias=True)
     W1_sharded = jax.device_put(W1, NamedSharding(mesh, spec_1), may_alias=True)
