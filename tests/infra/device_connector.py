@@ -53,10 +53,24 @@ class DeviceConnector:
 
         return False
 
+    def reset_xla_flags(self) -> None:
+        """Resets XLA flags to default."""
+        os.environ["XLA_FLAGS"] = self.default_xla_flags
+
+    def simulate_multiple_cpu_devices(self, num_devices: int) -> None:
+        """Simulates multiple CPU devices."""
+        platfrom_device_count_flag = " --xla_force_host_platform_device_count=" + str(num_devices)  
+        os.environ["XLA_FLAGS"] = self.default_xla_flags + platfrom_device_count_flag
+
     def get_tt_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
         """Returns TTDevice mesh with specified `shape` and `axis_names`."""
         tt_devices = jax.devices(DeviceType.TT.value)
         return jax.make_mesh(shape, axis_names, devices=tt_devices)
+    
+    def get_cpu_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
+        """Returns cpu device mesh with specified `shape` and `axis_names`."""
+        cpu_devices = jax.devices(DeviceType.CPU.value)
+        return jax.make_mesh(shape, axis_names, devices=cpu_devices)
 
     def connect_tt_device(self, device_num: int = 0) -> jax.Device:
         """Returns TTDevice handle."""
@@ -93,6 +107,7 @@ class DeviceConnector:
         if self.is_initialized():
             return
 
+
         self._initialized = False
 
         plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
@@ -102,6 +117,7 @@ class DeviceConnector:
             )
 
         self._plugin_path = plugin_path
+        self.default_xla_flags = os.environ.get("XLA_FLAGS", "")
         self._initialize_backend()
 
     def _number_of_devices(self, device_type: DeviceType) -> int:
