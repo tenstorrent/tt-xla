@@ -195,3 +195,4 @@ The following dependencies are utilized by this project but are not explicitly
 distributed as part of the software:
 
 - xla/pjrt/c/pjrt_c_api.h - https://github.com/openxla/xla/blob/main/LICENSE
+- pillow - Custom License (https://github.com/python-pillow/Pillow/blob/main/LICENSE)
