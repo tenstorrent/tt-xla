@@ -7,14 +7,16 @@ import jax.numpy as jnp
 import pytest
 from infra import make_partition_spec, run_multichip_test_with_random_inputs
 
-from tests.utils import failed_fe_compilation
+from tests.utils import failed_fe_compilation, add_use_shardy_flag
 
 
 @pytest.mark.parametrize(
-    ["batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"],
-    [
-        [(8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")],
-    ],
+    ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names", "use_shardy"),
+    add_use_shardy_flag(
+        [
+            ((8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")),
+        ]
+    ),
 )
 @pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
 def test_psum(
@@ -23,6 +25,7 @@ def test_psum(
     B1_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
+    use_shardy: bool,
 ):
     def fwd(batch, W1_block, B1_block):
         act = jnp.dot(batch, W1_block)
@@ -50,5 +53,6 @@ def test_psum(
         axis_names,
         in_specs,
         out_specs,
+        use_shardy,
         maxval=0.1,
     )

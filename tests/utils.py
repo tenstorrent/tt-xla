@@ -4,7 +4,7 @@
 
 from contextlib import contextmanager
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, Optional, List, Tuple, Any
 
 import jax
 import jax.lax as jlx
@@ -81,6 +81,10 @@ class BringupStatus(Enum):
 
     def __str__(self) -> str:
         return self.name
+
+
+def add_use_shardy_flag(base_cases: List[Tuple[Any, ...]]) -> List[Tuple[Any, ...]]:
+    return [case + (use_shardy,) for case in base_cases for use_shardy in [True, False]]
 
 
 def failed_fe_compilation(reason: str) -> str:
