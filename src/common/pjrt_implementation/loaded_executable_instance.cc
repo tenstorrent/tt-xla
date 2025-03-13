@@ -13,13 +13,13 @@
 #include <string>
 #include <unordered_map>
 
+// tt-mlir includes
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/utils.h"
-
-// tt-mlir includes
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 namespace tt::pjrt {
 
@@ -80,23 +80,12 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   // Check that the number of devices matches the number of devices counted
   // from the VHLO module.
-  assert(args->num_devices == num_devices_to_utilize_);
+  size_t num_devices = args->num_devices;
+  assert(num_devices == num_devices_to_utilize_);
 
   const tt::runtime::Binary &binary = image_->get_binary();
-  size_t num_devices = args->num_devices;
 
   std::vector<tt::runtime::Tensor> rt_inputs;
-
-  std::vector<int> device_ids;
-
-  for (size_t i = 0; args->num_args && i < num_devices; i++) {
-    BufferInstance *buffer = BufferInstance::Unwrap(args->argument_lists[i][0]);
-    int64_t buffer_device_id =
-        buffer->device().device_description()->getDeviceId();
-    device_ids.push_back(buffer_device_id);
-    DLOG_F(INFO, "Runtime input id: %d", buffer->unique_id());
-  }
-
   for (size_t i = 0; i < args->num_args; ++i) {
     std::vector<std::shared_ptr<void>> data;
     BufferInstance *buffer;
@@ -109,13 +98,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     rt_inputs.push_back(getTensorFromStrategy(strategy, buffer, data));
   }
 
-  // If there are no input buffers, we still want to run on a device.
-  // TODO: Now we will run only on the first one, but this should be somehow
-  // explicit.
-  if (device_ids.size() == 0) {
-    device_ids.push_back(
-        addressable_devices_[0]->device_description()->getDeviceId());
-  }
+  std::vector<int> device_ids = getDeviceIds(
+      args->argument_lists, addressable_devices_, args->num_args, num_devices);
 
   tt::runtime::Device device = tt::runtime::openDevice(device_ids);
   std::vector<tt::runtime::Tensor> input_tensors;
@@ -127,15 +111,15 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
 
   for (size_t i = 0; i < output_specs.size(); ++i) {
-    std::vector<tt::runtime::Tensor> unitlized_output =
+    std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHostShardAware(rt_outputs[i], true);
-    for (size_t j = 0; j < unitlized_output.size(); j++) {
-      rt_outputs_list[j].push_back(unitlized_output[j]);
+    for (size_t j = 0; j < untilized_output.size(); j++) {
+      rt_outputs_list[j].push_back(untilized_output[j]);
     }
   }
 
-  fillPJRTOutputLists(args->output_lists, rt_outputs_list, output_specs,
-                      num_devices);
+  fillPJRTOutputLists(rt_outputs_list, output_specs, num_devices,
+                      args->output_lists);
 
   for (size_t i = 0; i < rt_outputs.size(); ++i) {
     tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
@@ -230,10 +214,9 @@ bool LoadedExecutableInstance::isOutputReplicated(size_t index) {
 }
 
 void LoadedExecutableInstance::fillPJRTOutputLists(
-    PJRT_Buffer **const *output_lists,
     std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list,
     const std::vector<tt::runtime::TensorDesc> &output_specs,
-    size_t num_devices) {
+    size_t num_devices, PJRT_Buffer **const *output_lists) {
   std::vector<bool> is_replicated;
   size_t num_outputs = rt_outputs_list[0].size();
   for (size_t i = 0; i < rt_outputs_list.size(); i++) {
@@ -256,10 +239,35 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
           output_specs[i].stride, type_pair);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[i].dataType));
-      DLOG_F(INFO, "Runtime output id: %d", result_buffer->unique_id());
+      DLOG_F(DEBUG, "Runtime output id: %d", result_buffer->unique_id());
       output_lists[k][i] = *(result_buffer.release());
     }
   }
+}
+
+std::vector<int> LoadedExecutableInstance::getDeviceIds(
+    PJRT_Buffer *const *const *argument_lists,
+    const std::vector<DeviceInstance *> &addressable_devices, size_t num_args,
+    size_t num_devices) {
+  std::vector<int> device_ids;
+
+  for (size_t i = 0; num_args && i < num_devices; i++) {
+    const BufferInstance *buffer = BufferInstance::Unwrap(argument_lists[i][0]);
+    int64_t buffer_device_id =
+        buffer->device().device_description()->getDeviceId();
+    device_ids.push_back(buffer_device_id);
+    DLOG_F(DEBUG, "Runtime input id: %d", buffer->unique_id());
+  }
+
+  // If there are no input buffers, we still want to run on a device.
+  // TODO: Now we will run only on the first one, but this should be somehow
+  // explicit.
+  if (device_ids.size() == 0) {
+    device_ids.push_back(
+        addressable_devices_[0]->device_description()->getDeviceId());
+  }
+
+  return device_ids;
 }
 
 } // namespace tt::pjrt
