@@ -16,20 +16,11 @@ from utils import compile_fail
 def test_unary_eltwise(x_shape: tuple, mesh_shape: tuple, axis_names: tuple):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
-        stitched_result = jax.lax.psum(b_block, axis_names)
-        return stitched_result
-
-    def fwd_single_device(a_block):
-        a1, a2 = jnp.split(a_block, 2, axis=1)
-
-        b1, b2 = jnp.negative(a1), jnp.negative(a2)
-
-        stitched_result = b1 + b2
-        return stitched_result
+        return b_block
 
     in_specs = (make_partition_spec(axis_names),)
-    out_specs = make_partition_spec((None, None))
+    out_specs = make_partition_spec(axis_names)
 
     run_multichip_test_with_random_inputs(
-        fwd, fwd_single_device, [x_shape], mesh_shape, axis_names, in_specs, out_specs
+        fwd, [x_shape], mesh_shape, axis_names, in_specs, out_specs
     )
