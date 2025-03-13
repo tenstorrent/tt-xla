@@ -2,21 +2,37 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Dict, Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
 import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
-from infra import ModelTester, RunMode
+from infra import Framework, ModelTester, RunMode
 from transformers import AutoTokenizer
-from utils import compile_fail, record_model_test_properties
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_fe_compilation,
+    failed_ttmlir_compilation,
+)
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
 MODEL_PATH = "squeezebert/squeezebert-uncased"
-MODEL_NAME = "squeezebert"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "squeezebert",
+    "uncased",
+    ModelTask.NLP_MASKED_LM,
+    ModelSource.CUSTOM,
+)
 
 # ----- Tester -----
 
@@ -76,24 +92,27 @@ def training_tester() -> SqueezeBertTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.xfail(
-    reason=compile_fail("Failed to legalize operation 'ttir.convolution'")
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-def test_squeezebert_inference(
-    inference_tester: SqueezeBertTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.convolution'")
+)
+def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_squeezebert_training(
-    training_tester: SqueezeBertTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_squeezebert_training(training_tester: SqueezeBertTester):
     training_tester.test()

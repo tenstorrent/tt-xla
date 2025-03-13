@@ -8,6 +8,7 @@ import jax
 import torch
 from huggingface_hub import hf_hub_download
 from infra import ComparisonConfig, ModelTester, RunMode
+from utils import StrEnum
 from safetensors import safe_open
 from transformers import (
     FlaxPreTrainedModel,
@@ -17,21 +18,31 @@ from transformers import (
 
 from tests.jax.models.model_utils import torch_statedict_to_pytree
 
+# Variants should be the same between all versions of resnet.
+# Therefore the version is not included
+class ResNetVariant(StrEnum):
+    RESNET_18 = "resnet-18"
+    RESNET_26 = "resnet-26"
+    RESNET_34 = "resnet-34"
+    RESNET_50 = "resnet-50"
+    RESNET_101 = "resnet-101"
+    RESNET_152 = "resnet-152"
+
 
 class ResNetTester(ModelTester):
     "Tester for ResNet family of models."
 
     def __init__(
         self,
-        model_name: str,
+        model_variant: ResNetVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_name = model_name
+        self._model_variant = model_variant
         super().__init__(comparison_config, run_mode)
 
     @staticmethod
-    def _get_renaming_patterns(name) -> List[Tuple[str, str]]:
+    def _get_renaming_patterns(variant: ResNetVariant) -> List[Tuple[str, str]]:
         PATTERNS = [
             (r"convolution.weight", r"convolution.kernel"),
             (r"normalization.running_mean", r"normalization.mean"),
@@ -40,7 +51,7 @@ class ResNetTester(ModelTester):
             (r"classifier\.(\d+).weight", r"classifier.\1.kernel"),
         ]
 
-        if name in ("resnet-18", "resnet-34"):
+        if variant in (ResNetVariant.RESNET_18, ResNetVariant.RESNET_34):
             PATTERNS.append((r"layer\.(\d+)\.", r"layer.layer_\1."))
 
         return PATTERNS
@@ -51,13 +62,15 @@ class ResNetTester(ModelTester):
 
     @staticmethod
     def _download_weights(
-        model_name: str,
+        model_variant: ResNetVariant,
     ) -> Union[Dict[str, jax.Array], Dict[str, torch.Tensor]]:
         filename = "model.safetensors"
-        if "resnet-101" in model_name:
+        if model_variant == ResNetVariant.RESNET_101:
             filename = "pytorch_model.bin"
 
-        ckpt_path = hf_hub_download(repo_id=model_name, filename=filename)
+        hf_path = f"microsoft/{model_variant}"
+        ckpt_path = hf_hub_download(repo_id=hf_path, filename=filename)
+
         if filename == "model.safetensors":
             with safe_open(ckpt_path, framework="flax", device="cpu") as f:
                 return {key: f.get_tensor(key) for key in f.keys()}
@@ -66,23 +79,23 @@ class ResNetTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        model_variant = self._model_name.split("/")[-1]
         # Resnet-50 has a flax checkpoint on HF, so we can just load it directly.
-        if model_variant == "resnet-50":
-            return FlaxResNetForImageClassification.from_pretrained(self._model_name)
+        hf_path = f"microsoft/{self._model_variant}"
+        if self._model_variant == ResNetVariant.RESNET_50:
+            return FlaxResNetForImageClassification.from_pretrained(hf_path)
 
         # We would ideally rely on 'from_pt' functionality in HF,
         # however, it is broken for resnet.
         # All the weights fail to load because of a naming mismatch.
         # We have to load the weights manually and apply a few conversions.
-        model_config = ResNetConfig.from_pretrained(self._model_name)
+        model_config = ResNetConfig.from_pretrained(hf_path)
         model = FlaxResNetForImageClassification(model_config)
 
-        state_dict = self._download_weights(self._model_name)
+        state_dict = self._download_weights(self._model_variant)
 
         variables = torch_statedict_to_pytree(
             state_dict,
-            patterns=self._get_renaming_patterns(model_variant),
+            patterns=self._get_renaming_patterns(self._model_variant),
             banned_subkeys=self._get_banned_subkeys(),
         )
 

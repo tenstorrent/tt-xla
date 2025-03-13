@@ -6,13 +6,13 @@ flax==0.10.2
 fsspec
 jax==0.4.36
 jaxlib==0.4.36
+jaxtyping
 lit
 ml_collections
 ninja
+pillow
 pre-commit
 pybind11
 pytest
 torch
 transformers
-ml_collections
-jaxtyping

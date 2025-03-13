@@ -22,6 +22,9 @@ class RunMode(Enum):
     INFERENCE = "inference"
     TRAINING = "training"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class ModelTester(BaseTester, ABC):
     """

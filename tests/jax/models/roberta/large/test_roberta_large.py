@@ -2,16 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import record_model_test_properties, runtime_fail
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_fe_compilation,
+    incorrect_result,
+)
 
 from ..tester import FlaxRobertaForMaskedLMTester
 
 MODEL_PATH = "FacebookAI/roberta-large"
-MODEL_NAME = "roberta-large"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "roberta",
+    "large",
+    ModelTask.NLP_MASKED_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 # ----- Fixtures -----
 
@@ -30,26 +44,29 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 
 
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
 @pytest.mark.xfail(
-    reason=runtime_fail(
+    reason=incorrect_result(
         "Atol comparison failed. Calculated: atol=131078.359375. Required: atol=0.16"
     )
 )
-def test_flax_roberta_large_inference(
-    inference_tester: FlaxRobertaForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_roberta_large_training(
-    training_tester: FlaxRobertaForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_roberta_large_training(training_tester: FlaxRobertaForMaskedLMTester):
     training_tester.test()

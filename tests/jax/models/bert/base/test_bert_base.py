@@ -2,16 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import record_model_test_properties, runtime_fail
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    incorrect_result,
+)
 
 from ..tester import FlaxBertForMaskedLMTester
 
 MODEL_PATH = "google-bert/bert-base-uncased"
-MODEL_NAME = "bert-base"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "bert",
+    "base",
+    ModelTask.NLP_MASKED_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 # ----- Fixtures -----
 
@@ -31,29 +44,30 @@ def training_tester() -> FlaxBertForMaskedLMTester:
 
 @pytest.mark.push
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
 @pytest.mark.xfail(
-    reason=(
-        runtime_fail(
-            "Atol comparison failed. Calculated: atol=131025.0078125. Required: atol=0.16."
-        )
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=131025.0078125. Required: atol=0.16."
     )
 )
-def test_flax_bert_base_inference(
-    inference_tester: FlaxBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_bert_base_inference(inference_tester: FlaxBertForMaskedLMTester):
     inference_tester.test()
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_bert_base_training(
-    training_tester: FlaxBertForMaskedLMTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_flax_bert_base_training(training_tester: FlaxBertForMaskedLMTester):
     training_tester.test()

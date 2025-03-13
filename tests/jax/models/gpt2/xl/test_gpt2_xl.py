@@ -2,16 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
-
 import pytest
-from infra import RunMode
-from utils import record_model_test_properties
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_fe_compilation,
+)
 
 from ..tester import GPT2Tester
 
 MODEL_PATH = "openai-community/gpt2-xl"
-MODEL_NAME = "gpt2-xl"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "gpt2",
+    "xl",
+    ModelTask.NLP_CAUSAL_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -31,24 +44,29 @@ def training_tester() -> GPT2Tester:
 
 
 @pytest.mark.model_test
-@pytest.mark.skip(
-    reason="OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-def test_gpt2_xl_inference(
-    inference_tester: GPT2Tester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+    )
+)
+def test_gpt2_xl_inference(inference_tester: GPT2Tester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_gpt2_xl_training(
-    training_tester: GPT2Tester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
+def test_gpt2_xl_training(training_tester: GPT2Tester):
     training_tester.test()

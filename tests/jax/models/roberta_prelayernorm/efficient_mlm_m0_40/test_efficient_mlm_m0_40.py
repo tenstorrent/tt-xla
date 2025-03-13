@@ -2,20 +2,36 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Dict, Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, Framework, ModelTester, RunMode
 from transformers import (
     AutoTokenizer,
     FlaxPreTrainedModel,
     FlaxRobertaPreLayerNormForMaskedLM,
 )
-from utils import record_model_test_properties, runtime_fail
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_fe_compilation,
+    incorrect_result,
+)
 
 MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
-MODEL_NAME = "roberta-prelayernorm"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "roberta_prelayernorm",
+    "efficient_mlm_m0.40",
+    ModelTask.NLP_MASKED_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 
 class FlaxRobertaPreLayerNormForMaskedLMTester(ModelTester):
@@ -72,26 +88,33 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
 @pytest.mark.xfail(
-    reason=runtime_fail(
+    reason=incorrect_result(
         "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16"
     )
 )
 def test_flax_roberta_prelayernorm_inference(
     inference_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_roberta_prelayernorm_training(
     training_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
-
     training_tester.test()

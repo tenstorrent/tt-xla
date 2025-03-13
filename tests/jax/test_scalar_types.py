@@ -11,9 +11,12 @@ import pytest
 from infra import run_op_test
 from jax import numpy as jnp
 
+from tests.utils import Category
+
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OTHER)
 def test_scalar_scalar_add():
     """Tests adding two scalars."""
 
@@ -25,6 +28,7 @@ def test_scalar_scalar_add():
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OTHER)
 @pytest.mark.skip("Fails due to https://github.com/tenstorrent/tt-metal/issues/16701")
 def test_scalar_array_add():
     """
