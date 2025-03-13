@@ -5,6 +5,7 @@
 from typing import Dict, Sequence
 
 import jax
+import jax.numpy as jnp
 import pytest
 import torch
 from flax import linen as nn
@@ -61,7 +62,7 @@ class SqueezeBertTester(ModelTester):
         )
         state_dict = torch.load(model_file, weights_only=True)
 
-        params = self._model.init_from_pytorch_statedict(state_dict)
+        params = self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
 
         return {
             "variables": params,  # JAX frameworks have a convention of passing weights as the first argument
