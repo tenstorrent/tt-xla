@@ -81,10 +81,14 @@ private:
   bool isOutputReplicated(size_t index);
 
   void
-  fillPJRTOutputLists(PJRT_Buffer **const *output_lists,
-                      std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
+  fillPJRTOutputLists(std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
                       const std::vector<tt::runtime::TensorDesc> &output_specs,
-                      size_t num_devices);
+                      size_t num_devices, PJRT_Buffer **const *output_lists);
+
+  std::vector<int>
+  getDeviceIds(PJRT_Buffer *const *const *argument_lists,
+               const std::vector<DeviceInstance *> &addressable_devices,
+               size_t num_args, size_t num_devices);
 };
 
 } // namespace tt::pjrt

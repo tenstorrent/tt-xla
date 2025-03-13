@@ -194,12 +194,9 @@ void ModuleBuilder::collectInputShardings(
   DLOG_F(LOG_DEBUG, "ModuleBuilder::collectInputShardings");
   m_input_shardings.clear();
 
-  std::vector<mlir::StringAttr> gspmd_attributes;
-
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-
+  std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-
     for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
           func_op.getArgAttr(i, mlir::tt::sharding_utils::kXlaShardingAttr)));
@@ -218,12 +215,9 @@ void ModuleBuilder::collectOutputShardings(
   DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
   m_output_shardings.clear();
 
-  std::vector<mlir::StringAttr> gspmd_attributes;
-
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-
+  std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-
     for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
       gspmd_attributes.push_back(
           llvm::dyn_cast_if_present<mlir::StringAttr>(func_op.getResultAttr(

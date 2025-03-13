@@ -42,7 +42,7 @@ public:
   static void BindApi(PJRT_Api *api);
 
   // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance &device() { return device_; }
+  DeviceInstance &device() const { return device_; }
   tt_pjrt_status AsyncDeallocate();
   tt_pjrt_status Delete();
   bool is_deleted() { return is_deleted_; }
@@ -72,7 +72,7 @@ public:
   // Get the data type for a tensor through runtime if DataType is not set.
   PJRT_Buffer_Type getRuntimeType();
 
-  int unique_id() { return unique_id_; }
+  int unique_id() const { return unique_id_; }
 
 private:
   static int id_counter_;
