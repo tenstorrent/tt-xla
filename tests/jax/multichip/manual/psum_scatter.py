@@ -29,11 +29,6 @@ def test_psum_scatter(
         act = act + B1_block
         return act
 
-    def golden_fwd(batch, W1, B1):
-        act = jnp.dot(batch, W1)
-        act = act + B1
-        return act
-
     in_specs = (
         make_partition_spec(axis_names),
         make_partition_spec((axis_names[1], None)),
@@ -43,7 +38,6 @@ def test_psum_scatter(
 
     run_multichip_test_with_random_inputs(
         fwd,
-        golden_fwd,
         [batch_shape, W1_shape, B1_shape],
         mesh_shape,
         axis_names,

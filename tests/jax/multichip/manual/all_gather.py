@@ -18,12 +18,9 @@ def test_all_gather(x_shape: tuple, mesh_shape: tuple, axis_names: tuple):
         act = jax.lax.all_gather(batch, axis_names, axis=0, tiled=True)
         return act
 
-    def golden_fwd(batch):
-        return jnp.tile(batch, (2, 1))
-
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec(axis_names)
 
     run_multichip_test_with_random_inputs(
-        fwd, golden_fwd, [x_shape], mesh_shape, axis_names, in_specs, out_specs
+        fwd, [x_shape], mesh_shape, axis_names, in_specs, out_specs
     )
