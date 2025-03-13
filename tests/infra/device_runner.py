@@ -91,11 +91,8 @@ class DeviceRunner:
         tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
     ) -> Tensor:
         """
-        Needed for multichip: Uses put_device to give inputs shardings.
-        We just put dummy sharding equal to none, since jax needs to have some notion of sharding
-        when running graph with these buffers as input.
-        TODO: This can be omitted when we find a way to get sharding information from the StableHLO
-        code back to jax through a protobuf (issue #227).
+        Needed for multichip: Uses put_device to give inputs shardings correspindong to the ones in
+        shard_map() function.
         """
         return jax.device_put(tensor, NamedSharding(mesh, in_spec), may_alias=True)
 
