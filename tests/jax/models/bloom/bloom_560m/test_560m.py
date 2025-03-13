@@ -51,7 +51,12 @@ def training_tester() -> BloomTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Invalid arguments to reshape "
+        "(https://github.com/tenstorrent/tt-xla/issues/307)"
+    )
+)
 def test_bloom_560m_inference(inference_tester: BloomTester):
     inference_tester.test()
 

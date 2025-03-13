@@ -23,7 +23,12 @@ class BloomTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        # todo(sgligorijevic): Bloom weights come in fp16.
+        # Our runtime does not have good support for fp16, so we convert them to bf16.
+        # We should remove this workaround once we have better support for fp16.
+        model = FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        model.params = model.to_bf16(model.params)
+        return model
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:

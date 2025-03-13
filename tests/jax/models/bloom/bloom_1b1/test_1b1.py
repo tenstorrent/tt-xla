@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    failed_fe_compilation,
 )
 
 from ..tester import BloomTester
@@ -43,10 +43,6 @@ def training_tester() -> BloomTester:
 # ----- Tests -----
 
 
-# This is an interesting one.
-# The error message seems to happen before the compile even begins
-# And then then compile segfaults with no useful information
-# It is highly likely that both are caused by the same root cause
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -55,7 +51,11 @@ def training_tester() -> BloomTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+    )
+)
 def test_bloom_1b1_inference(inference_tester: BloomTester):
     inference_tester.test()
 

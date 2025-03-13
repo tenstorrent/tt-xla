@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import OPTTester
@@ -49,7 +49,11 @@ def training_tester() -> OPTTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=4121164.25. Required: atol=0.16."
+    )
+)
 def test_opt_125m_inference(inference_tester: OPTTester):
     inference_tester.test()
 

@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    failed_fe_compilation,
 )
 
 from ..tester import BloomTester
@@ -50,7 +50,11 @@ def training_tester() -> BloomTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+    )
+)
 def test_bloom_7b_inference(inference_tester: BloomTester):
     inference_tester.test()
 

@@ -19,7 +19,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
     failed_ttmlir_compilation,
 )
 
@@ -100,7 +99,7 @@ def training_tester() -> SqueezeBertTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.convolution'")
+    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()
