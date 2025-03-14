@@ -110,7 +110,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt::runtime::Device device = tt::runtime::openDevice(device_ids);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();
-  auto workaround_env = tt::runtime::workaround::Env::get(true, true, false, true);
+  auto workaround_env =
+      tt::runtime::workaround::Env::get(true, true, false, true);
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0, rt_inputs);
   std::vector<tt::runtime::TensorDesc> output_specs =
