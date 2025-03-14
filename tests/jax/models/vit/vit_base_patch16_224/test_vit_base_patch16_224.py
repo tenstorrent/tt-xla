@@ -5,8 +5,17 @@
 from typing import Callable
 
 import pytest
-from infra import RunMode
-from utils import record_model_test_properties, runtime_fail
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    failed_ttmlir_compilation,
+)
 
 from ..tester import ViTTester
 
@@ -30,28 +39,34 @@ def training_tester() -> ViTTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
 @pytest.mark.xfail(
-    reason=runtime_fail(
-        "Out of memory while performing convolution."
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    reason=failed_ttmlir_compilation(
+        "Test fails due to unimplemented resharding. (JAX XlaRuntimeError: Error code 12)"
+        "(https://github.com/tenstorrent/tt-xla/issues/358)"
     )
 )
 def test_vit_base_patch16_224_inference(
     inference_tester: ViTTester,
-    record_tt_xla_property: Callable,
 ):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
     inference_tester.test()
 
 
-@pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_vit_base_patch16_224_training(
-    training_tester: ViTTester,
-    record_tt_xla_property: Callable,
-):
-    record_model_test_properties(record_tt_xla_property, MODEL_NAME)
+def test_vit_base_patch16_224_training(training_tester: ViTTester):
     training_tester.test()

@@ -2,14 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, List, Sequence, Tuple, Union
-
-import jax
 from infra import ComparisonConfig, ModelTester, RunMode
+
+import jax.numpy as jnp
+import jax.random as random
+import jax
+
+from typing import Dict, List, Sequence, Tuple, Union
 from transformers import (
     FlaxPreTrainedModel,
     FlaxViTForImageClassification,
     ViTConfig,
+    ViTImageProcessor,
 )
 
 
@@ -33,7 +37,14 @@ class ViTTester(ModelTester):
     def _get_input_activations(self) -> jax.Array:
         model_config = ViTConfig.from_pretrained(self._model_name)
         image_size = model_config.image_size
-        return jax.random.uniform(jax.random.PRNGKey(0), (1, 3, image_size, image_size))
+        key = random.PRNGKey(0)
+        random_image = random.randint(
+            key, (image_size, image_size, 3), 0, 256, dtype=jnp.uint8
+        )
+
+        processor = ViTImageProcessor.from_pretrained(self._model_name)
+        inputs = processor(images=random_image, return_tensors="jax")
+        return inputs["pixel_values"]
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
