@@ -116,7 +116,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   for (size_t i = 0; i < image_->get_num_outputs(); ++i) {
 
     tt::runtime::Tensor untilized_output_tensor =
-        tt::runtime::toHost(rt_outputs[i], /*untilize=*/true);
+        tt::runtime::toHost(rt_outputs[i], /*untilize=*/true)[0];
     auto result_buffer = std::make_unique<BufferInstance>(
         *this->addressable_devices_[dev_index], untilized_output_tensor,
         image_->get_output_shape(i), image_->get_output_stride(i));
