@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from infra import run_multichip_test_with_random_inputs, make_partition_spec
+from infra.utils import add_use_shardy_flag
 import jax
 import jax.numpy as jnp
 import pytest
-from tests.utils import failed_fe_compilation, add_use_shardy_flag
+from tests.utils import failed_fe_compilation
 
 
 @pytest.mark.parametrize(
