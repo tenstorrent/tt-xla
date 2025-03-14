@@ -5,6 +5,7 @@
 from typing import Dict, Sequence
 
 import jax
+import jax.numpy as jnp
 import pytest
 import torch
 from flax import linen as nn
@@ -19,7 +20,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
     failed_ttmlir_compilation,
 )
 
@@ -62,7 +62,7 @@ class SqueezeBertTester(ModelTester):
         )
         state_dict = torch.load(model_file, weights_only=True)
 
-        params = self._model.init_from_pytorch_statedict(state_dict)
+        params = self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
 
         return {
             "variables": params,  # JAX frameworks have a convention of passing weights as the first argument
@@ -100,7 +100,7 @@ def training_tester() -> SqueezeBertTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.convolution'")
+    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()

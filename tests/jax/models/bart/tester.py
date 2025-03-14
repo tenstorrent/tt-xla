@@ -26,9 +26,6 @@ class FlaxBartForCausalLMTester(ModelTester):
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
         model = FlaxBartForCausalLM.from_pretrained(self._model_name)
-        # TODO(mrakita): This model uses fp16 type which is currently not well
-        # supported in our runtime, so converting to bfp16 until runtime support is
-        # good.
         model.params = model.to_bf16(model.params)
         return model
 

@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import BloomTester
@@ -43,19 +43,19 @@ def training_tester() -> BloomTester:
 # ----- Tests -----
 
 
-# This is an interesting one.
-# The error message seems to happen before the compile even begins
-# And then then compile segfaults with no useful information
-# It is highly likely that both are caused by the same root cause
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=12.176290512084961. Required: atol=0.16"
+    )
+)
 def test_bloom_1b1_inference(inference_tester: BloomTester):
     inference_tester.test()
 

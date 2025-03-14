@@ -23,7 +23,9 @@ class OPTTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxOPTForCausalLM.from_pretrained(self._model_name)
+        model = FlaxOPTForCausalLM.from_pretrained(self._model_name)
+        model.params = model.to_bf16(model.params)
+        return model
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:

@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import BloomTester
@@ -49,9 +49,13 @@ def training_tester() -> BloomTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=327.8369445800781. Required: atol=0.16"
+    )
+)
 def test_bloom_560m_inference(inference_tester: BloomTester):
     inference_tester.test()
 

@@ -114,11 +114,10 @@ def training_tester() -> MlpMixerTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
-        "Statically allocated circular buffers in program 16 clash with L1 buffers "
-        "on core range [(x=0,y=0) - (x=6,y=0)]. L1 buffer allocated at 475136 and "
-        "static circular buffer region ends at 951136 (segfault)"
+        "Out of Memory: Not enough space to allocate 12500992 B L1 buffer "
+        "across 7 banks, where each bank needs to store 1785856 B"
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )
