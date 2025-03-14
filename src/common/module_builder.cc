@@ -75,6 +75,11 @@ ModuleBuilder::ModuleBuilder()
   mlir::tt::ttir::registerPasses();
   mlir::tt::ttnn::registerPasses();
 
+  // We need to allow unregistered dialects since shardy uses specific mhlo
+  // dialect attributes, which are not registered in the context and live in the
+  // openXLA repository. See issue:
+  // https://github.com/tenstorrent/tt-xla/issues/355
+  m_context->allowUnregisteredDialects();
   m_context->appendDialectRegistry(registry);
 }
 
