@@ -14,7 +14,9 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
+from .ttmlir import StableHLOModuleCompiler, op_by_op
 from .types import Model
+from .utils import workload_as_mlir_module_str
 from .workload import Workload
 
 
@@ -162,10 +164,28 @@ class ModelTester(BaseTester, ABC):
             self._workload.static_argnames,
         )
 
+        if not op_by_op:
+            self.run_and_compare(compiled_workload)
+        else:
+            self.run_op_by_op_and_compare(compiled_workload)
+
+    def run_and_compare(self, compiled_workload: Workload):
         tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
 
+        # TODO collect pcc and atol measurements and use record_property to store them
         self._compare(tt_res, cpu_res)
+
+    def run_op_by_op_and_compare(self, compiled_workload: Workload):
+        shlo_module_str = workload_as_mlir_module_str(compiled_workload)
+        compiler: StableHLOModuleCompiler = (
+            StableHLOModuleCompiler.create_from_module_str(shlo_module_str)
+        )
+        results = compiler.compile_op_by_op()
+        # ... TODO this can return a bunch of different stuff for each op. Some might
+        # fail this, some might fail that, others may pass all the way to flatbuffer.
+        # See how to unify API for this
+        # TODO should we record_property and wrap results in OpTest pydantic model here?
 
     def _test_training(self):
         """TODO"""

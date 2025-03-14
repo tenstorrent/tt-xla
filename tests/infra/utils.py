@@ -6,7 +6,6 @@ from typing import Union
 
 import jax
 import jax.numpy as jnp
-from jax import export
 from jax._src.typing import DTypeLike
 
 from .device_runner import run_on_cpu
@@ -70,7 +69,7 @@ def random_tensor(
         raise ValueError(f"Unsupported framework: {framework.value}.")
 
 
-def workload_as_mlir_module(
+def workload_as_mlir_module_str(
     workload: Workload, framework: Framework = Framework.JAX
 ) -> str:
     """
@@ -82,17 +81,10 @@ def workload_as_mlir_module(
 
     if framework == Framework.JAX:
         try:
-            s = export.export(workload.executable)(
-                *workload.args, **workload.kwargs
-            ).mlir_module()
-
-            # Remove all lines that start with "#loc" for cleaner output.
-            return "\n".join(
-                line for line in s.splitlines() if not line.startswith("#loc")
-            )
-
-        except ValueError:
-            return ""
+            s = workload.executable.lower(*workload.args, **workload.kwargs).as_text()
+            return s
+        except Exception:
+            raise RuntimeError("Couldn't produce MLIR module str from workload.")
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")
 
