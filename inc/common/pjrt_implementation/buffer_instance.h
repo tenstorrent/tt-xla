@@ -25,11 +25,13 @@ class BufferInstance {
 public:
   BufferInstance(DeviceInstance &device, tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &shape,
-                 const std::vector<std::uint32_t> &stride);
+                 const std::vector<std::uint32_t> &stride,
+                 std::pair<tt::target::DataType, size_t> tt_buffer_type);
 
   BufferInstance(DeviceInstance &device, tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &shape,
                  const std::vector<std::uint32_t> &stride,
+                 std::pair<tt::target::DataType, size_t> tt_buffer_type,
                  std::shared_ptr<void> host_buffer_ptr);
   BufferInstance(DeviceInstance &device);
   ~BufferInstance();
@@ -40,7 +42,7 @@ public:
   static void BindApi(PJRT_Api *api);
 
   // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance &device() { return device_; }
+  DeviceInstance &device() const { return device_; }
   tt_pjrt_status AsyncDeallocate();
   tt_pjrt_status Delete();
   bool is_deleted() { return is_deleted_; }
@@ -58,14 +60,19 @@ public:
                             EventInstance **done_event);
 
   const int64_t *dims() { return dims_.data(); }
+  const std::vector<std::uint32_t> get_shape();
   size_t num_dims() { return dims_.size(); }
   void setType(PJRT_Buffer_Type Type) { DataType = Type; }
   std::optional<PJRT_Buffer_Type> getType() { return DataType; }
-
+  std::shared_ptr<void> get_host_buffer_ptr() { return host_buffer_ptr_; }
+  std::vector<std::uint32_t> get_stride() { return stride_; }
+  std::pair<tt::target::DataType, size_t> get_tt_buffer_type() {
+    return tt_buffer_type_;
+  }
   // Get the data type for a tensor through runtime if DataType is not set.
   PJRT_Buffer_Type getRuntimeType();
 
-  int unique_id() { return unique_id_; }
+  int unique_id() const { return unique_id_; }
 
 private:
   static int id_counter_;
@@ -80,6 +87,7 @@ private:
   std::vector<int64_t> dims_;
   std::vector<std::uint32_t> stride_;
   tt::runtime::Tensor tensor_;
+  std::pair<tt::target::DataType, size_t> tt_buffer_type_;
 
   std::vector<int64_t> minor_to_major_;
   std::vector<int64_t> tile_dims_;
