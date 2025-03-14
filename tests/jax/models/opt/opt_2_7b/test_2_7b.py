@@ -49,7 +49,7 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(

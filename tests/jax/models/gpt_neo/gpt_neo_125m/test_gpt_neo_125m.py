@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import GPTNeoTester
@@ -48,12 +48,11 @@ def training_tester() -> GPTNeoTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Invalid arguments to reshape "
-        "(https://github.com/tenstorrent/tt-xla/issues/307)"
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=15.864267349243164. Required: atol=0.16"
     )
 )
 def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
