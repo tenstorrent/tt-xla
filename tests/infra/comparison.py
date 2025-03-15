@@ -104,6 +104,7 @@ def compare_pcc(
     # This should be fine, as it's effectively what would be done if n comparisons are done independently.
     try:  # If tensors are really close, pcc will be nan. Handle that before calculating pcc.
         compare_allclose(device_output, golden_output, pcc_config.allclose)
+        # "nan" != None != NULL != N/A
     except AssertionError:
         leaf_pccs = jax.tree.map(
             lambda x, y: jnp.min(jnp.corrcoef(x.flatten(), y.flatten())),
