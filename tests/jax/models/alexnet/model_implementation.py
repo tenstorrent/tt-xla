@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Any, Optional, Union
+
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
@@ -15,6 +17,10 @@ class AlexNetModel(nn.Module):
       - "One weird trick for parallelizing convolutional neural networks"
     """
 
+    param_dtype: Optional[
+        Union[str, type[Any], jnp.dtype, jax._src.typing.SupportsDType, Any]
+    ] = jnp.bfloat16
+
     @nn.compact
     def __call__(self, x: jax.Array, *, train: bool) -> jax.Array:
         # First feature extraction layer
@@ -23,7 +29,7 @@ class AlexNetModel(nn.Module):
             kernel_size=(11, 11),
             strides=(4, 4),
             padding=0,
-            param_dtype=jnp.bfloat16,
+            param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
         x = LocalResponseNormalization()(x)
@@ -35,7 +41,7 @@ class AlexNetModel(nn.Module):
             kernel_size=(5, 5),
             strides=(1, 1),
             padding=2,
-            param_dtype=jnp.bfloat16,
+            param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
         x = LocalResponseNormalization()(x)
@@ -47,7 +53,7 @@ class AlexNetModel(nn.Module):
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
-            param_dtype=jnp.bfloat16,
+            param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
 
@@ -57,7 +63,7 @@ class AlexNetModel(nn.Module):
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
-            param_dtype=jnp.bfloat16,
+            param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
 
@@ -67,23 +73,23 @@ class AlexNetModel(nn.Module):
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
-            param_dtype=jnp.bfloat16,
+            param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # First classifier layer
-        x = nn.Dense(features=4096, param_dtype=jnp.bfloat16)(x)
+        x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)
         x = nn.relu(x)
         x = nn.Dropout(rate=0.5)(x, deterministic=not train)
 
         # Second classifier layer
-        x = nn.Dense(features=4096, param_dtype=jnp.bfloat16)(x)
+        x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)
         x = nn.relu(x)
         x = nn.Dropout(rate=0.5)(x, deterministic=not train)
 
         # Third classifier layer
-        x = nn.Dense(features=1000, param_dtype=jnp.bfloat16)(x)
+        x = nn.Dense(features=1000, param_dtype=self.param_dtype)(x)
         x = nn.softmax(x)
 
         return x
