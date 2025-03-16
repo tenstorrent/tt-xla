@@ -18,8 +18,6 @@ from tests.utils import (
 from ..tester import MNISTCNNTester
 from .model_implementation import MNISTCNNDropoutModel
 
-# ----- Fixtures -----
-
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mnist",
@@ -29,6 +27,9 @@ MODEL_NAME = build_model_name(
 )
 
 
+# ----- Fixtures -----
+
+
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
     return MNISTCNNTester(MNISTCNNDropoutModel)
@@ -36,7 +37,7 @@ def inference_tester() -> MNISTCNNTester:
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(MNISTCNNDropoutModel, RunMode.TRAINING)
+    return MNISTCNNTester(MNISTCNNDropoutModel, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

@@ -20,6 +20,17 @@ from tests.utils import (
 
 from .model_implementation import MNISTMLPModel
 
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "mnist",
+    "mlp",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.CUSTOM,
+)
+
+
+# ----- Tester -----
+
 
 class MNISTMLPTester(ModelTester):
     """Tester for MNIST MLP model."""
@@ -58,15 +69,6 @@ class MNISTMLPTester(ModelTester):
 
 
 # ----- Fixtures -----
-
-
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "mnist",
-    "mlp",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
-)
 
 
 @pytest.fixture
