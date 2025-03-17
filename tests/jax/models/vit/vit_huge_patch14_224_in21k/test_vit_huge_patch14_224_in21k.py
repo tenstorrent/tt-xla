@@ -14,13 +14,19 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import ViTTester
 
 MODEL_PATH = "google/vit-huge-patch14-224-in21k"
-MODEL_NAME = "vit-huge-patch14-224-in21k"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "vit",
+    "huge_patch14_224_in21k",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -45,11 +51,11 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Out of memory while performing convolution."
+    reason=failed_fe_compilation(
+        "Test fails due to unimplemented resharding. (JAX XlaRuntimeError: Error code 12)"
         "(https://github.com/tenstorrent/tt-xla/issues/358)"
     )
 )

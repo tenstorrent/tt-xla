@@ -14,13 +14,19 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import ViTTester
 
 MODEL_PATH = "google/vit-base-patch16-224"
-MODEL_NAME = "vit-base-patch16-224"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "vit",
+    "base_patch16_224",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.HUGGING_FACE,
+)
 
 
 # ----- Fixtures -----
@@ -45,10 +51,10 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
+    reason=failed_fe_compilation(
         "Test fails due to unimplemented resharding. (JAX XlaRuntimeError: Error code 12)"
         "(https://github.com/tenstorrent/tt-xla/issues/358)"
     )
@@ -64,8 +70,7 @@ def test_vit_base_patch16_224_inference(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_vit_base_patch16_224_training(training_tester: ViTTester):
