@@ -13,7 +13,6 @@ from tests.utils import (
     ModelTask,
     build_model_name,
     failed_fe_compilation,
-    failed_runtime,
 )
 
 from ..tester import OPTTester
@@ -50,9 +49,13 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.skip(reason=failed_runtime("Unsupported data type (segfault)"))
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+    )
+)
 def test_opt_2_7b_inference(inference_tester: OPTTester):
     inference_tester.test()
 

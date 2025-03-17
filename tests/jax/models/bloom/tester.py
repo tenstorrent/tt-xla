@@ -23,7 +23,9 @@ class BloomTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        model = FlaxBloomForCausalLM.from_pretrained(self._model_name, from_pt=True)
+        model.params = model.to_bf16(model.params)
+        return model
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:

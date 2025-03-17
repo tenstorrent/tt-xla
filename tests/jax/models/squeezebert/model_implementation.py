@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import einops
 import jax
@@ -340,9 +340,12 @@ class SqueezeBertForMaskedLM(nn.Module):
         return ["cls.seq_relationship"]
 
     @staticmethod
-    def init_from_pytorch_statedict(state_dict: Dict[str, Any]) -> PyTree:
+    def init_from_pytorch_statedict(
+        state_dict: Dict[str, Any], dtype: Optional[jnp.dtype] = None
+    ) -> PyTree:
         return torch_statedict_to_pytree(
             state_dict,
             patterns=SqueezeBertForMaskedLM._get_renaming_patterns(),
             banned_subkeys=SqueezeBertForMaskedLM._get_banned_subkeys(),
+            dtype=dtype,
         )

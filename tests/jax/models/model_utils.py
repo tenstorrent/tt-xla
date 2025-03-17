@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import flax.traverse_util
 import jax
@@ -35,6 +35,7 @@ def torch_statedict_to_pytree(
     state_dict: Dict[str, Any],
     patterns: List[Tuple[str, str]],
     banned_subkeys: List[str],
+    dtype: Optional[jnp.dtype] = None,
 ) -> PyTree:
     """
     Helper function to convert a PyTorch state dict to a JAX pytree.
@@ -58,7 +59,7 @@ def torch_statedict_to_pytree(
     # ---- Logic starts here ----
 
     state_dict = {
-        rewrite_key(k): jnp.array(v)
+        rewrite_key(k): jnp.array(v, dtype=dtype) if dtype is not None else jnp.array(v)
         for k, v in state_dict.items()
         if not is_banned_key(k)
     }
