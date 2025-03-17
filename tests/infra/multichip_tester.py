@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import jax
-from jax.sharding import NamedSharding, PartitionSpec
+from jax.sharding import NamedSharding
 from jax.experimental.shard_map import shard_map
 from typing import Callable, Sequence
 
@@ -44,6 +44,7 @@ class MultichipTester(BaseTester):
         self.in_specs = in_specs
         self.out_specs = out_specs
         self.device_mesh = device_connector.get_tt_device_mesh(mesh_shape, axis_names)
+        self.cpu_mesh = device_connector.get_cpu_device_mesh(mesh_shape, axis_names)
 
     def test(
         self, multichip_workload: MultichipWorkload, cpu_workload: Workload
@@ -72,8 +73,7 @@ class MultichipTester(BaseTester):
 
     def test_with_random_inputs(
         self,
-        device_executable: Callable,
-        cpu_executable: Callable,
+        executable: Callable,
         input_shapes: Sequence[tuple],
         minval: float = 0.0,
         maxval: float = 1.0,
@@ -89,37 +89,19 @@ class MultichipTester(BaseTester):
             for shape in input_shapes
         ]
         device_workload = MultichipWorkload(
-            device_executable,
+            executable,
             inputs,
             device_mesh=self.device_mesh,
             in_specs=self.in_specs,
         )
-        cpu_workload = Workload(cpu_executable, inputs)
+        cpu_workload = MultichipWorkload(
+            executable,
+            inputs,
+            device_mesh=self.cpu_mesh,
+            in_specs=self.in_specs,
+        )
+
         self.test(device_workload, cpu_workload)
-
-
-def run_multichip_test_with_random_inputs(
-    device_executable: Callable,
-    cpu_executable: Callable,
-    input_shapes: Sequence[tuple],
-    mesh_shape: tuple,
-    axis_names: tuple,
-    in_specs: Sequence[jax.sharding.PartitionSpec],
-    out_specs: jax.sharding.PartitionSpec,
-    minval: float = 0.0,
-    maxval: float = 1.0,
-    comparison_config: ComparisonConfig = ComparisonConfig(),
-) -> None:
-    """
-    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
-    TT devices and comparing it to output of the cpu executable ran with the same input.
-    """
-    tester = MultichipTester(
-        in_specs, out_specs, mesh_shape, axis_names, comparison_config
-    )
-    tester.test_with_random_inputs(
-        device_executable, cpu_executable, input_shapes, minval, maxval
-    )
 
     # ---------- Private methods ----------
 
@@ -145,3 +127,25 @@ def run_multichip_test_with_random_inputs(
             out_shardings=output_sharding,
             static_argnames=static_argnames,
         )
+
+
+def run_multichip_test_with_random_inputs(
+    executable: Callable,
+    input_shapes: Sequence[tuple],
+    mesh_shape: tuple,
+    axis_names: tuple,
+    in_specs: Sequence[jax.sharding.PartitionSpec],
+    out_specs: jax.sharding.PartitionSpec,
+    minval: float = 0.0,
+    maxval: float = 1.0,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+) -> None:
+    """
+    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
+    TT devices and comparing it to output of the cpu executable ran with the same input.
+    """
+    with device_connector.simulate_cpu_mesh(mesh_shape):
+        tester = MultichipTester(
+            in_specs, out_specs, mesh_shape, axis_names, comparison_config
+        )
+        tester.test_with_random_inputs(executable, input_shapes, minval, maxval)
