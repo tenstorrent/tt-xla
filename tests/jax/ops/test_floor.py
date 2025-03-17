@@ -21,4 +21,4 @@ def test_floor(x_shape: tuple):
     def floor(x: jax.Array) -> jax.Array:
         return jax.lax.floor(x)
 
-    run_op_test_with_random_inputs(floor, [x_shape])
+    run_op_test_with_random_inputs(floor, [x_shape], minval=-5.0, maxval=5.0)
