@@ -7,15 +7,20 @@ from typing import Dict, Sequence
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from infra import ModelTester
+from infra import ComparisonConfig, ModelTester, RunMode
 
 
 class MNISTCNNTester(ModelTester):
     """Tester for MNIST CNN model."""
 
-    def __init__(self, cls):
-        self._model_class = cls
-        super().__init__()
+    def __init__(
+        self,
+        model_class,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ) -> None:
+        self._model_class = model_class
+        super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> nn.Module:
@@ -36,7 +41,9 @@ class MNISTCNNTester(ModelTester):
         inp = self._get_input_activations()
 
         # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set of initial tensors(parameters and maybe some extra state)
+        # and then later calling init to generate a set of initial tensors (parameters
+        # and maybe some extra state). Parameters are not stored with the models
+        # themselves, they are provided together with inputs to the forward method.
         parameters = self._model.init(jax.random.PRNGKey(42), inp, train=False)
 
         return [parameters, inp]
