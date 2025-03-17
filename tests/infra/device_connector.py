@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
-import os
+from contextlib import contextmanager
 from enum import Enum
-from typing import Sequence
+from functools import reduce
+import os
+from typing import Generator, Sequence
 
 import jax
 import jax._src.xla_bridge as xb
@@ -58,6 +60,11 @@ class DeviceConnector:
         tt_devices = jax.devices(DeviceType.TT.value)
         return jax.make_mesh(shape, axis_names, devices=tt_devices)
 
+    def get_cpu_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
+        """Returns cpu device mesh with specified `shape` and `axis_names`."""
+        cpu_devices = jax.devices(DeviceType.CPU.value)
+        return jax.make_mesh(shape, axis_names, devices=cpu_devices)
+
     def connect_tt_device(self, device_num: int = 0) -> jax.Device:
         """Returns TTDevice handle."""
         return self.connect_device(DeviceType.TT, device_num)
@@ -84,6 +91,21 @@ class DeviceConnector:
 
         return jax.devices(device_type.value)[device_num]
 
+    @contextmanager
+    def simulate_cpu_mesh(self, mesh_shape: tuple) -> Generator[None, None, None]:
+        """
+        Context manager that simulates multiple CPU devices by setting a flag that tells
+        XLA to simulate a specific number of host devices.
+        """
+        num_virtual_cpus = reduce(lambda x, y: x * y, mesh_shape, 1)
+        self._simulate_multiple_cpu_devices(num_virtual_cpus)
+
+        try:
+            yield
+        finally:
+            # Teardown: reset the XLA flags after the block completes
+            self._reset_xla_flags()
+
     # ---------- Private methods ----------
 
     def __init__(self) -> None:
@@ -102,6 +124,7 @@ class DeviceConnector:
             )
 
         self._plugin_path = plugin_path
+        self._default_xla_flags = os.environ.get("XLA_FLAGS", "")
         self._initialize_backend()
 
     def _number_of_devices(self, device_type: DeviceType) -> int:
@@ -133,6 +156,17 @@ class DeviceConnector:
         jax.config.update("jax_platforms", self._supported_devices_str())
 
         self._initialized = True
+
+    def _simulate_multiple_cpu_devices(self, num_devices: int) -> None:
+        """Sets a flag that tells XLA to simulate multiple CPU devices."""
+        platfrom_device_count_flag = (
+            f" --xla_force_host_platform_device_count={num_devices}"
+        )
+        os.environ["XLA_FLAGS"] = self._default_xla_flags + platfrom_device_count_flag
+
+    def _reset_xla_flags(self) -> None:
+        """Resets XLA flags to default."""
+        os.environ["XLA_FLAGS"] = self._default_xla_flags
 
 
 # `DeviceConnector._initialize_backend` must be executed before anything jax related is

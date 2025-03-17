@@ -51,13 +51,6 @@ def test_data_paralelism(
         act = act + B2_block
         return act
 
-    def golden_fwd(batch, W1, B1, W2, B2):
-        act = jnp.dot(batch, W1)
-        act = act + B1
-        act = jnp.dot(act, W2)
-        act = act + B2
-        return act
-
     in_specs = (
         make_partition_spec(axis_names),
         make_partition_spec((axis_names[1], None)),
@@ -69,7 +62,6 @@ def test_data_paralelism(
 
     run_multichip_test_with_random_inputs(
         fwd,
-        golden_fwd,
         [batch_shape, W1_shape, B1_shape, W2_shape, B2_shape],
         mesh_shape,
         axis_names,
