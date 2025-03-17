@@ -100,6 +100,12 @@ def pytest_collection_modifyitems(config, items):
             # Extract the key-value pairs passed to the marker.
             properties: dict = properties_marker.kwargs
 
+            # Check if the test is marked using the "model_test" marker.
+            is_model_test = item.get_closest_marker(name="model_test") is not None
+
+            if is_model_test:
+                tag['mark'] = 'model_test'
+                model_group = properties.get("model_group")
 
             # Validate that only allowed keys are used.
             validate_keys(properties.keys(), is_model_test)
@@ -108,18 +114,11 @@ def pytest_collection_modifyitems(config, items):
             for k, v in properties.items():
                 properties[k] = str(v)
 
-            # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
-
-            if is_model_test:
-                tag['mark'] = 'model_test'
-                model_group = properties.get("model_group")
-
             # Check if the test is marked using the "nightly" marker.
-            is_model_test = item.get_closest_marker(name="nightly") is not None
+            is_nightly_test = item.get_closest_marker(name="nightly") is not None
 
-            if is_model_test:
-                tag['mark'] = 'model_test'
+            if is_nightly_test:
+                tag['mark'] = 'nightly'
 
             # Tag them.
             for key, value in properties.items():
