@@ -25,8 +25,9 @@ class Category(StrEnum):
 
 
 class ModelGroup(StrEnum):
-    GENERALITY = "generality"
+    RED = "red"
     PRIORITY = "priority"
+    GENERALITY = "generality"
 
 
 class ModelTask(StrEnum):
