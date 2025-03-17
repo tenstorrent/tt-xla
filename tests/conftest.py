@@ -35,7 +35,13 @@ def pytest_configure(config: pytest.Config):
     )
 
 
-def pytest_collection_modifyitems(items):
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runner",
+        action="store",
+    )
+
+def pytest_collection_modifyitems(config, items):
     """
     Pytest hook to process the custom marker and attach recorder properties to the test.
     """
@@ -76,6 +82,8 @@ def pytest_collection_modifyitems(items):
                     f"Model tests must have following properties: "
                     f"{mandatory_model_properties}."
                 )
+                
+    runner = config.getoption("--runner")
 
     for item in items:
         # Add some test metadata in a 'tags' dictionary.
