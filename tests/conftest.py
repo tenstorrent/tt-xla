@@ -89,6 +89,7 @@ def pytest_collection_modifyitems(config, items):
             # Check if test contains marker ex. "nightly"
             is_model_test = item.get_closest_marker(name="model_test") is not None
             is_nightly_test = item.get_closest_marker(name="nightly") is not None
+            is_push_test = item.get_closest_marker(name="push") is not None
 
             # Turn all properties to strings.
             for k, v in properties.items():
@@ -101,6 +102,9 @@ def pytest_collection_modifyitems(config, items):
 
             if is_nightly_test:
                 tags['mark'] = 'nightly'
+
+            if is_push_test:
+                tags['mark'] = 'push'
 
             # Tag them.
             for key, value in properties.items():
