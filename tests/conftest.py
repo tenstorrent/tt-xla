@@ -41,12 +41,7 @@ def pytest_addoption(parser):
         action="store",
     )
 
-def pytest_collection_modifyitems(config, items):
-    """
-    Pytest hook to process the custom marker and attach recorder properties to the test.
-    """
-
-    def validate_keys(keys: dict, is_model_test: bool):
+def record_test_properties_validate_keys(keys: dict):
         valid_keys = [
             "category",
             "jax_op_name",
@@ -66,23 +61,11 @@ def pytest_collection_modifyitems(config, items):
                 f"Allowed keys are: {', '.join(valid_keys)}"
             )
 
-        # If model test, check all necessary properties are provided.
-        if is_model_test:
-            mandatory_model_properties = [
-                "model_name",
-                "model_group",
-                "run_mode",
-                "bringup_status",
-            ]
+def pytest_collection_modifyitems(config, items):
+    """
+    Pytest hook to process the custom marker and attach recorder properties to the test.
+    """
 
-            if not all(
-                model_property in keys for model_property in mandatory_model_properties
-            ):
-                raise KeyError(
-                    f"Model tests must have following properties: "
-                    f"{mandatory_model_properties}."
-                )
-                
     runner = config.getoption("--runner")
 
     for item in items:
@@ -100,25 +83,24 @@ def pytest_collection_modifyitems(config, items):
             # Extract the key-value pairs passed to the marker.
             properties: dict = properties_marker.kwargs
 
-            # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
-
-            if is_model_test:
-                tag['mark'] = 'model_test'
-                model_group = properties.get("model_group")
-
             # Validate that only allowed keys are used.
-            validate_keys(properties.keys(), is_model_test)
+            record_test_properties_validate_keys(properties.keys())
+
+            # Check if test contains marker ex. "nightly"
+            is_model_test = item.get_closest_marker(name="model_test") is not None
+            is_nightly_test = item.get_closest_marker(name="nightly") is not None
 
             # Turn all properties to strings.
             for k, v in properties.items():
                 properties[k] = str(v)
 
-            # Check if the test is marked using the "nightly" marker.
-            is_nightly_test = item.get_closest_marker(name="nightly") is not None
+            # Hydrate tags depending on test mark.
+            if is_model_test:
+                tags['mark'] = 'model_test'
+                model_group = properties.get("model_group")
 
             if is_nightly_test:
-                tag['mark'] = 'nightly'
+                tags['mark'] = 'nightly'
 
             # Tag them.
             for key, value in properties.items():

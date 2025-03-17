@@ -255,6 +255,7 @@ jobs:
         source venv/activate
         pytest ./tests/jax \
                -m "${{ inputs.test_mark }}" \
+               --runner "${{ matrix.build.runs-on }}"
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
