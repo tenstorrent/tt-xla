@@ -42,7 +42,8 @@ public:
   static void BindApi(PJRT_Api *api);
 
   // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance &device() const { return device_; }
+  DeviceInstance &device() { return device_; }
+  const DeviceInstance &device() const { return device_; }
   tt_pjrt_status AsyncDeallocate();
   tt_pjrt_status Delete();
   bool is_deleted() { return is_deleted_; }
@@ -59,14 +60,18 @@ public:
   tt_pjrt_status CopyToHost(void *dst, size_t dst_size,
                             EventInstance **done_event);
 
-  const int64_t *dims() { return dims_.data(); }
-  const std::vector<std::uint32_t> get_shape();
+  const int64_t *getRawDimensions() { return dims_.data(); }
+  const std::vector<std::uint32_t> getDimensions() const {
+    return std::vector<std::uint32_t>(dims_.begin(), dims_.end());
+  }
   size_t num_dims() { return dims_.size(); }
   void setType(PJRT_Buffer_Type Type) { DataType = Type; }
   std::optional<PJRT_Buffer_Type> getType() { return DataType; }
-  std::shared_ptr<void> get_host_buffer_ptr() { return host_buffer_ptr_; }
-  std::vector<std::uint32_t> get_stride() { return stride_; }
-  std::pair<tt::target::DataType, size_t> get_tt_buffer_type() {
+  const std::shared_ptr<void> get_host_buffer_ptr() const {
+    return host_buffer_ptr_;
+  }
+  const std::vector<std::uint32_t> get_stride() const { return stride_; }
+  std::pair<tt::target::DataType, size_t> get_tt_buffer_type() const {
     return tt_buffer_type_;
   }
   // Get the data type for a tensor through runtime if DataType is not set.

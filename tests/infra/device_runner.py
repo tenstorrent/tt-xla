@@ -91,7 +91,7 @@ class DeviceRunner:
         tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
     ) -> Tensor:
         """
-        Needed for multichip: Uses put_device to give inputs shardings correspindong to the ones in
+        Needed for multichip: Uses put_device to give inputs shardings corresponding to the ones in
         shard_map() function.
         """
         return jax.device_put(tensor, NamedSharding(mesh, in_spec), may_alias=True)

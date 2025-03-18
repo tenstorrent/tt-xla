@@ -14,18 +14,13 @@
 #include <unordered_map>
 
 // tt-mlir includes
+#include "tt/runtime/workarounds.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/utils.h"
-
-// tt-mlir includes
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
-
-// tt runtime includes
-#include "tt/runtime/workarounds.h"
 
 namespace tt::pjrt {
 
@@ -87,20 +82,32 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Check that the number of devices matches the number of devices counted
   // from the VHLO module.
   size_t num_devices = args->num_devices;
-  assert(num_devices == num_devices_to_utilize_);
+  if (num_devices != num_devices_to_utilize_) {
+    DLOG_F(ERROR, "Number of devices in the executable does not match the "
+                  "number of devices to utilize.");
+    return tt_pjrt_status::kInternal;
+  }
 
   const tt::runtime::Binary &binary = image_->get_binary();
 
   std::vector<tt::runtime::Tensor> rt_inputs;
-  for (size_t i = 0; i < args->num_args; ++i) {
+  for (size_t arg_num = 0; arg_num < args->num_args; ++arg_num) {
     std::vector<std::shared_ptr<void>> data;
     BufferInstance *buffer;
-    for (size_t j = 0; j < num_devices; ++j) {
-      buffer = BufferInstance::Unwrap(args->argument_lists[j][i]);
+    for (size_t device_index = 0; device_index < num_devices; ++device_index) {
+      buffer =
+          BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
       data.push_back(buffer->get_host_buffer_ptr());
     }
     std::unordered_map<std::string, std::string> strategy =
-        getStrategyMapFromSharding(image_->getInputSharding(i), num_devices);
+        getStrategyMapFromSharding(image_->getInputSharding(arg_num),
+                                   num_devices);
+    if (strategy.at("strategy") == "ERROR") {
+      return tt_pjrt_status::kInternal;
+    }
+    // As all the buffers that correspond to the same argument have the same
+    // tensor descriptors (shape, stride, etc), we can just use the last one to
+    // get the needed information.
     rt_inputs.push_back(getTensorFromStrategy(strategy, buffer, data));
   }
 
@@ -110,32 +117,39 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt::runtime::Device device = tt::runtime::openDevice(device_ids);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();
+
+  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
+  // workaround flag is turned off, which the line below does.
   auto workaround_env =
       tt::runtime::workaround::Env::get(true, true, false, true);
+
   std::vector<tt::runtime::Tensor> rt_outputs =
-      tt::runtime::submit(device, binary, 0, rt_inputs);
+      tt::runtime::submit(device, binary, 0 /* program_index */, rt_inputs);
   std::vector<tt::runtime::TensorDesc> output_specs =
-      binary.getProgramOutputs(0);
+      binary.getProgramOutputs(0 /* program_index */);
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
 
-  for (size_t i = 0; i < output_specs.size(); ++i) {
-    std::vector<tt::runtime::Tensor> unitlized_output =
-        tt::runtime::toHost(rt_outputs[i], true);
-    for (size_t j = 0; j < unitlized_output.size(); j++) {
-      rt_outputs_list[j].push_back(unitlized_output[j]);
+  for (size_t output_index = 0; output_index < output_specs.size();
+       ++output_index) {
+    std::vector<tt::runtime::Tensor> untilized_output =
+        tt::runtime::toHost(rt_outputs[output_index], /* untilize */ true);
+    for (size_t shard_index = 0; shard_index < untilized_output.size();
+         shard_index++) {
+      rt_outputs_list[shard_index].push_back(untilized_output[shard_index]);
     }
   }
 
   fillPJRTOutputLists(rt_outputs_list, output_specs, num_devices,
                       args->output_lists);
 
-  for (size_t i = 0; i < rt_outputs.size(); ++i) {
-    tt::runtime::deallocateTensor(rt_outputs[i], /*force=*/true);
+  for (size_t output_num = 0; output_num < rt_outputs.size(); ++output_num) {
+    tt::runtime::deallocateTensor(rt_outputs[output_num], /*force=*/true);
   }
 
   if (args->device_complete_events) {
-    for (int i = 0; i < num_devices; i++)
-      args->device_complete_events[i] = *(new EventInstance());
+    for (int device_num = 0; device_num < num_devices; device_num++) {
+      args->device_complete_events[device_num] = *(new EventInstance());
+    }
   }
 
   tt::runtime::closeDevice(device);
@@ -150,6 +164,8 @@ LoadedExecutableInstance::getStrategyMapFromSharding(
   mlir::tt::MeshShardType meshType = meshSharding.getShardType();
   std::unordered_map<std::string, std::string> strategy;
   if (meshType == mlir::tt::MeshShardType::Replicate) {
+    // If there is only one device, the output will be replicated, but there is
+    // no need to replicate.
     if (num_devices == 1) {
       strategy["strategy"] = "identity";
     } else {
@@ -164,16 +180,18 @@ LoadedExecutableInstance::getStrategyMapFromSharding(
       strategy["mesh_shape_x"] = std::to_string(shardShape[1]);
     } else if (shardShape.size() == 1) {
       strategy["strategy"] = "shard";
+      // If the shard shape is size of one, the output is 1d sharded, on the
+      // first dimension.
       strategy["shard_dim"] = "0";
     } else {
       DLOG_F(ERROR, "Invalid mesh sharding type");
-      return strategy;
+      strategy["strategy"] = "ERROR";
     }
   } else if (meshType == mlir::tt::MeshShardType::Identity) {
     strategy["strategy"] = "identity";
   } else {
     DLOG_F(ERROR, "Invalid mesh sharding type");
-    return strategy;
+    strategy["strategy"] = "ERROR";
   }
   return strategy;
 }
@@ -187,7 +205,7 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
       buffer->get_tt_buffer_type();
   tt::runtime::TensorDesc tensor_desc = {
-      buffer->get_shape(), buffer->get_stride(),
+      buffer->getDimensions(), buffer->get_stride(),
       static_cast<std::uint32_t>(tt_buffer_type.second), tt_buffer_type.first};
   return tt::runtime::createTensor(data, tensor_desc, strategy);
 }
@@ -200,7 +218,7 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
   std::unordered_map<std::string, std::string> shardingStrategy =
       getStrategyMapFromSharding(outputSharding, num_devices);
   if (shardingStrategy.at("strategy") == "shard") {
-    outputShape[0] = outputShape[0] / num_devices;
+    outputShape[0] /= num_devices;
   } else if (shardingStrategy.at("strategy") == "shard_2d") {
     assert(outputShape[0] % std::stoi(shardingStrategy.at("mesh_shape_y")) ==
            0);
@@ -217,12 +235,11 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
 bool LoadedExecutableInstance::isOutputReplicated(size_t index) {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       image_->getOutputSharding(index);
-  mlir::tt::MeshShardType meshType = outputSharding.getShardType();
-  return meshType == mlir::tt::MeshShardType::Replicate;
+  return outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate;
 }
 
 void LoadedExecutableInstance::fillPJRTOutputLists(
-    std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list,
+    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list,
     const std::vector<tt::runtime::TensorDesc> &output_specs,
     size_t num_devices, PJRT_Buffer **const *output_lists) {
   std::vector<bool> is_replicated;
@@ -233,22 +250,25 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
   for (size_t i = 0; i < output_specs.size(); ++i) {
     is_replicated.push_back(isOutputReplicated(i));
   }
-  for (int k = 0; k < num_devices; k++) {
-    for (size_t i = 0; i < num_outputs; ++i) {
+  for (int device_index = 0; device_index < num_devices; device_index++) {
+    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       // If the output is replicated, we just put the same tensor in all the
-      // devices.
+      // devices, as this is what PJRT expects.
       tt::runtime::Tensor output_tensor =
-          isOutputReplicated(i) ? rt_outputs_list[0][i] : rt_outputs_list[k][i];
-      std::vector<std::uint32_t> output_shape = getOuputShape(i, num_devices);
+          isOutputReplicated(output_index)
+              ? rt_outputs_list[0][output_index]
+              : rt_outputs_list[device_index][output_index];
+      std::vector<std::uint32_t> output_shape =
+          getOuputShape(output_index, num_devices);
       std::pair<tt::target::DataType, size_t> type_pair = {
-          output_specs[i].dataType, output_specs[i].itemsize};
+          output_specs[output_index].dataType,
+          output_specs[output_index].itemsize};
       auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[k], output_tensor, output_shape,
-          output_specs[i].stride, type_pair);
+          *this->addressable_devices_[device_index], output_tensor,
+          output_shape, output_specs[output_index].stride, type_pair);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
-          output_specs[i].dataType));
-      DLOG_F(DEBUG, "Runtime output id: %d", result_buffer->unique_id());
-      output_lists[k][i] = *(result_buffer.release());
+          output_specs[output_index].dataType));
+      output_lists[device_index][output_index] = *(result_buffer.release());
     }
   }
 }
@@ -259,12 +279,13 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
     size_t num_devices) {
   std::vector<int> device_ids;
 
-  for (size_t i = 0; num_args && i < num_devices; i++) {
-    const BufferInstance *buffer = BufferInstance::Unwrap(argument_lists[i][0]);
+  for (size_t device_index = 0; num_args && device_index < num_devices;
+       device_index++) {
+    const BufferInstance *buffer =
+        BufferInstance::Unwrap(argument_lists[device_index][0]);
     int64_t buffer_device_id =
         buffer->device().device_description()->getDeviceId();
     device_ids.push_back(buffer_device_id);
-    DLOG_F(DEBUG, "Runtime input id: %d", buffer->unique_id());
   }
 
   // If there are no input buffers, we still want to run on a device.

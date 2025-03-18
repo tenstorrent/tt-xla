@@ -80,10 +80,10 @@ private:
   // Returns is output on the specified index replicated.
   bool isOutputReplicated(size_t index);
 
-  void
-  fillPJRTOutputLists(std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
-                      const std::vector<tt::runtime::TensorDesc> &output_specs,
-                      size_t num_devices, PJRT_Buffer **const *output_lists);
+  void fillPJRTOutputLists(
+      const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
+      const std::vector<tt::runtime::TensorDesc> &output_specs,
+      size_t num_devices, PJRT_Buffer **const *output_lists);
 
   std::vector<int>
   getDeviceIds(PJRT_Buffer *const *const *argument_lists,
