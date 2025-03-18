@@ -18,11 +18,17 @@ Before running these commands to build tt-xla, please ensure that the environtme
 git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
 source venv/activate
-# First parameter to configure is the build type and second is the tt-mlir build type.
-# For example ./configure Debug Debug builds both tt-xla and tt-mlir in Debug mode.
-# Parameters after the second are passed trough directly to cmake
-./configure.sh
-./bld.sh
+
+# TMLIR_BUILD_TYPE is passed to tt-mlir compiler build, Release by default.
+# CMAKE_CXX_COMPILER_LAUNCHER is not necessary but you can use it to cache
+# compilation results and speed up builds.
+cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DTTMLIR_BUILD_TYPE=Release -DCMAKE_C_COMPILER="clang-17" -DCMAKE_CXX_COMPILER="clang++-17" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"
+cmake --build build
+
+# Alternatively you can use the build.sh script, first parameter specifies
+# CMAKE_BUILD_TYPE and second TMLIR_BUILD_TYPE (both Release by default if
+# omitted).
+./build.sh Release Debug
 ```
 
 ## Testing
