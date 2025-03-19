@@ -165,7 +165,7 @@ BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args) {
   tile_dim_sizes_[0] = rank;
   tile_dims_.resize(rank);
   for (size_t i = 0; i < rank; i++) {
-    tile_dims_[i] = getRawDimensions()[i];
+    tile_dims_[i] = dims_[i];
   }
   args->layout.tiled.minor_to_major_size = rank;
   args->layout.tiled.minor_to_major = minor_to_major_.data();

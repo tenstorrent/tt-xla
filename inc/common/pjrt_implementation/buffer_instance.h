@@ -67,10 +67,10 @@ public:
   size_t num_dims() { return dims_.size(); }
   void setType(PJRT_Buffer_Type Type) { DataType = Type; }
   std::optional<PJRT_Buffer_Type> getType() { return DataType; }
-  const std::shared_ptr<void> get_host_buffer_ptr() const {
+  const std::shared_ptr<void> &get_host_buffer_ptr() const {
     return host_buffer_ptr_;
   }
-  const std::vector<std::uint32_t> get_stride() const { return stride_; }
+  const std::vector<std::uint32_t> &get_stride() const { return stride_; }
   std::pair<tt::target::DataType, size_t> get_tt_buffer_type() const {
     return tt_buffer_type_;
   }

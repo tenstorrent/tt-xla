@@ -101,10 +101,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       data.push_back(buffer->get_host_buffer_ptr());
     }
     std::unordered_map<std::string, std::string> strategy;
-    if (fillStrategyMapFromSharding(image_->getInputSharding(arg_num),
-                                    num_devices,
-                                    strategy) != tt_pjrt_status::kSuccess) {
-      return tt_pjrt_status::kInternal;
+    tt_pjrt_status fill_status = fillStrategyMapFromSharding(
+        image_->getInputSharding(arg_num), num_devices, strategy);
+    if (fill_status != tt_pjrt_status::kSuccess) {
+      return fill_status;
     }
     // As all the buffers that correspond to the same argument have the same
     // tensor descriptors (shape, stride, etc), we can just use the last one to
@@ -121,8 +121,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
   // workaround flag is turned off, which the line below does.
-  auto workaround_env =
-      tt::runtime::workaround::Env::get(true, true, false, true);
+  // See issue: https://github.com/tenstorrent/tt-xla/issues/373
+  tt::runtime::workaround::Env::get(true, true, false, true);
 
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0 /* program_index */, rt_inputs);
@@ -158,6 +158,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   return tt_pjrt_status::kSuccess;
 }
 
+/*
+TODO: Transfer the function into tt-mlir (issue
+https://github.com/tenstorrent/tt-xla/issues/374)
+*/
 tt_pjrt_status LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
     size_t num_devices,
@@ -196,6 +200,9 @@ tt_pjrt_status LoadedExecutableInstance::fillStrategyMapFromSharding(
   return tt_pjrt_status::kSuccess;
 }
 
+// We are using std::maps with strings as that is the way it is definet in the
+// tt::runtime, instead of a more structured approach with structs and/or enums.
+// See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::unordered_map<std::string, std::string> &strategy,
     BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data) {
@@ -242,15 +249,12 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list,
     const std::vector<tt::runtime::TensorDesc> &output_specs,
     size_t num_devices, PJRT_Buffer **const *output_lists) {
-  std::vector<bool> is_replicated;
   size_t num_outputs = getNumberOfOutputs(rt_outputs_list);
-  for (size_t i = 0; i < output_specs.size(); ++i) {
-    is_replicated.push_back(isOutputReplicated(i));
-  }
+
+  assert(num_outputs == output_specs.size());
+
   for (int device_index = 0; device_index < num_devices; device_index++) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      // If the output is replicated, we just put the same tensor in all the
-      // devices, as this is what PJRT expects.
       tt::runtime::Tensor output_tensor =
           getOuputTensor(device_index, output_index, rt_outputs_list);
       std::vector<std::uint32_t> output_shape =
@@ -308,6 +312,8 @@ tt::runtime::Tensor LoadedExecutableInstance::getOuputTensor(
     size_t device_index, size_t output_index,
     const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list)
     const {
+  // If the output is replicated, we just return the output tensor in the first
+  // device devices, as this is what PJRT expects.
   return isOutputReplicated(output_index)
              ? rt_outputs_list[0][output_index]
              : rt_outputs_list[device_index][output_index];
