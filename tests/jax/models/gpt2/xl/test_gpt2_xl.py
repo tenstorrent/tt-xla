@@ -53,7 +53,7 @@ def training_tester() -> GPT2Tester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_gpt2_xl_inference(inference_tester: GPT2Tester):

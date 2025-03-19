@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
 
 import pytest
 from infra import Framework, RunMode
@@ -53,10 +52,9 @@ def training_tester() -> ViTTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_fe_compilation(
-        "Test fails due to unimplemented resharding. (JAX XlaRuntimeError: Error code 12)"
-        "(https://github.com/tenstorrent/tt-xla/issues/358)"
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_vit_base_patch16_384_inference(

@@ -52,7 +52,7 @@ def training_tester() -> BloomTester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_bloom_7b_inference(inference_tester: BloomTester):
