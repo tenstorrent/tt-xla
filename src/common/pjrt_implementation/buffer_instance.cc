@@ -18,24 +18,23 @@ int BufferInstance::id_counter_ = 0;
 
 BufferInstance::~BufferInstance() = default;
 
-BufferInstance::BufferInstance(DeviceInstance &device,
-                               tt::runtime::Tensor &tensor,
-                               const std::vector<std::uint32_t> &shape,
-                               const std::vector<std::uint32_t> &stride)
-    : BufferInstance(device, tensor, shape, stride, nullptr) {}
+BufferInstance::BufferInstance(
+    DeviceInstance &device, tt::runtime::Tensor &tensor,
+    const std::vector<std::uint32_t> &shape,
+    const std::vector<std::uint32_t> &stride,
+    std::pair<tt::target::DataType, size_t> tt_buffer_type)
+    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {}
 
-BufferInstance::BufferInstance(DeviceInstance &device,
-                               tt::runtime::Tensor &tensor,
-                               const std::vector<std::uint32_t> &shape,
-                               const std::vector<std::uint32_t> &stride,
-                               std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr) {
+BufferInstance::BufferInstance(
+    DeviceInstance &device, tt::runtime::Tensor &tensor,
+    const std::vector<std::uint32_t> &shape,
+    const std::vector<std::uint32_t> &stride,
+    std::pair<tt::target::DataType, size_t> tt_buffer_type,
+    std::shared_ptr<void> host_buffer_ptr)
+    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
+      tt_buffer_type_(tt_buffer_type), dims_(shape.begin(), shape.end()),
+      stride_(stride) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
-  dims_.resize(shape.size());
-  for (int i = 0; i < shape.size(); i++) {
-    dims_[i] = shape[i];
-  }
-  stride_ = stride;
   unique_id_ = id_counter_++;
 }
 
@@ -68,7 +67,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_Dimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    args->dims = buffer->dims();
+    args->dims = buffer->getRawDimensions();
     args->num_dims = buffer->num_dims();
     return nullptr;
   };
@@ -76,7 +75,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_UnpaddedDimensions_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    args->unpadded_dims = buffer->dims();
+    args->unpadded_dims = buffer->getRawDimensions();
     args->num_dims = buffer->num_dims();
     return nullptr;
   };
@@ -166,7 +165,7 @@ BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args) {
   tile_dim_sizes_[0] = rank;
   tile_dims_.resize(rank);
   for (size_t i = 0; i < rank; i++) {
-    tile_dims_[i] = dims()[i];
+    tile_dims_[i] = dims_[i];
   }
   args->layout.tiled.minor_to_major_size = rank;
   args->layout.tiled.minor_to_major = minor_to_major_.data();

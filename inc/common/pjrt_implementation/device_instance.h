@@ -65,6 +65,7 @@ public:
                      BufferInstance **out_buffer);
 
   DeviceDescription *device_description() { return &description_; }
+  const DeviceDescription *device_description() const { return &description_; }
 
 private:
   tt_pjrt_status OpenDevice();
