@@ -14,5 +14,6 @@ pillow
 pre-commit
 pybind11
 pytest
+sentencepiece
 torch
 transformers
