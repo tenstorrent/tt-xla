@@ -200,9 +200,9 @@ tt_pjrt_status LoadedExecutableInstance::fillStrategyMapFromSharding(
   return tt_pjrt_status::kSuccess;
 }
 
-// We are using std::maps with strings as that is the way it is definet in the
-// tt::runtime, instead of a more structured approach with structs and/or enums.
-// See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
+// TODO: We are using std::maps with strings as that is the way it is defined in
+// the tt::runtime, instead of a more structured approach with structs and/or
+// enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::unordered_map<std::string, std::string> &strategy,
     BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data) {

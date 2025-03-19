@@ -67,25 +67,34 @@ private:
   size_t num_devices_to_utilize_;
   std::vector<ResidentExecutable> resident_executables_;
 
+  // Fills a std::map<std::string, std::string>, represeting the strategy of
+  // multichip tensor creation (replidated, sharded etc.) from the meshSharding
+  // object.
   tt_pjrt_status fillStrategyMapFromSharding(
       const mlir::tt::sharding_utils::MeshSharding &meshSharding,
       size_t num_devices,
       std::unordered_map<std::string, std::string> &strategy);
 
+  // Returns a runtime tensor given a creation strategy and a vestor of pointers
+  // to data.
   tt::runtime::Tensor getTensorFromStrategy(
       const std::unordered_map<std::string, std::string> &strategy,
       BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data);
 
+  // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
 
   // Returns is output on the specified index replicated.
   bool isOutputReplicated(size_t index) const;
 
+  // Fills the output lists of the PJRT API with the outputs of tt runtime
+  // execution.
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
       const std::vector<tt::runtime::TensorDesc> &output_specs,
       size_t num_devices, PJRT_Buffer **const *output_lists);
 
+  // Gets the device ids from the addressable devices.
   std::vector<int>
   getDeviceIds(PJRT_Buffer *const *const *argument_lists,
                const std::vector<DeviceInstance *> &addressable_devices,

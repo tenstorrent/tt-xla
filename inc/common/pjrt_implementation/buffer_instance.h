@@ -61,7 +61,7 @@ public:
                             EventInstance **done_event);
 
   const int64_t *getRawDimensions() { return dims_.data(); }
-  const std::vector<std::uint32_t> getDimensions() const {
+  std::vector<std::uint32_t> getDimensions() const {
     return std::vector<std::uint32_t>(dims_.begin(), dims_.end());
   }
   size_t num_dims() { return dims_.size(); }
