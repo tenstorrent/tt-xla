@@ -54,7 +54,7 @@ def training_tester() -> ViTTester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186"
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_vit_large_patch32_224_in21k_inference(
