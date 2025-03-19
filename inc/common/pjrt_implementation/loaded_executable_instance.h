@@ -67,9 +67,10 @@ private:
   size_t num_devices_to_utilize_;
   std::vector<ResidentExecutable> resident_executables_;
 
-  std::unordered_map<std::string, std::string> getStrategyMapFromSharding(
+  tt_pjrt_status fillStrategyMapFromSharding(
       const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-      size_t num_devices);
+      size_t num_devices,
+      std::unordered_map<std::string, std::string> &strategy);
 
   tt::runtime::Tensor getTensorFromStrategy(
       const std::unordered_map<std::string, std::string> &strategy,
@@ -78,7 +79,7 @@ private:
   std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
 
   // Returns is output on the specified index replicated.
-  bool isOutputReplicated(size_t index);
+  bool isOutputReplicated(size_t index) const;
 
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
@@ -89,6 +90,17 @@ private:
   getDeviceIds(PJRT_Buffer *const *const *argument_lists,
                const std::vector<DeviceInstance *> &addressable_devices,
                size_t num_args, size_t num_devices);
+
+  // Given an output list, return the number of outputs of an executable.
+  size_t getNumberOfOutputs(const std::vector<std::vector<tt::runtime::Tensor>>
+                                &rt_outputs_list) const;
+
+  // Return a tensor representing an output on a particular device with a
+  // particular index.
+  tt::runtime::Tensor
+  getOuputTensor(size_t device_index, size_t output_index,
+                 const std::vector<std::vector<tt::runtime::Tensor>>
+                     &rt_outputs_list) const;
 };
 
 } // namespace tt::pjrt

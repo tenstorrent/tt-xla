@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/status.h"
 
 #include <string>
 #include <unordered_map>
@@ -99,10 +100,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
           BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
       data.push_back(buffer->get_host_buffer_ptr());
     }
-    std::unordered_map<std::string, std::string> strategy =
-        getStrategyMapFromSharding(image_->getInputSharding(arg_num),
-                                   num_devices);
-    if (strategy.at("strategy") == "ERROR") {
+    std::unordered_map<std::string, std::string> strategy;
+    if (fillStrategyMapFromSharding(image_->getInputSharding(arg_num),
+                                    num_devices,
+                                    strategy) != tt_pjrt_status::kSuccess) {
       return tt_pjrt_status::kInternal;
     }
     // As all the buffers that correspond to the same argument have the same
@@ -157,12 +158,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   return tt_pjrt_status::kSuccess;
 }
 
-std::unordered_map<std::string, std::string>
-LoadedExecutableInstance::getStrategyMapFromSharding(
+tt_pjrt_status LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-    size_t num_devices) {
+    size_t num_devices,
+    std::unordered_map<std::string, std::string> &strategy) {
   mlir::tt::MeshShardType meshType = meshSharding.getShardType();
-  std::unordered_map<std::string, std::string> strategy;
   if (meshType == mlir::tt::MeshShardType::Replicate) {
     // If there is only one device, the output will be replicated, but there is
     // no need to replicate.
@@ -185,15 +185,15 @@ LoadedExecutableInstance::getStrategyMapFromSharding(
       strategy["shard_dim"] = "0";
     } else {
       DLOG_F(ERROR, "Invalid mesh sharding type");
-      strategy["strategy"] = "ERROR";
+      return tt_pjrt_status::kInternal;
     }
   } else if (meshType == mlir::tt::MeshShardType::Identity) {
     strategy["strategy"] = "identity";
   } else {
     DLOG_F(ERROR, "Invalid mesh sharding type");
-    strategy["strategy"] = "ERROR";
+    return tt_pjrt_status::kInternal;
   }
-  return strategy;
+  return tt_pjrt_status::kSuccess;
 }
 
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
@@ -215,8 +215,8 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
   std::vector<std::uint32_t> outputShape = image_->get_output_shape(index);
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       image_->getOutputSharding(index);
-  std::unordered_map<std::string, std::string> shardingStrategy =
-      getStrategyMapFromSharding(outputSharding, num_devices);
+  std::unordered_map<std::string, std::string> shardingStrategy;
+  fillStrategyMapFromSharding(outputSharding, num_devices, shardingStrategy);
   if (shardingStrategy.at("strategy") == "shard") {
     outputShape[0] /= num_devices;
   } else if (shardingStrategy.at("strategy") == "shard_2d") {
@@ -232,7 +232,7 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
   return outputShape;
 }
 
-bool LoadedExecutableInstance::isOutputReplicated(size_t index) {
+bool LoadedExecutableInstance::isOutputReplicated(size_t index) const {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       image_->getOutputSharding(index);
   return outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate;
@@ -243,10 +243,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<tt::runtime::TensorDesc> &output_specs,
     size_t num_devices, PJRT_Buffer **const *output_lists) {
   std::vector<bool> is_replicated;
-  size_t num_outputs = rt_outputs_list[0].size();
-  for (size_t i = 0; i < rt_outputs_list.size(); i++) {
-    num_outputs = std::max(num_outputs, rt_outputs_list[i].size());
-  }
+  size_t num_outputs = getNumberOfOutputs(rt_outputs_list);
   for (size_t i = 0; i < output_specs.size(); ++i) {
     is_replicated.push_back(isOutputReplicated(i));
   }
@@ -255,9 +252,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       // If the output is replicated, we just put the same tensor in all the
       // devices, as this is what PJRT expects.
       tt::runtime::Tensor output_tensor =
-          isOutputReplicated(output_index)
-              ? rt_outputs_list[0][output_index]
-              : rt_outputs_list[device_index][output_index];
+          getOuputTensor(device_index, output_index, rt_outputs_list);
       std::vector<std::uint32_t> output_shape =
           getOuputShape(output_index, num_devices);
       std::pair<tt::target::DataType, size_t> type_pair = {
@@ -297,6 +292,25 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
   }
 
   return device_ids;
+}
+
+size_t LoadedExecutableInstance::getNumberOfOutputs(
+    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list)
+    const {
+  size_t num_outputs = rt_outputs_list[0].size();
+  for (size_t i = 0; i < rt_outputs_list.size(); i++) {
+    num_outputs = std::max(num_outputs, rt_outputs_list[i].size());
+  }
+  return num_outputs;
+}
+
+tt::runtime::Tensor LoadedExecutableInstance::getOuputTensor(
+    size_t device_index, size_t output_index,
+    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list)
+    const {
+  return isOutputReplicated(output_index)
+             ? rt_outputs_list[0][output_index]
+             : rt_outputs_list[device_index][output_index];
 }
 
 } // namespace tt::pjrt
