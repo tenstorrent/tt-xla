@@ -19,12 +19,12 @@ from tests.utils import failed_fe_compilation
 )
 @pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
 def test_psum_scatter(
+    use_shardy: bool,
     batch_shape: tuple,
     W1_shape: tuple,
     B1_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    use_shardy: bool,
 ):
     def fwd(batch, W1_block, B1_block):
         act = jnp.dot(batch, W1_block)

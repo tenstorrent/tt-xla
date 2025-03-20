@@ -80,8 +80,8 @@ class MultichipTester(BaseTester):
         maxval: float = 1.0,
     ) -> None:
         """
-        Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on 
-        a mesh of TT devices and comparing it to output of the cpu executable ran with the same 
+        Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on
+        a mesh of TT devices and comparing it to output of the cpu executable ran with the same
         input.
         """
         inputs = [
@@ -144,13 +144,12 @@ def run_multichip_test_with_random_inputs(
     use_shardy: bool = False,
 ) -> None:
     """
-    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a 
-    mesh of TT devices and comparing it to output of the cpu executable ran with the same input. 
+    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a
+    mesh of TT devices and comparing it to output of the cpu executable ran with the same input.
     The xla backend used the shardy dialect if `use_shardy` is True, otherwise it uses GSPMD.
     """
-    with enable_shardy(use_shardy):
-        with device_connector.simulate_cpu_mesh(mesh_shape):
-            tester = MultichipTester(
-                in_specs, out_specs, mesh_shape, axis_names, comparison_config
-            )
-            tester.test_with_random_inputs(executable, input_shapes, minval, maxval)
+    with enable_shardy(use_shardy), device_connector.simulate_cpu_mesh(mesh_shape):
+        tester = MultichipTester(
+            in_specs, out_specs, mesh_shape, axis_names, comparison_config
+        )
+        tester.test_with_random_inputs(executable, input_shapes, minval, maxval)

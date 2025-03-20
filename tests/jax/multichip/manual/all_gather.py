@@ -17,7 +17,7 @@ from tests.utils import failed_fe_compilation
 )
 @pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
 def test_all_gather(
-    x_shape: tuple, mesh_shape: tuple, axis_names: tuple, use_shardy: bool
+    use_shardy: bool, x_shape: tuple, mesh_shape: tuple, axis_names: tuple
 ):
     def fwd(batch):
         act = jax.lax.all_gather(batch, axis_names, axis=0, tiled=True)
