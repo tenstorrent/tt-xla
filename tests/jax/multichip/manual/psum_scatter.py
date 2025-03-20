@@ -2,18 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from infra import make_partition_spec, run_multichip_test_with_random_inputs
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import make_partition_spec, run_multichip_test_with_random_inputs
 
 from tests.utils import failed_fe_compilation
 
 
+@pytest.mark.parametrize("use_shardy", [True, False])
 @pytest.mark.parametrize(
-    ["batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"],
+    ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
     [
-        [(8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")],
+        ((8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
@@ -23,6 +24,7 @@ def test_psum_scatter(
     B1_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
+    use_shardy: bool,
 ):
     def fwd(batch, W1_block, B1_block):
         act = jnp.dot(batch, W1_block)
@@ -44,5 +46,6 @@ def test_psum_scatter(
         axis_names,
         in_specs,
         out_specs,
+        use_shardy=use_shardy,
         maxval=0.1,
     )

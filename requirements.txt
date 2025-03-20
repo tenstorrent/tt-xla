@@ -4,8 +4,8 @@ cmake
 einops
 flax==0.10.2
 fsspec
-jax==0.4.36
-jaxlib==0.4.36
+jax==0.5.0
+jaxlib==0.5.0
 jaxtyping
 lit
 ml_collections
