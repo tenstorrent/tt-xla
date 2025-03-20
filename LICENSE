@@ -1,4 +1,4 @@
-                                Apache License
+                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -175,7 +175,18 @@
 
    END OF TERMS AND CONDITIONS
 
-   Copyright (c) 2024 Tenstorrent AI ULC
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2024 Tenstorrent AI ULC
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -189,10 +200,28 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 Third-Party Dependencies:
+
 The following dependencies are utilized by this project but are not explicitly
 distributed as part of the software:
 
-- xla/pjrt/c/pjrt_c_api.h - https://github.com/openxla/xla/blob/main/LICENSE
+- black - MIT License (https://github.com/psf/black/blob/main/LICENSE)
+- einops - MIT License (https://github.com/arogozhnikov/einops/blob/main/LICENSE)
+- flatbuffers - Apache v2.0 License (https://github.com/google/flatbuffers/blob/master/LICENSE)
+- flax - Apache v2.0 License (https://github.com/google/flax/blob/main/LICENSE)
+- fsspec - BSD 3-Clause "New" or "Revised" License (https://github.com/fsspec/filesystem_spec/blob/master/LICENSE)
+- jax - Apache v2.0 License (https://github.com/jax-ml/jax/blob/main/LICENSE)
+- jaxtyping - MIT License (https://github.com/patrick-kidger/jaxtyping/blob/main/LICENSE)
+- llvm-project - Apache v2.0 License with LLVM Exceptions (https://github.com/llvm/llvm-project/blob/main/LICENSE.TXT)
+- ml_collections - Apache v2.0 License (https://github.com/google/ml_collections/blob/master/LICENSE)
+- loguru - MIT License (https://github.com/Delgan/loguru/blob/master/LICENSE)
 - pillow - Custom License (https://github.com/python-pillow/Pillow/blob/main/LICENSE)
+- pre-commit - MIT License (https://github.com/pre-commit/pre-commit/blob/main/LICENSE)
+- sentencepiece - Apache v2.0 License (https://github.com/google/sentencepiece/blob/master/LICENSE)
+- stablehlo - Apache v2.0 License (https://github.com/openxla/stablehlo/blob/main/LICENSE)
+- torch - Custom License (https://github.com/pytorch/pytorch/blob/main/LICENSE)
+- transformers - Apache v2.0 License (https://github.com/huggingface/transformers/blob/main/LICENSE)
+- vision_transformer - Apache v2.0 License (https://github.com/google-research/vision_transformer/blob/main/LICENSE)
+- xla/pjrt/c/pjrt_c_api.h - Apache v2.0 License (https://github.com/openxla/xla/blob/main/LICENSE)
