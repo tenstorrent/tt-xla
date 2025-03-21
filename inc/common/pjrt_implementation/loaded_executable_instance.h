@@ -67,14 +67,6 @@ private:
   size_t num_devices_to_utilize_;
   std::vector<ResidentExecutable> resident_executables_;
 
-  // Fills a std::map<std::string, std::string>, represeting the strategy of
-  // multichip tensor creation (replidated, sharded etc.) from the meshSharding
-  // object.
-  tt_pjrt_status fillStrategyMapFromSharding(
-      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-      size_t num_devices,
-      std::unordered_map<std::string, std::string> &strategy);
-
   // Returns a runtime tensor given a creation strategy and a vestor of pointers
   // to data.
   tt::runtime::Tensor getTensorFromStrategy(
