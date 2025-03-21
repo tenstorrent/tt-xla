@@ -2,7 +2,7 @@ black
 clang-format
 cmake
 einops
-flax==0.10.2
+flax==0.10.4
 fsspec
 jax==0.5.0
 jaxlib==0.5.0
