@@ -46,6 +46,6 @@ def test_psum_scatter(
         axis_names,
         in_specs,
         out_specs,
-        use_shardy=use_shardy,
+        use_shardy,
         maxval=0.1,
     )

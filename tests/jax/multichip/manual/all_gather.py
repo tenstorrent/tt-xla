@@ -33,5 +33,5 @@ def test_all_gather(
         axis_names,
         in_specs,
         out_specs,
-        use_shardy=use_shardy,
+        use_shardy,
     )

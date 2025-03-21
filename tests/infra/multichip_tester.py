@@ -138,10 +138,10 @@ def run_multichip_test_with_random_inputs(
     axis_names: tuple,
     in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
+    use_shardy: bool,
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
-    use_shardy: bool = False,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a

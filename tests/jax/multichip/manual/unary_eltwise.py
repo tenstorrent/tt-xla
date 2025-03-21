@@ -41,5 +41,5 @@ def test_unary_eltwise(
         axis_names,
         in_specs,
         out_specs,
-        use_shardy=use_shardy,
+        use_shardy,
     )
