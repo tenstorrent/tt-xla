@@ -12,6 +12,7 @@ from typing import Callable, Sequence
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner, device_connector
+from .utils import enable_shardy
 from .workload import MultichipWorkload
 from .workload import Workload
 
@@ -79,8 +80,9 @@ class MultichipTester(BaseTester):
         maxval: float = 1.0,
     ) -> None:
         """
-        Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
-        TT devices and comparing it to output of the cpu executable ran with the same input.
+        Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on
+        a mesh of TT devices and comparing it to output of the cpu executable ran with the same
+        input.
         """
         inputs = [
             jax.random.uniform(
@@ -136,15 +138,17 @@ def run_multichip_test_with_random_inputs(
     axis_names: tuple,
     in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
+    use_shardy: bool,
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
 ) -> None:
     """
-    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a mesh of
-    TT devices and comparing it to output of the cpu executable ran with the same input.
+    Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a
+    mesh of TT devices and comparing it to output of the cpu executable ran with the same input.
+    The xla backend used the shardy dialect if `use_shardy` is True, otherwise it uses GSPMD.
     """
-    with device_connector.simulate_cpu_mesh(mesh_shape):
+    with enable_shardy(use_shardy), device_connector.simulate_cpu_mesh(mesh_shape):
         tester = MultichipTester(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )

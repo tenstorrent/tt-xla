@@ -135,7 +135,7 @@ class DeviceRunner:
                     key
                 ] = DeviceRunner._put_sharded_tensor_on_multichip_device(
                     value,
-                    multichip_workload.mesh,
+                    multichip_workload.device_mesh,
                     multichip_workload.in_specs[spec_index],
                 )
                 spec_index += 1
