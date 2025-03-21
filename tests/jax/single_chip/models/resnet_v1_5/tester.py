@@ -16,7 +16,7 @@ from transformers import (
     ResNetConfig,
 )
 
-from tests.jax.models.model_utils import torch_statedict_to_pytree
+from tests.jax.single_chip.models.model_utils import torch_statedict_to_pytree
 
 # Variants should be the same between all versions of resnet.
 # Therefore the version is not included

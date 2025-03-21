@@ -26,12 +26,17 @@ class DeviceRunner:
         return DeviceRunner._run_on_device(workload, DeviceType.TT, device_num)
 
     @staticmethod
-    def run_on_multichip_device(multichip_workload: MultichipWorkload) -> Tensor:
+    def run_on_multichip_device(
+        multichip_workload: MultichipWorkload, put_on_multichip_device: bool
+    ) -> Tensor:
         """Runs `workload` on a multichip device."""
-        sharded_workload = DeviceRunner._put_multichip_workload_on_device(
-            multichip_workload
-        )
-        return sharded_workload.execute()
+        if put_on_multichip_device:
+            sharded_workload = DeviceRunner._put_multichip_workload_on_device(
+                multichip_workload
+            )
+            return sharded_workload.execute()
+        else:
+            multichip_workload.execute()
 
     @staticmethod
     def run_on_cpu(workload: Workload) -> Tensor:
