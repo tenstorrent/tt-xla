@@ -96,6 +96,8 @@ class DeviceConnector:
         """
         Context manager that simulates multiple CPU devices by setting a flag that tells
         XLA to simulate a specific number of host devices.
+        Important note: This will only set CPU the devices the first time that it is called, after
+        that it will not change the number of virtualized CPU devices.
         """
         num_virtual_cpus = reduce(lambda x, y: x * y, mesh_shape, 1)
         self._simulate_multiple_cpu_devices(num_virtual_cpus)
