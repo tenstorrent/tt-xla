@@ -51,7 +51,7 @@ def training_tester() -> GPT2Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_fe_compilation(
         "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
