@@ -21,7 +21,7 @@ MODEL_PATH = "ksmcg/Mistral-tiny"
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mistral-7b",
-    "tiny_v0.1",
+    "v0.1_tiny",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
@@ -67,5 +67,5 @@ def test_mistral_7b_tiny_v0_1_inference(inference_tester: MistralTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mistral_7b_tiny_v0_1_training(inference_tester: MistralTester):
+def test_mistral_7b_tiny_v0_1_training(training_tester: MistralTester):
     training_tester.test()

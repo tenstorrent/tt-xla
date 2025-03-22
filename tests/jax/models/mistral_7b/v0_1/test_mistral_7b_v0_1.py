@@ -66,5 +66,5 @@ def test_mistral_7b_v0_1_inference(inference_tester: MistralTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mistral_7b_v0_1_training(inference_tester: MistralTester):
+def test_mistral_7b_v0_1_training(training_tester: MistralTester):
     training_tester.test()
