@@ -12,31 +12,32 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
-from ..tester import Mistral7BTester
+from ..tester import Mistral7BV02Tester
 
-MODEL_PATH = "ksmcg/Mistral-tiny"
+MODEL_PATH = "unsloth/mistral-7b-instruct-v0.2"
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mistral-7b",
-    "v0.1_tiny",
+    "v0.2_instruct",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH)
+def inference_tester() -> Mistral7BV02Tester:
+    return Mistral7BV02Tester(MODEL_PATH)
 
 
-def training_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> Mistral7BV02Tester:
+    return Mistral7BV02Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,15 +49,14 @@ def training_tester() -> Mistral7BTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
-def test_mistral_7b_tiny_v0_1_inference(inference_tester: Mistral7BTester):
+def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BV02Tester):
     inference_tester.test()
 
 
@@ -68,5 +68,5 @@ def test_mistral_7b_tiny_v0_1_inference(inference_tester: Mistral7BTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mistral_7b_tiny_v0_1_training(training_tester: Mistral7BTester):
+def test_mistral_7b_v0_2_instruct_training(training_tester: Mistral7BV02Tester):
     training_tester.test()
