@@ -44,7 +44,7 @@ class Mistral7BV03Tester(MistralTester):
         # full context window length, effectively achieving same result since attention
         # mask will not be masked.
         config = MistralConfig.from_pretrained(self._model_name)
-        config.sliding_window = 32768
+        config.sliding_window = config.max_position_embeddings
         return FlaxMistralForCausalLM(config)
 
 
