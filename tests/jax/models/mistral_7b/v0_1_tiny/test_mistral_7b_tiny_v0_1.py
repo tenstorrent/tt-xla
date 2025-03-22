@@ -18,6 +18,7 @@ from tests.utils import (
 from ..tester import MistralTester
 
 MODEL_PATH = "ksmcg/Mistral-tiny"
+MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mistral-7b",
@@ -45,7 +46,7 @@ def training_tester() -> MistralTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
@@ -63,7 +64,7 @@ def test_mistral_7b_tiny_v0_1_inference(inference_tester: MistralTester):
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
