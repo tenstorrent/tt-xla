@@ -56,7 +56,7 @@ def training_tester() -> Mistral7BTester:
         "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
-def test_mistral_7b_tiny_v0_1_inference(inference_tester: Mistral7BTester):
+def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
@@ -68,5 +68,5 @@ def test_mistral_7b_tiny_v0_1_inference(inference_tester: Mistral7BTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mistral_7b_tiny_v0_1_training(training_tester: Mistral7BTester):
+def test_mistral_7b_v0_1_tiny_training(training_tester: Mistral7BTester):
     training_tester.test()
