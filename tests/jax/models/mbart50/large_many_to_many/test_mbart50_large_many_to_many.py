@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import pytest
 from infra import Framework, RunMode
 
@@ -16,11 +17,11 @@ from tests.utils import (
 
 from ..tester import MBartTester
 
-MODEL_PATH = "facebook/mbart-large-50-many-to-one-mmt"
+MODEL_PATH = "facebook/mbart-large-50-many-to-many-mmt"
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "mbart",
-    "large_50_many_to_one_mmt",
+    "mbart50",
+    "large_many_to_many",
     ModelTask.NLP_SUMMARIZATION,
     ModelSource.HUGGING_FACE,
 )
@@ -49,7 +50,7 @@ def training_tester() -> MBartTester:
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.skip(reason=failed_fe_compilation("OOMs in CI"))
-def test_mbart_large_50_many_to_one_mmt_inference(inference_tester: MBartTester):
+def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     inference_tester.test()
 
 
@@ -61,5 +62,5 @@ def test_mbart_large_50_many_to_one_mmt_inference(inference_tester: MBartTester)
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mbart_large_50_many_to_one_mmt_training(inference_tester: MBartTester):
+def test_mbart50_large_many_to_many_training(inference_tester: MBartTester):
     training_tester.test()
