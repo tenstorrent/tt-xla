@@ -11,7 +11,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import MBartTester
@@ -46,14 +46,9 @@ def training_tester() -> MBartTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: 'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386"
-    )
-)
+@pytest.mark.skip(reason=failed_fe_compilation("OOMs in CI"))
 def test_mbart_large_50_many_to_many_mmt_inference(inference_tester: MBartTester):
     inference_tester.test()
 
