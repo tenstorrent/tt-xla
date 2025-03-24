@@ -18,13 +18,7 @@ from tests.utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "use_shardy",
     [
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                reason="Shardy sharding not supported (issue #383)"
-            ),
-        ),
-        False,
+        True,
     ],
 )
 @pytest.mark.parametrize(

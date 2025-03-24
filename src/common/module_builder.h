@@ -92,10 +92,37 @@ private:
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
 
+  // Collect input sharding if we are using GSPMD.
+  void
+  collectInputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collect output sharding if we are using GSPMD.
+  void
+  collectOutputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collect input sharding if we are using Shardy.
+  void
+  collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collect output sharding if we are using Shardy.
+  void
+  collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Checks if the jax is using the Shardy mlir dialect.
+  bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
   mlir::LogicalResult createShardingsFromGSPMD(
       const std::vector<mlir::StringAttr> &gspmd_attributes,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
+
+  // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
+  // fills the vector of tt_mlir Sharding with the appropriate corresponding
+  // values.
+  mlir::LogicalResult createShardingsFromShardy(
+      std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
+      mlir::sdy::MeshAttr &shardy_mesh,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Gets all public functions from the module.
