@@ -15,7 +15,6 @@ from infra import (
 from tests.utils import failed_ttmlir_compilation
 
 
-@pytest.mark.n300
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",

@@ -155,8 +155,8 @@ jobs:
       fail-fast: false
       matrix:
         build: [
-          {runs-on: n150, name: "run", pytest_mark: "${{ inputs.test_mark }} and n150"},
-          {runs-on: n300, name: "run", pytest_mark: "${{ inputs.test_mark }} and n300"},
+          {runs-on: n150, name: "run", dir: "./tests/jax/single_chip"},
+          {runs-on: n300, name: "run", dir: "./tests/jax/multi_chip/n300"},
         ]
 
     runs-on:
@@ -164,7 +164,7 @@ jobs:
       - ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.pytest_mark }})"
+    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
 
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
@@ -194,7 +194,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.pytest_mark }})"
+        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
 
     - name: Set reusable strings
       id: strings
@@ -253,17 +253,10 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
-        if [[ "${{ matrix.build.pytest_mark }}" == *"n300"* ]]; then
-          pytest ./tests/jax/multi_chip/n300  \
-                 -m "${{ matrix.build.pytest_mark }}" \
-                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
-                 2>&1 | tee pytest.log
-        else
-          pytest ./tests/jax/single_chip/ \
-                 -m "${{ inputs.test_mark }}" \
-                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
-                 2>&1 | tee pytest.log
-        fi
+        pytest ${{ matrix.build.dir }}  \
+                -m "${{ inputs.test_mark }}" \
+                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+                2>&1 | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4

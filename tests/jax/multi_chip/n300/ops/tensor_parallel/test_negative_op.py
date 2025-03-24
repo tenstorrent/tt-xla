@@ -13,7 +13,6 @@ from infra import (
 from tests.utils import failed_fe_compilation
 
 
-@pytest.mark.n300
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",

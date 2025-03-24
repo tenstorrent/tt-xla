@@ -13,15 +13,9 @@ from typing import Callable, Sequence
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner, device_connector
-from .utils import enable_shardy
+from .multichip_utils import enable_shardy, MultichipMode
 from .workload import MultichipWorkload
 from .workload import Workload
-
-
-class MultichipMode(Enum):
-    FULLY_MANUAL = 1  # Uses both shard_map() and jax.device_put()
-    MANUAL = 2  # Uses only shard_map()
-    AUTOMATIC = 3  # Uses only jax.device_put()
 
 
 class MultichipTester(BaseTester):
@@ -78,7 +72,7 @@ class MultichipTester(BaseTester):
         )
 
         device_res = DeviceRunner.run_on_multichip_device(
-            compiled_device_workload, self._uses_device_put(multichip_mode)
+            compiled_device_workload, multichip_mode
         )
         cpu_res = DeviceRunner.run_on_cpu(compiled_cpu_workload)
 
@@ -88,9 +82,9 @@ class MultichipTester(BaseTester):
         self,
         executable: Callable,
         input_shapes: Sequence[tuple],
+        multichip_mode: MultichipMode,
         minval: float = 0.0,
         maxval: float = 1.0,
-        multichip_mode: MultichipMode = MultichipMode.FULLY_MANUAL,
     ) -> None:
         """
         Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on
@@ -120,14 +114,6 @@ class MultichipTester(BaseTester):
 
     # ---------- Private methods ----------
 
-    def _uses_shard_map(self, multichip_mode: MultichipMode) -> bool:
-        """Returns whether the test uses `shard_map`."""
-        return multichip_mode in [MultichipMode.FULLY_MANUAL, MultichipMode.MANUAL]
-
-    def _uses_device_put(self, multichip_mode: MultichipMode) -> bool:
-        """Returns whether the test uses `jax.device_put`."""
-        return multichip_mode in [MultichipMode.FULLY_MANUAL, MultichipMode.AUTOMATIC]
-
     def _compile_for_cpu(
         self, executable: Callable, static_argnames: Sequence[str] = None
     ) -> Callable:
@@ -148,7 +134,7 @@ class MultichipTester(BaseTester):
                 in_specs=self.in_specs,
                 out_specs=self.out_specs,
             )
-            if self._uses_shard_map(multichip_mode)
+            if multichip_mode.requires_shard_map
             else executable
         )
         output_sharding = NamedSharding(self.device_mesh, self.out_specs)
@@ -182,5 +168,5 @@ def run_multichip_test_with_random_inputs(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(
-            executable, input_shapes, minval, maxval, multichip_mode
+            executable, input_shapes, multichip_mode, minval, maxval
         )
