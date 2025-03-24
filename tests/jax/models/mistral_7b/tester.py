@@ -6,10 +6,15 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import AutoTokenizer, FlaxMistralForCausalLM, FlaxPreTrainedModel
+from transformers import (
+    AutoTokenizer,
+    FlaxMistralForCausalLM,
+    FlaxPreTrainedModel,
+    MistralConfig,
+)
 
 
-class MistralTester(ModelTester):
+class Mistral7BTester(ModelTester):
     """Tester for Mistral-7B model variants with a language modeling head on top."""
 
     def __init__(
@@ -38,3 +43,21 @@ class MistralTester(ModelTester):
             "params": self._model.params,
             "input_ids": self._get_input_activations(),
         }
+
+
+class Mistral7BV02Tester(Mistral7BTester):
+    """Tester for Mistral-7B model v0.2 and later variants, with a language modeling
+    head on top."""
+
+    # @override
+    def _get_model(self) -> FlaxPreTrainedModel:
+        # Initializing model with random weights because the official weights are
+        # gated. From v0.2 version of Mistral-7B sliding window attention was removed,
+        # but Transformers Flax implementation of Mistral-7B wasn't updated to take
+        # that into account so it expects to have a sliding_window set in the config.
+        # Using custom config in order to change the sliding_window from Null to
+        # full context window length, effectively achieving the same result as if there
+        # was no sliding window mask.
+        config = MistralConfig.from_pretrained(self._model_name)
+        config.sliding_window = config.max_position_embeddings
+        return FlaxMistralForCausalLM(config)
