@@ -21,7 +21,9 @@ from tests.utils import failed_ttmlir_compilation
     [
         pytest.param(
             True,
-            marks=pytest.mark.skip(reason="Shardy sharding not supported (issue #383)"),
+            marks=pytest.mark.skip(
+                reason=failed_ttmlir_compilation("Shardy does not support 1D meshes")
+            ),
         ),
         False,
     ],
