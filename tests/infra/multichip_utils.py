@@ -8,18 +8,18 @@ from enum import Enum
 import jax
 
 
-class MultichipMode(Enum):
-    FULLY_MANUAL = 1  # Uses both shard_map() and jax.device_put() (inputs are sharded and function has sharding ops)
-    MANUAL = 2  # Uses only shard_map() (function has sharding ops)
-    AUTOMATIC = 3  # Uses only jax.device_put() (inputs are sharded)
+class ShardingMode(Enum):
+    INPUTS_AND_MODULE = 1  # Uses both shard_map() and jax.device_put() (inputs are sharded and function has sharding ops)
+    MODULE = 2  # Uses only shard_map() (function has sharding ops)
+    INPUTS = 3  # Uses only jax.device_put() (inputs are sharded)
 
     @property
     def requires_shard_map(self) -> bool:
-        return self == MultichipMode.FULLY_MANUAL or self == MultichipMode.MANUAL
+        return self == ShardingMode.INPUTS_AND_MODULE or self == ShardingMode.MODULE
 
     @property
     def requires_device_put(self) -> bool:
-        return self == MultichipMode.FULLY_MANUAL or self == MultichipMode.AUTOMATIC
+        return self == ShardingMode.INPUTS_AND_MODULE or self == ShardingMode.INPUTS
 
 
 @contextmanager

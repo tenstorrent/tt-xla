@@ -13,7 +13,7 @@ from typing import Callable, Sequence
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner, device_connector
-from .multichip_utils import enable_shardy, MultichipMode
+from .multichip_utils import enable_shardy, ShardingMode
 from .workload import MultichipWorkload
 from .workload import Workload
 
@@ -52,7 +52,7 @@ class MultichipTester(BaseTester):
         self,
         multichip_workload: MultichipWorkload,
         cpu_workload: Workload,
-        multichip_mode: MultichipMode,
+        multichip_mode: ShardingMode,
     ) -> None:
         """
         Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and comparing the results.
@@ -82,7 +82,7 @@ class MultichipTester(BaseTester):
         self,
         executable: Callable,
         input_shapes: Sequence[tuple],
-        multichip_mode: MultichipMode,
+        multichip_mode: ShardingMode,
         minval: float = 0.0,
         maxval: float = 1.0,
     ) -> None:
@@ -123,7 +123,7 @@ class MultichipTester(BaseTester):
     def _compile_for_device(
         self,
         executable: Callable,
-        multichip_mode: MultichipMode,
+        multichip_mode: ShardingMode,
         static_argnames: Sequence[str] = None,
     ) -> Callable:
         """Sets up executable for just-in-time compile and execution on multichip device."""
@@ -153,7 +153,7 @@ def run_multichip_test_with_random_inputs(
     in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
     use_shardy: bool,
-    multichip_mode: MultichipMode,
+    multichip_mode: ShardingMode,
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),

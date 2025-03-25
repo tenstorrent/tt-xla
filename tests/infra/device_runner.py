@@ -9,7 +9,7 @@ import jax
 from jax.sharding import NamedSharding
 
 from .device_connector import DeviceType, device_connector
-from .multichip_utils import MultichipMode
+from .multichip_utils import ShardingMode
 from .types import Tensor
 from .workload import MultichipWorkload, Workload
 
@@ -28,9 +28,13 @@ class DeviceRunner:
 
     @staticmethod
     def run_on_multichip_device(
-        multichip_workload: MultichipWorkload, multichip_mode: MultichipMode
+        multichip_workload: MultichipWorkload, multichip_mode: ShardingMode
     ) -> Tensor:
-        """Runs `workload` on a multichip device."""
+        """
+        Runs `workload` on a multichip device.
+        Depending on the sharding mode, we might put the workload directly on device, ot leave
+        it to the jax to infer on the fly.
+        """
         if multichip_mode.requires_device_put:
             sharded_workload = DeviceRunner._put_multichip_workload_on_device(
                 multichip_workload

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 from infra import (
     make_partition_spec,
-    MultichipMode,
+    ShardingMode,
     run_multichip_test_with_random_inputs,
 )
 
@@ -31,9 +31,9 @@ from tests.utils import failed_ttmlir_compilation
 @pytest.mark.parametrize(
     "multichip_mode",
     [
-        MultichipMode.FULLY_MANUAL,
-        MultichipMode.MANUAL,
-        MultichipMode.AUTOMATIC,
+        ShardingMode.INPUTS_AND_MODULE,
+        ShardingMode.MODULE,
+        ShardingMode.INPUTS,
     ],
 )
 @pytest.mark.xfail(
@@ -47,7 +47,7 @@ def test_all_gather(
     x_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: MultichipMode,
+    multichip_mode: ShardingMode,
 ):
     def fwd(batch):
         act = jax.lax.all_gather(batch, axis_names, axis=0, tiled=True)

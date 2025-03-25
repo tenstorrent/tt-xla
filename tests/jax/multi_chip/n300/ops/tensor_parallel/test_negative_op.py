@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import pytest
 from infra import (
     make_partition_spec,
-    MultichipMode,
+    ShardingMode,
     run_multichip_test_with_random_inputs,
 )
 
@@ -32,9 +32,9 @@ from tests.utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "multichip_mode",
     [
-        MultichipMode.FULLY_MANUAL,
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
-            MultichipMode.MANUAL,
+            ShardingMode.MODULE,
             marks=pytest.mark.xfail(
                 reason=failed_fe_compilation(
                     "Cannot get sharding information through the protobuf "
@@ -42,7 +42,7 @@ from tests.utils import failed_fe_compilation
                 )
             ),
         ),
-        MultichipMode.AUTOMATIC,
+        ShardingMode.INPUTS,
     ],
 )
 def test_unary_eltwise(
@@ -50,7 +50,7 @@ def test_unary_eltwise(
     input_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: MultichipMode,
+    multichip_mode: ShardingMode,
 ):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
