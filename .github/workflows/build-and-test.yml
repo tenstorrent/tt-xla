@@ -155,8 +155,8 @@ jobs:
       fail-fast: false
       matrix:
         build: [
-          {runs-on: n150, name: "run"},
-          {runs-on: n300, name: "run"},
+          {runs-on: n150, name: "run", dir: "./tests/jax/single_chip"},
+          {runs-on: n300, name: "run", dir: "./tests/jax/multi_chip/n300"},
         ]
 
     runs-on:
@@ -253,10 +253,10 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
-        pytest ./tests/jax \
-               -m "${{ inputs.test_mark }}" \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               2>&1 | tee pytest.log
+        pytest ${{ matrix.build.dir }}  \
+                -m "${{ inputs.test_mark }}" \
+                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+                2>&1 | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4

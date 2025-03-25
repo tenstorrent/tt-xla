@@ -6,25 +6,54 @@ from infra import make_partition_spec, run_multichip_test_with_random_inputs
 import jax
 import jax.numpy as jnp
 import pytest
+from infra import (
+    make_partition_spec,
+    ShardingMode,
+    run_multichip_test_with_random_inputs,
+)
 
-from tests.utils import failed_fe_compilation
+from tests.utils import failed_ttmlir_compilation
 
 
-@pytest.mark.parametrize("use_shardy", [True, False])
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "use_shardy",
+    [
+        pytest.param(
+            True,
+            marks=pytest.mark.skip(reason="Shardy sharding not supported (issue #383)"),
+        ),
+        False,
+    ],
+)
 @pytest.mark.parametrize(
     ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
     [
         ((8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")),
     ],
 )
-@pytest.mark.skip(reason=failed_fe_compilation("Multichip still in development"))
-def test_psum(
+@pytest.mark.parametrize(
+    "multichip_mode",
+    [
+        ShardingMode.INPUTS_AND_MODULE,
+        ShardingMode.MODULE,
+        ShardingMode.INPUTS,
+    ],
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Coordinate MeshCoordinate([1, 0]) is out of bounds for shape MeshShape([1, 2]) "
+        "(https://github.com/tenstorrent/tt-xla/issues/381)"
+    )
+)
+def test_dot_psum(
     use_shardy: bool,
     batch_shape: tuple,
     W1_shape: tuple,
     B1_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
+    multichip_mode: ShardingMode,
 ):
     def fwd(batch, W1_block, B1_block):
         act = jnp.dot(batch, W1_block)
@@ -47,5 +76,6 @@ def test_psum(
         in_specs,
         out_specs,
         use_shardy,
+        multichip_mode,
         maxval=0.1,
     )

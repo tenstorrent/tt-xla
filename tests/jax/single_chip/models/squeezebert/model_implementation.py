@@ -11,7 +11,7 @@ from flax import linen as nn
 from jaxtyping import PyTree
 from transformers import SqueezeBertConfig
 
-from tests.jax.models.model_utils import torch_statedict_to_pytree
+from tests.jax.single_chip.models.model_utils import torch_statedict_to_pytree
 
 
 class SqueezeBertEmbedding(nn.Module):

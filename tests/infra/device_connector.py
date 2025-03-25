@@ -96,6 +96,11 @@ class DeviceConnector:
         """
         Context manager that simulates multiple CPU devices by setting a flag that tells
         XLA to simulate a specific number of host devices.
+        This will only set CPU the devices the first time that it is used, due to the way
+        XLA uses env flags responsible for enabling CPU virtualization. It configures it
+        in the beginning, and all following uses of imported jax lib will be configured
+        that way. This is not desired behaviour since in one python run we cannot mix
+        multichip and singlechip tests.
         """
         num_virtual_cpus = reduce(lambda x, y: x * y, mesh_shape, 1)
         self._simulate_multiple_cpu_devices(num_virtual_cpus)
