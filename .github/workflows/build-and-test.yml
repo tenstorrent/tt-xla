@@ -15,6 +15,15 @@ on:
         options:
           - push
           - nightly
+      machine_and_dir:
+        description: 'Machine and directory to run tests on'
+        required: false
+        default: |
+          [
+            {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+            {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
+          ]
+        type: string
   workflow_call:
     inputs:
       mlir_override:
@@ -25,6 +34,15 @@ on:
         description: 'Test mark to run'
         required: false
         default: 'push'
+        type: string
+      machine_and_dir:
+        description: 'Machine and directory to run tests on'
+        required: true
+        default: |
+          [
+            {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+            {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
+          ]
         type: string
 
 permissions:
@@ -154,10 +172,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [
-          {runs-on: n150, name: "run", dir: "./tests/jax/single_chip"},
-          {runs-on: n300, name: "run", dir: "./tests/jax/multi_chip/n300"},
-        ]
+        build: ${{ fromJson(inputs.machine_and_dir) }}
 
     runs-on:
       - in-service

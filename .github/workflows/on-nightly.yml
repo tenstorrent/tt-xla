@@ -11,6 +11,11 @@ jobs:
     secrets: inherit
     with:
       test_mark: 'nightly'
+      machine_and_dir: |
+        [
+          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
+        ]
 
   test_full_model:
     uses: ./.github/workflows/build-and-test.yml
@@ -19,6 +24,10 @@ jobs:
     if: always()  # This ensures the job runs regardless of success or failure of `nightly_tests`
     with:
       test_mark: 'model_test'
+      machine_and_dir: |
+        [
+          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+        ]
 
   fail-notify:
     if: always()
