@@ -15,6 +15,10 @@ on:
         options:
           - push
           - nightly
+      machine_and_dir:
+        description: 'Machine and directory to run tests on'
+        required: true
+        type: string
   workflow_call:
     inputs:
       mlir_override:
@@ -25,6 +29,10 @@ on:
         description: 'Test mark to run'
         required: false
         default: 'push'
+        type: string
+      machine_and_dir:
+        description: 'Machine and directory to run tests on'
+        required: true
         type: string
 
 permissions:
@@ -154,17 +162,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [
-          {runs-on: n150, name: "run", dir: "./tests/jax/single_chip"},
-          {runs-on: n300, name: "run", dir: "./tests/jax/multi_chip/n300"},
-        ]
+        build: ${{ fromJson(inputs.machine_and_dir) }}
 
     runs-on:
       - in-service
       - ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+    name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, run)"
 
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
@@ -194,7 +199,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+        job_name: "build-and-run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, run)"
 
     - name: Set reusable strings
       id: strings

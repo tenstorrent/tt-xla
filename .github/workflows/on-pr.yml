@@ -63,6 +63,11 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       test_mark: 'push'
+      machine_and_dir: |
+        [
+          {"runs-on": "n150", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n300", "dir": "./tests/jax/multi_chip/n300"}
+        ]
 
   check-all-green:
     if: always()
