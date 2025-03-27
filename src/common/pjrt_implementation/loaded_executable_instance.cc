@@ -16,6 +16,7 @@
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
@@ -118,7 +119,13 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<int> device_ids = getDeviceIds(
       args->argument_lists, addressable_devices_, args->num_args, num_devices);
 
-  tt::runtime::Device device = tt::runtime::openDevice(device_ids);
+  tt::runtime::MeshDeviceOptions options;
+  // Set the mesh offset to the minimum device id, so that we can run on the
+  // mesh starting with the minimum device id offset.
+  options.meshOffset = {0, static_cast<std::uint32_t>(*std::min_element(
+                               device_ids.begin(), device_ids.end()))};
+  tt::runtime::Device device =
+      tt::runtime::openMeshDevice({1, device_ids.size()}, options);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();
 
@@ -156,7 +163,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeDevice(device);
+  tt::runtime::closeMeshDevice(device);
 
   return tt_pjrt_status::kSuccess;
 }
