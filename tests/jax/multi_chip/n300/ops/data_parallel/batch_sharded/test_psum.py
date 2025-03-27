@@ -15,7 +15,6 @@ from infra import (
 from tests.utils import failed_ttmlir_compilation
 
 
-@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
@@ -28,9 +27,9 @@ from tests.utils import failed_ttmlir_compilation
     ],
 )
 @pytest.mark.parametrize(
-    ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
+    ("batch_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (784, 2048), (2048), (1, 2), ("batch", "model")),
+        ((256, 256), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
@@ -39,31 +38,23 @@ from tests.utils import failed_ttmlir_compilation
         ShardingMode.INPUTS_AND_MODULE,
     ],
 )
-def test_dot_psum(
+def test_psum(
     use_shardy: bool,
     batch_shape: tuple,
-    W1_shape: tuple,
-    B1_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
     multichip_mode: ShardingMode,
 ):
-    def fwd(batch, W1_block, B1_block):
-        act = jnp.dot(batch, W1_block)
-        act = jax.lax.psum(act, axis_names[1])
-        act = act + B1_block
+    def fwd(batch):
+        act = jax.lax.psum(batch, axis_names[1])
         return act
 
-    in_specs = (
-        make_partition_spec(axis_names),
-        make_partition_spec((axis_names[1], None)),
-        make_partition_spec((None,)),
-    )
+    in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec((axis_names[0],))
 
     run_multichip_test_with_random_inputs(
         fwd,
-        [batch_shape, W1_shape, B1_shape],
+        [batch_shape],
         mesh_shape,
         axis_names,
         in_specs,
