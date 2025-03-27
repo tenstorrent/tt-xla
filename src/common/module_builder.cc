@@ -431,6 +431,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  options.eraseInverseOpsEnabled = true;
   options.systemDescPath = system_descriptor_path.data();
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
