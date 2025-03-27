@@ -15,8 +15,12 @@ on:
         options:
           - push
           - nightly
-      machine_and_dir:
-        description: 'Machine and directory to run tests on'
+      build_options:
+        description: >
+          Build options for each run, like:
+          - machine
+          - directory to run tests on
+          - the name of the run which can be used to differentiate unique runs
         required: true
         type: string
   workflow_call:
@@ -30,8 +34,12 @@ on:
         required: false
         default: 'push'
         type: string
-      machine_and_dir:
-        description: 'Machine and directory to run tests on'
+      build_options:
+        description: >
+          Build options for each run, like:
+          - machine
+          - directory to run tests on
+          - the name of the run which can be used to differentiate unique runs
         required: true
         type: string
 
@@ -162,7 +170,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: ${{ fromJson(inputs.machine_and_dir) }}
+        build: ${{ fromJson(inputs.build_options) }}
 
     runs-on:
       - in-service

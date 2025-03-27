@@ -63,7 +63,7 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       test_mark: 'push'
-      machine_and_dir: |
+      build_options: |
         [
           {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
           {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
