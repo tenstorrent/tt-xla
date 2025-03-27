@@ -15,7 +15,9 @@
 #include <unordered_map>
 
 // tt-mlir includes
+#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/workarounds.h"
+#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -100,16 +102,17 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
           BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
       data.push_back(buffer->get_host_buffer_ptr());
     }
-    std::unordered_map<std::string, std::string> strategy;
-    tt_pjrt_status fill_status = fillStrategyMapFromSharding(
-        image_->getInputSharding(arg_num), num_devices, strategy);
-    if (fill_status != tt_pjrt_status::kSuccess) {
-      return fill_status;
+    mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
+        mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
+            image_->getInputSharding(arg_num), num_devices);
+    if (mlir::failed(strategy)) {
+      DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+      return tt_pjrt_status::kInternal;
     }
     // As all the buffers that correspond to the same argument have the same
     // tensor descriptors (shape, stride, etc), we can just use the last one to
     // get the needed information.
-    rt_inputs.push_back(getTensorFromStrategy(strategy, buffer, data));
+    rt_inputs.push_back(getTensorFromStrategy(*strategy, buffer, data));
   }
 
   std::vector<int> device_ids = getDeviceIds(
@@ -158,48 +161,6 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   return tt_pjrt_status::kSuccess;
 }
 
-/*
-TODO: Transfer the function into tt-mlir (issue
-https://github.com/tenstorrent/tt-xla/issues/374)
-*/
-tt_pjrt_status LoadedExecutableInstance::fillStrategyMapFromSharding(
-    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-    size_t num_devices,
-    std::unordered_map<std::string, std::string> &strategy) {
-  mlir::tt::MeshShardType meshType = meshSharding.getShardType();
-  if (meshType == mlir::tt::MeshShardType::Replicate) {
-    // If there is only one device, the output will be replicated, but there is
-    // no need to replicate.
-    if (num_devices == 1) {
-      strategy["strategy"] = "identity";
-    } else {
-      strategy["strategy"] = "replicate";
-      strategy["replication_factor"] = std::to_string(num_devices);
-    }
-  } else if (meshType == mlir::tt::MeshShardType::Devices) {
-    llvm::ArrayRef<int64_t> shardShape = meshSharding.getShardShape();
-    if (shardShape.size() == 2) {
-      strategy["strategy"] = "shard_2d";
-      strategy["mesh_shape_y"] = std::to_string(shardShape[0]);
-      strategy["mesh_shape_x"] = std::to_string(shardShape[1]);
-    } else if (shardShape.size() == 1) {
-      strategy["strategy"] = "shard";
-      // If the shard shape is size of one, the output is 1d sharded, on the
-      // first dimension.
-      strategy["shard_dim"] = "0";
-    } else {
-      DLOG_F(ERROR, "Invalid mesh sharding type");
-      return tt_pjrt_status::kInternal;
-    }
-  } else if (meshType == mlir::tt::MeshShardType::Identity) {
-    strategy["strategy"] = "identity";
-  } else {
-    DLOG_F(ERROR, "Invalid mesh sharding type");
-    return tt_pjrt_status::kInternal;
-  }
-  return tt_pjrt_status::kSuccess;
-}
-
 // TODO: We are using std::maps with strings as that is the way it is defined in
 // the tt::runtime, instead of a more structured approach with structs and/or
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
@@ -222,19 +183,25 @@ LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
   std::vector<std::uint32_t> outputShape = image_->get_output_shape(index);
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       image_->getOutputSharding(index);
-  std::unordered_map<std::string, std::string> shardingStrategy;
-  fillStrategyMapFromSharding(outputSharding, num_devices, shardingStrategy);
-  if (shardingStrategy.at("strategy") == "shard") {
+  mlir::FailureOr<std::unordered_map<std::string, std::string>>
+      shardingStrategy =
+          mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
+              outputSharding, num_devices);
+  if (mlir::failed(shardingStrategy)) {
+    DLOG_F(WARNING, "No valid output sharding, returning the original shape");
+    return outputShape;
+  }
+  if (shardingStrategy->at("strategy") == "shard") {
     outputShape[0] /= num_devices;
-  } else if (shardingStrategy.at("strategy") == "shard_2d") {
-    assert(outputShape[0] % std::stoi(shardingStrategy.at("mesh_shape_y")) ==
+  } else if (shardingStrategy->at("strategy") == "shard_2d") {
+    assert(outputShape[0] % std::stoi(shardingStrategy->at("mesh_shape_y")) ==
            0);
-    assert(outputShape[1] % std::stoi(shardingStrategy.at("mesh_shape_x")) ==
+    assert(outputShape[1] % std::stoi(shardingStrategy->at("mesh_shape_x")) ==
            0);
     outputShape[0] =
-        outputShape[0] / std::stoi(shardingStrategy.at("mesh_shape_y"));
+        outputShape[0] / std::stoi(shardingStrategy->at("mesh_shape_y"));
     outputShape[1] =
-        outputShape[1] / std::stoi(shardingStrategy.at("mesh_shape_x"));
+        outputShape[1] / std::stoi(shardingStrategy->at("mesh_shape_x"));
   }
   return outputShape;
 }
