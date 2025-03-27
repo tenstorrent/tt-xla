@@ -25,6 +25,6 @@ jobs:
     with:
       machine_and_dir: |
         [
-          {"runs-on": "n150", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n300", "dir": "./tests/jax/multi_chip/n300"}
+          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
         ]
