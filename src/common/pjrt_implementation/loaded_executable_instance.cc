@@ -15,11 +15,10 @@
 #include <unordered_map>
 
 // tt-mlir includes
-#include "tt/runtime/workarounds.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
-
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/workarounds.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
