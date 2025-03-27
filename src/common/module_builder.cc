@@ -384,7 +384,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
 
 mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
-    mlir::sdy::MeshAttr &shardy_mesh,
+    const mlir::sdy::MeshAttr &shardy_mesh,
     std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
   for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
 
@@ -474,12 +474,19 @@ void ModuleBuilder::printModule(
 
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  // If the module is using the Shardy dielect, it should have the
+  // xla.sdy.meshes attribute denoting the shape of its meshes as a module
+  // attribute. Note: this is only true for the Shardy dialect gotten directly
+  // from xla, after passing trough SdyRoundTripImportPipeline, it will no
+  // longer have this attribute.
   if (mlir::sdy::tryGetFrontendAttr<mlir::DictionaryAttr>(
           module.get(), mlir::sdy::kMeshesRoundTripAttr)
           .has_value()) {
     return true;
   }
 
+  // After running through the SdyRoundTripImportPipeline, the module which uses
+  // shardy dialect will have the sdy.mesh op.
   bool has_mesh_op = false;
   module.get().walk([&](mlir::sdy::MeshOp op) {
     has_mesh_op = true;

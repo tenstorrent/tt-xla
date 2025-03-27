@@ -118,11 +118,11 @@ private:
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
-  // fills the vector of tt_mlir Sharding with the appropriate corresponding
-  // values.
+  // fills the vector of tt_mlir MeshSharding objects with the appropriate
+  // corresponding values.
   mlir::LogicalResult createShardingsFromShardy(
       std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
-      mlir::sdy::MeshAttr &shardy_mesh,
+      const mlir::sdy::MeshAttr &shardy_mesh,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Gets all public functions from the module.
