@@ -22,3 +22,9 @@ jobs:
     needs: [pre-commit, spdx]
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
+    with:
+      machine_and_dir: |
+        [
+          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
+        ]
