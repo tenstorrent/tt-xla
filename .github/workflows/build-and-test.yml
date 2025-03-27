@@ -17,12 +17,7 @@ on:
           - nightly
       machine_and_dir:
         description: 'Machine and directory to run tests on'
-        required: false
-        default: |
-          [
-            {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-            {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
-          ]
+        required: true
         type: string
   workflow_call:
     inputs:
@@ -38,11 +33,6 @@ on:
       machine_and_dir:
         description: 'Machine and directory to run tests on'
         required: true
-        default: |
-          [
-            {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-            {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
-          ]
         type: string
 
 permissions:
