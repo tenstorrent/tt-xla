@@ -33,7 +33,7 @@ from tests.utils import failed_fe_compilation
     ],
 )
 @pytest.mark.parametrize(
-    "multichip_mode",
+    "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
@@ -52,7 +52,7 @@ def test_psum(
     batch_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: ShardingMode,
+    sharding_mode: ShardingMode,
 ):
     def fwd(batch):
         act = jax.lax.psum(batch, axis_names[1])
@@ -69,6 +69,6 @@ def test_psum(
         in_specs,
         out_specs,
         use_shardy,
-        multichip_mode,
+        sharding_mode,
         maxval=0.1,
     )

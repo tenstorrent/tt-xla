@@ -50,7 +50,7 @@ from tests.utils import failed_ttmlir_compilation
     ],
 )
 @pytest.mark.parametrize(
-    "multichip_mode",
+    "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
         ShardingMode.MODULE,
@@ -72,7 +72,7 @@ def test_dot_psum_scatter(
     B2_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: ShardingMode,
+    sharding_mode: ShardingMode,
 ):
     def fwd(batch, W1_block, B1_block, W2_block, B2_block):
         act = jnp.dot(batch, W1_block)
@@ -100,6 +100,6 @@ def test_dot_psum_scatter(
         in_specs,
         out_specs,
         use_shardy,
-        multichip_mode,
+        sharding_mode,
         maxval=0.1,
     )

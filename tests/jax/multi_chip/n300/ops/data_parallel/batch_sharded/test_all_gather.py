@@ -30,7 +30,7 @@ from tests.utils import failed_ttmlir_compilation
     ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (2,), ("batch",))]
 )
 @pytest.mark.parametrize(
-    "multichip_mode",
+    "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
         ShardingMode.MODULE,
@@ -48,7 +48,7 @@ def test_all_gather(
     x_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: ShardingMode,
+    sharding_mode: ShardingMode,
 ):
     def fwd(batch):
         act = jax.lax.all_gather(batch, axis_names, axis=0, tiled=True)
@@ -65,5 +65,5 @@ def test_all_gather(
         in_specs,
         out_specs,
         use_shardy,
-        multichip_mode,
+        sharding_mode,
     )
