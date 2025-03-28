@@ -124,8 +124,9 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // mesh starting with the minimum device id offset.
   options.meshOffset = {0, static_cast<std::uint32_t>(*std::min_element(
                                device_ids.begin(), device_ids.end()))};
-  tt::runtime::Device device =
-      tt::runtime::openMeshDevice({1, device_ids.size()}, options);
+  const std::vector<uint32_t> mesh_shape = {
+      1, static_cast<uint32_t>(device_ids.size())};
+  tt::runtime::Device device = tt::runtime::openMeshDevice(mesh_shape, options);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();
 
