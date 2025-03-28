@@ -37,7 +37,15 @@ from tests.utils import failed_ttmlir_compilation
     "multichip_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
+        ShardingMode.MODULE,
+        ShardingMode.INPUTS,
     ],
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Coordinate MeshCoordinate([1, 0]) is out of bounds for shape MeshShape([1, 2]) "
+        "(https://github.com/tenstorrent/tt-xla/issues/381)"
+    )
 )
 def test_dot_psum(
     use_shardy: bool,
