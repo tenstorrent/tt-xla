@@ -175,11 +175,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   // from openXLA. Once openXLA natively supports Shardy, we can remove
   // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
   // Detect Shardy by looking at the meshes attribute in module.
-  bool is_shardy_dialect =
-      mlir::sdy::tryGetFrontendAttr<mlir::DictionaryAttr>(
-          mlir_module.get(), mlir::sdy::kMeshesRoundTripAttr)
-          .has_value();
-  if (is_shardy_dialect) {
+  if (isUsingShardy(mlir_module)) {
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
     mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
     if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
@@ -189,15 +185,29 @@ void ModuleBuilder::convertFromVHLOToSHLO(
       return;
     }
   }
-
   DLOG_F(LOG_DEBUG, "SHLO Module:");
+
   printModule(mlir_module);
+}
+
+void ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
+  m_output_shardings.clear();
+  isUsingShardy(module) ? collectOutputShardingsShardy(module)
+                        : collectOutputShardingsGSPMD(module);
 }
 
 void ModuleBuilder::collectInputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::collectInputShardings");
   m_input_shardings.clear();
+  isUsingShardy(module) ? collectInputShardingsShardy(module)
+                        : collectInputShardingsGSPMD(module);
+}
+
+void ModuleBuilder::collectInputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
@@ -215,11 +225,39 @@ void ModuleBuilder::collectInputShardings(
   }
 }
 
-void ModuleBuilder::collectOutputShardings(
+void ModuleBuilder::collectInputShardingsShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
-  m_output_shardings.clear();
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
+  // Since this function is called only when we are using the shardy dialect,
+  // this op should always be present.
+  if (!mesh_op.has_value()) {
+    DLOG_F(ERROR, "Failed to find mesh op in the module");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
 
+  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
+         ++arg_index) {
+      shardy_attributes.push_back(
+          func_op.getArgAttrOfType<mlir::sdy::TensorShardingAttr>(
+              arg_index, mlir::sdy::kShardingAttr));
+    }
+  }
+
+  mlir::LogicalResult result = createShardingsFromShardy(
+      shardy_attributes, shardy_mesh, m_input_shardings);
+  if (result.failed()) {
+    m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectOutputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
@@ -232,6 +270,36 @@ void ModuleBuilder::collectOutputShardings(
 
   mlir::LogicalResult result =
       createShardingsFromGSPMD(gspmd_attributes, m_output_shardings);
+  if (result.failed()) {
+    m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectOutputShardingsShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
+  // Since this function is called only when we are using the shardy dialect,
+  // this op should always be present.
+  if (!mesh_op.has_value()) {
+    DLOG_F(ERROR, "Failed to find mesh op in the module");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned int result_index = 0; result_index < func_op.getNumResults();
+         ++result_index) {
+      shardy_attributes.push_back(
+          func_op.getResultAttrOfType<mlir::sdy::TensorShardingAttr>(
+              result_index, mlir::sdy::kShardingAttr));
+    }
+  }
+
+  mlir::LogicalResult result = createShardingsFromShardy(
+      shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
   }
@@ -306,6 +374,35 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
   return llvm::LogicalResult::success();
 }
 
+mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
+    std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
+    const mlir::sdy::MeshAttr &shardy_mesh,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+  for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
+
+    mlir::tt::sharding_utils::MeshSharding mesh_sharding;
+
+    // If there is no sharding attribute, we put the default sharding, marked
+    // as "identity", which means there is no sharding.
+    if (!shardy_attr) {
+      shardings.push_back(mesh_sharding);
+      continue;
+    }
+
+    llvm::Expected<bool> error = mesh_sharding.convertSdyShardingToMeshSharding(
+        shardy_attr, shardy_mesh, mlir::tt::MeshShardDirection::FullToShard);
+    if (llvm::Error e = error.takeError()) {
+      DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
+
+      return llvm::LogicalResult::failure();
+    }
+
+    shardings.push_back(mesh_sharding);
+  }
+
+  return llvm::LogicalResult::success();
+}
+
 void ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
@@ -365,6 +462,36 @@ void ModuleBuilder::printModule(
   }
 
   mlir_module->dump();
+}
+
+bool ModuleBuilder::isUsingShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  // If the module is using the Shardy dielect, it should have the
+  // xla.sdy.meshes attribute denoting the shape of its meshes as a module
+  // attribute. Note: this is only true for the Shardy dialect gotten directly
+  // from xla, after passing trough SdyRoundTripImportPipeline, it will no
+  // longer have this attribute.
+  if (mlir::sdy::tryGetFrontendAttr<mlir::DictionaryAttr>(
+          module.get(), mlir::sdy::kMeshesRoundTripAttr)
+          .has_value()) {
+    return true;
+  }
+
+  // After running through the SdyRoundTripImportPipeline, the module which uses
+  // shardy dialect will have the sdy.mesh op.
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
+
+  return mesh_op.has_value();
+}
+
+std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  std::optional<mlir::sdy::MeshOp> mesh_op;
+  module.get().walk([&](mlir::sdy::MeshOp op) {
+    mesh_op = op;
+    return mlir::WalkResult::interrupt();
+  });
+  return mesh_op;
 }
 
 } // namespace tt::pjrt
