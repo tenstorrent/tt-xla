@@ -129,6 +129,10 @@ private:
   std::vector<mlir::func::FuncOp>
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
+  std::optional<mlir::sdy::MeshOp>
+  getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 

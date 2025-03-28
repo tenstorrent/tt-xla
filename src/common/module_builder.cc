@@ -227,11 +227,7 @@ void ModuleBuilder::collectInputShardingsGSPMD(
 
 void ModuleBuilder::collectInputShardingsShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  std::optional<mlir::sdy::MeshOp> mesh_op;
-  module.get().walk([&](mlir::sdy::MeshOp op) {
-    mesh_op = op;
-    return mlir::WalkResult::interrupt();
-  });
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!mesh_op.has_value()) {
@@ -281,11 +277,7 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
 
 void ModuleBuilder::collectOutputShardingsShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  std::optional<mlir::sdy::MeshOp> mesh_op;
-  module.get().walk([&](mlir::sdy::MeshOp op) {
-    mesh_op = op;
-    return mlir::WalkResult::interrupt();
-  });
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!mesh_op.has_value()) {
@@ -487,13 +479,19 @@ bool ModuleBuilder::isUsingShardy(
 
   // After running through the SdyRoundTripImportPipeline, the module which uses
   // shardy dialect will have the sdy.mesh op.
-  bool has_mesh_op = false;
+  std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
+
+  return mesh_op.has_value();
+}
+
+std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  std::optional<mlir::sdy::MeshOp> mesh_op;
   module.get().walk([&](mlir::sdy::MeshOp op) {
-    has_mesh_op = true;
+    mesh_op = op;
     return mlir::WalkResult::interrupt();
   });
-
-  return has_mesh_op;
+  return mesh_op;
 }
 
 } // namespace tt::pjrt

@@ -22,7 +22,7 @@ def conditionally_skip(use_shardy: bool, multichip_mode: ShardingMode):
     if use_shardy and multichip_mode == ShardingMode.INPUTS:
         pytest.xfail(
             failed_fe_compilation(
-                "Shardy automatic parallelization not supported."
+                "Shardy automatic parallelization not supported. "
                 "Issue: https://github.com/tenstorrent/tt-xla/issues/406"
             )
         )
@@ -56,14 +56,14 @@ def conditionally_skip(use_shardy: bool, multichip_mode: ShardingMode):
         ShardingMode.INPUTS,
     ],
 )
-def test_unary_eltwise(
+def test_negative_op(
     use_shardy: bool,
     input_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
-    conditionally_skip(use_shardy, multichip_mode)
+    conditionally_skip(use_shardy, sharding_mode)
 
     def fwd(a_block):
         b_block = jnp.negative(a_block)
