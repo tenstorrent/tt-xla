@@ -31,7 +31,7 @@ from tests.utils import failed_fe_compilation
     ("input_shape", "mesh_shape", "axis_names"), [((256, 256), (1, 2), ("x", "y"))]
 )
 @pytest.mark.parametrize(
-    "multichip_mode",
+    "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
@@ -51,7 +51,7 @@ def test_unary_eltwise(
     input_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
-    multichip_mode: ShardingMode,
+    sharding_mode: ShardingMode,
 ):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
@@ -68,5 +68,5 @@ def test_unary_eltwise(
         in_specs,
         out_specs,
         use_shardy,
-        multichip_mode,
+        sharding_mode,
     )

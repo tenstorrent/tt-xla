@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from infra import make_partition_spec, run_multichip_test_with_random_inputs
 import jax
 import jax.numpy as jnp
 import pytest
@@ -11,10 +12,9 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_ttmlir_compilation
+from tests.utils import failed_fe_compilation
 
 
-@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
@@ -27,43 +27,48 @@ from tests.utils import failed_ttmlir_compilation
     ],
 )
 @pytest.mark.parametrize(
-    ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (2,), ("batch",))]
+    ("batch_shape", "mesh_shape", "axis_names"),
+    [
+        ((256, 256), (1, 2), ("batch", "model")),
+    ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
-        ShardingMode.MODULE,
-        ShardingMode.INPUTS,
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "Cannot get sharding information through the protobuf "
+                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
+                )
+            ),
+        ),
     ],
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Coordinate MeshCoordinate([1, 0]) is out of bounds for shape MeshShape([1, 2]) "
-        "(https://github.com/tenstorrent/tt-xla/issues/381)"
-    )
-)
-def test_all_gather(
+def test_psum(
     use_shardy: bool,
-    x_shape: tuple,
+    batch_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
     def fwd(batch):
-        act = jax.lax.all_gather(batch, axis_names, axis=0, tiled=True)
+        act = jax.lax.psum(batch, axis_names[1])
         return act
 
     in_specs = (make_partition_spec(axis_names),)
-    out_specs = make_partition_spec(axis_names)
+    out_specs = make_partition_spec((axis_names[0],))
 
     run_multichip_test_with_random_inputs(
         fwd,
-        [x_shape],
+        [batch_shape],
         mesh_shape,
         axis_names,
         in_specs,
         out_specs,
         use_shardy,
         sharding_mode,
+        maxval=0.1,
     )

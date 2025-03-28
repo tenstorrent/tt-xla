@@ -52,29 +52,35 @@ class MultichipTester(BaseTester):
         self,
         multichip_workload: MultichipWorkload,
         cpu_workload: Workload,
-        multichip_mode: ShardingMode,
+        sharding_mode: ShardingMode,
     ) -> None:
         """
         Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and comparing the results.
         """
-        compiled_device_workload = MultichipWorkload(
-            self._compile_for_device(multichip_workload.executable, multichip_mode),
-            multichip_workload.args,
-            multichip_workload.kwargs,
-            device_mesh=self.device_mesh,
-            in_specs=self.in_specs,
-        )
+        with self.device_mesh:
+            compiled_device_workload = MultichipWorkload(
+                self._compile_for_device(multichip_workload.executable, sharding_mode),
+                multichip_workload.args,
+                multichip_workload.kwargs,
+                device_mesh=self.device_mesh,
+                in_specs=self.in_specs,
+            )
+            device_res = DeviceRunner.run_on_multichip_device(
+                compiled_device_workload, sharding_mode
+            )
 
-        compiled_cpu_workload = Workload(
-            self._compile_for_cpu(cpu_workload.executable),
-            cpu_workload.args,
-            cpu_workload.kwargs,
-        )
+        with self.cpu_mesh:
+            compiled_cpu_workload = MultichipWorkload(
+                self._compile_for_cpu(cpu_workload.executable, sharding_mode),
+                cpu_workload.args,
+                cpu_workload.kwargs,
+                device_mesh=self.cpu_mesh,
+                in_specs=self.in_specs,
+            )
 
-        device_res = DeviceRunner.run_on_multichip_device(
-            compiled_device_workload, multichip_mode
-        )
-        cpu_res = DeviceRunner.run_on_cpu(compiled_cpu_workload)
+            cpu_res = DeviceRunner.run_on_multichip_device(
+                compiled_cpu_workload, sharding_mode
+            )
 
         self._compare(device_res, cpu_res)
 
@@ -82,7 +88,7 @@ class MultichipTester(BaseTester):
         self,
         executable: Callable,
         input_shapes: Sequence[tuple],
-        multichip_mode: ShardingMode,
+        sharding_mode: ShardingMode,
         minval: float = 0.0,
         maxval: float = 1.0,
     ) -> None:
@@ -110,20 +116,38 @@ class MultichipTester(BaseTester):
             in_specs=self.in_specs,
         )
 
-        self.test(device_workload, cpu_workload, multichip_mode)
+        self.test(device_workload, cpu_workload, sharding_mode)
 
     # ---------- Private methods ----------
 
     def _compile_for_cpu(
-        self, executable: Callable, static_argnames: Sequence[str] = None
+        self,
+        executable: Callable,
+        sharding_mode: ShardingMode,
+        static_argnames: Sequence[str] = None,
     ) -> Callable:
         """Sets up `executable` for just-in-time compile and execution on CPU"""
-        return jax.jit(executable, static_argnames=static_argnames)
+        module_sharded = (
+            shard_map(
+                executable,
+                mesh=self.cpu_mesh,
+                in_specs=self.in_specs,
+                out_specs=self.out_specs,
+            )
+            if sharding_mode.requires_shard_map
+            else executable
+        )
+        output_sharding = NamedSharding(self.cpu_mesh, self.out_specs)
+        return jax.jit(
+            module_sharded,
+            out_shardings=output_sharding,
+            static_argnames=static_argnames,
+        )
 
     def _compile_for_device(
         self,
         executable: Callable,
-        multichip_mode: ShardingMode,
+        sharding_mode: ShardingMode,
         static_argnames: Sequence[str] = None,
     ) -> Callable:
         """Sets up executable for just-in-time compile and execution on multichip device."""
@@ -134,7 +158,7 @@ class MultichipTester(BaseTester):
                 in_specs=self.in_specs,
                 out_specs=self.out_specs,
             )
-            if multichip_mode.requires_shard_map
+            if sharding_mode.requires_shard_map
             else executable
         )
         output_sharding = NamedSharding(self.device_mesh, self.out_specs)
@@ -153,7 +177,7 @@ def run_multichip_test_with_random_inputs(
     in_specs: Sequence[jax.sharding.PartitionSpec],
     out_specs: jax.sharding.PartitionSpec,
     use_shardy: bool,
-    multichip_mode: ShardingMode,
+    sharding_mode: ShardingMode,
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -168,5 +192,5 @@ def run_multichip_test_with_random_inputs(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(
-            executable, input_shapes, multichip_mode, minval, maxval
+            executable, input_shapes, sharding_mode, minval, maxval
         )
