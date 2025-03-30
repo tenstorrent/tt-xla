@@ -36,9 +36,9 @@ BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &stride,
     std::pair<tt::target::DataType, size_t> tt_buffer_type,
     std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
-      tt_buffer_type_(tt_buffer_type), dims_(shape.begin(), shape.end()),
-      stride_(stride) {
+    : device_(device), m_runtime_tensor(tensor),
+      host_buffer_ptr_(host_buffer_ptr), tt_buffer_type_(tt_buffer_type),
+      dims_(shape.begin(), shape.end()), stride_(stride) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
   unique_id_ = id_counter_++;
 }
@@ -175,17 +175,24 @@ tt_pjrt_status BufferInstance::Delete() {
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_event) {
-  // TODO(mrakita): Make sure host_buffer_size is greater than or equal to the
-  // local tensor size.
+  // Making sure that the host buffer size is greater than or equal to the
+  // runtime tensor size.
+  std::uint32_t runtime_tensor_size =
+      tt::runtime::getTensorVolume(m_runtime_tensor) *
+      tt::runtime::getTensorElementSize(m_runtime_tensor);
+  if (static_cast<size_t>(runtime_tensor_size) > host_buffer_size) {
+    out_event = nullptr;
+    return tt_pjrt_status::kFailedPrecondition;
+  }
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
   std::thread(
-      [](void *host_buffer, tt::runtime::Tensor local_tensor,
+      [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
          EventInstance *event) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-          tt::runtime::memcpy(host_buffer, local_tensor);
+          tt::runtime::memcpy(host_buffer, runtime_tensor);
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -193,7 +200,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, tensor_, event.get())
+      host_buffer, m_runtime_tensor, event.get())
       .join();
 
   // Releasing the ownership to the PJRT API caller since the caller is
