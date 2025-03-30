@@ -8,9 +8,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "tt/runtime/runtime.h"
+// PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
+// tt-xla includes
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/status.h"
 
@@ -57,8 +61,6 @@ public:
   PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
   // Gets the required host size in bytes to copy to host.
   tt_pjrt_status GetHostSizeInBytes(size_t *host_size);
-  tt_pjrt_status CopyToHost(void *dst, size_t dst_size,
-                            EventInstance **done_event);
 
   const int64_t *getRawDimensions() { return dims_.data(); }
   std::vector<std::uint32_t> getDimensions() const {
@@ -80,6 +82,10 @@ public:
   int unique_id() const { return unique_id_; }
 
 private:
+  // Asynchronously copies the buffer's value into a preallocated host buffer.
+  tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
+                            EventInstance **out_event);
+
   static int id_counter_;
   int unique_id_;
   void ComputeLayout();
@@ -91,7 +97,6 @@ private:
   // API elements that must have the same lifetime as BufferInstance.
   std::vector<int64_t> dims_;
   std::vector<std::uint32_t> stride_;
-  tt::runtime::Tensor tensor_;
   std::pair<tt::target::DataType, size_t> tt_buffer_type_;
 
   std::vector<int64_t> minor_to_major_;
@@ -101,8 +106,21 @@ private:
   // Underlying datatype of tensor.
   std::optional<PJRT_Buffer_Type> DataType;
 
-  // OnReady event - currently not used.
-  EventInstance *on_ready_event_;
+  // Underlying runtime tensor created for this buffer.
+  tt::runtime::Tensor m_tensor;
+
+  // True if data in the buffer is ready (transferred from host or computed on
+  // device), false otherwise.
+  bool m_data_ready;
+
+  // Mutex guarding buffer data state changes.
+  std::mutex m_ready_mutex;
+
+  // Event that is triggered when the data in the buffer becomes ready. It will
+  // be created only if the buffer isn't yet ready at the moment when the client
+  // requests the event with PJRT_Buffer_ReadyEvent and its ownership is
+  // transferred to the client.
+  EventInstance *m_data_ready_event;
 
   // Pointer to the host memory used to create this buffer.
   // If buffer is created
@@ -111,6 +129,16 @@ private:
   // pass the shared pointer to the runtime.
   std::shared_ptr<void> host_buffer_ptr_;
 };
+
+namespace internal {
+
+// Implements PJRT_Buffer_ToHostBuffer API function.
+PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args);
+
+// Implements PJRT_Buffer_ReadyEvent API function.
+PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args);
+
+} // namespace internal
 
 } // namespace tt::pjrt
 

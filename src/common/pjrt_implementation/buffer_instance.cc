@@ -10,6 +10,11 @@
 
 #include "common/pjrt_implementation/buffer_instance.h"
 
+// c++ standard library includes
+#include <stdexcept>
+#include <thread>
+
+// tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/utils.h"
 
@@ -79,21 +84,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     args->num_dims = buffer->num_dims();
     return nullptr;
   };
-  api->PJRT_Buffer_ToHostBuffer =
-      +[](PJRT_Buffer_ToHostBuffer_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->src);
-    if (!args->dst) {
-      // Size query.
-      return ErrorInstance::MakeError(
-          buffer->GetHostSizeInBytes(&args->dst_size));
-    } else {
-      // Initiate transfer.
-      return ErrorInstance::MakeError(
-          buffer->CopyToHost(args->dst, args->dst_size,
-                             reinterpret_cast<EventInstance **>(&args->event)));
-    }
-  };
+  api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_OnDeviceSizeInBytes =
       +[](PJRT_Buffer_OnDeviceSizeInBytes_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_OnDeviceSizeInBytes");
@@ -124,18 +115,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
     args->device = BufferInstance::Unwrap(args->buffer)->device();
     return nullptr;
   };
-  api->PJRT_Buffer_ReadyEvent =
-      +[](PJRT_Buffer_ReadyEvent_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    std::unique_ptr<EventInstance> onReadyEvent =
-        std::make_unique<EventInstance>();
-    buffer->on_ready_event_ = onReadyEvent.get();
-    // Releasing the ownership to the PJRT API caller since the caller is
-    // responsible for calling PJRT_Event_Destroy on event.
-    args->event = *onReadyEvent.release();
-    return nullptr;
-  };
+  api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
   // TODO: Rework the API to be Aliases(b1, b2) to let the plugin explicitly
   // check for aliases.
   api->PJRT_Buffer_GetMemoryLayout =
@@ -192,28 +172,34 @@ tt_pjrt_status BufferInstance::Delete() {
   return tt_pjrt_status::kSuccess;
 }
 
-tt_pjrt_status BufferInstance::CopyToHost(void *dst, size_t dst_size,
-                                          EventInstance **out_done_event) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::CopyToHost");
+tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
+                                          size_t host_buffer_size,
+                                          EventInstance **out_event) {
+  // TODO(mrakita): Make sure host_buffer_size is greater than or equal to the
+  // local tensor size.
 
-  // This callback simply deletes the `dst_buffer_ready_event`. We could perform
-  // this deletion in the `dst_buffer_callback`, but this would result in the
-  // callback thread of `dst_buffer_ready_event` detaching from the main thread,
-  // potentially resulting in the callback thread outliving the main thread.
-  auto copy_done_callback = [](PJRT_Error *error, void *user_data) {
-    EventInstance *dst_buffer_ready_event =
-        static_cast<EventInstance *>(user_data);
-    delete dst_buffer_ready_event;
-    delete ErrorInstance::FromError(error);
-  };
+  std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  DLOG_F(INFO, "Copy to host id: %d", unique_id());
-  tt::runtime::memcpy(dst, getTensor());
+  std::thread(
+      [](void *host_buffer, tt::runtime::Tensor local_tensor,
+         EventInstance *event) {
+        tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
+        try {
+          tt::runtime::memcpy(host_buffer, local_tensor);
+        } catch (const std::runtime_error &error) {
+          DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
+                 error.what());
+          copy_status = tt_pjrt_status::kInternal;
+        }
+        event->markAsReady(copy_status);
+      },
+      host_buffer, tensor_, event.get())
+      .join();
 
-  EventInstance *copy_done_event = new EventInstance();
-  copy_done_event->OnReady(copy_done_callback, nullptr);
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Event_Destroy on event.
+  *out_event = event.release();
 
-  *out_done_event = copy_done_event;
   return tt_pjrt_status::kSuccess;
 }
 
@@ -222,5 +208,38 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   tt::target::DataType Type = tt::runtime::getTensorDataType(getTensor());
   return tt::pjrt::utils::convertElementTypeToBufferType(Type);
 }
+
+namespace internal {
+
+PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
+
+  BufferInstance *buffer = BufferInstance::Unwrap(args->src);
+  if (args->dst) {
+    // Initiate transfer.
+    return ErrorInstance::MakeError(
+        buffer->copyToHost(args->dst, args->dst_size,
+                           reinterpret_cast<EventInstance **>(&args->event)));
+  } else {
+    // Size query.
+    return ErrorInstance::MakeError(
+        buffer->GetHostSizeInBytes(&args->dst_size));
+  }
+}
+
+PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
+
+  BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+  std::unique_ptr<EventInstance> onReadyEvent =
+      std::make_unique<EventInstance>();
+  buffer->on_ready_event_ = onReadyEvent.get();
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Event_Destroy on event.
+  args->event = *onReadyEvent.release();
+  return nullptr;
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt
