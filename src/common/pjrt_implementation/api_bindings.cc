@@ -50,7 +50,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   ClientInstance::BindApi(api);
   DeviceDescription::BindApi(api);
   DeviceInstance::BindApi(api);
-  EventInstance::BindApi(api);
+  EventInstance::bindApi(api);
   ErrorInstance::BindApi(api);
   ExecutableImage::BindApi(api);
   LoadedExecutableInstance::BindApi(api);

@@ -12,11 +12,6 @@
   _STUB(PJRT_Error_GetCode);
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
-  _STUB(PJRT_Event_Destroy);
-  _STUB(PJRT_Event_IsReady);
-  _STUB(PJRT_Event_Error);
-  _STUB(PJRT_Event_Await);
-  _STUB(PJRT_Event_OnReady);
   _STUB(PJRT_Client_Create);
   _STUB(PJRT_Client_Destroy);
   _STUB(PJRT_Client_PlatformName);
@@ -78,9 +73,7 @@
   _STUB(PJRT_Buffer_IsDeleted);
   _STUB(PJRT_Buffer_CopyRawToHost);
   _STUB(PJRT_Buffer_CopyToDevice);
-  _STUB(PJRT_Buffer_ToHostBuffer);
   _STUB(PJRT_Buffer_IsOnCpu);
-  _STUB(PJRT_Buffer_ReadyEvent);
   _STUB(PJRT_Buffer_UnsafePointer);
   _STUB(PJRT_Buffer_IncreaseExternalReferenceCount);
   _STUB(PJRT_Buffer_DecreaseExternalReferenceCount);
