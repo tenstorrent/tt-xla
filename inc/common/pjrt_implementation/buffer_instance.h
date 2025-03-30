@@ -56,7 +56,7 @@ public:
     // the hook to get an unsafe pointer (avoids a copy).
     return false;
   }
-  const tt::runtime::Tensor &getTensor() const { return tensor_; }
+  const tt::runtime::Tensor &getTensor() const { return m_runtime_tensor; }
 
   PJRT_Error *GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args);
   // Gets the required host size in bytes to copy to host.
@@ -107,7 +107,7 @@ private:
   std::optional<PJRT_Buffer_Type> DataType;
 
   // Underlying runtime tensor created for this buffer.
-  tt::runtime::Tensor m_tensor;
+  tt::runtime::Tensor m_runtime_tensor;
 
   // True if data in the buffer is ready (transferred from host or computed on
   // device), false otherwise.
