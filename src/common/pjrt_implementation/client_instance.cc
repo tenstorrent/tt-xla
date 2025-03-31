@@ -171,6 +171,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
+  std::cerr << "Populate device 2=" << chip_ids.size() << std::endl;
   system_descriptor_ = system_desc;
   system_descriptor_.store(cached_system_descriptor_path_.data());
   if (std::filesystem::exists(cached_system_descriptor_path_) == false) {
