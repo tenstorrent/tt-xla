@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <iostream>
 
 #include "common/pjrt_implementation/utils.h"
 #include "tt/runtime/types.h"
@@ -180,6 +181,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   }
 
   int devices_count = chip_ids.size();
+  std::cerr << "Populate device=" << devices_count << std::abort
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
     devices_[i] = new DeviceInstance(chip_ids[i], *this,
