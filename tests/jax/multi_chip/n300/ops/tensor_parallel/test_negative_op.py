@@ -13,17 +13,27 @@ from infra import (
 from tests.utils import failed_fe_compilation
 
 
+def conditionally_skip(use_shardy: bool, multichip_mode: ShardingMode):
+    """
+    Helper function which test parameters combination and skips if unsupported for some reason.
+
+    Extracted here in order not to pollute the test function.
+    """
+    if use_shardy and multichip_mode == ShardingMode.INPUTS:
+        pytest.xfail(
+            failed_fe_compilation(
+                "Shardy automatic parallelization not supported. "
+                "Issue: https://github.com/tenstorrent/tt-xla/issues/406"
+            )
+        )
+
+
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
     [
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                reason="Shardy sharding not supported (issue #383)"
-            ),
-        ),
+        True,
         False,
     ],
 )
@@ -46,13 +56,15 @@ from tests.utils import failed_fe_compilation
         ShardingMode.INPUTS,
     ],
 )
-def test_unary_eltwise(
+def test_negative_op(
     use_shardy: bool,
     input_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
+    conditionally_skip(use_shardy, sharding_mode)
+
     def fwd(a_block):
         b_block = jnp.negative(a_block)
         return b_block
