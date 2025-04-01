@@ -79,6 +79,9 @@ class Linear(nn.Module):
     def forward(self, x):
         return self.fc1(x)
 
+
+os.environ["PJRT_DEVICE"] = "TT"
+os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 def sanity():
     device = xm.xla_device()
     model = Linear()
@@ -86,7 +89,6 @@ def sanity():
     input = torch.randn(32, 32, dtype=torch.float32, device='cpu')
     input = input.to(device)
     out = model(input)
-    breakpoint()
     print(out)
 
 
