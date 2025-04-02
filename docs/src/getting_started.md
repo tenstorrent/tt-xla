@@ -22,6 +22,58 @@ cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
 cmake --build build
 ```
 
+### Wheel build
+To build a wheel run
+
+```bash
+>> cd python_packages/pjrt_plugin_tt
+>> python setup.py bdist_wheel
+```
+
+this will output `python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using
+
+```bash
+pip install pjrt_plugin_tt*.whl
+```
+
+Wheel has the following structure
+
+```bash
+jax_plugins
+`-- pjrt_plugin_tt
+    |-- __init__.py
+    |-- pjrt_plugin_tt.so   # Plugin itself.
+    `-- tt-mlir             # Entire tt-mlir installation folder
+        `-- install
+            |-- include
+            |   `-- ...
+            |-- lib
+            |   |-- libTTMLIRCompiler.so
+            |   |-- libTTMLIRRuntime.so
+            |   `-- ...
+            `-- tt-metal    # We need to set TT_METAL_HOME to this dir when loading plugin
+                |-- runtime
+                |   `-- ...
+                |-- tt_metal
+                |   `-- ...
+                `-- ttnn
+                    `-- ...
+```
+
+It contains custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds recipe (a python function) to register PJRT plugin with `JAX` and `tt-mlir` installation dir, which is needed to
+be able to dynamically link tt-mlir libs in runtime and to resolve various `tt-metal` dependencies
+without which plugin won't work.
+
+Structuring wheel/folders this way allows jax to automatically register plugin upon usage. User just needs to do
+
+```bash
+>> pip install pjrt_plugin_tt*.whl
+>> python
+# Python console
+>>>> import jax
+>>>> tt_device = jax.devices("tt") # this will trigger plugin registration.
+```
+
 ## Testing
 The tt-xla repo contains various tests in the **tests** directory. To run them all, please run `pytest -v tests` from the project root directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
 
