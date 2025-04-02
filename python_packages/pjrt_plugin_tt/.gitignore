@@ -1,0 +1,4 @@
+build
+dist
+jax_plugins/pjrt_plugin_tt/tt-metal
+jax_plugins/pjrt_plugin_tt/pjrt_plugin_tt.so
