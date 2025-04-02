@@ -17,3 +17,5 @@ pytest
 sentencepiece
 torch
 transformers
+wheel
+setuptools
