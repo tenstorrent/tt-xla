@@ -20,3 +20,5 @@ sentencepiece
 soundfile
 torch
 transformers
+wheel
+setuptools
