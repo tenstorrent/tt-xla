@@ -79,7 +79,8 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):

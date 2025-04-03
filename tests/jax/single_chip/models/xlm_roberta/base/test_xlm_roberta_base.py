@@ -52,7 +52,8 @@ def training_tester() -> XLMRobertaTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131074.375. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131074.375. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_xlm_roberta_base_inference(inference_tester: XLMRobertaTester):

@@ -53,7 +53,8 @@ def training_tester() -> AlbertV2Tester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131026.9375. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131026.9375. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_albert_v2_large_inference(inference_tester: AlbertV2Tester):
