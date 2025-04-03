@@ -53,7 +53,8 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131044.359375. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131044.359375. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_roberta_base_inference(inference_tester: FlaxRobertaForMaskedLMTester):
