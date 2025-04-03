@@ -1,20 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 
+import os
 import jax
 import jax._src.xla_bridge as xb
 
 
 def initialize():
-    print("Registering TT plugin with jax...")
+    import tt_pjrt_plugin
 
-    plugin_path = os.path.join(os.getcwd(), "build/src/tt/pjrt_plugin_tt.so")
+    pjrt_plugin_parent_dir = list(tt_pjrt_plugin.__path__)[0]
+    plugin_path = os.path.join(pjrt_plugin_parent_dir, "pjrt_plugin_tt.so")
 
     if not os.path.exists(plugin_path):
-        print(
-            f"WARNING: Native library {plugin_path} does not exist. "
+        raise FileNotFoundError(
+            f"ERROR: Native library {plugin_path} does not exist. "
             f"This most likely indicates an issue with how {__package__} "
             f"was built or installed."
         )
