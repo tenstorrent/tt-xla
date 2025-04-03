@@ -21,7 +21,6 @@ on:
           - machine
           - directory to run tests on
           - the name of the run which can be used to differentiate unique runs
-          - container device options
         required: true
         type: string
   workflow_call:
@@ -41,7 +40,6 @@ on:
           - machine
           - directory to run tests on
           - the name of the run which can be used to differentiate unique runs
-          - container device options
         required: true
         type: string
 
@@ -183,7 +181,7 @@ jobs:
 
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
-      options: ${{ matrix.build.container-options }}
+      options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G

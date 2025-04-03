@@ -65,9 +65,9 @@ jobs:
       test_mark: 'push'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip", "container-options": "--device /dev/tenstorrent"},
-          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300", "container-options": "--device /dev/tenstorrent"},
-          {"runs-on": "llmbox", "name": "run", "dir": "./tests/jax/multi_chip/llmbox", "container-options": "--device /dev/tenstorrent"}
+          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "llmbox", "name": "run", "dir": "./tests/jax/multi_chip/llmbox"}
         ]
 
   check-all-green:
