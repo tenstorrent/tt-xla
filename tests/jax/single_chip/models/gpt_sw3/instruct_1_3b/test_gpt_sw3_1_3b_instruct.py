@@ -15,28 +15,29 @@ from tests.utils import (
     failed_fe_compilation,
 )
 
-from ..tester import XLMRobertaTester
+from ..tester import GPTSw3Tester
 
-MODEL_PATH = "FacebookAI/xlm-roberta-large"
+MODEL_PATH = "AI-Sweden-Models/gpt-sw3-1.3b-instruct"
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "xlm-roberta",
-    "large",
+    "gpt-sw3",
+    "1.3b_instruct",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> XLMRobertaTester:
-    return XLMRobertaTester(MODEL_PATH)
+def inference_tester() -> GPTSw3Tester:
+    return GPTSw3Tester(MODEL_PATH)
 
 
 @pytest.fixture
-def training_tester() -> XLMRobertaTester:
-    return XLMRobertaTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> GPTSw3Tester:
+    return GPTSw3Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -55,7 +56,7 @@ def training_tester() -> XLMRobertaTester:
         "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
-def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
+def test_gpt_sw3_1_3b_instruct_inference(inference_tester: GPTSw3Tester):
     inference_tester.test()
 
 
@@ -67,5 +68,5 @@ def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_xlm_roberta_large_training(training_tester: XLMRobertaTester):
+def test_gpt_sw3_1_3b_instruct_training(training_tester: GPTSw3Tester):
     training_tester.test()

@@ -5,7 +5,6 @@
 from typing import Dict, Sequence
 
 import jax
-import jax.numpy as jnp
 import pytest
 from flax import linen as nn
 from infra import ComparisonConfig, Framework, ModelTester, RunMode
@@ -115,8 +114,8 @@ def training_tester() -> AlexNetTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad'"
-        "(https://github.com/tenstorrent/tt-xla/issues/360)"
+        "error: failed to legalize operation 'ttir.gather'"
+        "(https://github.com/tenstorrent/tt-xla/issues/318)"
     )
 )
 def test_alexnet_inference(inference_tester: AlexNetTester):
