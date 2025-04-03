@@ -1,0 +1,1 @@
+probe1,tensor<64x64xf32>,tmp/probe1.npy

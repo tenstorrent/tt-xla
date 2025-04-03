@@ -23,14 +23,21 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/Types.h"  
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/IR/MLIRContext.h"    // For mlir::MLIRContext
+#include "mlir/IR/BuiltinTypes.h"
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
 #include "stablehlo/dialect/Version.h"
 #include "stablehlo/transforms/Passes.h"
+#include "stablehlo/reference/InterpreterPasses.h"
+#include "stablehlo/reference/Api.h"
+#include "stablehlo/reference/Errors.h"
+#include "stablehlo/reference/InterpreterOps.h"
 
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
@@ -106,6 +113,43 @@ ModuleBuilder::buildModule(const std::string_view &code,
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
+
+  mlir::PassManager interpreter_pm(mlir_module.get()->getName(),mlir::PassManager::Nesting::Implicit);
+  mlir::stablehlo::InterpreterInstrumentWithProbePassOptions options;
+  // Initialize options with valid values if required
+  interpreter_pm.addPass(mlir::stablehlo::createInterpreterInstrumentWithProbePass(options));
+  if (mlir::failed(interpreter_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
+    m_status = tt_pjrt_status::kInternal;
+    return m_status;
+  }
+  std::cerr << "I AM HERE" << std::endl;
+  auto tensorType = mlir::RankedTensorType::get({64, 64}, mlir::Float32Type::get(m_context.get()));
+  std::vector<float> values1(64 * 64, 1.0f); // Initialize all elements to 0.0f
+  auto denseAttr1 = mlir::DenseElementsAttr::get(tensorType, llvm::ArrayRef(values1));
+  std::vector<float> values2(64 * 64, 1.0f); // Initialize all elements to 0.0f
+  auto denseAttr2 = mlir::DenseElementsAttr::get(tensorType, llvm::ArrayRef(values2));
+  mlir::stablehlo::InterpreterConfiguration config;
+  std::cerr << "I AM THERE" << std::endl;
+  config.probeInstrumentationDir = "tmp/";
+  auto results = mlir::stablehlo::evalModule(mlir_module.get(), {denseAttr1, denseAttr2}, config);
+  denseAttr1.dump();
+  denseAttr2.dump();
+  std::cerr << "#############" << std::endl;
+  for (auto& result : results.value())
+  {
+    result.dump();
+  }
+  std::cerr << "#############" << std::endl;
+
+  std::cerr << "-----------------" << std::endl;
+  mlir_module->walk([&](mlir::Operation *op) {
+    if (llvm::isa<mlir::stablehlo::interpreter::ProbeOp>(op)) {
+      std::cerr << "Found a ProbeOp: ";
+      op->dump();
+    }
+  });
+  std::cerr << "-----------------" << std::endl;
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {

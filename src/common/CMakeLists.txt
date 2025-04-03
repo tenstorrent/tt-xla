@@ -46,6 +46,10 @@ target_link_libraries(TTPJRTCommon PUBLIC
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
+    InterpreterPasses
+    StablehloReferenceApi
+    StablehloReferenceErrors
+    StablehloReferenceConfiguration
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
