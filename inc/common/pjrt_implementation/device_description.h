@@ -51,6 +51,7 @@ public:
   int getProcessIndex() const { return 0; }
 
 private:
+  // Global ID of this device unique between all devices.
   int m_device_id;
 
   std::string m_device_kind;
@@ -60,4 +61,4 @@ private:
 
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_DESCRIPTION_H_

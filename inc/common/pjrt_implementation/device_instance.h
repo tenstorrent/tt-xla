@@ -10,39 +10,46 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
-#include "tt/runtime/runtime.h"
-
 #include "common/pjrt_implementation/device_description.h"
-#include "common/pjrt_implementation/event_instance.h"
-#include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
 
 namespace tt::pjrt {
 
-class ClientInstance;
-class BufferInstance;
-
 class DeviceInstance {
 
 public:
-  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch)
-      : client_(client), description_(device_id, arch) {}
-  ~DeviceInstance();
-  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
-  static void BindApi(PJRT_Api *api);
+  // Constructor.
+  DeviceInstance(int global_device_id, int local_device_id, bool is_addressable,
+                 tt::target::Arch arch)
+      : m_description(global_device_id, arch), m_is_addressable(is_addressable),
+        m_local_device_id(local_device_id) {}
 
-  static DeviceInstance *Unwrap(PJRT_Device *device) {
+  // Binds PJRT API functions implementation related to PJRT_Device structure.
+  static void bindApi(PJRT_Api *api);
+
+  // Casts this device instance to PJRT_Device and returns pointer to it.
+  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
+
+  // Casts the PJRT_Device pointer to DeviceInstance pointer.
+  static DeviceInstance *unwrap(PJRT_Device *device) {
     return reinterpret_cast<DeviceInstance *>(device);
   }
 
-  static DeviceInstance *Unwrap(PJRT_DeviceDescription *device_description) {
-    return reinterpret_cast<DeviceInstance *>(device_description);
+  // Returns pointer to device description.
+  DeviceDescription *getDeviceDescription() { return &m_description; }
+
+  // Returns const reference to device description.
+  const DeviceDescription &getDeviceDescription() const {
+    return m_description;
   }
-  ClientInstance &client() { return client_; }
-  bool is_addressable() { return true; }
-  int local_hardware_id() { return -1; }
+
+  // Returns true if device is addressable.
+  bool isAddressable() const { return m_is_addressable; }
+
+  // Returns local device ID.
+  int getLocalDeviceId() const { return m_local_device_id; }
 
   tt_pjrt_status
   HostBufferToDevice(const void *data, PJRT_Buffer_Type type,
@@ -52,12 +59,7 @@ public:
                      EventInstance **out_done_with_host_buffer_event,
                      BufferInstance **out_buffer);
 
-  DeviceDescription *device_description() { return &description_; }
-  const DeviceDescription *device_description() const { return &description_; }
-
 private:
-  tt_pjrt_status OpenDevice();
-
   static size_t getTensorSize(const std::vector<std::uint32_t> &shape,
                               size_t element_size);
 
@@ -70,11 +72,27 @@ private:
                    std::vector<std::uint32_t> &strides, size_t element_size,
                    tt::target::DataType element_type);
 
-  ClientInstance &client_;
-  uint64_t last_transfer_timepoint_ = 0;
-  DeviceDescription description_;
+  // Device description.
+  DeviceDescription m_description;
+
+  // True if device is addressable. Addressable devices are those that the
+  // client can issue commands to.
+  bool m_is_addressable;
+
+  // Local ID of this device unique between all addressable devices.
+  int m_local_device_id;
 };
+
+namespace internal {
+
+PJRT_Error *onDeviceGetDescription(PJRT_Device_GetDescription_Args *args);
+
+PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args);
+
+PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args);
+
+} // namespace internal
 
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
