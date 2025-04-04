@@ -4,7 +4,7 @@
 
 import subprocess
 from dataclasses import dataclass
-
+import os
 from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
@@ -25,8 +25,11 @@ class BdistWheel(bdist_wheel):
 
 class CMakeBuildPy(build_py):
     def run(self):
-        # Build the CMake project
-        self.build_cmake_project()
+        if not os.path.exists(
+            os.path.join(os.getcwd(), "build/src/tt/pjrt_plugin_tt.so")
+        ):
+            # Build the CMake project
+            self.build_cmake_project()
 
         super().run()
 
@@ -54,7 +57,8 @@ class CMakeBuildPy(build_py):
 
 @dataclass
 class SetupMetadata:
-    package_name: str = "pjrt-plugin-tt"
+    project_name: str = "pjrt-plugin-tt"
+    package_name: str = "pjrt_plugin_tt"
     description_content_type: str = "text/markdown"
     zip_safe: bool = False  # Needs to reference embedded shared libraries.
 
@@ -76,8 +80,14 @@ class SetupMetadata:
 
     @property
     def requirements(self) -> list:
+        reqs = []
+
         with open("requirements.txt", "r") as f:
-            return f.read().splitlines()
+            for line in f.read().splitlines():
+                if "jax" in line or "flax" in line:
+                    reqs.append(line)
+
+        return reqs
 
     @property
     def description(self) -> str:
@@ -88,7 +98,7 @@ class SetupMetadata:
 metadata = SetupMetadata()
 
 setup(
-    name=metadata.package_name,
+    name=metadata.project_name,
     version=metadata.version,
     install_requires=metadata.requirements,
     classifiers=[
@@ -109,14 +119,13 @@ setup(
     ],
     package_data={
         "pjrt_plugin_tt": ["pjrt_plugin_tt.so"],
-        "jax_plugins.pjrt_plugin_tt": ["pjrt_plugin_tt.so"],
     },
     entry_points={
         # We must advertise which Python modules should be treated as loadable
         # plugins. This augments the path based scanning that Jax does, which
         # is not always robust to all packaging circumstances.
         "jax_plugins": [
-            "pjrt_plugin_tt = jax_plugins.pjrt_plugin_tt",
+            f"pjrt_plugin_tt = jax_plugins.pjrt_plugin_tt",
         ],
     },
     long_description=metadata.description,

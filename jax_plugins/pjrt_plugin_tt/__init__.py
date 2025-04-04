@@ -8,9 +8,9 @@ import jax._src.xla_bridge as xb
 
 
 def initialize():
-    import tt_pjrt_plugin
+    import pjrt_plugin_tt
 
-    pjrt_plugin_parent_dir = list(tt_pjrt_plugin.__path__)[0]
+    pjrt_plugin_parent_dir = list(pjrt_plugin_tt.__path__)[0]
     plugin_path = os.path.join(pjrt_plugin_parent_dir, "pjrt_plugin_tt.so")
 
     if not os.path.exists(plugin_path):
@@ -27,4 +27,4 @@ def initialize():
         options=None,
     )
 
-    jax.config.update("jax_platforms", "tt,cpu")
+    jax.config.update("jax_platforms", "tt")
