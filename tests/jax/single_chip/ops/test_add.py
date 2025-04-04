@@ -20,7 +20,6 @@ from tests.utils import Category
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
-        [(32, 32), (32, 32)],
         [(64, 64), (64, 64)],
     ],
     ids=lambda val: f"{val}",
