@@ -7,6 +7,7 @@ from typing import Dict, Sequence
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxOPTForCausalLM, FlaxPreTrainedModel
+from jaxtyping import PyTree
 
 
 class OPTTester(ModelTester):
@@ -28,15 +29,15 @@ class OPTTester(ModelTester):
         return model
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        inputs = tokenizer("Hello", return_tensors="np")
-        return inputs["input_ids"]
+        inputs = tokenizer("Hello there fellow traveler", return_tensors="jax")
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
