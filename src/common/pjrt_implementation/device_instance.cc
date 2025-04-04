@@ -8,46 +8,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include <memory>
-#include <numeric>
-
 #include "common/pjrt_implementation/device_instance.h"
-
-#include "common/pjrt_implementation/buffer_instance.h"
-#include "common/pjrt_implementation/utils.h"
-#include "common/status.h"
 
 namespace tt::pjrt {
 
-DeviceInstance::~DeviceInstance() = default;
-
 void DeviceInstance::BindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::BindApi");
-  api->PJRT_Device_IsAddressable =
-      +[](PJRT_Device_IsAddressable_Args *args) -> PJRT_Error * {
-    args->is_addressable =
-        DeviceInstance::Unwrap(args->device)->is_addressable();
-    return nullptr;
-  };
-  api->PJRT_Device_LocalHardwareId =
-      +[](PJRT_Device_LocalHardwareId_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_LocalHardwareId_Args");
-    args->local_hardware_id =
-        DeviceInstance::Unwrap(args->device)->local_hardware_id();
-    return nullptr;
-  };
-  api->PJRT_Device_GetDescription =
-      +[](PJRT_Device_GetDescription_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetDescription");
-    args->device_description = reinterpret_cast<PJRT_DeviceDescription *>(
-        DeviceInstance::Unwrap(args->device)->device_description());
-    return nullptr;
-  };
-}
-
-tt_pjrt_status DeviceInstance::OpenDevice() {
-  DLOG_F(LOG_DEBUG, "DeviceInstance::OpenDevice");
-  return tt_pjrt_status::kSuccess;
+  api->PJRT_Device_GetDescription = internal::onDeviceGetDescription;
+  api->PJRT_Device_IsAddressable = internal::onDeviceIsAddressable;
+  api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
 }
 
 tt_pjrt_status DeviceInstance::HostBufferToDevice(
@@ -75,7 +44,6 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
   }
   std::unique_ptr<BufferInstance> buffer_instance =
       MakeDeviceBuffer(data, shape, strides, element_size, element_type);
-  DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance.release();
   EventInstance *event_instance = new EventInstance();
@@ -97,6 +65,9 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
     tt::target::DataType element_type) {
   size_t tensor_size = getTensorSize(shape, element_size);
 
+  // TODO_OOM: No need for this since createOwnedTensor creates its own buffer
+  // but we need this until runtime API changes in order to have a pointer to
+  // host memory to create multi device tensor from.
   std::shared_ptr<void> new_memory(new std::byte[tensor_size], [](void *ptr) {
     delete[] static_cast<std::byte *>(ptr);
   });
@@ -112,5 +83,35 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
   return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides,
                                           tt_buffer_type, new_memory);
 }
+
+namespace internal {
+
+PJRT_Error *onDeviceGetDescription(PJRT_Device_GetDescription_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetDescription");
+
+  args->device_description =
+      *DeviceInstance::unwrap(args->device)->getDeviceDescription();
+
+  return nullptr;
+}
+
+PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_IsAddressable");
+
+  args->is_addressable = DeviceInstance::unwrap(args->device)->isAddressable();
+
+  return nullptr;
+}
+
+PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_LocalHardwareId");
+
+  args->local_hardware_id =
+      DeviceInstance::unwrap(args->device)->getLocalDeviceId();
+
+  return nullptr;
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt

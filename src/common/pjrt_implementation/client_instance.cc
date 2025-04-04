@@ -150,20 +150,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     }
     return nullptr;
   };
-  api->PJRT_Client_BufferFromHostBuffer =
-      +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    tt_pjrt_status status =
-        DeviceInstance::Unwrap(args->device)
-            ->HostBufferToDevice(
-                args->data, args->type, args->dims, args->num_dims,
-                args->byte_strides, args->num_byte_strides,
-                args->host_buffer_semantics,
-                reinterpret_cast<EventInstance **>(
-                    &args->done_with_host_buffer),
-                reinterpret_cast<BufferInstance **>(&args->buffer));
-    return ErrorInstance::MakeError(status);
-  };
+  api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
 }
 
 tt_pjrt_status ClientInstance::PopulateDevices() {
@@ -179,10 +166,10 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  int devices_count = chip_ids.size();
+  size_t devices_count = chip_ids.size();
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
-    devices_[i] = new DeviceInstance(chip_ids[i], *this,
+    devices_[i] = new DeviceInstance(chip_ids[i],
                                      system_desc->chip_descs()->Get(i)->arch());
   }
 
@@ -191,6 +178,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   for (DeviceInstance *device : devices_) {
     addressable_devices_.push_back(device);
   }
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -226,5 +214,36 @@ std::tuple<uint64_t, uint64_t> ClientInstance::AdvanceTimeline() {
   execution_timeline_ = next;
   return std::make_tuple(current, next);
 }
+
+namespace internal {
+
+PJRT_Error *
+onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+
+  if (args->memory) {
+    DLOG_F(ERROR, "Copying to custom memory is not supported");
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+  }
+
+  if (args->device_layout &&
+      args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
+    DLOG_F(ERROR, "Only strided memory layout is supported");
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+  }
+
+  tt_pjrt_status status =
+      DeviceInstance::unwrap(args->device)
+          ->HostBufferToDevice(
+              args->data, args->type, args->dims, args->num_dims,
+              args->byte_strides, args->num_byte_strides,
+              args->host_buffer_semantics,
+              reinterpret_cast<EventInstance **>(&args->done_with_host_buffer),
+              reinterpret_cast<BufferInstance **>(&args->buffer));
+
+  return ErrorInstance::MakeError(status);
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt

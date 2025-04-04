@@ -97,6 +97,13 @@ private:
   uint64_t execution_timeline_ = 0ull;
 };
 
+namespace internal {
+
+// Implements PJRT_Client_BufferFromHostBuffer API function.
+PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);
+
+} // namespace internal
+
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_

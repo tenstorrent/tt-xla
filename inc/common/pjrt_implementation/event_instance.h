@@ -42,7 +42,6 @@ struct OnReadyCallback {
 // asynchronous work, informing callers when the work is complete and reporting
 // a value of type `PJRT_Error*` or `nullptr` as error status.
 class EventInstance {
-
 public:
   // Creates new event instance.
   static std::unique_ptr<EventInstance> createInstance();
@@ -53,10 +52,10 @@ public:
   // Binds PJRT API functions implementation related to PJRT_Event structure.
   static void bindApi(PJRT_Api *api);
 
-  // Returns PJRT_Event pointer pointing to this object.
+  // Casts this event instance to PJRT_Event and returns pointer to it.
   operator PJRT_Event *() { return reinterpret_cast<PJRT_Event *>(this); }
 
-  // Returns pointer to EventInstance from the PJRT_Event pointer.
+  // Casts the PJRT_Event pointer to EventInstance pointer.
   static EventInstance *unwrap(PJRT_Event *exe) {
     return reinterpret_cast<EventInstance *>(exe);
   }

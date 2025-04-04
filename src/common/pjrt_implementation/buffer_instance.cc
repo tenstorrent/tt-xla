@@ -19,9 +19,6 @@
 #include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
-int BufferInstance::id_counter_ = 0;
-
-BufferInstance::~BufferInstance() = default;
 
 BufferInstance::BufferInstance(
     DeviceInstance &device, tt::runtime::Tensor &tensor,
@@ -38,92 +35,32 @@ BufferInstance::BufferInstance(
     std::shared_ptr<void> host_buffer_ptr)
     : device_(device), m_runtime_tensor(tensor),
       host_buffer_ptr_(host_buffer_ptr), tt_buffer_type_(tt_buffer_type),
-      dims_(shape.begin(), shape.end()), stride_(stride) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
-  unique_id_ = id_counter_++;
-}
+      dims_(shape.begin(), shape.end()), stride_(stride) {}
 
-void BufferInstance::ComputeLayout() {
-  DLOG_F(LOG_DEBUG, "BufferInstance::ComputeLayout");
-}
+BufferInstance::~BufferInstance() { deleteData(); }
 
-void BufferInstance::BindApi(PJRT_Api *api) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::BindApi");
-  api->PJRT_Buffer_Destroy =
-      +[](PJRT_Buffer_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    delete buffer;
-    return nullptr;
-  };
-  api->PJRT_Buffer_ElementType =
-      +[](PJRT_Buffer_ElementType_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    std::optional<PJRT_Buffer_Type> type = buffer->getType();
-    if (type.has_value())
-      args->type = *type;
-    else {
-      args->type = buffer->getRuntimeType();
-    }
-    return nullptr;
-  };
-  api->PJRT_Buffer_Dimensions =
-      +[](PJRT_Buffer_Dimensions_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    args->dims = buffer->getRawDimensions();
-    args->num_dims = buffer->num_dims();
-    return nullptr;
-  };
-  api->PJRT_Buffer_UnpaddedDimensions =
-      +[](PJRT_Buffer_UnpaddedDimensions_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    args->unpadded_dims = buffer->getRawDimensions();
-    args->num_dims = buffer->num_dims();
-    return nullptr;
-  };
+void BufferInstance::bindApi(PJRT_Api *api) {
+  api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
+  api->PJRT_Buffer_ElementType = internal::onBufferElementType;
+  api->PJRT_Buffer_Dimensions = internal::onBufferDimensions;
+  api->PJRT_Buffer_UnpaddedDimensions = internal::onBufferUnpaddedDimensions;
+  api->PJRT_Buffer_DynamicDimensionIndices =
+      internal::onBufferDynamicDimensionIndices;
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
-  api->PJRT_Buffer_OnDeviceSizeInBytes =
-      +[](PJRT_Buffer_OnDeviceSizeInBytes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_OnDeviceSizeInBytes");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    return nullptr;
-  };
-  api->PJRT_Buffer_Delete = +[](PJRT_Buffer_Delete_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Delete");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    buffer->Delete();
-    return nullptr;
-  };
-  api->PJRT_Buffer_IsDeleted =
-      +[](PJRT_Buffer_IsDeleted_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    args->is_deleted = buffer->is_deleted();
-    return nullptr;
-  };
+  api->PJRT_Buffer_Delete = internal::onBufferDelete;
+  api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
   api->PJRT_Buffer_IsOnCpu =
       +[](PJRT_Buffer_IsOnCpu_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
-    args->is_on_cpu = BufferInstance::Unwrap(args->buffer)->is_on_cpu();
+    args->is_on_cpu = BufferInstance::unwrap(args->buffer)->is_on_cpu();
     return nullptr;
   };
   api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
-    args->device = BufferInstance::Unwrap(args->buffer)->device();
+    args->device = BufferInstance::unwrap(args->buffer)->device();
     return nullptr;
   };
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
-  // TODO: Rework the API to be Aliases(b1, b2) to let the plugin explicitly
-  // check for aliases.
-  api->PJRT_Buffer_GetMemoryLayout =
-      +[](PJRT_Buffer_GetMemoryLayout_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_GetMemoryLayout");
-    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    return buffer->GetMemoryLayout(args);
-  };
   api->PJRT_Buffer_UnsafePointer =
       +[](PJRT_Buffer_UnsafePointer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnsafePointer");
@@ -131,45 +68,40 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   };
 }
 
-PJRT_Error *
-BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::GetMemoryLayout");
-  args->layout.type =
-      PJRT_Buffer_MemoryLayout_Type::PJRT_Buffer_MemoryLayout_Type_Tiled;
-  size_t rank = num_dims();
-  minor_to_major_.resize(rank);
-  for (size_t i = 0; i < rank; i++) {
-    minor_to_major_[i] = rank - 1 - i;
+size_t BufferInstance::getRuntimeTensorSize() const {
+  std::uint32_t runtime_tensor_size =
+      tt::runtime::getTensorVolume(m_runtime_tensor) *
+      tt::runtime::getTensorElementSize(m_runtime_tensor);
+
+  return static_cast<size_t>(runtime_tensor_size);
+}
+
+tt_pjrt_status BufferInstance::copyFromHost() {
+  // TODO_OOM: finish
+}
+
+// TODO_OOM: remove
+void *BufferInstance::getHostBuffer() {
+  return m_host_buffer_copy ? m_host_buffer_copy.get() : m_aliased_host_buffer;
+}
+
+bool BufferInstance::isDataDeleted() {
+  std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
+  return m_data_deleted;
+}
+
+void BufferInstance::deleteData() {
+  if (m_data_deleted) {
+    return;
   }
-  tile_dim_sizes_.resize(1);
-  tile_dim_sizes_[0] = rank;
-  tile_dims_.resize(rank);
-  for (size_t i = 0; i < rank; i++) {
-    tile_dims_[i] = dims_[i];
+
+  std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
+  if (m_data_deleted) {
+    return;
   }
-  args->layout.tiled.minor_to_major_size = rank;
-  args->layout.tiled.minor_to_major = minor_to_major_.data();
-  args->layout.tiled.tile_dims = tile_dims_.data();
-  args->layout.tiled.tile_dim_sizes = tile_dim_sizes_.data();
 
-  args->layout.tiled.num_tiles = 1;
-  return nullptr;
-}
-
-tt_pjrt_status BufferInstance::GetHostSizeInBytes(size_t *host_size) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::GetHostSizeInBytes");
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status BufferInstance::AsyncDeallocate() {
-  DLOG_F(LOG_DEBUG, "BufferInstance::AsyncDeallocate");
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status BufferInstance::Delete() {
-  DLOG_F(LOG_DEBUG, "BufferInstance::Delete");
-  is_deleted_ = true;
-  return tt_pjrt_status::kSuccess;
+  tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
+  m_data_deleted = true;
 }
 
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
@@ -177,10 +109,12 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           EventInstance **out_event) {
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
-  std::uint32_t runtime_tensor_size =
-      tt::runtime::getTensorVolume(m_runtime_tensor) *
-      tt::runtime::getTensorElementSize(m_runtime_tensor);
-  if (static_cast<size_t>(runtime_tensor_size) > host_buffer_size) {
+  size_t runtime_tensor_size = getRuntimeTensorSize();
+  if (runtime_tensor_size > host_buffer_size) {
+    DLOG_F(ERROR,
+           "Tried to copy device buffer to the host buffer with smaller size "
+           "than required (device buffer size: %zu, host buffer size: %zu)",
+           runtime_tensor_size, host_buffer_size);
     out_event = nullptr;
     return tt_pjrt_status::kFailedPrecondition;
   }
@@ -210,6 +144,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   return tt_pjrt_status::kSuccess;
 }
 
+// TODO_OOM: remove
 PJRT_Buffer_Type BufferInstance::getRuntimeType() {
   DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
   tt::target::DataType Type = tt::runtime::getTensorDataType(getTensor());
@@ -218,32 +153,109 @@ PJRT_Buffer_Type BufferInstance::getRuntimeType() {
 
 namespace internal {
 
+PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
+
+  BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
+  delete buffer;
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferElementType(PJRT_Buffer_ElementType_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
+
+  args->type = BufferInstance::unwrap(args->buffer)->getDataType();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
+
+  BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
+  args->dims = buffer->getRawDimensions();
+  args->num_dims = buffer->getNumberOfDimensions();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
+
+  BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
+  // We don't support dynamic dimensions with padding yet.
+  args->unpadded_dims = buffer->getRawDimensions();
+  args->num_dims = buffer->getNumberOfDimensions();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferDynamicDimensionIndices(
+    PJRT_Buffer_DynamicDimensionIndices_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_DynamicDimensionIndices");
+
+  // We don't support dynamic dimensions yet.
+  args->dynamic_dim_indices = nullptr;
+  args->num_dynamic_dims = 0;
+
+  return nullptr;
+}
+
 PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
-  BufferInstance *buffer = BufferInstance::Unwrap(args->src);
-  if (args->dst) {
-    // Initiate transfer.
-    return ErrorInstance::MakeError(
-        buffer->copyToHost(args->dst, args->dst_size,
-                           reinterpret_cast<EventInstance **>(&args->event)));
-  } else {
-    // Size query.
-    return ErrorInstance::MakeError(
-        buffer->GetHostSizeInBytes(&args->dst_size));
+  // TODO_OOM: Check the args->host_layout. PJRT comment for that arg:
+  // "The caller can specify an optional host layout. If nullptr, the layout of
+  // the src buffer will be used. The caller is responsible to keep the data
+  // (tiled or strides) in the host_layout alive during the call."
+  if (args->host_layout) {
+    DLOG_F(ERROR, "Copying to host with custom memory layout is not supported");
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   }
+
+  BufferInstance *buffer = BufferInstance::unwrap(args->src);
+
+  // This API function can be used with null `dst` to query the required size.
+  if (!args->dst) {
+    args->dst_size = buffer->getRuntimeTensorSize();
+    return nullptr;
+  }
+
+  return ErrorInstance::MakeError(
+      buffer->copyToHost(args->dst, args->dst_size,
+                         reinterpret_cast<EventInstance **>(&args->event)));
+}
+
+PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Delete");
+
+  BufferInstance::unwrap(args->buffer)->deleteData();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
+
+  args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
+
+  return nullptr;
 }
 
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
 
-  BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+  // TODO_OOM: finish
+  BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
   std::unique_ptr<EventInstance> onReadyEvent =
       std::make_unique<EventInstance>();
   buffer->on_ready_event_ = onReadyEvent.get();
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling PJRT_Event_Destroy on event.
   args->event = *onReadyEvent.release();
+
   return nullptr;
 }
 

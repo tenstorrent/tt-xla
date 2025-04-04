@@ -100,9 +100,18 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     BufferInstance *buffer;
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       buffer =
-          BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
-      data.push_back(buffer->get_host_buffer_ptr().get());
+          BufferInstance::unwrap(args->argument_lists[device_index][arg_num]);
+
+      // TODO(mrakita): Remove this once tt::runtime is changed.
+      // (https://github.com/tenstorrent/tt-mlir/issues/2757)
+      std::shared_ptr<void> host_buffer =
+          std::shared_ptr<void>(buffer->getHostBuffer(),
+                                // Empty deleter to keep memory alive.
+                                [](void *) {});
+
+      data.push_back(host_buffer);
     }
+
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
             image_->getInputSharding(arg_num), num_devices);
@@ -110,6 +119,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
       return tt_pjrt_status::kInternal;
     }
+
     // As all the buffers that correspond to the same argument have the same
     // tensor descriptors (shape, stride, etc), we can just use the last one to
     // get the needed information.
@@ -252,9 +262,9 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
   for (size_t device_index = 0; num_args && device_index < num_devices;
        device_index++) {
     const BufferInstance *buffer =
-        BufferInstance::Unwrap(argument_lists[device_index][0]);
+        BufferInstance::unwrap(argument_lists[device_index][0]);
     int64_t buffer_device_id =
-        buffer->device().device_description()->getDeviceId();
+        buffer->device().getDeviceDescription()->getDeviceId();
     device_ids.push_back(buffer_device_id);
   }
 
@@ -263,7 +273,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
   // explicit.
   if (device_ids.size() == 0) {
     device_ids.push_back(
-        addressable_devices_[0]->device_description()->getDeviceId());
+        addressable_devices_[0]->getDeviceDescription()->getDeviceId());
   }
 
   return device_ids;

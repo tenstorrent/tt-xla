@@ -7,6 +7,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+  // ---------------------------------------------------------------------------
+  // PJRT_Buffer stubs:
+
+  // Deprecated in v0.54
+  _STUB(PJRT_Buffer_GetMemoryLayout);
+
+  // Used to copy raw buffer from device to host. In order to support this we
+  // need flexible memcpy from runtime in order to specify the offset and size.
+  _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
+  _STUB(PJRT_Buffer_CopyRawToHost);
+  // ---------------------------------------------------------------------------
+
   _STUB(PJRT_Error_Destroy);
   _STUB(PJRT_Error_Message);
   _STUB(PJRT_Error_GetCode);
@@ -31,9 +43,6 @@
   _STUB(PJRT_DeviceDescription_Kind);
   _STUB(PJRT_DeviceDescription_DebugString);
   _STUB(PJRT_DeviceDescription_ToString);
-  _STUB(PJRT_Device_GetDescription);
-  _STUB(PJRT_Device_IsAddressable);
-  _STUB(PJRT_Device_LocalHardwareId);
   _STUB(PJRT_Device_AddressableMemories);
   _STUB(PJRT_Device_DefaultMemory);
   _STUB(PJRT_Device_MemoryStats);
@@ -60,18 +69,9 @@
   _STUB(PJRT_LoadedExecutable_Execute);
   _STUB(PJRT_Executable_DeserializeAndLoad);
   _STUB(PJRT_LoadedExecutable_Fingerprint);
-  _STUB(PJRT_Buffer_Destroy);
-  _STUB(PJRT_Buffer_ElementType);
-  _STUB(PJRT_Buffer_Dimensions);
-  _STUB(PJRT_Buffer_UnpaddedDimensions);
-  _STUB(PJRT_Buffer_DynamicDimensionIndices);
-  _STUB(PJRT_Buffer_GetMemoryLayout);
-  _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_Device);
   _STUB(PJRT_Buffer_Memory);
-  _STUB(PJRT_Buffer_Delete);
   _STUB(PJRT_Buffer_IsDeleted);
-  _STUB(PJRT_Buffer_CopyRawToHost);
   _STUB(PJRT_Buffer_CopyToDevice);
   _STUB(PJRT_Buffer_IsOnCpu);
   _STUB(PJRT_Buffer_UnsafePointer);
@@ -98,8 +98,6 @@
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Executable_Fingerprint);
   _STUB(PJRT_Client_TopologyDescription);
-  _STUB(PJRT_Buffer_DynamicDimensionIndices);
-  _STUB(PJRT_Buffer_GetMemoryLayout);
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
   _STUB(PJRT_Memory_Kind_Id);
   _STUB(PJRT_ExecuteContext_Create);

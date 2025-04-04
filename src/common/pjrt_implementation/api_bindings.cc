@@ -46,10 +46,10 @@ void BindMonomorphicApi(PJRT_Api *api) {
   api->PJRT_Plugin_Attributes = InitializePluginAttributes;
 
   // Bind by object types.
-  BufferInstance::BindApi(api);
+  BufferInstance::bindApi(api);
   ClientInstance::BindApi(api);
   DeviceDescription::BindApi(api);
-  DeviceInstance::BindApi(api);
+  DeviceInstance::bindApi(api);
   EventInstance::bindApi(api);
   ErrorInstance::BindApi(api);
   ExecutableImage::BindApi(api);
@@ -59,7 +59,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
 void BindUndefineds(PJRT_Api *api) {
 #define _STUB(API)                                                             \
   api->API = +[](API##_Args *args) -> decltype(api->API(args)) {               \
-    DLOG_F(LOG_DEBUG, "STUB: " #API);                                          \
+    DLOG_F(WARNING, "STUB: " #API);                                            \
     return (decltype(api->API(args)))ErrorInstance::MakeError(                 \
         tt_pjrt_status::kUnimplemented);                                       \
   }
