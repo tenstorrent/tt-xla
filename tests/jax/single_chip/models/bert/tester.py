@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxBertForMaskedLM, FlaxPreTrainedModel
+from jaxtyping import PyTree
 
 
 class FlaxBertForMaskedLMTester(ModelTester):
@@ -26,15 +27,15 @@ class FlaxBertForMaskedLMTester(ModelTester):
         return FlaxBertForMaskedLM.from_pretrained(self._model_name)
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        inputs = tokenizer("Hello [MASK]", return_tensors="np")
-        return inputs["input_ids"]
+        inputs = tokenizer("Hello [MASK]", return_tensors="jax")
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }

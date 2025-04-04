@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +12,7 @@ from flax import linen as nn
 from huggingface_hub import hf_hub_download
 from infra import Framework, ModelTester, RunMode
 from transformers import AutoTokenizer
+from jaxtyping import PyTree
 
 from tests.utils import (
     BringupStatus,
@@ -50,13 +51,13 @@ class SqueezeBertTester(ModelTester):
         return "apply"
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        inputs = tokenizer("The [MASK] barked at me", return_tensors="np")
-        return inputs["input_ids"]
+        inputs = tokenizer("The [MASK] barked at me", return_tensors="jax")
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         model_file = hf_hub_download(
             repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
         )
@@ -66,7 +67,7 @@ class SqueezeBertTester(ModelTester):
 
         return {
             "variables": params,  # JAX frameworks have a convention of passing weights as the first argument
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
             "train": False,
         }
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
@@ -11,6 +11,7 @@ from transformers import (
     FlaxPreTrainedModel,
     FlaxPegasusForConditionalGeneration,
 )
+from jaxtyping import PyTree
 
 
 class PegasusTester(ModelTester):
@@ -30,21 +31,21 @@ class PegasusTester(ModelTester):
         return FlaxPegasusForConditionalGeneration.from_pretrained(self._model_name)
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         inputs = tokenizer(
             "My friends are cool but they eat too many carbs.",
             truncation=True,
-            return_tensors="np",
+            return_tensors="jax",
         )
-        return inputs["input_ids"]
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
 
     # @override

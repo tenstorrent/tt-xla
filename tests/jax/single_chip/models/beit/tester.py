@@ -36,7 +36,7 @@ class FlaxBeitForImageClassificationTester(ModelTester):
         preprocessor = BeitImageProcessor.from_pretrained(
             self._model_name, do_rescale=False
         )
-        inputs = preprocessor(image, return_tensors="np")
+        inputs = preprocessor(image, return_tensors="jax")
         return inputs
 
     # @override
