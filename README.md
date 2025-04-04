@@ -25,6 +25,7 @@ cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
 cmake --build build
 ```
 
+
 ## Testing
 tt-xla repo contains various tests in `tests` directory. To run them all, please run `pytest -v tests` from project root directory. To run individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
 
