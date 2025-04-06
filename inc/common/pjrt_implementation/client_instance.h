@@ -10,10 +10,11 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// c++ standard library includes
 #include <memory>
 #include <vector>
 
-#include "common/module_builder.h"
+// tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/platform.h"
@@ -24,11 +25,9 @@
 
 namespace tt::pjrt {
 
-//===----------------------------------------------------------------------===//
-// ClientInstance
-// The root of the runtime hierarchy, these map to an IREE driver and are
-// created against an API.
-//===----------------------------------------------------------------------===//
+class ModuleBuilder;
+
+// Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
 
 public:
@@ -36,9 +35,9 @@ public:
   virtual ~ClientInstance();
 
   // Binds monomorphic entry-points for the client.
-  static void BindApi(PJRT_Api *api);
+  static void bindApi(PJRT_Api *api);
 
-  static ClientInstance *Unwrap(PJRT_Client *client) {
+  static ClientInstance *unwrap(PJRT_Client *client) {
     return reinterpret_cast<ClientInstance *>(client);
   }
 
@@ -46,13 +45,20 @@ public:
   PJRT_Error *Initialize();
 
   Platform &platform() { return *platform_; }
-  const std::vector<DeviceInstance *> &devices() { return devices_; }
-  const std::vector<DeviceInstance *> &addressable_devices() {
-    return addressable_devices_;
-  }
   const std::string &cached_platform_name() { return cached_platform_name_; }
   const std::string &cached_platform_version() {
     return cached_platform_version_;
+  }
+
+  // Returns vector of raw pointers to all devices, including addressable and
+  // non-addressable devices.
+  const std::vector<DeviceInstance *> &getDevicesRaw() const {
+    return m_devices_raw;
+  }
+
+  // Returns vector of raw pointers to addressable devices.
+  const std::vector<DeviceInstance *> &getAddressableDevicesRaw() const {
+    return m_addressable_devices_raw;
   }
 
   // Compiles.
@@ -69,13 +75,22 @@ protected:
   std::string cached_platform_version_;
 
 private:
-  tt_pjrt_status InitializeCompiler();
   tt_pjrt_status PopulateDevices();
 
   std::unique_ptr<Platform> platform_;
 
-  std::vector<DeviceInstance *> devices_;
-  std::vector<DeviceInstance *> addressable_devices_;
+  // Vector of all devices visible to the runtime, including addressable and
+  // non-addressable devices.
+  std::vector<std::unique_ptr<DeviceInstance>> m_devices;
+
+  // Vector of raw pointers to all devices, owned by `m_devices`. Necessary to
+  // have to be able to return it in `PJRT_Client_Devices` API call.
+  std::vector<DeviceInstance *> m_devices_raw;
+
+  // Vector of raw pointers to addressable devices, which are subset of and
+  // owned by `m_devices`. Necessary to have to be able to return it in
+  // `PJRT_Client_AddressableDevices` API call.
+  std::vector<DeviceInstance *> m_addressable_devices_raw;
 
   std::unique_ptr<ModuleBuilder> module_builder_;
 
@@ -98,6 +113,20 @@ private:
 };
 
 namespace internal {
+
+// Implements PJRT_Client_Devices API function.
+PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args);
+
+// Implements PJRT_Client_AddressableDevices API function.
+PJRT_Error *
+onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args);
+
+// Implements PJRT_Client_LookupDevice API function.
+PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args);
+
+// Implements PJRT_Client_LookupAddressableDevice API function.
+PJRT_Error *
+onClientLookupAddressableDevice(PJRT_Client_LookupAddressableDevice_Args *args);
 
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);

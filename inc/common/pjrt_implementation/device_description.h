@@ -28,7 +28,7 @@ public:
   operator PJRT_DeviceDescription *() {
     return reinterpret_cast<PJRT_DeviceDescription *>(this);
   }
-  static void BindApi(PJRT_Api *api);
+  static void bindApi(PJRT_Api *api);
 
   static DeviceDescription *Unwrap(PJRT_DeviceDescription *device) {
     return reinterpret_cast<DeviceDescription *>(device);

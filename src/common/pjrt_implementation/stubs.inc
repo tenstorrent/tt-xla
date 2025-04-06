@@ -7,6 +7,27 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+
+  // TODO(mrakita): Catch-all todo to implement missing functionality listed in
+  // these stubs.
+
+
+  // ---------------------------------------------------------------------------
+  // PJRT_Device stubs:
+
+  // PJRT_Memory is not yet supported in our implementation.
+  // https://github.com/tenstorrent/tt-xla/issues/468
+  _STUB(PJRT_Device_AddressableMemories);
+  _STUB(PJRT_Device_DefaultMemory);
+
+  // This is used for diagnostic purposes and is allowed to return unimplemented
+  // status code, but we could implement at least `bytes_in_use` calculation
+  // which is the only non-optional stat that has to be set in this function.
+  // https://github.com/tenstorrent/tt-xla/issues/470
+  _STUB(PJRT_Device_MemoryStats);
+  // ---------------------------------------------------------------------------
+
+
   // ---------------------------------------------------------------------------
   // PJRT_Buffer stubs:
 
@@ -17,7 +38,29 @@
   // need flexible memcpy from runtime in order to specify the offset and size.
   _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_CopyRawToHost);
+
+  // XLA client is not currently using this, but we should implement it, it
+  // shouldn't be too hard. It should just create the output buffer by copying
+  // the input buffer (its parameters and underlying tensor) and setting given
+  // device.
+  // https://github.com/tenstorrent/tt-xla/issues/467
+  _STUB(PJRT_Buffer_CopyToDevice);
+
+  // PJRT_Memory is not yet supported in our implementation.
+  // https://github.com/tenstorrent/tt-xla/issues/468
+  _STUB(PJRT_Buffer_CopyToMemory);
+  _STUB(PJRT_Buffer_Memory);
+
+  // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
+  // optimizations (avoids memory copy), but currently all our inputs are
+  // transferred to device where computation runs and we can't return the
+  // pointer to device memory.
+  _STUB(PJRT_Buffer_UnsafePointer);
+  _STUB(PJRT_Buffer_IncreaseExternalReferenceCount);
+  _STUB(PJRT_Buffer_DecreaseExternalReferenceCount);
+  _STUB(PJRT_Buffer_OpaqueDeviceMemoryDataPointer);
   // ---------------------------------------------------------------------------
+
 
   _STUB(PJRT_Error_Destroy);
   _STUB(PJRT_Error_Message);
@@ -29,23 +72,15 @@
   _STUB(PJRT_Client_PlatformName);
   _STUB(PJRT_Client_ProcessIndex);
   _STUB(PJRT_Client_PlatformVersion);
-  _STUB(PJRT_Client_Devices);
-  _STUB(PJRT_Client_AddressableDevices);
-  _STUB(PJRT_Client_LookupDevice);
-  _STUB(PJRT_Client_LookupAddressableDevice);
   _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_Compile);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
-  _STUB(PJRT_Client_BufferFromHostBuffer);
   _STUB(PJRT_DeviceDescription_Id);
   _STUB(PJRT_DeviceDescription_ProcessIndex);
   _STUB(PJRT_DeviceDescription_Attributes);
   _STUB(PJRT_DeviceDescription_Kind);
   _STUB(PJRT_DeviceDescription_DebugString);
   _STUB(PJRT_DeviceDescription_ToString);
-  _STUB(PJRT_Device_AddressableMemories);
-  _STUB(PJRT_Device_DefaultMemory);
-  _STUB(PJRT_Device_MemoryStats);
   _STUB(PJRT_Memory_Id);
   _STUB(PJRT_Memory_Kind);
   _STUB(PJRT_Memory_DebugString);
@@ -69,15 +104,6 @@
   _STUB(PJRT_LoadedExecutable_Execute);
   _STUB(PJRT_Executable_DeserializeAndLoad);
   _STUB(PJRT_LoadedExecutable_Fingerprint);
-  _STUB(PJRT_Buffer_Device);
-  _STUB(PJRT_Buffer_Memory);
-  _STUB(PJRT_Buffer_IsDeleted);
-  _STUB(PJRT_Buffer_CopyToDevice);
-  _STUB(PJRT_Buffer_IsOnCpu);
-  _STUB(PJRT_Buffer_UnsafePointer);
-  _STUB(PJRT_Buffer_IncreaseExternalReferenceCount);
-  _STUB(PJRT_Buffer_DecreaseExternalReferenceCount);
-  _STUB(PJRT_Buffer_OpaqueDeviceMemoryDataPointer);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);
@@ -93,7 +119,6 @@
   _STUB(PJRT_Compile);
   _STUB(PJRT_Executable_OutputElementTypes);
   _STUB(PJRT_Executable_OutputDimensions);
-  _STUB(PJRT_Buffer_CopyToMemory);
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Executable_Fingerprint);
