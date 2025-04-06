@@ -61,16 +61,24 @@ public:
   }
 
   // Returns true if the event is marked as ready, false otherwise.
-  bool isReady() const;
+  bool isReady();
 
   // Returns the PJRT_Error created from the event status (nullptr in case of
   // success).
-  PJRT_Error *getErrorFromStatus() const;
+  PJRT_Error *getErrorFromStatus();
 
   // Marks event as ready with the status of the work. It will cause all
   // callbacks in the callbacks thread to be executed, and will unlock caller's
   // threads awaiting on the event.
   void markAsReady(tt_pjrt_status status);
+
+  // Waits until the event is ready, blocking the calling thread.
+  void await();
+
+  // Invokes the callback immediately on the calling thread if the event is
+  // ready, otherwise adds it to the list so it can be executed on a separate
+  // thread once the event is ready.
+  void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
 private:
   // Constructor, spawns the callbacks thread. Private because we wan't events
@@ -79,9 +87,6 @@ private:
 
   // Kills the callbacks thread;
   void killTheCallbacksThread();
-
-  // Waits until the event is ready, blocking the calling thread.
-  void await();
 
   // True if the event is marked as ready, false otherwise.
   bool m_ready;

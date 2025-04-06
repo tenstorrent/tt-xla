@@ -23,8 +23,7 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
 
 DeviceDescription::~DeviceDescription() = default;
 
-void DeviceDescription::BindApi(PJRT_Api *api) {
-  DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
+void DeviceDescription::bindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Id =
       +[](PJRT_DeviceDescription_Id_Args *args) -> PJRT_Error * {
     args->id =

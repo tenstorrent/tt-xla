@@ -47,8 +47,8 @@ void BindMonomorphicApi(PJRT_Api *api) {
 
   // Bind by object types.
   BufferInstance::bindApi(api);
-  ClientInstance::BindApi(api);
-  DeviceDescription::BindApi(api);
+  ClientInstance::bindApi(api);
+  DeviceDescription::bindApi(api);
   DeviceInstance::bindApi(api);
   EventInstance::bindApi(api);
   ErrorInstance::BindApi(api);

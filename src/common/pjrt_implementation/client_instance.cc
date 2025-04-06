@@ -10,18 +10,19 @@
 
 #include "common/pjrt_implementation/client_instance.h"
 
+// c++ standard library includes
 #include <cstddef>
 #include <filesystem>
 #include <string>
 
-#include "common/pjrt_implementation/utils.h"
-#include "tt/runtime/types.h"
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
+// tt-xla includes
+#include "common/module_builder.h"
+#include "common/pjrt_implementation/buffer_instance.h"
 
 namespace tt::pjrt {
-
-//===----------------------------------------------------------------------===//
-// ClientInstance
-//===----------------------------------------------------------------------===//
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), system_descriptor_(nullptr) {
@@ -43,26 +44,21 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  tt_pjrt_status status = PopulateDevices();
-  if (!tt_pjrt_status_is_ok(status)) {
-    return ErrorInstance::MakeError(status);
-  }
-
-  return nullptr;
+  return ErrorInstance::MakeError(PopulateDevices());
 }
 
-void ClientInstance::BindApi(PJRT_Api *api) {
+void ClientInstance::bindApi(PJRT_Api *api) {
   // PJRT_Client_Create is polymorphic
   api->PJRT_Client_Destroy =
       +[](PJRT_Client_Destroy_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
-    delete ClientInstance::Unwrap(args->client);
+    delete ClientInstance::unwrap(args->client);
     return nullptr;
   };
   api->PJRT_Client_PlatformName =
       +[](PJRT_Client_PlatformName_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
-    ClientInstance *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::unwrap(args->client);
     args->platform_name = client->cached_platform_name().data();
     args->platform_name_size = client->cached_platform_name().size();
     return nullptr;
@@ -75,51 +71,24 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_PlatformVersion =
       +[](PJRT_Client_PlatformVersion_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
-    ClientInstance *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::unwrap(args->client);
     args->platform_version = client->cached_platform_version().data();
     args->platform_version_size = client->cached_platform_version().size();
     return nullptr;
   };
-  api->PJRT_Client_Devices =
-      +[](PJRT_Client_Devices_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
-    const std::vector<DeviceInstance *> &devices =
-        ClientInstance::Unwrap(args->client)->devices();
-    args->devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(devices.data()));
-    args->num_devices = devices.size();
-    return nullptr;
-  };
-  api->PJRT_Client_AddressableDevices =
-      +[](PJRT_Client_AddressableDevices_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices_Args");
-    const std::vector<DeviceInstance *> &devices =
-        ClientInstance::Unwrap(args->client)->addressable_devices();
-    args->addressable_devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(devices.data()));
-    args->num_addressable_devices = devices.size();
-    return nullptr;
-  };
-  api->PJRT_Client_LookupDevice =
-      +[](PJRT_Client_LookupDevice_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice_Args");
-    const std::vector<DeviceInstance *> &devices =
-        ClientInstance::Unwrap(args->client)->devices();
-    size_t id_as_size = args->id;
-    if (id_as_size >= devices.size()) {
-      return ErrorInstance::MakeError(tt_pjrt_status::kOutOfRange);
-    }
-    args->device = *devices[id_as_size];
-    return nullptr;
-  };
+  api->PJRT_Client_Devices = internal::onClientDevices;
+  api->PJRT_Client_AddressableDevices = internal::onClientAddressableDevices;
+  api->PJRT_Client_LookupDevice = internal::onClientLookupDevice;
+  api->PJRT_Client_LookupAddressableDevice =
+      internal::onClientLookupAddressableDevice;
   api->PJRT_Client_AddressableMemories =
       +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
     // return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
     args->num_addressable_memories =
-        0; // ClientInstance::Unwrap(args->client)->addressable_memories.size();
+        0; // ClientInstance::unwrap(args->client)->addressable_memories.size();
     args->addressable_memories =
-        nullptr; // ClientInstance::Unwrap(args->client)->addressable_memories.data();
+        nullptr; // ClientInstance::unwrap(args->client)->addressable_memories.data();
     return nullptr;
   };
   api->PJRT_Client_Compile =
@@ -132,7 +101,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     // guess... which is an accident waiting to happen.
     // Looks like what I need is buried in the compile options... need to
     // work on that.
-    ClientInstance *client = ClientInstance::Unwrap(args->client);
+    ClientInstance *client = ClientInstance::unwrap(args->client);
     LoadedExecutableInstance *executable;
 
     PJRT_Error *error = client->Compile(args->program, &executable);
@@ -155,6 +124,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
 
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
+
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
   system_descriptor_ = system_desc;
@@ -167,16 +137,28 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   }
 
   size_t devices_count = chip_ids.size();
-  devices_.resize(devices_count);
-  for (size_t i = 0; i < devices_count; ++i) {
-    devices_[i] = new DeviceInstance(chip_ids[i],
-                                     system_desc->chip_descs()->Get(i)->arch());
-  }
+  m_devices.reserve(devices_count);
+  m_devices_raw.reserve(devices_count);
+  m_addressable_devices_raw.reserve(devices_count);
 
-  // For now, just make all devices addressable.
-  addressable_devices_.reserve(devices_.size());
-  for (DeviceInstance *device : devices_) {
-    addressable_devices_.push_back(device);
+  for (size_t i = 0; i < devices_count; ++i) {
+    int global_device_id = chip_ids[i];
+    int local_device_id = i;
+
+    // For now, just make all devices addressable.
+    bool is_addressable = true;
+
+    std::unique_ptr<DeviceInstance> device_instance =
+        DeviceInstance::createInstance(
+            global_device_id, is_addressable, local_device_id,
+            system_desc->chip_descs()->Get(i)->arch());
+
+    m_devices_raw.push_back(device_instance.get());
+    if (is_addressable) {
+      m_addressable_devices_raw.push_back(device_instance.get());
+    }
+
+    m_devices.emplace_back(std::move(device_instance));
   }
 
   return tt_pjrt_status::kSuccess;
@@ -217,6 +199,68 @@ std::tuple<uint64_t, uint64_t> ClientInstance::AdvanceTimeline() {
 
 namespace internal {
 
+PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
+
+  const std::vector<DeviceInstance *> &devices_raw =
+      ClientInstance::unwrap(args->client)->getDevicesRaw();
+
+  args->devices = reinterpret_cast<PJRT_Device *const *>(devices_raw.data());
+  args->num_devices = devices_raw.size();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices");
+
+  const std::vector<DeviceInstance *> &addressable_devices_raw =
+      ClientInstance::unwrap(args->client)->getAddressableDevicesRaw();
+
+  args->addressable_devices =
+      reinterpret_cast<PJRT_Device *const *>(addressable_devices_raw.data());
+  args->num_addressable_devices = addressable_devices_raw.size();
+
+  return nullptr;
+}
+
+PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice");
+
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  for (DeviceInstance *device_instance : client_instance->getDevicesRaw()) {
+    if (device_instance->getGlobalDeviceId() == args->id) {
+      args->device = *device_instance;
+      return nullptr;
+    }
+  }
+
+  DLOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
+
+  return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+}
+
+PJRT_Error *onClientLookupAddressableDevice(
+    PJRT_Client_LookupAddressableDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupAddressableDevice");
+
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  for (DeviceInstance *device_instance :
+       client_instance->getAddressableDevicesRaw()) {
+    if (device_instance->getLocalDeviceId() == args->local_hardware_id) {
+      args->addressable_device = *device_instance;
+      return nullptr;
+    }
+  }
+
+  DLOG_F(ERROR,
+         "Client addressable device lookup failed for device with local ID: %d",
+         args->id);
+
+  return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+}
+
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
@@ -232,16 +276,26 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
     return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
   }
 
-  tt_pjrt_status status =
-      DeviceInstance::unwrap(args->device)
-          ->HostBufferToDevice(
-              args->data, args->type, args->dims, args->num_dims,
-              args->byte_strides, args->num_byte_strides,
-              args->host_buffer_semantics,
-              reinterpret_cast<EventInstance **>(&args->done_with_host_buffer),
-              reinterpret_cast<BufferInstance **>(&args->buffer));
+  if (args->num_byte_strides != 0 && args->num_byte_strides != args->num_dims) {
+    DLOG_F(ERROR, "Invalid `num_byte_strides` argument");
+    return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+  }
 
-  return ErrorInstance::MakeError(status);
+  std::unique_ptr<BufferInstance> buffer =
+      BufferInstance::createInputBufferInstance(
+          args->type, args->dims, args->num_dims,
+          DeviceInstance::unwrap(args->device));
+
+  buffer->copyFromHost(
+      args->data, args->type, args->dims, args->num_dims, args->byte_strides,
+      args->num_byte_strides, args->host_buffer_semantics,
+      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Buffer_Destroy on buffer.
+  args->buffer = buffer.release();
+
+  return nullptr;
 }
 
 } // namespace internal

@@ -13,7 +13,7 @@
 #include <memory>
 #include <string>
 
-#include "common/pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/data_type_utils.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -48,7 +48,7 @@ ExecutableImage::ExecutableImage(
   m_output_dims.resize(m_result_count);
   m_output_strides.resize(m_result_count);
   for (int i = 0; i < m_result_count; i++) {
-    m_output_types[i] = tt::pjrt::utils::convertElementTypeToBufferType(
+    m_output_types[i] = tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
         output_specs[i].dataType);
 
     // PJRT expects an empty shape for scalars.

@@ -74,7 +74,7 @@ private:
       BufferInstance *buffer, std::vector<const void *> &data);
 
   // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
+  std::vector<std::uint32_t> getOutputShape(size_t index, size_t num_devices);
 
   // Returns is output on the specified index replicated.
   bool isOutputReplicated(size_t index) const;

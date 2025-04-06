@@ -14,28 +14,46 @@
 #include <stdexcept>
 #include <thread>
 
+// tt-mlir includes
+#include "tt/runtime/utils.h"
+
 // tt-xla includes
+#include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/device_instance.h"
-#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 
-BufferInstance::BufferInstance(
-    DeviceInstance &device, tt::runtime::Tensor &tensor,
-    const std::vector<std::uint32_t> &shape,
-    const std::vector<std::uint32_t> &stride,
-    std::pair<tt::target::DataType, size_t> tt_buffer_type)
-    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {}
+std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
+    PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
+    DeviceInstance *device) {
+  return std::make_unique<BufferInstance>(data_type, dims, num_dims, device);
+}
 
-BufferInstance::BufferInstance(
-    DeviceInstance &device, tt::runtime::Tensor &tensor,
-    const std::vector<std::uint32_t> &shape,
-    const std::vector<std::uint32_t> &stride,
-    std::pair<tt::target::DataType, size_t> tt_buffer_type,
-    std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), m_runtime_tensor(tensor),
-      host_buffer_ptr_(host_buffer_ptr), tt_buffer_type_(tt_buffer_type),
-      dims_(shape.begin(), shape.end()), stride_(stride) {}
+std::unique_ptr<BufferInstance>
+BufferInstance::createOutputBufferInstance(const tt::runtime::Tensor &tensor,
+                                           DeviceInstance *device) {
+  return std::make_unique<BufferInstance>(tensor, device);
+}
+
+BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
+                               const std::int64_t *dims, size_t num_dims,
+                               DeviceInstance *device)
+    : m_data_type(data_type), m_device(device), m_data_ready(false),
+      m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
+      m_data_deleted(false) {
+  m_dimensions.reserve(num_dims);
+  for (size_t i = 0; i < num_dims; ++i) {
+    m_dimensions.push_back(dims[i]);
+  }
+}
+
+BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
+                               DeviceInstance *device)
+    : m_data_type(tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
+          tt::runtime::getTensorDataType(tensor))),
+      m_device(device), m_runtime_tensor(tensor), m_data_ready(false),
+      m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
+      m_data_deleted(false) {}
 
 BufferInstance::~BufferInstance() { deleteData(); }
 
@@ -49,23 +67,9 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
-  api->PJRT_Buffer_IsOnCpu =
-      +[](PJRT_Buffer_IsOnCpu_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
-    args->is_on_cpu = BufferInstance::unwrap(args->buffer)->is_on_cpu();
-    return nullptr;
-  };
-  api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
-    args->device = BufferInstance::unwrap(args->buffer)->device();
-    return nullptr;
-  };
+  api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
+  api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
-  api->PJRT_Buffer_UnsafePointer =
-      +[](PJRT_Buffer_UnsafePointer_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnsafePointer");
-    return nullptr;
-  };
 }
 
 size_t BufferInstance::getRuntimeTensorSize() const {
@@ -74,15 +78,6 @@ size_t BufferInstance::getRuntimeTensorSize() const {
       tt::runtime::getTensorElementSize(m_runtime_tensor);
 
   return static_cast<size_t>(runtime_tensor_size);
-}
-
-tt_pjrt_status BufferInstance::copyFromHost() {
-  // TODO_OOM: finish
-}
-
-// TODO_OOM: remove
-void *BufferInstance::getHostBuffer() {
-  return m_host_buffer_copy ? m_host_buffer_copy.get() : m_aliased_host_buffer;
 }
 
 bool BufferInstance::isDataDeleted() {
@@ -101,7 +96,93 @@ void BufferInstance::deleteData() {
   }
 
   tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
+
   m_data_deleted = true;
+  if (m_done_with_host_buffer_event) {
+    m_done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+  }
+}
+
+tt_pjrt_status BufferInstance::copyFromHost(
+    const void *host_buffer, PJRT_Buffer_Type data_type,
+    const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
+    size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
+    EventInstance **out_done_with_host_buffer_event) {
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+  std::vector<std::uint32_t> strides =
+      calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
+
+  std::unique_ptr<EventInstance> done_with_host_buffer_event =
+      EventInstance::createInstance();
+
+  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
+  // we are not allowed to alias it directly, so we have to create owned host
+  // buffer, i.e. to copy its data. In JAX this semantic is used only for
+  // copying scalars and numpy arrays, so the copy shouldn't take long.
+  if (host_buffer_semantics ==
+      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
+    m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+        host_buffer, shape, strides, element_size, runtime_data_type);
+    // Memory is copied, we don't need host buffer anymore.
+    done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+  } else {
+    m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
+        host_buffer, shape, strides, element_size, runtime_data_type);
+    // Memory is aliased, we need to hold on to host buffer until this buffer is
+    // deleted.
+    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+  }
+
+  markAsDataReady();
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Event_Destroy on event.
+  *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
+}
+
+std::vector<std::uint32_t>
+BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims) {
+  if (num_dims == 0) {
+    // Our compiler and runtime don't support scalars so we convert them to 1D
+    // tensors.
+    return {1};
+  }
+
+  std::vector<std::uint32_t> shape;
+  for (size_t i = 0; i < num_dims; ++i) {
+    shape.push_back(dims[i]);
+  }
+
+  return shape;
+}
+
+std::vector<std::uint32_t> BufferInstance::calculateStrides(
+    size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
+    std::uint32_t element_size) {
+  if (num_dims == 0) {
+    // Our compiler and runtime don't support scalars so we convert them to 1D
+    // tensors.
+    return {1};
+  }
+
+  assert(num_byte_strides == 0 || num_byte_strides == num_dims);
+
+  std::vector<std::uint32_t> strides;
+  for (size_t i = 0; i < num_dims; ++i) {
+    // If no strides are given the array is assumed to have a dense layout with
+    // dimensions in major-to-minor order.
+    std::uint32_t stride =
+        num_byte_strides == 0
+            ? 1
+            : (byte_strides[i] / static_cast<std::int64_t>(element_size));
+    stride.push_back(stride);
+  }
+
+  return strides;
 }
 
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
@@ -120,6 +201,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   }
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+
+  // TODO_OOM: call toHost
 
   std::thread(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
@@ -144,11 +227,37 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   return tt_pjrt_status::kSuccess;
 }
 
-// TODO_OOM: remove
-PJRT_Buffer_Type BufferInstance::getRuntimeType() {
-  DLOG_F(LOG_DEBUG, "BufferInstance::element_type");
-  tt::target::DataType Type = tt::runtime::getTensorDataType(getTensor());
-  return tt::pjrt::utils::convertElementTypeToBufferType(Type);
+void BufferInstance::markAsDataReady() {
+  assert(!m_data_ready);
+
+  std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
+
+  m_data_ready = true;
+  if (m_data_ready_event) {
+    m_data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
+  }
+}
+
+tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
+  if (m_data_ready_event) {
+    DLOG_F(ERROR, "Buffer marked as data ready multiple times");
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
+
+  std::unique_ptr<EventInstance> data_ready_event =
+      EventInstance::createInstance();
+  if (m_data_ready) {
+    data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
+  }
+  m_data_ready_event = data_ready_event.get();
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Event_Destroy on event.
+  *out_event = data_ready_event.release();
+
+  return tt_pjrt_status::kSuccess;
 }
 
 namespace internal {
@@ -174,7 +283,7 @@ PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
-  args->dims = buffer->getRawDimensions();
+  args->dims = buffer->getDimensionsRaw();
   args->num_dims = buffer->getNumberOfDimensions();
 
   return nullptr;
@@ -186,7 +295,7 @@ onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
   // We don't support dynamic dimensions with padding yet.
-  args->unpadded_dims = buffer->getRawDimensions();
+  args->unpadded_dims = buffer->getDimensionsRaw();
   args->num_dims = buffer->getNumberOfDimensions();
 
   return nullptr;
@@ -244,19 +353,30 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   return nullptr;
 }
 
+PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
+
+  // Currently all our inputs are transferred to device where computation runs.
+  args->is_on_cpu = false;
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
+
+  args->device = *BufferInstance::unwrap(args->buffer)->getDevice();
+
+  return nullptr;
+}
+
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
 
-  // TODO_OOM: finish
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
-  std::unique_ptr<EventInstance> onReadyEvent =
-      std::make_unique<EventInstance>();
-  buffer->on_ready_event_ = onReadyEvent.get();
-  // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on event.
-  args->event = *onReadyEvent.release();
 
-  return nullptr;
+  return ErrorInstance::MakeError(buffer->createDataReadyEvent(
+      reinterpret_cast<EventInstance **>(&args->event)));
 }
 
 } // namespace internal

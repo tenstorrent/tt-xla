@@ -24,7 +24,6 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
-#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 
@@ -181,7 +180,7 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::unordered_map<std::string, std::string> &strategy,
     BufferInstance *buffer, std::vector<const void *> &data) {
   if (strategy.at("strategy") == "identity") {
-    return buffer->getTensor();
+    return buffer->getRuntimeTensor();
   }
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
       buffer->get_tt_buffer_type();
@@ -193,8 +192,9 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
 }
 
 std::vector<std::uint32_t>
-LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
+LoadedExecutableInstance::getOutputShape(size_t index, size_t num_devices) {
   std::vector<std::uint32_t> outputShape = image_->get_output_shape(index);
+  // TODO_OOM: What if outputShape is empty (for scalars)?
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       image_->getOutputSharding(index);
   mlir::FailureOr<std::unordered_map<std::string, std::string>>
@@ -239,7 +239,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       tt::runtime::Tensor output_tensor =
           getOuputTensor(device_index, output_index, rt_outputs_list);
       std::vector<std::uint32_t> output_shape =
-          getOuputShape(output_index, num_devices);
+          getOutputShape(output_index, num_devices);
       std::pair<tt::target::DataType, size_t> type_pair = {
           output_specs[output_index].dataType,
           output_specs[output_index].itemsize};

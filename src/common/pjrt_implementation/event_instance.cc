@@ -29,7 +29,7 @@ EventInstance::EventInstance()
       [](EventInstance *event_instance) {
         std::unique_lock<std::mutex> ready_lock(event_instance->m_ready_mutex);
         event_instance->m_ready_condition.wait(
-            ready_lock, [] { return event_instance->m_ready; });
+            ready_lock, [event_instance] { return event_instance->m_ready; });
         ready_lock.unlock();
 
         // Copying the status and callbacks vector instead of accessing them
@@ -86,12 +86,12 @@ void EventInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Event_OnReady = internal::onEventOnReady;
 }
 
-bool EventInstance::isReady() const {
+bool EventInstance::isReady() {
   std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
   return m_ready;
 }
 
-PJRT_Error *EventInstance::getErrorFromStatus() const {
+PJRT_Error *EventInstance::getErrorFromStatus() {
   return ErrorInstance::MakeError(m_status);
 }
 
@@ -126,7 +126,42 @@ void EventInstance::markAsReady(tt_pjrt_status status) {
 
 void EventInstance::await() {
   std::unique_lock<std::mutex> ready_lock(m_ready_mutex);
-  m_ready_condition.wait(ready_lock, [] { return m_ready; });
+  m_ready_condition.wait(ready_lock, [this] { return m_ready; });
+}
+
+void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
+                            void *user_arg) {
+  // PJRT docs don't specify on which thread should the callbacks be executed.
+  // Relevant comments from the XLA implementation:
+  // - "Callback may be called on an internal system thread or the calling
+  //   thread."
+  // - "If the value is available or becomes available, this invokes the waiter
+  //   immediately. Otherwise, adds the waiter to the waiter list and calls it
+  //   when the value becomes available."
+  // - "By default the waiter callback is executed on the caller thread if async
+  //   value is already available, or on a thread that sets async value
+  //   available (emplacing a value or setting an error), which can accidentally
+  //   lead to executing a very expensive computations on a low-latency thread."
+  //
+  // Based on this we decide to invoke the callback immediately on the calling
+  // thread if the event is ready, otherwise to add it to the list so it can be
+  // executed on a separate thread once the event is ready. We don't execute the
+  // pending callbacks on a thread which marks event as ready and instead do it
+  // on a separate thread to avoid doing expensive computations on a low-latency
+  // thread (as the XLA comment warns).
+
+  if (m_ready) {
+    callback_function(getErrorFromStatus(), user_arg);
+  } else {
+    std::unique_lock<std::mutex> ready_lock(m_ready_mutex);
+    if (m_ready) {
+      // No need to hold the lock while the callback executes.
+      ready_lock.unlock();
+      callback_function(getErrorFromStatus(), user_arg);
+    } else {
+      m_on_ready_callbacks.push_back({callback_function, user_arg});
+    }
+  }
 }
 
 namespace internal {
@@ -154,7 +189,7 @@ PJRT_Error *onEventIsReady(PJRT_Event_IsReady_Args *args) {
 PJRT_Error *onEventError(PJRT_Event_Error_Args *args) {
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Error");
 
-  EventInstance *event_instance = EventInstance::Unwrap(args->event);
+  EventInstance *event_instance = EventInstance::unwrap(args->event);
   if (!event_instance->isReady()) {
     // PJRT docs state that PJRT_Event_Error should only be called if
     // PJRT_Event_IsReady returns true. XLA PJRT implementation aborts if this
@@ -169,7 +204,7 @@ PJRT_Error *onEventError(PJRT_Event_Error_Args *args) {
 PJRT_Error *onEventAwait(PJRT_Event_Await_Args *args) {
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Await");
 
-  EventInstance *event_instance = EventInstance::Unwrap(args->event);
+  EventInstance *event_instance = EventInstance::unwrap(args->event);
   event_instance->await();
 
   return event_instance->getErrorFromStatus();
@@ -178,39 +213,9 @@ PJRT_Error *onEventAwait(PJRT_Event_Await_Args *args) {
 PJRT_Error *onEventOnReady(PJRT_Event_OnReady_Args *args) {
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_OnReady");
 
-  EventInstance *event_instance = EventInstance::Unwrap(args->event);
+  EventInstance *event_instance = EventInstance::unwrap(args->event);
 
-  // PJRT docs don't specify on which thread should the callbacks be executed.
-  // Relevant comments from the XLA implementation:
-  // - "Callback may be called on an internal system thread or the calling
-  //   thread."
-  // - "If the value is available or becomes available, this invokes the waiter
-  //   immediately. Otherwise, adds the waiter to the waiter list and calls it
-  //   when the value becomes available."
-  // - "By default the waiter callback is executed on the caller thread if async
-  //   value is already available, or on a thread that sets async value
-  //   available (emplacing a value or setting an error), which can accidentally
-  //   lead to executing a very expensive computations on a low-latency thread."
-  //
-  // Based on this we decide to invoke the callback immediately on the calling
-  // thread if the event is ready, otherwise to add it to the list so it can be
-  // executed on a separate thread once the event is ready. We don't execute the
-  // pending callbacks on a thread which marks event as ready and instead do it
-  // on a separate thread to avoid doing expensive computations on a low-latency
-  // thread (as the XLA comment warns).
-
-  if (m_ready) {
-    args->callback(event_instance->getErrorFromStatus(), args->user_arg);
-  } else {
-    std::unique_lock<std::mutex> ready_lock(m_ready_mutex);
-    if (m_ready) {
-      // No need to hold the lock while the callback executes.
-      ready_lock.unlock();
-      args->callback(event_instance->getErrorFromStatus(), args->user_arg);
-    } else {
-      m_on_ready_callbacks.push_back({args->callback, args->user_arg});
-    }
-  }
+  event_instance->onReady(args->callback, args->user_arg);
 
   return nullptr;
 }
