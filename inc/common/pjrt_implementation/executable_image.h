@@ -36,7 +36,8 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar);
+      const std::vector<bool> &is_output_scalar,
+      std::unique_ptr<mlir::ModuleOp> &&mlir_module);
 
   operator PJRT_Executable *() {
     return reinterpret_cast<PJRT_Executable *>(this);
@@ -68,6 +69,10 @@ public:
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
   size_t get_num_outputs() const { return m_output_types.size(); }
+
+  const std::unique_ptr<mlir::ModuleOp> &get_stablehlo_module() const {
+    return m_stablehlo_module;
+  }
 
   // Checks if the output on the i-th index is a scalar.
   bool isOutputScalar(size_t index) const;
@@ -128,6 +133,8 @@ private:
   // Stores all output dimensions concatenated in a flat array. Nullptr until
   // its getter is called.
   std::unique_ptr<int64_t[]> m_output_dims_concatenated;
+
+  std::unique_ptr<mlir::ModuleOp> m_stablehlo_module;
 
   // For every output, holds its stride.
   std::vector<std::vector<uint32_t>> m_output_strides;

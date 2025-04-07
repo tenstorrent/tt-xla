@@ -24,10 +24,12 @@ ExecutableImage::ExecutableImage(
     const tt::runtime::Binary &binary, std::string code,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<bool> &is_output_scalar)
+    const std::vector<bool> &is_output_scalar,
+    std::unique_ptr<mlir::ModuleOp> &&mlir_module)
     : m_ref_count(1), m_binary(binary), m_code(code),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
-      m_is_output_scalar(is_output_scalar) {
+      m_is_output_scalar(is_output_scalar),
+      m_stablehlo_module(std::move(mlir_module)) {
 
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_binary.getProgramOutputs(0);

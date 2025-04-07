@@ -5,7 +5,8 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs, InterpreterCheck
+
 
 from tests.utils import Category
 
@@ -29,3 +30,5 @@ def test_add(x_shape: tuple, y_shape: tuple):
         return jnp.add(x, y)
 
     run_op_test_with_random_inputs(add, [x_shape, y_shape])
+    int_check = InterpreterCheck("interpreter_log")
+    print(int_check.compare_tensors())

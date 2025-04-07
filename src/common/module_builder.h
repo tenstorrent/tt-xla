@@ -52,6 +52,10 @@ public:
     return m_output_shardings;
   }
 
+  std::unique_ptr<mlir::ModuleOp> releaseStableHLOModule() {
+    return std::move(m_stablehlo_module);
+  }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -153,6 +157,9 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // StableHLO code of the module.
+  std::unique_ptr<mlir::ModuleOp> m_stablehlo_module;
 };
 
 } // namespace tt::pjrt

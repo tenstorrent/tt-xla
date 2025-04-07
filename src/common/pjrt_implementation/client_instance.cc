@@ -213,7 +213,8 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
                           std::string(program->code, program->code_size),
                           module_builder_->getInputShardings(),
                           module_builder_->getOutputShardings(),
-                          module_builder_->getIsOutputScalar()),
+                          module_builder_->getIsOutputScalar(),
+                          module_builder_->releaseStableHLOModule()),
       addressable_devices_, module_builder_->getNumDevicesToUtilize());
   *out_executable = executable.release();
   return nullptr;

@@ -102,6 +102,10 @@ private:
   getOuputTensor(size_t device_index, size_t output_index,
                  const std::vector<std::vector<tt::runtime::Tensor>>
                      &rt_outputs_list) const;
+
+  std::vector<mlir::DenseElementsAttr>
+  getInputElementsAttr(const std::vector<tt::runtime::Tensor> &rt_inputs_list,
+                       const std::unique_ptr<mlir::ModuleOp> &stablehlo_module);
 };
 
 } // namespace tt::pjrt

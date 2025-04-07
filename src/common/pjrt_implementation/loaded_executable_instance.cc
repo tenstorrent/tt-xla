@@ -11,11 +11,16 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/status.h"
 
+#include <iostream>
 #include <string>
 #include <unordered_map>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "stablehlo/reference/Api.h"
+#include "stablehlo/reference/Errors.h"
+#include "stablehlo/reference/InterpreterOps.h"
+#include "stablehlo/reference/InterpreterPasses.h"
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
@@ -115,6 +120,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     // get the needed information.
     rt_inputs.push_back(getTensorFromStrategy(*strategy, buffer, data));
   }
+
+  getInputElementsAttr(rt_inputs, image_->get_stablehlo_module());
 
   std::vector<int> device_ids = getDeviceIds(
       args->argument_lists, addressable_devices_, args->num_args, num_devices);
@@ -292,6 +299,34 @@ tt::runtime::Tensor LoadedExecutableInstance::getOuputTensor(
   return isOutputReplicated(output_index)
              ? rt_outputs_list[0][output_index]
              : rt_outputs_list[device_index][output_index];
+}
+
+std::vector<mlir::DenseElementsAttr>
+LoadedExecutableInstance::getInputElementsAttr(
+    const std::vector<tt::runtime::Tensor> &rt_inputs,
+    const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) {
+
+  std::vector<mlir::DenseElementsAttr> elements_attr;
+  for (const tt::runtime::Tensor &input : rt_inputs) {
+    tt::target::DataType Type = tt::runtime::getTensorDataType(input);
+    std::vector<std::byte> vec = tt::runtime::getTensorDataBuffer(input);
+    std::vector<float> values(
+        reinterpret_cast<float *>(vec.data()),
+        reinterpret_cast<float *>(vec.data() + vec.size()));
+    auto shape_32 = tt::runtime::getTensorShape(input);
+    std::vector<int64_t> shape(shape_32.begin(), shape_32.end());
+    auto tensorType = mlir::RankedTensorType::get(
+        shape, mlir::Float32Type::get(stablehlo_module->getContext()));
+    auto denseAttr1 =
+        mlir::DenseElementsAttr::get(tensorType, llvm::ArrayRef(values));
+    elements_attr.push_back(denseAttr1);
+  }
+  mlir::stablehlo::InterpreterConfiguration config;
+  config.probeInstrumentationDir = "interpreter_log/";
+  auto results = mlir::stablehlo::evalModule(*stablehlo_module.get(),
+                                             elements_attr, config);
+
+  return elements_attr;
 }
 
 } // namespace tt::pjrt
