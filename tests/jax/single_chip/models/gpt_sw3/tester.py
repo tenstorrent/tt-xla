@@ -7,6 +7,7 @@ from typing import Dict, Sequence
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import GPTSw3Tokenizer, FlaxPreTrainedModel, FlaxGPT2LMHeadModel
+from jaxtyping import PyTree
 
 
 class GPTSw3Tester(ModelTester):
@@ -29,16 +30,16 @@ class GPTSw3Tester(ModelTester):
     def _get_input_activations(self) -> Sequence[jax.Array]:
         tokenizer = GPTSw3Tokenizer.from_pretrained(self._model_name)
         inputs = tokenizer(
-            "Träd är fina för att", return_tensors="np"
+            "Träd är fina för att", return_tensors="jax"
         )  # input is a swedish statement
-        return inputs["input_ids"]
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
 
     # @override

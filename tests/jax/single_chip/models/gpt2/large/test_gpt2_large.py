@@ -53,7 +53,7 @@ def training_tester() -> GPT2Tester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=9.953690528869629. Required: atol=0.16 "
+        "Atol comparison failed. Calculated: atol=4874108.0. Required: atol=0.16 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )

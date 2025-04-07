@@ -10,6 +10,7 @@ from transformers import (
     FlaxMBartForConditionalGeneration,
     FlaxPreTrainedModel,
 )
+from jaxtyping import PyTree
 
 
 class MBartTester(ModelTester):
@@ -29,17 +30,17 @@ class MBartTester(ModelTester):
         return FlaxMBartForConditionalGeneration.from_pretrained(self._model_name)
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
-        return inputs["input_ids"]
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
 
     # override
