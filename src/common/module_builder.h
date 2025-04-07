@@ -52,6 +52,10 @@ public:
     return m_output_shardings;
   }
 
+  const std::vector<std::uint32_t> &getMeshShape() const {
+    return m_mesh_shape;
+  }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -111,6 +115,9 @@ private:
   // Checks if the jax is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Collect the mesh shape needed by the module.
+  void collectMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
   mlir::LogicalResult createShardingsFromGSPMD(
@@ -153,6 +160,9 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // Device mesh shape required by this module.
+  std::vector<std::uint32_t> m_mesh_shape;
 };
 
 } // namespace tt::pjrt
