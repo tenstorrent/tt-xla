@@ -123,33 +123,14 @@ ModuleBuilder::buildModule(const std::string_view &code,
     m_status = tt_pjrt_status::kInternal;
     return m_status;
   }
-  std::cerr << "I AM HERE" << std::endl;
   auto tensorType = mlir::RankedTensorType::get({64, 64}, mlir::Float32Type::get(m_context.get()));
   std::vector<float> values1(64 * 64, 1.0f); // Initialize all elements to 0.0f
   auto denseAttr1 = mlir::DenseElementsAttr::get(tensorType, llvm::ArrayRef(values1));
   std::vector<float> values2(64 * 64, 1.0f); // Initialize all elements to 0.0f
   auto denseAttr2 = mlir::DenseElementsAttr::get(tensorType, llvm::ArrayRef(values2));
   mlir::stablehlo::InterpreterConfiguration config;
-  std::cerr << "I AM THERE" << std::endl;
-  config.probeInstrumentationDir = "tmp/";
+  config.probeInstrumentationDir = "interpreter_log/";
   auto results = mlir::stablehlo::evalModule(mlir_module.get(), {denseAttr1, denseAttr2}, config);
-  denseAttr1.dump();
-  denseAttr2.dump();
-  std::cerr << "#############" << std::endl;
-  for (auto& result : results.value())
-  {
-    result.dump();
-  }
-  std::cerr << "#############" << std::endl;
-
-  std::cerr << "-----------------" << std::endl;
-  mlir_module->walk([&](mlir::Operation *op) {
-    if (llvm::isa<mlir::stablehlo::interpreter::ProbeOp>(op)) {
-      std::cerr << "Found a ProbeOp: ";
-      op->dump();
-    }
-  });
-  std::cerr << "-----------------" << std::endl;
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
