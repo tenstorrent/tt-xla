@@ -103,9 +103,23 @@ private:
                  const std::vector<std::vector<tt::runtime::Tensor>>
                      &rt_outputs_list) const;
 
-  std::vector<mlir::DenseElementsAttr>
-  getInputElementsAttr(const std::vector<tt::runtime::Tensor> &rt_inputs_list,
-                       const std::unique_ptr<mlir::ModuleOp> &stablehlo_module);
+  std::vector<mlir::DenseElementsAttr> getInputElementsAttr(
+      const std::vector<tt::runtime::Tensor> &rt_inputs_list,
+      const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
+
+  void runInterpreterOnModule(
+      const std::vector<tt::runtime::Tensor> &rt_inputs,
+      const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
+
+  float convertBFloat16To32(uint16_t value) const;
+
+  llvm::FailureOr<mlir::DenseElementsAttr> getDenseElementsAttrFromBuffer(
+      const tt::runtime::Tensor &tensor,
+      const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
+
+  mlir::Type MapBufferTypeToMlirTypes(
+      tt::target::DataType data_type,
+      const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
 };
 
 } // namespace tt::pjrt

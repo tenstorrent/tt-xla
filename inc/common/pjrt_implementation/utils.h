@@ -12,6 +12,7 @@
 
 #include "common/pjrt_implementation/error_instance.h"
 
+#include "mlir/IR/Types.h"
 #include "tt/runtime/runtime.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_UTILS_H_

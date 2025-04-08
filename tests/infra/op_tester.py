@@ -12,6 +12,7 @@ from .device_runner import DeviceRunner
 from .types import Tensor
 from .utils import random_tensor
 from .workload import Workload
+from .interpreter_check import InterpreterCheck
 
 
 class OpTester(BaseTester):
@@ -67,6 +68,8 @@ def run_op_test(
     tester = OpTester(comparison_config)
     workload = Workload(op, inputs)
     tester.test(workload)
+    int_check = InterpreterCheck("interpreter_log")
+    int_check.compare_tensors()
 
 
 def run_op_test_with_random_inputs(
@@ -82,3 +85,5 @@ def run_op_test_with_random_inputs(
     """
     tester = OpTester(comparison_config)
     tester.test_with_random_inputs(op, input_shapes, minval, maxval)
+    int_check = InterpreterCheck("interpreter_log")
+    int_check.compare_tensors()
