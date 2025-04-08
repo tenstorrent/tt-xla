@@ -30,7 +30,7 @@ public:
   }
   static void bindApi(PJRT_Api *api);
 
-  static DeviceDescription *Unwrap(PJRT_DeviceDescription *device) {
+  static DeviceDescription *unwrap(PJRT_DeviceDescription *device) {
     return reinterpret_cast<DeviceDescription *>(device);
   }
 
@@ -46,6 +46,7 @@ public:
   // should be reasonably terse.
   const std::string &toString() const { return m_user_string; }
 
+  // Returns global device ID.
   int getDeviceId() const { return m_device_id; }
 
   int getProcessIndex() const { return 0; }

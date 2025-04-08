@@ -8,8 +8,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+// c++ standard library includes
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+// PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
+// tt-xla includes
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/executable_image.h"
 #include "common/status.h"
@@ -19,91 +30,116 @@
 
 namespace tt::pjrt {
 
-struct ResidentExecutable {
-  DeviceInstance *device_instance;
-  size_t arg_count;
-  size_t result_count;
-};
-
+// TODO_OOM: Explain.
 class LoadedExecutableInstance {
 public:
+  // TODO_OOM: Explain.
   LoadedExecutableInstance(
-      ClientInstance &client, ExecutableImage *image,
+      ExecutableImage *executable_image,
       const std::vector<DeviceInstance *> &addressable_devices,
       size_t num_devices_to_utilize)
-      : client_(client), image_(image),
-        addressable_devices_(addressable_devices),
-        num_devices_to_utilize_(num_devices_to_utilize) {}
+      : m_executable_image(image), m_addressable_devices(addressable_devices),
+        m_num_devices_to_utilize(num_devices_to_utilize) {}
 
+  // TODO_OOM: Explain.
   ~LoadedExecutableInstance();
 
+  // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
+  // structure.
+  static void bindApi(PJRT_Api *api);
+
+  // Casts this loaded executable instance to PJRT_LoadedExecutable and returns
+  // pointer to it.
   operator PJRT_LoadedExecutable *() {
     return reinterpret_cast<PJRT_LoadedExecutable *>(this);
   }
-  static void BindApi(PJRT_Api *api);
-  static LoadedExecutableInstance *Unwrap(PJRT_LoadedExecutable *exe) {
+
+  // Casts the PJRT_LoadedExecutable pointer to LoadedExecutableInstance
+  // pointer.
+  static LoadedExecutableInstance *unwrap(PJRT_LoadedExecutable *exe) {
     return reinterpret_cast<LoadedExecutableInstance *>(exe);
   }
 
+  // TODO_OOM: Explain.
   const std::vector<DeviceInstance *> &addressable_devices() {
-    return addressable_devices_;
+    return m_addressable_devices;
   }
 
-  size_t get_num_devices_to_utilize() const { return num_devices_to_utilize_; }
+  // TODO_OOM: Explain.
+  size_t get_num_devices_to_utilize() const { return m_num_devices_to_utilize; }
 
-  // Loads all executables to addressable devices.
-  tt_pjrt_status LoadAll();
-
-  tt_pjrt_status GetDefaultResidentExecutable(ResidentExecutable **out_loaded);
-  tt_pjrt_status GetArgResultCount(size_t *out_arg_count,
-                                   size_t *out_result_count);
-
+  // TODO_OOM: Explain.
   tt_pjrt_status Execute(PJRT_LoadedExecutable_Execute_Args *args);
 
 private:
-  ClientInstance &client_;
-  ExecutableImage *image_; // Ref-counted semantics.
-  std::vector<DeviceInstance *> addressable_devices_;
-  size_t num_devices_to_utilize_;
-  std::vector<ResidentExecutable> resident_executables_;
+  // Opens devices on which input arguments are placed, which we assume are the
+  // the devices where computation will run.
+  static tt::runtime::Device
+  openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
+              size_t num_devices,
+              const std::vector<DeviceInstance *> &addressable_devices);
 
-  // Returns a runtime tensor given a creation strategy and a vestor of pointers
-  // to data.
-  tt::runtime::Tensor getTensorFromStrategy(
-      const std::unordered_map<std::string, std::string> &strategy,
-      BufferInstance *buffer, std::vector<const void *> &data);
+  // Collects device ids from the addressable devices.
+  static std::vector<int>
+  getDeviceIds(PJRT_Buffer *const *const *argument_lists, size_t num_args,
+               size_t num_devices,
+               const std::vector<DeviceInstance *> &addressable_devices);
 
-  // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOutputShape(size_t index, size_t num_devices);
+  // Gets input runtime tensors from the arguments' buffers and converts them to
+  // desired layout determined from the compiled graph.
+  static std::vector<tt::runtime::Tensor> getInputRuntimeTensors(
+      PJRT_Buffer *const *const *argument_lists, size_t num_args,
+      size_t num_devices, tt::runtime::Device runtime_device,
+      const tt::runtime::Binary &runtime_binary, std::uint32_t program_index,
+      std::vector<tt::runtime::Tensor> &input_tensors);
 
-  // Returns is output on the specified index replicated.
-  bool isOutputReplicated(size_t index) const;
+  // Either returns single tensor or creates multi-device host tensor from arg
+  // tensors, depending on the strategy.
+  static tt::runtime::Tensor getTensorFromStrategy(
+      const std::vector<tt::runtime::Tensor> &arg_tensors,
+      const std::unordered_map<std::string, std::string> &strategy);
+
+  // Untilizes output tensors and transfers them from device to host. Output
+  // tensors are in [`num_devices`, `num_args`] format as PJRT expects.
+  static tt_pjrt_status untilizeToHost(
+      const std::vector<tt::runtime::Tensor> &output_tensors,
+      std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
+
+  // TODO_OOM: Check what can be made static
 
   // Fills the output lists of the PJRT API with the outputs of tt runtime
   // execution.
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
-      const std::vector<tt::runtime::TensorDesc> &output_specs,
       size_t num_devices, PJRT_Buffer **const *output_lists);
-
-  // Gets the device ids from the addressable devices.
-  std::vector<int>
-  getDeviceIds(PJRT_Buffer *const *const *argument_lists,
-               const std::vector<DeviceInstance *> &addressable_devices,
-               size_t num_args, size_t num_devices);
 
   // Given an output list, return the number of outputs of an executable.
   size_t getNumberOfOutputs(const std::vector<std::vector<tt::runtime::Tensor>>
-                                &rt_outputs_list) const;
+                                &untilized_output_tensors) const;
 
   // Return a tensor representing an output on a particular device with a
   // particular index.
   tt::runtime::Tensor
-  getOuputTensor(size_t device_index, size_t output_index,
-                 const std::vector<std::vector<tt::runtime::Tensor>>
-                     &rt_outputs_list) const;
+  getOutputTensor(size_t device_index, size_t output_index,
+                  const std::vector<std::vector<tt::runtime::Tensor>>
+                      &untilized_output_tensors) const;
+
+  // Returns is output on the specified index replicated.
+  bool isOutputReplicated(size_t index) const;
+
+  // Returns the shape of the output on the specified index.
+  std::vector<std::uint32_t> getOutputShape(size_t index, size_t num_devices);
+
+  // TODO_OOM: Explain.
+  ExecutableImage *m_executable_image; // Ref-counted semantics.
+
+  // TODO_OOM: Explain.
+  const std::vector<DeviceInstance *> m_addressable_devices;
+
+  // TODO_OOM: Explain.
+  const size_t m_num_devices_to_utilize;
 };
 
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_

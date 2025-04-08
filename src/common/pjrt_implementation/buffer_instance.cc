@@ -29,10 +29,10 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
   return std::make_unique<BufferInstance>(data_type, dims, num_dims, device);
 }
 
-std::unique_ptr<BufferInstance>
-BufferInstance::createOutputBufferInstance(const tt::runtime::Tensor &tensor,
-                                           DeviceInstance *device) {
-  return std::make_unique<BufferInstance>(tensor, device);
+std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
+    const tt::runtime::Tensor &tensor,
+    const std::vector<std::uint32_t> &dimensions, DeviceInstance *device) {
+  return std::make_unique<BufferInstance>(tensor, dimensions, device);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
@@ -48,12 +48,18 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
 }
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
+                               const std::vector<std::uint32_t> &dimensions,
                                DeviceInstance *device)
     : m_data_type(tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
           tt::runtime::getTensorDataType(tensor))),
-      m_device(device), m_runtime_tensor(tensor), m_data_ready(false),
+      m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
+      m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {}
+      m_data_deleted(false) {
+  // We want to be in control when buffers are deallocated, which happens during
+  // buffer destruction or on delete/destroy API calls.
+  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
+}
 
 BufferInstance::~BufferInstance() { deleteData(); }
 
@@ -137,6 +143,10 @@ tt_pjrt_status BufferInstance::copyFromHost(
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
   }
 
+  // We want to be in control when input buffers are deallocated, which happens
+  // during buffer destruction or on delete/destroy API calls.
+  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
+
   markAsDataReady();
 
   // Releasing the ownership to the PJRT API caller since the caller is
@@ -201,8 +211,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   }
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
-
-  // TODO_OOM: call toHost
 
   std::thread(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,

@@ -53,7 +53,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   EventInstance::bindApi(api);
   ErrorInstance::BindApi(api);
   ExecutableImage::BindApi(api);
-  LoadedExecutableInstance::BindApi(api);
+  LoadedExecutableInstance::bindApi(api);
 }
 
 void BindUndefineds(PJRT_Api *api) {
