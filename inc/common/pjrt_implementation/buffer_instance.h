@@ -30,8 +30,18 @@ namespace tt::pjrt {
 
 class DeviceInstance;
 
-// Represents PJRT_Buffer structure (device buffer) and the functionality
-// around it. Wraps `tt::runtime::Tensor` underneath.
+// Represents `PJRT_Buffer` structure and the functionality around it. Wraps
+// `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
+// device buffers, but our runtime tensor will always be the host tensor,
+// created either by copying from host memory or by copying from device. We do
+// the transfer to device memory at the beginning of
+// `PJRT_LoadedExecutable_Execute` function, and transfer from device memory at
+// the end. The reason is that we can't know the layout in which transfer needs
+// to be done until compilation is done. Theoretically we could update the host
+// tensor with device tensor during first execute, and cache it for later
+// executions which use the same input buffer, but it would cause issues if
+// multiple executions are running simultaneously and they update the buffer
+// with different device tensors.
 class BufferInstance {
 public:
   // Creates new buffer instance for input buffer.
@@ -43,6 +53,7 @@ public:
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
+                             const std::vector<std::uint32_t> &dimensions,
                              DeviceInstance *device);
 
   // Destructor, deletes buffer data if not already deleted.
@@ -117,7 +128,9 @@ private:
                  size_t num_dims, DeviceInstance *device);
 
   // Constructor used for the output buffers.
-  BufferInstance(const tt::runtime::Tensor &tensor, DeviceInstance *device);
+  BufferInstance(const tt::runtime::Tensor &tensor,
+                 const std::vector<std::uint32_t> &dimensions,
+                 DeviceInstance *device);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,

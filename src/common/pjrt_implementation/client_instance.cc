@@ -178,7 +178,6 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
   }
 
   auto executable = std::make_unique<LoadedExecutableInstance>(
-      *this,
       new ExecutableImage(module_builder_->getBinary(),
                           std::string(program->code, program->code_size),
                           module_builder_->getInputShardings(),
