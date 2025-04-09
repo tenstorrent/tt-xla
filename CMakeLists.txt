@@ -28,6 +28,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 set(CMAKE_INSTALL_PREFIX ${TTPJRT_SOURCE_DIR}/install)
 
+option(ENABLE_TTRT "Build TTRT" OFF)
+
 add_library(coverage_config INTERFACE)
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
 if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

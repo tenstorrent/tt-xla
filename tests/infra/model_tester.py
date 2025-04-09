@@ -6,24 +6,38 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Dict, Mapping, Sequence, Union
+from typing import Any, Callable, Dict, List, Mapping, Sequence, Union
 
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
+from ttmlir.pydantic_models import OpTest
+from ttmlir.workflows import (
+    compile_split_and_execute,
+    split_and_execute,
+    split_compile_split_and_execute,
+)
 
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
 from .types import Model
+from .utils import workload_as_mlir_module_str
 from .workload import Workload
 
 
 class RunMode(Enum):
     INFERENCE = "inference"
+    INFERENCE_OP_BY_OP = "inference_op_by_op"
     TRAINING = "training"
 
     def __str__(self) -> str:
         return self.value
+
+
+class Workflow(Enum):
+    SPLIT_AND_EXECUTE = 1
+    COMPILE_SPLIT_AND_EXECUTE = 2
+    SPLIT_COMPILE_SPLIT_AND_EXECUTE = 3
 
 
 class ModelTester(BaseTester, ABC):
@@ -47,8 +61,19 @@ class ModelTester(BaseTester, ABC):
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
             self._test_inference()
-        else:
+        elif self._run_mode == RunMode.TRAINING:
             self._test_training()
+        else:
+            raise ValueError(f"Unexpected run mode {self._run_mode}")
+
+    def test_op_by_op(
+        self,
+        frontend: str,
+        model_name: str,
+        workflow: Workflow = Workflow.SPLIT_AND_EXECUTE,
+    ) -> List[OpTest]:
+        assert self._run_mode == RunMode.INFERENCE_OP_BY_OP
+        return self._test_inference_op_by_op(frontend, model_name, workflow)
 
     def __init__(
         self,
@@ -166,6 +191,37 @@ class ModelTester(BaseTester, ABC):
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
 
         self._compare(tt_res, cpu_res)
+
+    def _test_inference_op_by_op(
+        self, frontend: str, model_name: str, workflow: Workflow
+    ) -> List[OpTest]:
+        ModelTester._configure_model_for_inference(self._model)
+
+        compiled_forward_method = self._compile_model()
+
+        compiled_workload = Workload(
+            compiled_forward_method,
+            self._workload.args,
+            self._workload.kwargs,
+            self._workload.static_argnames,
+        )
+
+        shlo_module_str = workload_as_mlir_module_str(compiled_workload)
+
+        if workflow == Workflow.SPLIT_AND_EXECUTE:
+            result = split_and_execute(
+                shlo_module_str, frontend=frontend, model_name=model_name
+            )
+        elif workflow == Workflow.COMPILE_SPLIT_AND_EXECUTE:
+            result = compile_split_and_execute(
+                shlo_module_str, frontend=frontend, model_name=model_name
+            )
+        else:
+            result = split_compile_split_and_execute(
+                shlo_module_str, frontend=frontend, model_name=model_name
+            )
+
+        return result
 
     def _test_training(self):
         """TODO"""
