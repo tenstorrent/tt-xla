@@ -62,6 +62,18 @@
   // ---------------------------------------------------------------------------
 
 
+  // ---------------------------------------------------------------------------
+  // PJRT_ExecuteContext stubs:
+
+  // Not currently used by PJRT API. XLA uses it for creation of
+  // `PJRT_ExecuteOptions` for `PJRT_LoadedExecutable_Execute` call, to store
+  // some additional internal context.
+  _STUB(PJRT_ExecuteContext_Create);
+  _STUB(PJRT_ExecuteContext_Destroy);
+
+  // ---------------------------------------------------------------------------
+
+
   _STUB(PJRT_Error_Destroy);
   _STUB(PJRT_Error_Message);
   _STUB(PJRT_Error_GetCode);
@@ -96,9 +108,6 @@
   _STUB(PJRT_Executable_OutputMemoryKinds);
   _STUB(PJRT_Executable_OptimizedProgram);
   _STUB(PJRT_Executable_Serialize);
-  _STUB(PJRT_LoadedExecutable_Destroy);
-  _STUB(PJRT_LoadedExecutable_GetExecutable);
-  _STUB(PJRT_LoadedExecutable_AddressableDevices);
   _STUB(PJRT_LoadedExecutable_Delete);
   _STUB(PJRT_LoadedExecutable_IsDeleted);
   _STUB(PJRT_LoadedExecutable_Execute);
@@ -125,7 +134,5 @@
   _STUB(PJRT_Client_TopologyDescription);
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
   _STUB(PJRT_Memory_Kind_Id);
-  _STUB(PJRT_ExecuteContext_Create);
-  _STUB(PJRT_ExecuteContext_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);

@@ -273,8 +273,7 @@ namespace internal {
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
 
-  BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
-  delete buffer;
+  delete BufferInstance::unwrap(args->buffer);
 
   return nullptr;
 }
