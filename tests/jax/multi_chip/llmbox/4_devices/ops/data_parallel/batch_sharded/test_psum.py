@@ -32,15 +32,7 @@ from tests.utils import failed_fe_compilation, failed_runtime
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "Problem with CCL ops on llmbox"
-                    "(https://github.com/tenstorrent/tt-xla/issues/484)"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
