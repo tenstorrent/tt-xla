@@ -27,14 +27,18 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
+      - uses: actions/checkout@v4
       - name: Check if ignored files are modified
         id: check
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           all_match=true
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
+            git fetch origin ${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }}
+            git checkout ${{ github.event.pull_request.base.ref }}
+            # Get the list of changed files in the PR branch
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..origin/${{ github.event.pull_request.head.ref }})
             for file in $CHANGED_FILES;
             do
               if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
