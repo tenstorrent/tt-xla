@@ -36,11 +36,10 @@ ExecutableImage::ExecutableImage(
   m_arg_count = m_binary.getProgramInputs(0).size();
 
   if (m_result_count != m_is_output_scalar.size()) {
-    // TODO: We should throw error instead, otherwise execution will continue
-    // and crash later.
+    // TODO: Move to module_builder and just assert here
     DLOG_F(ERROR,
-           "Created flatbuffer binary contains different number of outputs %ld "
-           "than expected %ld",
+           "Created flatbuffer binary contains different number of outputs %zu "
+           "than expected %zu",
            m_result_count, m_is_output_scalar.size());
   }
 

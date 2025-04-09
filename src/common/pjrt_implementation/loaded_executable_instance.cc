@@ -31,13 +31,9 @@ LoadedExecutableInstance::~LoadedExecutableInstance() {
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
-  api->PJRT_LoadedExecutable_Destroy =
-      +[](PJRT_LoadedExecutable_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
-    delete LoadedExecutableInstance::unwrap(args->executable);
-    return nullptr;
-  };
+  api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
+  api->PJRT_LoadedExecutable_GetExecutable =
+      internal::onLoadedExecutableGetExecutable;
   api->PJRT_LoadedExecutable_AddressableDevices =
       +[](PJRT_LoadedExecutable_AddressableDevices_Args *args) -> PJRT_Error * {
     DLOG_F(
@@ -62,20 +58,11 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
       +[](PJRT_LoadedExecutable_Execute_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG,
            "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+
+    // TODO_OOM: Check here if args->execute_device == nullptr
+
     return ErrorInstance::MakeError(
         LoadedExecutableInstance::unwrap(args->executable)->Execute(args));
-  };
-  api->PJRT_LoadedExecutable_GetExecutable =
-      +[](PJRT_LoadedExecutable_GetExecutable_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
-    LoadedExecutableInstance *loaded_exe =
-        LoadedExecutableInstance::unwrap(args->loaded_executable);
-    ExecutableImage *image = loaded_exe->m_executable_image;
-
-    image->AddRef();
-    args->executable = *image;
-    return nullptr;
   };
 }
 
@@ -92,10 +79,10 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
+  // TODO_OOM: Check here if args->num_args matches num_args from image
+
   tt::runtime::Device runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  m_addressable_devices);
-  const tt::runtime::Binary &runtime_binary = m_image->get_binary();
+      openDevices(args->argument_lists, args->num_args, args->num_devices);
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -104,7 +91,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   input_tensors.reserve(num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, runtime_device,
-      runtime_binary, program_index, input_tensors);
+      program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
@@ -114,13 +101,14 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // See issue: https://github.com/tenstorrent/tt-xla/issues/373
   tt::runtime::workaround::Env::get(true, true, false);
 
-  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      runtime_device, runtime_binary, program_index, input_tensors);
+  std::vector<tt::runtime::Tensor> output_tensors =
+      tt::runtime::submit(runtime_device, m_executable_image->get_binary(),
+                          program_index, input_tensors);
 
-  // TODO_OOM: Check with Andrej about constraints for output_tensors.size() vs
-  // args->num_devices
-  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors(
-      args->num_devices);
+  // TODO_OOM: Check here if output_tensors.size() == m_image->num_outputs()
+
+  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
+  untilized_output_tensors.reserve(output_tensors.size());
   status = untilizeToHost(output_tensors, untilized_output_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -152,12 +140,11 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   return tt_pjrt_status::kSuccess;
 }
 
-tt::runtime::Device LoadedExecutableInstance::openDevices(
-    PJRT_Buffer *const *const *argument_lists, size_t num_args,
-    size_t num_devices,
-    const std::vector<DeviceInstance *> &addressable_devices) {
-  std::vector<int> device_ids =
-      getDeviceIds(argument_lists, num_args, num_devices, addressable_devices);
+tt::runtime::Device
+LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
+                                      size_t num_args, size_t num_devices) {
+  std::vector<int> device_ids = getDeviceIds(
+      argument_lists, num_args, num_devices, m_addressable_devices);
 
   tt::runtime::MeshDeviceOptions options;
   const std::vector<uint32_t> mesh_shape = {
@@ -169,8 +156,7 @@ tt::runtime::Device LoadedExecutableInstance::openDevices(
 
 std::vector<int> LoadedExecutableInstance::getDeviceIds(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
-    size_t num_devices,
-    const std::vector<DeviceInstance *> &addressable_devices) {
+    size_t num_devices) {
   std::vector<int> device_ids;
 
   for (size_t device_index = 0; num_args && device_index < num_devices;
@@ -181,12 +167,12 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
     device_ids.push_back(buffer_device_id);
   }
 
-  // TODO_OOM: What if addressable_devices.size() == 0?
   // If there are no input buffers, we still want to run on a device.
   // TODO: Now we will run only on the first one, but this should be somehow
   // explicit. Maybe use `execute_device` from the args?
   if (device_ids.size() == 0) {
-    device_ids.push_back(addressable_devices[0]->getGlobalDeviceId());
+    assert(!m_addressable_devices.empty());
+    device_ids.push_back(m_addressable_devices.front()->getGlobalDeviceId());
   }
 
   return device_ids;
@@ -195,7 +181,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
 tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices, tt::runtime::Device runtime_device,
-    const tt::runtime::Binary &runtime_binary, std::uint32_t program_index,
+    std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<tt::runtime::Tensor> arg_tensors;
@@ -257,22 +243,22 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
 tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     const std::vector<tt::runtime::Tensor> &output_tensors,
     std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
-  // TODO_OOM: Andrej used output_specs.size() here, check with him why
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
-    // TODO_OOM: Check with Andrej if this is valid check
-    // if (untilized_output.size() != num_devices) {
-    //   DLOG_F(ERROR, "Failed to fill strategy map from sharding");
-    //   return tt_pjrt_status::kInternal;
-    // }
 
-    for (size_t shard_index = 0; shard_index < untilized_output.size();
-         shard_index++) {
-      untilized_output_tensors[shard_index].push_back(
-          untilized_output[shard_index]);
+    size_t expected_num_outputs =
+        isOutputReplicated(output_index) ? 1 : untilized_output_tensors.size();
+    if (untilized_output.size() != expected_num_outputs) {
+      DLOG_F(ERROR,
+             "Untilize to host produced invalid number of output tensors, "
+             "expected %zu got %zu",
+             expected_num_outputs, untilized_output.size());
+      return tt_pjrt_status::kInternal;
     }
+
+    untilized_output_tensors.emplace_back(std::move(untilized_output));
   }
 
   return tt_pjrt_status::kSuccess;
@@ -282,10 +268,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<std::vector<tt::runtime::Tensor>>
         &untilized_output_tensors,
     size_t num_devices, PJRT_Buffer **const *output_lists) {
-  size_t num_outputs = getNumberOfOutputs(untilized_output_tensors);
-
-  // TODO_OOM: Check with Andrej, and add comment below explaining that we are
-  // filling only the first index sometimes
+  size_t num_outputs = untilized_output_tensors.size();
 
   for (int device_index = 0; device_index < num_devices; device_index++) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
@@ -308,44 +291,30 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
   }
 }
 
-size_t LoadedExecutableInstance::getNumberOfOutputs(
-    const std::vector<std::vector<tt::runtime::Tensor>>
-        &untilized_output_tensors) const {
-  // TODO_OOM: Check with Andrej, what was the logic here ?
-  size_t num_outputs = untilized_output_tensors[0].size();
-  for (size_t i = 0; i < untilized_output_tensors.size(); i++) {
-    num_outputs = std::max(num_outputs, untilized_output_tensors[i].size());
-  }
-  return num_outputs;
-}
-
 tt::runtime::Tensor LoadedExecutableInstance::getOutputTensor(
     size_t device_index, size_t output_index,
     const std::vector<std::vector<tt::runtime::Tensor>>
         &untilized_output_tensors) const {
-  // TODO_OOM: Check with Andrej, is untilized_output_tensors going to be size()
-  // == 1 ?
-
   // If the output is replicated, we just return the output tensor from the
   // first device, as this is what PJRT expects.
   return isOutputReplicated(output_index)
-             ? untilized_output_tensors[0][output_index]
-             : untilized_output_tensors[device_index][output_index];
+             ? untilized_output_tensors[output_index][0]
+             : untilized_output_tensors[output_index][device_index];
 }
 
-bool LoadedExecutableInstance::isOutputReplicated(size_t index) const {
+bool LoadedExecutableInstance::isOutputReplicated(size_t output_index) const {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      m_executable_image->getOutputSharding(index);
+      m_executable_image->getOutputSharding(output_index);
   return outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate;
 }
 
 std::vector<std::uint32_t>
-LoadedExecutableInstance::getOutputShape(size_t index, size_t num_devices) {
+LoadedExecutableInstance::getOutputShape(size_t output_index,
+                                         size_t num_devices) {
   std::vector<std::uint32_t> outputShape =
-      m_executable_image->get_output_shape(index);
-  // TODO_OOM: Check with Andrej, what if outputShape is empty (for scalars)?
+      m_executable_image->get_output_shape(output_index);
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      m_executable_image->getOutputSharding(index);
+      m_executable_image->getOutputSharding(output_index);
 
   mlir::FailureOr<std::unordered_map<std::string, std::string>>
       shardingStrategy =
@@ -357,8 +326,10 @@ LoadedExecutableInstance::getOutputShape(size_t index, size_t num_devices) {
   }
 
   if (shardingStrategy->at("strategy") == "shard") {
+    assert(!outputShape.empty());
     outputShape[0] /= num_devices;
   } else if (shardingStrategy->at("strategy") == "shard_2d") {
+    assert(!outputShape.empty());
     assert(outputShape[0] % std::stoi(shardingStrategy->at("mesh_shape_y")) ==
            0);
     assert(outputShape[1] % std::stoi(shardingStrategy->at("mesh_shape_x")) ==
@@ -371,5 +342,33 @@ LoadedExecutableInstance::getOutputShape(size_t index, size_t num_devices) {
 
   return outputShape;
 }
+
+namespace internal {
+
+PJRT_Error *
+onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
+
+  delete LoadedExecutableInstance::unwrap(args->executable);
+
+  return nullptr;
+}
+
+PJRT_Error *onLoadedExecutableGetExecutable(
+    PJRT_LoadedExecutable_GetExecutable_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
+
+  LoadedExecutableInstance *loaded_exe =
+      LoadedExecutableInstance::unwrap(args->loaded_executable);
+  ExecutableImage *image = loaded_exe->m_executable_image;
+
+  image->AddRef();
+  args->executable = *image;
+
+  return nullptr;
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt

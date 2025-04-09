@@ -34,6 +34,7 @@ namespace tt::pjrt {
 class LoadedExecutableInstance {
 public:
   // TODO_OOM: Explain.
+  // TODO_OOM: assert for non-empty number of devices and num_devices_to_utilize
   LoadedExecutableInstance(
       ExecutableImage *executable_image,
       const std::vector<DeviceInstance *> &addressable_devices,
@@ -74,24 +75,21 @@ public:
 private:
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run.
-  static tt::runtime::Device
-  openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-              size_t num_devices,
-              const std::vector<DeviceInstance *> &addressable_devices);
+  tt::runtime::Device openDevices(PJRT_Buffer *const *const *argument_lists,
+                                  size_t num_args, size_t num_devices);
 
   // Collects device ids from the addressable devices.
-  static std::vector<int>
-  getDeviceIds(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-               size_t num_devices,
-               const std::vector<DeviceInstance *> &addressable_devices);
+  std::vector<int> getDeviceIds(PJRT_Buffer *const *const *argument_lists,
+                                size_t num_args, size_t num_devices);
 
   // Gets input runtime tensors from the arguments' buffers and converts them to
   // desired layout determined from the compiled graph.
-  static std::vector<tt::runtime::Tensor> getInputRuntimeTensors(
-      PJRT_Buffer *const *const *argument_lists, size_t num_args,
-      size_t num_devices, tt::runtime::Device runtime_device,
-      const tt::runtime::Binary &runtime_binary, std::uint32_t program_index,
-      std::vector<tt::runtime::Tensor> &input_tensors);
+  std::vector<tt::runtime::Tensor>
+  getInputRuntimeTensors(PJRT_Buffer *const *const *argument_lists,
+                         size_t num_args, size_t num_devices,
+                         tt::runtime::Device runtime_device,
+                         std::uint32_t program_index,
+                         std::vector<tt::runtime::Tensor> &input_tensors);
 
   // Either returns single tensor or creates multi-device host tensor from arg
   // tensors, depending on the strategy.
@@ -101,7 +99,7 @@ private:
 
   // Untilizes output tensors and transfers them from device to host. Output
   // tensors are in [`num_devices`, `num_args`] format as PJRT expects.
-  static tt_pjrt_status untilizeToHost(
+  tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
 
@@ -113,22 +111,19 @@ private:
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
       size_t num_devices, PJRT_Buffer **const *output_lists);
 
-  // Given an output list, return the number of outputs of an executable.
-  size_t getNumberOfOutputs(const std::vector<std::vector<tt::runtime::Tensor>>
-                                &untilized_output_tensors) const;
-
-  // Return a tensor representing an output on a particular device with a
+  // Returns a tensor representing an output on a particular device with a
   // particular index.
   tt::runtime::Tensor
   getOutputTensor(size_t device_index, size_t output_index,
                   const std::vector<std::vector<tt::runtime::Tensor>>
                       &untilized_output_tensors) const;
 
-  // Returns is output on the specified index replicated.
-  bool isOutputReplicated(size_t index) const;
+  // Returns true if the output on the specified index is replicated.
+  bool isOutputReplicated(size_t output_index) const;
 
   // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOutputShape(size_t index, size_t num_devices);
+  std::vector<std::uint32_t> getOutputShape(size_t output_index,
+                                            size_t num_devices);
 
   // TODO_OOM: Explain.
   ExecutableImage *m_executable_image; // Ref-counted semantics.
@@ -139,6 +134,17 @@ private:
   // TODO_OOM: Explain.
   const size_t m_num_devices_to_utilize;
 };
+
+namespace internal {
+
+// Implements PJRT_LoadedExecutable_Destroy API function.
+PJRT_Error *onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args);
+
+// Implements PJRT_LoadedExecutable_GetExecutable API function.
+PJRT_Error *
+onLoadedExecutableGetExecutable(PJRT_LoadedExecutable_GetExecutable_Args *args);
+
+} // namespace internal
 
 } // namespace tt::pjrt
 

@@ -161,6 +161,11 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
     m_devices.emplace_back(std::move(device_instance));
   }
 
+  if (m_addressable_devices_raw.empty()) {
+    DLOG_F(ERROR, "Found no addressable devices in the system");
+    return tt_pjrt_status::kInternal;
+  }
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -184,7 +189,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
                           module_builder_->getOutputShardings(),
                           module_builder_->getMeshShape(),
                           module_builder_->getIsOutputScalar()),
-      addressable_devices_, module_builder_->getNumDevicesToUtilize());
+      m_addressable_devices_raw, module_builder_->getNumDevicesToUtilize());
   *out_executable = executable.release();
   return nullptr;
 }
