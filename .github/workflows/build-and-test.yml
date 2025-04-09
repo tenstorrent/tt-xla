@@ -46,7 +46,6 @@ on:
 permissions:
   packages: write
   checks: write
-  # pull-requests: write
 
 jobs:
 
@@ -221,6 +220,7 @@ jobs:
         updateComment: true
         detailed_summary: true
         group_suite: true
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Prepare code coverage report
       if: matrix.build.runs-on == 'n300' && (success() || failure())
