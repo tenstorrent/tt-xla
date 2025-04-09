@@ -53,7 +53,8 @@ def training_tester() -> FlaxBartForCausalLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=323375.3125. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=299478.09375. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):

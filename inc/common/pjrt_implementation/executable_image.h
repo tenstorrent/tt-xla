@@ -36,6 +36,7 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
+      const std::vector<std::uint32_t> &mesh_shape,
       const std::vector<bool> &is_output_scalar);
 
   operator PJRT_Executable *() {
@@ -68,6 +69,10 @@ public:
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
   size_t get_num_outputs() const { return m_output_types.size(); }
+
+  const std::vector<std::uint32_t> &get_mesh_shape() const {
+    return m_mesh_shape;
+  }
 
   // Checks if the output on the i-th index is a scalar.
   bool isOutputScalar(size_t index) const;
@@ -137,6 +142,9 @@ private:
 
   // Hold the sharding information for each output.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
+
+  // Device mesh shape required by this image.
+  const std::vector<std::uint32_t> m_mesh_shape;
 };
 
 } // namespace tt::pjrt

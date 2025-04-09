@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 import pytest
 from infra import Framework, ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
+from jaxtyping import PyTree
 
 from tests.utils import (
     BringupStatus,
@@ -39,17 +40,17 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
         return FlaxDistilBertForMaskedLM.from_pretrained(MODEL_PATH)
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        inputs = tokenizer("Hello [MASK].", return_tensors="np")
-        return inputs["input_ids"]
+        inputs = tokenizer("Hello [MASK].", return_tensors="jax")
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
 
 
@@ -79,7 +80,8 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):

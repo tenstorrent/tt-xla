@@ -52,7 +52,8 @@ def training_tester() -> XGLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=8313996.5. Required: atol=0.16."
+        "Atol comparison failed. Calculated: atol=8313996.5. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_xglm_564m_inference(inference_tester: XGLMTester):

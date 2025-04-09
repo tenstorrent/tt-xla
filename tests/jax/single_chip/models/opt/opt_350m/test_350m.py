@@ -53,7 +53,8 @@ def training_tester() -> OPTTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=2040517.5. Required: atol=0.16."
+        "Atol comparison failed. Calculated: atol=2040517.5. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_opt_350m_inference(inference_tester: OPTTester):

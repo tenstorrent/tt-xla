@@ -27,10 +27,11 @@ jobs:
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
+      - uses: actions/checkout@v4
       - name: Check if ignored files are modified
         id: check
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           all_match=true
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -66,7 +67,8 @@ jobs:
       build_options: |
         [
           {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"}
+          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "llmbox", "name": "run", "dir": "./tests/jax/multi_chip/llmbox"}
         ]
 
   check-all-green:

@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 import pytest
 from infra import ComparisonConfig, Framework, ModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
     FlaxPreTrainedModel,
@@ -20,7 +21,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
     incorrect_result,
 )
 
@@ -53,17 +53,17 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(ModelTester):
         )
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        inputs = tokenizer("Hello <mask>.", return_tensors="np")
-        return inputs["input_ids"]
+        inputs = tokenizer("Hello <mask>.", return_tensors="jax")
+        return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         assert hasattr(self._model, "params")
         return {
             "params": self._model.params,
-            "input_ids": self._get_input_activations(),
+            **self._get_input_activations(),
         }
 
     # @ override
@@ -97,7 +97,8 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_roberta_prelayernorm_inference(

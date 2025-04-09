@@ -52,7 +52,8 @@ def training_tester() -> GPTNeoTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=15.864267349243164. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=2801730.0. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):

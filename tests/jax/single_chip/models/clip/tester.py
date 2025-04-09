@@ -34,7 +34,7 @@ class FlaxCLIPTester(ModelTester):
         inputs = preprocessor(
             text=["a photo of a cat", "a photo of a dog"],
             images=image,
-            return_tensors="np",
+            return_tensors="jax",
         )
         return inputs
 

@@ -46,84 +46,8 @@ on:
 permissions:
   packages: write
   checks: write
-  pull-requests: write
 
 jobs:
-  # build-ttxla:
-
-  #   timeout-minutes: 120
-  #   strategy:
-  #     fail-fast: false
-
-  #   name: Build and test tt-xla
-  #   runs-on: ubuntu-latest
-
-  #   container:
-  #     image: ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:latest #TODO update this to the correct image
-  #     options: --user root
-
-  #   steps:
-  #   - uses: actions/checkout@v4
-  #     with:
-  #       submodules: recursive
-  #       lfs: true
-
-  #   - name: Set reusable strings
-  #     id: strings
-  #     shell: bash
-  #     run: |
-  #       echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-  #       echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-  #       echo "metal-lib-dir=$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal-build/lib" >> "$GITHUB_OUTPUT"
-  #       echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
-
-  #   - name: Git safe dir
-  #     run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
-
-
-  #   # Build project
-
-  #   - name: Configure CMake
-  #     shell: bash
-  #     run: |
-  #       source venv/activate
-  #       cmake -G Ninja \
-  #       -B ${{ steps.strings.outputs.build-output-dir }} \
-  #       -S ${{ steps.strings.outputs.work-dir }}
-
-  #   - name: Build
-  #     shell: bash
-  #     run: |
-  #       source venv/activate
-  #       cmake --build ${{ steps.strings.outputs.build-output-dir }}
-  #       cmake --install ${{ steps.strings.outputs.build-output-dir }}
-
-
-  #   # This is needed to preserve file permissions
-  #   # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
-  #   - name: 'Tar install directory and metal lib directory'
-  #     shell: bash
-  #     working-directory: ${{ steps.strings.outputs.install-output-dir }}
-  #     run: |
-  #       tar cvf artifact.tar .
-
-  #   - name: Upload install folder to archive
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: install-artifacts
-  #       path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
-
-  #   - name: Get the latest tag
-  #     shell: bash
-  #     run: |
-  #       latest_tag=$(git describe --tags --abbrev=0)
-  #       latest_tag=${latest_tag#v}
-  #       echo "latest_tag=$latest_tag" >> $GITHUB_ENV
-  #       commit_count=$(git rev-list ${{ env.latest_tag }}..HEAD --count)
-  #       echo "commit_count=$commit_count" >> $GITHUB_ENV
-  #       version="${{ env.latest_tag }}.${{ env.commit_count }}"
-  #       echo "version=$version" >> $GITHUB_ENV
-  #       echo $version
 
   build-image:
     runs-on: n300
@@ -181,7 +105,7 @@ jobs:
 
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
-      options: --device /dev/tenstorrent/0
+      options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -286,6 +210,7 @@ jobs:
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
+      continue-on-error: true
       uses: mikepenz/action-junit-report@v5
       if: success() || failure()
       with:
@@ -295,6 +220,7 @@ jobs:
         updateComment: true
         detailed_summary: true
         group_suite: true
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Prepare code coverage report
       if: matrix.build.runs-on == 'n300' && (success() || failure())

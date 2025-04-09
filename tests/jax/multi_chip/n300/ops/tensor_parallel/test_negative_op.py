@@ -13,21 +13,6 @@ from infra import (
 from tests.utils import failed_fe_compilation
 
 
-def conditionally_skip(use_shardy: bool, multichip_mode: ShardingMode):
-    """
-    Helper function which test parameters combination and skips if unsupported for some reason.
-
-    Extracted here in order not to pollute the test function.
-    """
-    if use_shardy and multichip_mode == ShardingMode.INPUTS:
-        pytest.xfail(
-            failed_fe_compilation(
-                "Shardy automatic parallelization not supported. "
-                "Issue: https://github.com/tenstorrent/tt-xla/issues/406"
-            )
-        )
-
-
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
@@ -63,8 +48,6 @@ def test_negative_op(
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
-    conditionally_skip(use_shardy, sharding_mode)
-
     def fwd(a_block):
         b_block = jnp.negative(a_block)
         return b_block

@@ -53,7 +53,8 @@ def training_tester() -> BloomTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=12.176290512084961. Required: atol=0.16"
+        "Atol comparison failed. Calculated: atol=650936.75. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_bloom_1b1_inference(inference_tester: BloomTester):
