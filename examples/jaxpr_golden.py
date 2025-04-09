@@ -147,6 +147,16 @@ def eval_jaxpr_golden(jaxpr, consts, *args):
     return safe_map(read, jaxpr.outvars)
 
 
+def tt_golden(fun):
+    @wraps(fun)
+    def wrapped(*args, **kwargs):
+        closed_jaxpr = jax.make_jaxpr(fun)(*args, **kwargs)
+        out = eval_jaxpr_golden(closed_jaxpr.jaxpr, closed_jaxpr.literals, *args)
+        return out[0]
+
+    return wrapped
+
+
 DIMA = 512
 DIMB = 128032
 DTYPE = jnp.float32
@@ -173,6 +183,7 @@ d_down3 = jnp.array(down3, dtype=DTYPE)
 d_x = jnp.array(x, dtype=DTYPE)
 
 
+@tt_golden
 def testcase(x, up1, down1, up2, down2, up3, down3):
     x = x @ up1
     x = x @ down1
@@ -183,22 +194,10 @@ def testcase(x, up1, down1, up2, down2, up3, down3):
     return x
 
 
-problematic_jaxpr = jax.make_jaxpr(testcase)(
-    x, d_up1, d_down1, d_up2, d_down2, d_up3, d_down3
-)
-print(
-    eval_jaxpr_golden(
-        problematic_jaxpr.jaxpr,
-        problematic_jaxpr.literals,
-        x,
-        up1,
-        down1,
-        up2,
-        down2,
-        up3,
-        down3,
-    )
-)
+print(testcase(d_x, d_up1, d_down1, d_up2, d_down2, d_up3, d_down3))
+# Just adding a neat wrapper function that does the same thing causes the demo to segfault
+# we definitely have lifetime issues. Revert to the commit before this one to see it work
+
 # Example output
 # Op dot_general with params {'dimension_numbers': (((1,), (0,)), ((), ())), 'precision': None, 'preferred_element_type': dtype('float32'), 'out_sharding': None}
 # Parallel/Whole model    Linf/ATOL       : 1.6614782810211182    PCC             : 0.9263313412666321
