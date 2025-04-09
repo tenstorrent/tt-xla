@@ -12,6 +12,7 @@ import os
 import sys
 import jax._src.xla_bridge as xb
 
+
 # Register cpu and tt plugin. tt plugin is registered with higher priority; so
 # program will execute on tt device if not specified otherwise.
 def initialize():
