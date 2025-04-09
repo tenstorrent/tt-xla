@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-set(TT_MLIR_VERSION "9af7f54eb0c862496db5d5ce2c8c2ea37b3442be")
+set(TT_MLIR_VERSION "3e1edb78c38373b55c8335b6c3e2506f606bd84e")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
+
+option(ENABLE_TTRT "Build TTRT" OFF)
 
 if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)
@@ -43,7 +45,7 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
@@ -65,6 +67,12 @@ else()
         set_target_properties(${lib_name} PROPERTIES EXCLUDE_FROM_ALL TRUE IMPORTED_LOCATION ${TTMLIR_LIBRARY})
         add_dependencies(${lib_name} tt-mlir)
     endforeach()
+
+    if (ENABLE_TTRT)
+        execute_process(
+            COMMAND /bin/bash -c "cmake --build ${TTMLIR_BUILD_DIR} -- ttrt"
+        )
+    endif()
 
     set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-undef -Wno-unsafe-buffer-usage -Wno-disabled-macro-expansion")
     ExternalProject_Add(

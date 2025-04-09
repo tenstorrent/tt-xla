@@ -17,3 +17,4 @@ pytest
 sentencepiece
 torch
 transformers
+pydantic==2.10.6
