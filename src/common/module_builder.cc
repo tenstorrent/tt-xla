@@ -514,7 +514,10 @@ void ModuleBuilder::collectMeshShape(
         return;
       }
     }
+
+    // Assuming single device if there are no inputs sharded on device.
     m_mesh_shape = {1, 1};
+
     return;
   }
   llvm::ArrayRef<mlir::tt::MeshAttr> meshAttr = meshesAttr.getMeshes();
