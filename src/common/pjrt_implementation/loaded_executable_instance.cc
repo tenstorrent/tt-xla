@@ -14,6 +14,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <iostream>
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -131,6 +133,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // See issue: https://github.com/tenstorrent/tt-xla/issues/373
   tt::runtime::workaround::Env::get(true, true, false, true);
 
+  std::cout << "Go go go!" << std::endl;
   std::vector<tt::runtime::Tensor> rt_outputs =
       tt::runtime::submit(device, binary, 0 /* program_index */, rt_inputs);
   std::vector<tt::runtime::TensorDesc> output_specs =
