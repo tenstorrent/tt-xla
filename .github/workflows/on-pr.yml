@@ -35,10 +35,7 @@ jobs:
         run: |
           all_match=true
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch origin ${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }}
-            git checkout ${{ github.event.pull_request.base.ref }}
-            # Get the list of changed files in the PR branch
-            CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..origin/${{ github.event.pull_request.head.ref }})
+            CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
             for file in $CHANGED_FILES;
             do
               if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
