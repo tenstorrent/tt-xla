@@ -12,7 +12,7 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_fe_compilation
+from tests.utils import failed_fe_compilation, failed_runtime
 
 
 @pytest.mark.push
@@ -32,7 +32,15 @@ from tests.utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        ShardingMode.INPUTS_AND_MODULE,
+        pytest.param(
+            ShardingMode.INPUTS_AND_MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_runtime(
+                    "Problem with CCL ops on llmbox"
+                    "(https://github.com/tenstorrent/tt-xla/issues/484)"
+                )
+            ),
+        ),
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
