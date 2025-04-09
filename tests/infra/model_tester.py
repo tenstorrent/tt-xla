@@ -6,20 +6,24 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Dict, Mapping, Sequence, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
+from ttmlir.pydantic_models import OpTest
+from ttmlir.workflow import run_op_by_op_workflow
 
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
 from .device_runner import DeviceRunner
 from .types import Model
+from .utils import workload_as_mlir_module_str
 from .workload import Workload
 
 
 class RunMode(Enum):
     INFERENCE = "inference"
+    INFERENCE_OP_BY_OP = "inference_op_by_op"
     TRAINING = "training"
 
     def __str__(self) -> str:
@@ -47,8 +51,37 @@ class ModelTester(BaseTester, ABC):
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
             self._test_inference()
-        else:
+        elif self._run_mode == RunMode.TRAINING:
             self._test_training()
+        else:
+            raise ValueError(f"Unexpected run mode {self._run_mode}")
+
+    def test_op_by_op(
+        self,
+        compile_before_split: bool = False,
+        compile_each_submodule_after_split: bool = False,
+        *,
+        frontend: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> List[OpTest]:
+        """
+        Tests the model on op by op basis.
+
+        Op by op workflow is controlled by `compile_before_split` and
+        `compile_each_submodule_after_split` flags. Read the docs for workflows to
+        understand their meaning.
+
+        Returns list of `OpTest` pydantic models, each representing outcome of executing
+        one op.
+        """
+        assert self._run_mode == RunMode.INFERENCE_OP_BY_OP
+
+        return self._test_inference_op_by_op(
+            compile_before_split,
+            compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )
 
     def __init__(
         self,
@@ -166,6 +199,41 @@ class ModelTester(BaseTester, ABC):
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
 
         self._compare(tt_res, cpu_res)
+
+    def _test_inference_op_by_op(
+        self,
+        compile_before_split: bool = False,
+        compile_each_submodule_after_split: bool = False,
+        *,
+        frontend: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> List[OpTest]:
+        """
+        Tests the model on op by op basis.
+
+        Returns list of `OpTest` pydantic models, each representing outcome of executing
+        one op.
+        """
+        ModelTester._configure_model_for_inference(self._model)
+
+        compiled_forward_method = self._compile_model()
+
+        compiled_workload = Workload(
+            compiled_forward_method,
+            self._workload.args,
+            self._workload.kwargs,
+            self._workload.static_argnames,
+        )
+
+        shlo_module_str = workload_as_mlir_module_str(compiled_workload)
+
+        return run_op_by_op_workflow(
+            shlo_module_str,
+            compile_before_split,
+            compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )
 
     def _test_training(self):
         """TODO"""

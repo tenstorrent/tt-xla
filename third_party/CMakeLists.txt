@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-set(TT_MLIR_VERSION "6d98ed1404df99766d27f70804f41b5cf23af61e")
+set(TT_MLIR_VERSION "62db49601bc374428a49d9afe50ba6c825edf4d3")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -43,7 +43,7 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
@@ -53,6 +53,14 @@ else()
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}")
+
+    if(ENABLE_TTRT)
+        add_custom_target(ttrt ALL # Adding it to ALL will trigger its command when `cmake --build build` is executed`
+            COMMENT "Building ttrt... ${TTMLIR_BUILD_DIR}"
+            COMMAND cmake --build ${TTMLIR_BUILD_DIR} -- ttrt
+            DEPENDS tt-mlir
+        )
+    endif()
 
     # Link to all TTMLIR libraries in ${TTMLIR_INSTALL_DIR}/install/lib
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
