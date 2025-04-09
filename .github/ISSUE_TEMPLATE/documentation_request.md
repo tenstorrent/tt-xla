@@ -7,7 +7,7 @@ assignees:
 ---
 
 **Describe the documentation issue:**
-A clear and concise description of the required documentation. If you have suggestions for placement, include a link to page or page section.
+A clear and concise description of the required documentation. If you have suggestions for placement, include a link to the page or page section.
 
 **Describe the documentation solution you want to see:**
 If you have suggestions for what to write up, or how to present the documentation, include it here.
