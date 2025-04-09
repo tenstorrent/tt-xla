@@ -6,17 +6,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model
 from infra.workloads import Workload
+from op_by_op_infra.pydantic_models import OpTest
 
 from ...base_tester import BaseTester
 
 
 class RunMode(Enum):
     INFERENCE = "inference"
+    INFERENCE_OP_BY_OP = "inference_op_by_op"
     TRAINING = "training"
 
     def __str__(self) -> str:
@@ -32,8 +34,56 @@ class ModelTester(BaseTester, ABC):
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
             self._test_inference()
-        else:
+        elif self._run_mode == RunMode.TRAINING:
             self._test_training()
+        else:
+            raise ValueError(f"Unexpected run mode {self._run_mode}")
+
+    def test_op_by_op(
+        self,
+        compile_before_split: bool = False,
+        compile_each_submodule_after_split: bool = False,
+        *,
+        frontend: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> List[OpTest]:
+        """
+        Tests the model on op by op basis.
+
+        To enable showing progress of the workflow, set env var `SHOW_WORKFLOW_PROGRESS=ON`.
+
+        Parameters
+        ----------
+        module: Module | str
+            Original MLIR module (or module str) processed by the workflow.
+
+        compile_before_split: bool
+            If True, compiles the module before splitting.
+            NOTE if True `compile_each_submodule_after_split` cannot be True.
+
+        compile_each_submodule_after_split: bool
+            If True, compiles each submodule after splitting.
+            NOTE if True `compile_before_split` cannot be True.
+
+        frontend: Optional[str]
+            Name of the frontend using op by op infra.
+
+        model_name: Optional[str]
+            Name of the ML model which was passed as original MLIR module to the workflow.
+
+        Returns
+        -------
+        List[OpTest]
+            List of `OpTest` pydantic models
+        """
+        assert self._run_mode == RunMode.INFERENCE_OP_BY_OP
+
+        return self._test_inference_op_by_op(
+            compile_before_split,
+            compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )
 
     # ---------- Protected methods ----------
 
@@ -112,6 +162,17 @@ class ModelTester(BaseTester, ABC):
     @abstractmethod
     def _configure_model_for_training(model: Model) -> None:
         """Configures `model` for training."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def _test_inference_op_by_op(
+        self,
+        compile_before_split: bool = False,
+        compile_each_submodule_after_split: bool = False,
+        *,
+        frontend: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> List[OpTest]:
+        """Tests the model on op by op basis."""
         raise NotImplementedError("Subclasses must implement this method")
 
     # -------------------- Private methods --------------------

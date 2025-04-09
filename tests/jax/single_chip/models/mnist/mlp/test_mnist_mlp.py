@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import pytest
 from infra import Framework, RunMode
+from op_by_op_infra.pydantic_models import model_to_dict
 from utils import (
     BringupStatus,
     Category,
@@ -31,6 +31,11 @@ MODEL_NAME = build_model_name(
 @pytest.fixture
 def inference_tester(request) -> MNISTMLPTester:
     return MNISTMLPTester(request.param)
+
+
+@pytest.fixture
+def inference_op_by_op_tester(request) -> MNISTMLPTester:
+    return MNISTMLPTester(request.param, run_mode=RunMode.INFERENCE_OP_BY_OP)
 
 
 @pytest.fixture
@@ -79,6 +84,31 @@ def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
 )
 def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     inference_tester.test()
+
+
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE_OP_BY_OP,
+)
+@pytest.mark.parametrize(
+    "inference_op_by_op_tester",
+    [(256, 128, 64)],
+    indirect=True,
+    ids=lambda val: f"{val}",
+)
+def test_mnist_mlp_inference_op_by_op(
+    inference_op_by_op_tester: MNISTMLPTester, record_property
+):
+    results = inference_op_by_op_tester.test_op_by_op(
+        frontend="tt-xla",
+        model_name=MODEL_NAME,
+    )
+
+    for result in results:
+        # TODO dump in format which is suitable for parser to parse.
+        record_property(f"OpTest model for: {result.op_name}", model_to_dict(result))
 
 
 @pytest.mark.push
