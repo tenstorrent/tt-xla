@@ -120,9 +120,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       args->argument_lists, addressable_devices_, args->num_args, num_devices);
 
   tt::runtime::MeshDeviceOptions options;
-  const std::vector<uint32_t> mesh_shape = {
-      1, static_cast<uint32_t>(device_ids.size())};
   options.deviceIds = device_ids;
+  const std::vector<std::uint32_t> &mesh_shape = image_->get_mesh_shape();
   tt::runtime::Device device = tt::runtime::openMeshDevice(mesh_shape, options);
   std::vector<tt::runtime::Tensor> input_tensors;
   int size_inputs = rt_inputs.size();

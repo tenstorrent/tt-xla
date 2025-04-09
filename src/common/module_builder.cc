@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <optional>
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -111,6 +112,8 @@ ModuleBuilder::buildModule(const std::string_view &code,
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
+
+  collectMeshShape(mlir_module);
 
   convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -492,6 +495,37 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
+}
+
+void ModuleBuilder::collectMeshShape(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  mlir::tt::MeshesAttr meshesAttr =
+      module.get()->getAttrOfType<mlir::tt::MeshesAttr>(
+          mlir::tt::MeshesAttr::name);
+  if (!meshesAttr || meshesAttr.getMeshes().empty()) {
+    // If we dont infer a mesh, we can still go through the inputs to get the
+    // mesh.
+    for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
+         m_input_shardings) {
+      if (input_sharding.getShardType() == mlir::tt::MeshShardType::Devices) {
+        m_mesh_shape =
+            std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
+                                       input_sharding.getMeshShape().end());
+        return;
+      }
+    }
+
+    // Assuming single device if there are no inputs sharded on device.
+    m_mesh_shape = {1, 1};
+
+    return;
+  }
+  llvm::ArrayRef<mlir::tt::MeshAttr> meshAttr = meshesAttr.getMeshes();
+
+  // For now, use the first meshShape (same as what is used in tt-mlir).
+  llvm::ArrayRef<int64_t> meshFromMeshes = meshAttr[0].getShape();
+  m_mesh_shape =
+      std::vector<std::uint32_t>(meshFromMeshes.begin(), meshFromMeshes.end());
 }
 
 } // namespace tt::pjrt
