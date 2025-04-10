@@ -14,6 +14,7 @@
 
 #include "common/pjrt_implementation/device_description.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
@@ -27,8 +28,12 @@ class BufferInstance;
 class DeviceInstance {
 
 public:
-  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch)
-      : client_(client), description_(device_id, arch) {}
+  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch, std::vector<MemoryInstance *> addressable_memories)
+      : client_(client), description_(device_id, arch), addressable_memories_(addressable_memories) {
+        for (auto memory : addressable_memories_) {
+          memory->addDevice(this);
+      }
+  }
   ~DeviceInstance();
   operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
   static void BindApi(PJRT_Api *api);
@@ -42,6 +47,8 @@ public:
   }
   ClientInstance &client() { return client_; }
   bool is_addressable() { return true; }
+  const std::vector<MemoryInstance *> &addressable_memories() { return addressable_memories_; }
+  MemoryInstance *default_memory() { return addressable_memories_[0]; }
   int local_hardware_id() { return -1; }
 
   tt_pjrt_status
@@ -85,6 +92,7 @@ private:
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
   DeviceDescription description_;
+  std::vector<MemoryInstance *> addressable_memories_;
 };
 
 } // namespace tt::pjrt

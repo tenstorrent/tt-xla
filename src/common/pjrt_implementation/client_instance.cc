@@ -15,6 +15,7 @@
 #include <string>
 
 #include "common/pjrt_implementation/utils.h"
+#include "common/status.h"
 #include "tt/runtime/types.h"
 
 namespace tt::pjrt {
@@ -43,7 +44,12 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  tt_pjrt_status status = PopulateDevices();
+  tt_pjrt_status status = PopulateMemories();
+  if (!tt_pjrt_status_is_ok(status)) {
+    return ErrorInstance::MakeError(status);
+  }
+  
+  status = PopulateDevices();
   if (!tt_pjrt_status_is_ok(status)) {
     return ErrorInstance::MakeError(status);
   }
@@ -117,9 +123,12 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
     // return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
     args->num_addressable_memories =
-        0; // ClientInstance::Unwrap(args->client)->addressable_memories.size();
-    args->addressable_memories =
-        nullptr; // ClientInstance::Unwrap(args->client)->addressable_memories.data();
+        ClientInstance::Unwrap(args->client)->addressable_memories().size();
+    // DLOG_F(LOG_DEBUG, "%s", std::to_string(args->num_addressable_memories).c_str());
+    args->addressable_memories = (PJRT_Memory *const *)(ClientInstance::Unwrap(args->client)->addressable_memories().data());
+    
+    // DLOG_F(LOG_DEBUG, "%p", args->addressable_memories[0]);
+    // DLOG_F(LOG_DEBUG, "%p", ClientInstance::Unwrap(args->client)->addressable_memories().data()[0]);
     return nullptr;
   };
   api->PJRT_Client_Compile =
@@ -166,6 +175,15 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   };
 }
 
+tt_pjrt_status ClientInstance::PopulateMemories() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
+  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
+  for (size_t i = 0; i < chip_ids.size(); ++i) {
+    addressable_memories_.push_back(new MemoryInstance());
+  }
+  return tt_pjrt_status::kSuccess;
+}
+
 tt_pjrt_status ClientInstance::PopulateDevices() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
@@ -183,7 +201,7 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   devices_.resize(devices_count);
   for (size_t i = 0; i < devices_count; ++i) {
     devices_[i] = new DeviceInstance(chip_ids[i], *this,
-                                     system_desc->chip_descs()->Get(i)->arch());
+                                     system_desc->chip_descs()->Get(i)->arch(), addressable_memories_);
   }
 
   // For now, just make all devices addressable.

@@ -28,6 +28,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/event_instance.cc"
     "pjrt_implementation/executable_image.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/memory_instance.cc"
     "pjrt_implementation/utils.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)

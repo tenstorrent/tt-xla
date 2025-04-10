@@ -12,6 +12,7 @@
 
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/utils.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 int BufferInstance::id_counter_ = 0;
@@ -48,7 +49,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Buffer_Destroy_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
     BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
-    delete buffer;
+    // delete buffer;
     return nullptr;
   };
   api->PJRT_Buffer_ElementType =

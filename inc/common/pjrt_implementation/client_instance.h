@@ -16,6 +16,7 @@
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
 
@@ -55,6 +56,8 @@ public:
     return cached_platform_version_;
   }
 
+  const std::vector<MemoryInstance *> &addressable_memories() { return addressable_memories_; }
+
   // Compiles.
   // See TODOs in PJRT_Client_Compile.
   PJRT_Error *
@@ -71,6 +74,7 @@ protected:
 private:
   tt_pjrt_status InitializeCompiler();
   tt_pjrt_status PopulateDevices();
+  tt_pjrt_status PopulateMemories();
 
   std::unique_ptr<Platform> platform_;
 
@@ -95,6 +99,8 @@ private:
   // Waiting on the current value of |execution_timeline_| will drain all
   // scheduled work to date.
   uint64_t execution_timeline_ = 0ull;
+
+  std::vector<MemoryInstance *> addressable_memories_;
 };
 
 } // namespace tt::pjrt

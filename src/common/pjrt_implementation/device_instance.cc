@@ -12,10 +12,12 @@
 #include <numeric>
 
 #include "common/pjrt_implementation/device_instance.h"
+#include "common/pjrt_implementation/client_instance.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -28,6 +30,22 @@ void DeviceInstance::BindApi(PJRT_Api *api) {
     args->is_addressable =
         DeviceInstance::Unwrap(args->device)->is_addressable();
     return nullptr;
+  };
+  api->PJRT_Device_AddressableMemories = 
+    +[](PJRT_Device_AddressableMemories_Args *args) -> PJRT_Error * {
+      DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
+      DeviceInstance *device = DeviceInstance::Unwrap(args->device);
+      args->num_memories = device->addressable_memories().size();
+      args->memories = const_cast<PJRT_Memory **>(reinterpret_cast<PJRT_Memory *const *>(
+        device->client().addressable_memories().data())
+      );
+      return nullptr;
+  };
+  api->PJRT_Device_DefaultMemory = 
+    +[](PJRT_Device_DefaultMemory_Args *args) -> PJRT_Error * {
+      DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
+      args->memory = reinterpret_cast<PJRT_Memory *>(DeviceInstance::Unwrap(args->device)->default_memory());
+      return nullptr;
   };
   api->PJRT_Device_LocalHardwareId =
       +[](PJRT_Device_LocalHardwareId_Args *args) -> PJRT_Error * {
