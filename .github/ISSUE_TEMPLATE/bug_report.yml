@@ -11,7 +11,7 @@ body:
     attributes:
       label: Describe the bug
       description: |
-        A clear and concise description of what the bug is and how to reproduce it. 
+        A clear and concise description of what the bug is and how to reproduce it.
       placeholder: Tell us what you see! Copy/paste/link to any relevant log output.
     validations:
       required: true
