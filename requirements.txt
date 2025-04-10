@@ -1,12 +1,14 @@
 black
 clang-format
 cmake
+datasets
 einops
 flax==0.10.4
 fsspec
 jax==0.5.0
 jaxlib==0.5.0
 jaxtyping
+librosa
 lit
 ml_collections
 ninja
@@ -15,5 +17,6 @@ pre-commit
 pybind11
 pytest
 sentencepiece
+soundfile
 torch
 transformers
