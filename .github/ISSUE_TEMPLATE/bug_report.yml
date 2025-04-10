@@ -36,7 +36,6 @@ body:
     attributes:
       label: Please complete the following environment information
       description: |
-      options: |
         - OS version (e.g. Ubuntu 22.04)
         - Python version 
         - Framework version (e.g. JAX version) 
