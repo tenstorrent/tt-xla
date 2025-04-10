@@ -10,8 +10,8 @@ body:
   - type: textarea
     id: describe-bug
     attributes:
-       label: Describe the bug
-       description: |
+      label: Describe the bug
+      description: |
          A clear and concise description of what the bug is and how to reproduce it.
 
   - type: textarea
