@@ -17,10 +17,10 @@ body:
   - type: textarea
     id: reproduce-bug
     attributes:
-       label: Steps to reproduce the behavior
-       description: |
+      label: Steps to reproduce the behavior
+      description: |
          When possible/applicable, include the commands that you ran.
-       value: |
+      value: |
          1. Go to '...'
          2. Click on '....'
          3. Scroll down to '....'
