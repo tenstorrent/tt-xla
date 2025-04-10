@@ -12,19 +12,19 @@ body:
     attributes:
       label: Describe the bug
       description: |
-         A clear and concise description of what the bug is and how to reproduce it.
+        A clear and concise description of what the bug is and how to reproduce it.
 
   - type: textarea
     id: reproduce-bug
     attributes:
       label: Steps to reproduce the behavior
       description: |
-         When possible/applicable, include the commands that you ran.
+        When possible/applicable, include the commands that you ran.
       value: |
-         1. Go to '...'
-         2. Click on '....'
-         3. Scroll down to '....'
-         4. See error
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
 
   - type: textarea
     id: behavior
