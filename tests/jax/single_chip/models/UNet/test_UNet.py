@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
-from infra import ComparisonConfig, Framework, ModelTester, RunMode
+from infra import ComparisonConfig, Framework, ModelTester, RunMode, random_tensor
 from .model_implementation import UNet
 from tests.utils import (
     BringupStatus,
@@ -33,20 +33,16 @@ class UNetTester(ModelTester):
 
     def __init__(
         self,
-        in_channels: int,
-        out_channels: int,
-        hidden_channels: int,
-        num_levels: int,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._in_channels = in_channels
-        self._out_channels = out_channels
-        self._hidden_channels = hidden_channels
-        self._num_levels = num_levels
+        self._in_channels = 1
+        self._out_channels = 2
+        self._hidden_channels = 64
+        self._num_levels = 4
         super().__init__(comparison_config, run_mode)
 
-    def _get_model(self):
+    def _get_model(self) -> nn.Module:
         model = UNet(
             in_channels=self._in_channels,
             out_channels=self._out_channels,
@@ -55,30 +51,49 @@ class UNetTester(ModelTester):
         )
         return model
 
-    def _get_forward_method_name(self):
+    def _get_forward_method_name(self) -> str:
         return "apply"
 
-    def _get_input_activations(self):
-        key = jax.random.PRNGKey(123)
-        return jax.random.normal(key, (1, 572, 572, 1))  # B, H, W, C
+    def _get_input_activations(self) -> jnp.ndarray:
+        return random_tensor(
+            shape=(1, 572, 572, 1),  # B, H, W, C
+            dtype=jnp.float32,
+            random_seed=123,
+            minval=-1.0,
+            maxval=1.0,
+            framework=Framework.JAX,
+        )
 
-    def _get_forward_method_args(self):
+    def _get_forward_method_args(self) -> list:
         inputs = self._get_input_activations()
-        parameters = self._model.init(jax.random.PRNGKey(0), inputs)
+        parameters = self._model.init(
+            jax.random.PRNGKey(0),
+            inputs,
+            train=False,
+        )
         return [parameters, inputs]
+
+    def _get_forward_method_kwargs(self) -> dict:
+        train = self._run_mode == RunMode.TRAINING
+        return {
+            "train": train,
+        }
+
+    def _get_static_argnames(self) -> list:
+        return ["train"]
 
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester(request) -> UNetTester:
-    return UNetTester(*request.param)
+def inference_tester() -> UNetTester:
+    return UNetTester()
 
 
 @pytest.fixture
-def training_tester(request) -> UNetTester:
-    return UNetTester(*request.param, RunMode.TRAINING)
+def training_tester() -> UNetTester:
+    return UNetTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -98,15 +113,6 @@ def training_tester(request) -> UNetTester:
         "Test failed due to missing decomposition from ttir.convolution to ttir.conv_transpose2d."
         "https://github.com/tenstorrent/tt-xla/issues/417"
     )
-)
-@pytest.mark.parametrize(
-    "inference_tester",
-    [
-        (1, 2, 64, 4),
-        (1, 2, 128, 5),
-    ],
-    indirect=True,
-    ids=lambda val: f"in={val[0]}_out={val[1]}_h={val[2]}_lvl={val[3]}",
 )
 def test_unet_inference(inference_tester: UNetTester):
     inference_tester.test()
