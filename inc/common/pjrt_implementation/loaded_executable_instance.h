@@ -13,6 +13,8 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/executable_image.h"
 #include "common/status.h"
+#include "stablehlo/reference/InterpreterOps.h"
+#include "stablehlo/reference/InterpreterPasses.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_
@@ -103,7 +105,7 @@ private:
                  const std::vector<std::vector<tt::runtime::Tensor>>
                      &rt_outputs_list) const;
 
-  std::vector<mlir::DenseElementsAttr> getInputElementsAttr(
+  std::vector<mlir::stablehlo::InterpreterValue> getInputInterpreterValues(
       const std::vector<tt::runtime::Tensor> &rt_inputs_list,
       const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
 
@@ -113,7 +115,7 @@ private:
 
   float convertBFloat16To32(uint16_t value) const;
 
-  llvm::FailureOr<mlir::DenseElementsAttr> getDenseElementsAttrFromBuffer(
+  llvm::FailureOr<mlir::stablehlo::InterpreterValue> getInterpreterValuesFromBuffer(
       const tt::runtime::Tensor &tensor,
       const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const;
 

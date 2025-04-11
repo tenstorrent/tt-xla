@@ -303,32 +303,32 @@ tt::runtime::Tensor LoadedExecutableInstance::getOuputTensor(
              : rt_outputs_list[device_index][output_index];
 }
 
-std::vector<mlir::DenseElementsAttr>
-LoadedExecutableInstance::getInputElementsAttr(
+std::vector<mlir::stablehlo::InterpreterValue>
+LoadedExecutableInstance::getInputInterpreterValues(
     const std::vector<tt::runtime::Tensor> &rt_inputs,
     const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const {
 
-  std::vector<mlir::DenseElementsAttr> elements_attr;
+  std::vector<mlir::stablehlo::InterpreterValue> interpreter_values;
   for (const tt::runtime::Tensor &input : rt_inputs) {
-    mlir::FailureOr<mlir::DenseElementsAttr> denseAttr =
-        getDenseElementsAttrFromBuffer(input, stablehlo_module);
-    elements_attr.push_back(*denseAttr);
+    mlir::FailureOr<mlir::stablehlo::InterpreterValue> interpreter_value =
+        getInterpreterValuesFromBuffer(input, stablehlo_module);
+    interpreter_values.push_back(*interpreter_value);
   }
 
-  return elements_attr;
+  return interpreter_values;
 }
 
 void LoadedExecutableInstance::runInterpreterOnModule(
     const std::vector<tt::runtime::Tensor> &rt_inputs,
     const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const {
-  std::vector<mlir::DenseElementsAttr> elements_attr =
-      getInputElementsAttr(rt_inputs, stablehlo_module);
+  std::vector<mlir::stablehlo::InterpreterValue> interpreter_values =
+      getInputInterpreterValues(rt_inputs, stablehlo_module);
 
   mlir::stablehlo::InterpreterConfiguration config;
   config.probeInstrumentationDir = "interpreter_log/";
   std::cerr << "HERE" << std::endl;
-  llvm::FailureOr<llvm::SmallVector<mlir::DenseElementsAttr>> results =
-      mlir::stablehlo::evalModule(*stablehlo_module.get(), elements_attr,
+  llvm::FailureOr<llvm::SmallVector<mlir::stablehlo::InterpreterValue>> results =
+      mlir::stablehlo::evalModule(*stablehlo_module.get(), interpreter_values,
                                   config);
   std::cerr << "THERE" << std::endl;
   if (mlir::failed(results)) {
@@ -344,51 +344,13 @@ float LoadedExecutableInstance::convertBFloat16To32(uint16_t value) const {
   return f;
 }
 
-llvm::FailureOr<mlir::DenseElementsAttr>
-LoadedExecutableInstance::getDenseElementsAttrFromBuffer(
+llvm::FailureOr<mlir::stablehlo::InterpreterValue>
+LoadedExecutableInstance::getInterpreterValuesFromBuffer(
     const tt::runtime::Tensor &tensor,
     const std::unique_ptr<mlir::ModuleOp> &stablehlo_module) const {
   tt::target::DataType data_type = tt::runtime::getTensorDataType(tensor);
   std::vector<std::byte> vec = tt::runtime::getTensorDataBuffer(tensor);
   std::vector<float> values;
-  /*switch (data_type) {
-  case tt::target::DataType::Float32:
-    values = std::vector<float>(
-      reinterpret_cast<float *>(vec.data()),
-      reinterpret_cast<float *>(vec.data() + vec.size()));
-    break;
-  case tt::target::DataType::BFloat16: {
-    auto *data = reinterpret_cast<uint16_t *>(vec.data());
-    values.reserve(vec.size() / sizeof(uint16_t));
-    for (size_t i = 0; i < vec.size() / sizeof(uint16_t); ++i) {
-      values.push_back(convertBFloat16To32(data[i]));
-    }
-    break;
-  }
-  case tt::target::DataType::UInt32:
-    values = std::vector<float>(
-      reinterpret_cast<uint32_t *>(vec.data()),
-      reinterpret_cast<uint32_t *>(vec.data() + vec.size()));
-    break;
-  case tt::target::DataType::UInt16:
-    values = std::vector<float>(
-      reinterpret_cast<uint16_t *>(vec.data()),
-      reinterpret_cast<uint16_t *>(vec.data() + vec.size()));
-    break;
-  case tt::target::DataType::UInt8:
-    values = std::vector<float>(
-      reinterpret_cast<uint8_t *>(vec.data()),
-      reinterpret_cast<uint8_t *>(vec.data() + vec.size()));
-    break;
-  case tt::target::DataType::Int32:
-    values = std::vector<float>(
-      reinterpret_cast<int32_t *>(vec.data()),
-      reinterpret_cast<int32_t *>(vec.data() + vec.size()));
-    break;
-  default:
-    DLOG_F(ERROR, "Unsupported data type for tensor conversion");
-    return llvm::failure();
-  }*/
   std::vector<std::uint32_t> shape_uint32 = tt::runtime::getTensorShape(tensor);
   mlir::Type mlir_type = MapBufferTypeToMlirTypes(data_type, stablehlo_module);
   if (!mlir_type) {
@@ -405,8 +367,9 @@ LoadedExecutableInstance::getDenseElementsAttrFromBuffer(
   auto denseAttr1 = mlir::DenseElementsAttr::getFromRawBuffer(
       tensorType, llvm::ArrayRef<char>(
                       reinterpret_cast<const char *>(vec.data()), vec.size()));
+  mlir::stablehlo::InterpreterValue interpreter_value = mlir::stablehlo::InterpreterValue(mlir::stablehlo::makeTensor(denseAttr1));
   std::cerr << "LOOOOO" << std::endl;
-  return denseAttr1;
+  return interpreter_value;
 }
 
 mlir::Type LoadedExecutableInstance::MapBufferTypeToMlirTypes(
