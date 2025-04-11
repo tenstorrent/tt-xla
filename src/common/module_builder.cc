@@ -83,6 +83,7 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
+#include <iostream>
 tt_pjrt_status
 ModuleBuilder::buildModule(const std::string_view &code,
                            const std::string_view &format,
@@ -130,6 +131,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
           mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
 
   if (!vhlo_module) {
+    std::cout << code << std::endl;
     DLOG_F(ERROR, "Failed to create VHLO module from the input program code");
     m_status = tt_pjrt_status::kInternal;
     return nullptr;

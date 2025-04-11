@@ -17,5 +17,3 @@ pytest
 sentencepiece
 torch
 transformers
-torch_xla
-torch_xla

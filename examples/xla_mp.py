@@ -24,16 +24,8 @@ import jax
 import jax._src.xla_bridge as xb
 
 
-def initialize_pjrt():
-    path = os.path.join(os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so")
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}, have you compiled the project?")
-    plugin = xb.register_plugin('tt', priority=10, library_path=path, options=None)
-    jax.config.update("jax_platforms", "tt,cpu")
-
 def init_process(rank, world_size):
     dist.init_process_group('xla', init_method='xla://')
-    # dist.init_process_group(backend="jax", init_method="jax://")
 
 class Model(nn.Module):
     def __init__(self):
@@ -57,10 +49,10 @@ def dar(rank, world_size):
     tensor = tensor.to(device)
     print(f"Tensor: {tensor}")
     model = Model()
-    #prog = export(model, (tensor,))
-    #prog.graph_module.graph.print_tabular()
-    #shlo = exported_program_to_stablehlo(prog)
-    #print(shlo.get_stablehlo_text())
+    # prog = export(model, (tensor,))
+    # prog.graph_module.graph.print_tabular()
+    # shlo = exported_program_to_stablehlo(prog)
+    # print(shlo.get_stablehlo_text())
     out = model(tensor)
     # out = out.to('cpu')
     # print(out)
@@ -68,7 +60,7 @@ def dar(rank, world_size):
     print(f"Out: {out}")
 
 def mp():
-    world_size = 4
+    world_size = 2
     torch_xla.launch(dar, args=(world_size,))
 
 class Linear(nn.Module):
@@ -82,6 +74,7 @@ class Linear(nn.Module):
 
 os.environ["PJRT_DEVICE"] = "TT"
 os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+
 def sanity():
     device = xm.xla_device()
     model = Linear()
@@ -93,4 +86,5 @@ def sanity():
 
 
 if __name__ == "__main__":
+    # sanity() 
     mp()
