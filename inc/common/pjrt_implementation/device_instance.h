@@ -34,7 +34,7 @@ public:
   // Binds PJRT API functions implementation related to PJRT_Device structure.
   static void bindApi(PJRT_Api *api);
 
-  // Casts this device instance to PJRT_Device and returns pointer to it.
+  // Casts this device instance to PJRT_Device pointer.
   operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
 
   // Casts the PJRT_Device pointer to DeviceInstance pointer.

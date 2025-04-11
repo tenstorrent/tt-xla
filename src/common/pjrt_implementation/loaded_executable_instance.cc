@@ -10,9 +10,6 @@
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
-// c++ standard library includes
-#include <memory>
-
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -26,49 +23,43 @@
 
 namespace tt::pjrt {
 
-LoadedExecutableInstance::~LoadedExecutableInstance() {
-  m_executable_image->DecRef();
-}
-
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
   api->PJRT_LoadedExecutable_GetExecutable =
       internal::onLoadedExecutableGetExecutable;
   api->PJRT_LoadedExecutable_AddressableDevices =
-      +[](PJRT_LoadedExecutable_AddressableDevices_Args *args) -> PJRT_Error * {
-    DLOG_F(
-        LOG_DEBUG,
-        "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    LoadedExecutableInstance *loaded_executable =
-        LoadedExecutableInstance::unwrap(args->executable);
-    // TODO: Set addressable devices in the loaded executable class to only the
-    // devices being utilized, rather than all addressable devices. This way,
-    // the number of devices will be determined by the list length instead of a
-    // separate field in the class.
-    const std::vector<DeviceInstance *> &addressable_devices =
-        loaded_executable->addressable_devices();
-    int num_addressable_devices =
-        loaded_executable->get_num_devices_to_utilize();
-    args->addressable_devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
-    args->num_addressable_devices = num_addressable_devices;
-    return nullptr;
-  };
-  api->PJRT_LoadedExecutable_Execute =
-      +[](PJRT_LoadedExecutable_Execute_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+      internal::onLoadedExecutableAddressableDevices;
+  api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
+  api->PJRT_LoadedExecutable_IsDeleted = internal::onLoadedExecutableIsDeleted;
+  api->PJRT_LoadedExecutable_Execute = internal::;
+}
 
-    // TODO_OOM: Check here if args->execute_device == nullptr
+bool LoadedExecutableInstance::isDeleted() {
+  std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
+  return m_deleted;
+}
 
-    return ErrorInstance::MakeError(
-        LoadedExecutableInstance::unwrap(args->executable)->Execute(args));
-  };
+void LoadedExecutableInstance::delete() {
+  if (m_deleted) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
+  if (m_deleted) {
+    return;
+  }
+
+  // Here we should drop executable's reference to the internal runtime object
+  // and associated resources, but we currently store no runtime objects so
+  // releasing only resources.
+  m_executable_image.reset();
+
+  m_deleted = true;
 }
 
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status
-LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
+LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
   // Check that the number of devices matches the number of devices counted
@@ -129,7 +120,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
       device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
 
       // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling PJRT_Event_Destroy on event.
+      // responsible for calling PJRT_Event_Destroy on the event.
       args->device_complete_events[device_num] =
           *device_complete_event.release();
     }
@@ -143,8 +134,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 tt::runtime::Device
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
                                       size_t num_args, size_t num_devices) {
-  std::vector<int> device_ids = getDeviceIds(
-      argument_lists, num_args, num_devices, m_addressable_devices);
+  std::vector<int> device_ids =
+      getDeviceIds(argument_lists, num_args, num_devices);
 
   tt::runtime::MeshDeviceOptions options;
   const std::vector<uint32_t> mesh_shape = {
@@ -285,7 +276,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       output_buffer->markAsDataReady();
 
       // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling PJRT_Buffer_Destroy on buffer.
+      // responsible for calling PJRT_Buffer_Destroy on the buffer.
       output_lists[device_index][output_index] = *result_buffer.release();
     }
   }
@@ -359,14 +350,68 @@ PJRT_Error *onLoadedExecutableGetExecutable(
   DLOG_F(LOG_DEBUG,
          "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
 
-  LoadedExecutableInstance *loaded_exe =
+  LoadedExecutableInstance *loaded_executable =
       LoadedExecutableInstance::unwrap(args->loaded_executable);
-  ExecutableImage *image = loaded_exe->m_executable_image;
 
-  image->AddRef();
-  args->executable = *image;
+  std::unique_ptr<ExecutableInstance> executable_instance =
+      ExecutableInstance::createInstance(
+          loaded_executable->getSharedExecutableImage());
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_Executable_Destroy on the executable.
+  args->executable = *loaded_executable->executable_instance.release();
 
   return nullptr;
+}
+
+PJRT_Error *onLoadedExecutableAddressableDevices(
+    PJRT_LoadedExecutable_AddressableDevices_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
+
+  LoadedExecutableInstance *loaded_executable =
+      LoadedExecutableInstance::unwrap(args->executable);
+
+  const std::vector<DeviceInstance *> &addressable_devices =
+      loaded_executable->getAddressableDevices();
+
+  args->addressable_devices =
+      reinterpret_cast<PJRT_Device *const *>(addressable_devices.data());
+  args->num_addressable_devices = addressable_devices.size();
+
+  return nullptr;
+}
+
+PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
+
+  LoadedExecutableInstance::unwrap(args->executable)->delete ();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted");
+
+  args->is_deleted =
+      LoadedExecutableInstance::unwrap(args->executable)->isDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+
+  if (args->execute_device) {
+    DLOG_F(ERROR, "Executing on specific single device is not supported");
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+  }
+
+  return ErrorInstance::MakeError(
+      LoadedExecutableInstance::unwrap(args->executable)->Execute(args));
 }
 
 } // namespace internal

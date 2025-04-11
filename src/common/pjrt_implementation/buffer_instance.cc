@@ -150,7 +150,7 @@ tt_pjrt_status BufferInstance::copyFromHost(
   markAsDataReady();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on event.
+  // responsible for calling PJRT_Event_Destroy on the event.
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
@@ -229,7 +229,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       .join();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on event.
+  // responsible for calling PJRT_Event_Destroy on the event.
   *out_event = event.release();
 
   return tt_pjrt_status::kSuccess;
@@ -262,7 +262,7 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   m_data_ready_event = data_ready_event.get();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on event.
+  // responsible for calling PJRT_Event_Destroy on the event.
   *out_event = data_ready_event.release();
 
   return tt_pjrt_status::kSuccess;

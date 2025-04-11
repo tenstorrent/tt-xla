@@ -62,7 +62,7 @@ public:
   // Binds PJRT API functions implementation related to PJRT_Buffer structure.
   static void bindApi(PJRT_Api *api);
 
-  // Casts this buffer instance to PJRT_Buffer and returns pointer to it.
+  // Casts this buffer instance to PJRT_Buffer pointer.
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
 
   // Casts the PJRT_Buffer pointer to BufferInstance pointer.
@@ -94,7 +94,7 @@ public:
   // deallocated.
   bool isDataDeleted();
 
-  // Delete the buffer data
+  // Deletes the buffer data.
   void deleteData();
 
   // This method should asynchronously copy data into device buffer from the
