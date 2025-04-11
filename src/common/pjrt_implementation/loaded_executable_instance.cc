@@ -101,8 +101,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       buffer =
           BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
-      data.push_back(
-          const_cast<const void *>(buffer->get_host_buffer_ptr().get()));
+      data.push_back(buffer->get_host_buffer_ptr().get());
     }
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
