@@ -38,21 +38,21 @@ MODEL_NAME = build_model_name(
 class BigBirdBaseTester(BigBirdTester):
     def __init__(
         self,
-        model_name: str,
+        model_path: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        super().__init__(model_name, comparison_config, run_mode)
+        super().__init__(model_path, comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
         return FlaxBigBirdForQuestionAnswering.from_pretrained(
-            self._model_name, attention_type="original_full"
+            self._model_path, attention_type="original_full"
         )
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         question, text = "Who was Jim Henson?", "Jim Henson was a nice puppet"
         inputs = tokenizer(question, text, return_tensors="jax")
         return inputs
