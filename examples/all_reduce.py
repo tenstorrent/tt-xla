@@ -27,6 +27,11 @@ def _tt_get_default_group():
 
 c10d._get_default_group = _tt_get_default_group
 
+<<<<<<< HEAD:examples/xla_mp.py
+=======
+
+
+>>>>>>> b70a2d8 (WIP test code):examples/all_reduce.py
 def init_process():
     dist.init_process_group('xla', init_method='xla://')
     global default_group
