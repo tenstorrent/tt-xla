@@ -96,12 +96,13 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<tt::runtime::Tensor> rt_inputs;
   for (size_t arg_num = 0; arg_num < args->num_args; ++arg_num) {
-    std::vector<std::shared_ptr<void>> data;
+    std::vector<const void *> data;
     BufferInstance *buffer;
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       buffer =
           BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
-      data.push_back(buffer->get_host_buffer_ptr());
+      data.push_back(
+          const_cast<const void *>(buffer->get_host_buffer_ptr().get()));
     }
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
@@ -170,7 +171,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::unordered_map<std::string, std::string> &strategy,
-    BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data) {
+    BufferInstance *buffer, std::vector<const void *> &data) {
   if (strategy.at("strategy") == "identity") {
     return buffer->getTensor();
   }
@@ -179,7 +180,8 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
   tt::runtime::TensorDesc tensor_desc = {
       buffer->getDimensions(), buffer->get_stride(),
       static_cast<std::uint32_t>(tt_buffer_type.second), tt_buffer_type.first};
-  return tt::runtime::createTensor(data, tensor_desc, strategy);
+  return tt::runtime::createOwnedMultiDeviceHostTensor(data, tensor_desc,
+                                                       strategy);
 }
 
 std::vector<std::uint32_t>
