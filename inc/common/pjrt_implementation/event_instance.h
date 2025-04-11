@@ -52,7 +52,7 @@ public:
   // Binds PJRT API functions implementation related to PJRT_Event structure.
   static void bindApi(PJRT_Api *api);
 
-  // Casts this event instance to PJRT_Event and returns pointer to it.
+  // Casts this event instance to PJRT_Event pointer.
   operator PJRT_Event *() { return reinterpret_cast<PJRT_Event *>(this); }
 
   // Casts the PJRT_Event pointer to EventInstance pointer.

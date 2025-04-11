@@ -9,6 +9,8 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -20,9 +22,8 @@
 #include "tt/runtime/runtime.h"
 
 // tt-xla includes
-#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/device_instance.h"
-#include "common/pjrt_implementation/executable_image.h"
+#include "common/pjrt_implementation/executable_instance.h"
 #include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_
@@ -30,27 +31,23 @@
 
 namespace tt::pjrt {
 
-// TODO_OOM: Explain.
+// Represents `PJRT_LoadedExecutable` structure and the functionality around it.
+// It is the in-memory loaded executable which is ready for input arguments to
+// execute.
 class LoadedExecutableInstance {
 public:
-  // TODO_OOM: Explain.
-  // TODO_OOM: assert for non-empty number of devices and num_devices_to_utilize
+  // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
-      ExecutableImage *executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices,
-      size_t num_devices_to_utilize)
-      : m_executable_image(image), m_addressable_devices(addressable_devices),
-        m_num_devices_to_utilize(num_devices_to_utilize) {}
-
-  // TODO_OOM: Explain.
-  ~LoadedExecutableInstance();
+      std::shared_ptr<ExecutableImage> executable_image,
+      const std::vector<DeviceInstance *> &addressable_devices)
+      : m_executable_image(std::move(executable_image)),
+        m_addressable_devices(addressable_devices) {}
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
   static void bindApi(PJRT_Api *api);
 
-  // Casts this loaded executable instance to PJRT_LoadedExecutable and returns
-  // pointer to it.
+  // Casts this loaded executable instance to PJRT_LoadedExecutable pointer.
   operator PJRT_LoadedExecutable *() {
     return reinterpret_cast<PJRT_LoadedExecutable *>(this);
   }
@@ -61,16 +58,25 @@ public:
     return reinterpret_cast<LoadedExecutableInstance *>(exe);
   }
 
-  // TODO_OOM: Explain.
-  const std::vector<DeviceInstance *> &addressable_devices() {
+  // Shares the underlying executable image.
+  std::shared_ptr<ExecutableImage> getSharedExecutableImage() const {
+    return m_executable_image;
+  }
+
+  // Returns subset of client's addressable devices that this executable will
+  // run on.
+  const std::vector<DeviceInstance *> &getAddressableDevices() {
     return m_addressable_devices;
   }
 
-  // TODO_OOM: Explain.
-  size_t get_num_devices_to_utilize() const { return m_num_devices_to_utilize; }
+  // Returns true if the executable was deleted.
+  bool isDeleted();
 
-  // TODO_OOM: Explain.
-  tt_pjrt_status Execute(PJRT_LoadedExecutable_Execute_Args *args);
+  // Releases the resources this loaded executable uses.
+  void delete();
+
+  // Runs execution of this loaded executable.
+  tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args);
 
 private:
   // Opens devices on which input arguments are placed, which we assume are the
@@ -103,8 +109,6 @@ private:
       const std::vector<tt::runtime::Tensor> &output_tensors,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
 
-  // TODO_OOM: Check what can be made static
-
   // Fills the output lists of the PJRT API with the outputs of tt runtime
   // execution.
   void fillPJRTOutputLists(
@@ -125,14 +129,18 @@ private:
   std::vector<std::uint32_t> getOutputShape(size_t output_index,
                                             size_t num_devices);
 
-  // TODO_OOM: Explain.
-  ExecutableImage *m_executable_image; // Ref-counted semantics.
+  // Executable image instance which is shared between executable and loaded
+  // executable instances.
+  std::shared_ptr<ExecutableImage> m_executable_image;
 
-  // TODO_OOM: Explain.
+  // Subset of client's addressable devices that this executable will run on.
   const std::vector<DeviceInstance *> m_addressable_devices;
 
-  // TODO_OOM: Explain.
-  const size_t m_num_devices_to_utilize;
+  // True if loaded executable was deleted, i.e. its resources are released.
+  bool m_deleted;
+
+  // Mutex guarding loaded executable deletion.
+  std::mutex m_deleted_mutex;
 };
 
 namespace internal {
@@ -143,6 +151,20 @@ PJRT_Error *onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args);
 // Implements PJRT_LoadedExecutable_GetExecutable API function.
 PJRT_Error *
 onLoadedExecutableGetExecutable(PJRT_LoadedExecutable_GetExecutable_Args *args);
+
+// Implements PJRT_LoadedExecutable_AddressableDevices API function.
+PJRT_Error *onLoadedExecutableAddressableDevices(
+    PJRT_LoadedExecutable_AddressableDevices_Args *args);
+
+// Implements PJRT_LoadedExecutable_Delete API function.
+PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args);
+
+// Implements PJRT_LoadedExecutable_IsDeleted API function.
+PJRT_Error *
+onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args);
+
+// Implements PJRT_LoadedExecutable_Execute API function.
+PJRT_Error *onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args);
 
 } // namespace internal
 

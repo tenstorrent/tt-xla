@@ -31,7 +31,7 @@
   // ---------------------------------------------------------------------------
   // PJRT_Buffer stubs:
 
-  // Deprecated in v0.54
+  // Deprecated in v0.54.
   _STUB(PJRT_Buffer_GetMemoryLayout);
 
   // Used to copy raw buffer from device to host. In order to support this we
@@ -70,7 +70,14 @@
   // some additional internal context.
   _STUB(PJRT_ExecuteContext_Create);
   _STUB(PJRT_ExecuteContext_Destroy);
+  // ---------------------------------------------------------------------------
 
+
+  // ---------------------------------------------------------------------------
+  // PJRT_LoadedExecutable stubs:
+
+  // Deprecated in v0.35, replaced by `PJRT_Executable_Fingerprint`.
+  _STUB(PJRT_LoadedExecutable_Fingerprint);
   // ---------------------------------------------------------------------------
 
 
@@ -108,11 +115,7 @@
   _STUB(PJRT_Executable_OutputMemoryKinds);
   _STUB(PJRT_Executable_OptimizedProgram);
   _STUB(PJRT_Executable_Serialize);
-  _STUB(PJRT_LoadedExecutable_Delete);
-  _STUB(PJRT_LoadedExecutable_IsDeleted);
-  _STUB(PJRT_LoadedExecutable_Execute);
   _STUB(PJRT_Executable_DeserializeAndLoad);
-  _STUB(PJRT_LoadedExecutable_Fingerprint);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);

@@ -8,10 +8,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include <atomic>
+// c++ standard library includes
 #include <string>
 #include <vector>
 
+// PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -19,40 +20,25 @@
 #include "tt/runtime/types.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 
-// tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO 1
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
-
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
 namespace tt::pjrt {
 
+// Represents compiled image containing all the required information for its
+// execution.
 class ExecutableImage {
 
 public:
+  // Constructs executable image instance from the information given by the
+  // compiler.
   ExecutableImage(
-      const tt::runtime::Binary &binary, std::string code,
+      const tt::runtime::Binary &binary, const std::string &code,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<std::uint32_t> &mesh_shape,
       const std::vector<bool> &is_output_scalar);
-
-  operator PJRT_Executable *() {
-    return reinterpret_cast<PJRT_Executable *>(this);
-  }
-  static ExecutableImage *Unwrap(PJRT_Executable *exe) {
-    return reinterpret_cast<ExecutableImage *>(exe);
-  }
-  static void BindApi(PJRT_Api *api);
-
-  void AddRef() { m_ref_count.fetch_add(1); }
-  void DecRef() {
-    if (m_ref_count.fetch_sub(1) == 0) {
-      delete this;
-    }
-  }
 
   const size_t get_arg_count() const { return m_arg_count; }
 
@@ -62,6 +48,8 @@ public:
 
   const std::string &get_code() const { return m_code; }
 
+  size_t get_num_devices_to_utilize() const { return m_num_devices_to_utilize; }
+
   const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
 
   const std::vector<std::uint32_t> &get_output_stride(const size_t index) const;
@@ -69,13 +57,6 @@ public:
   PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
 
   size_t get_num_outputs() const { return m_output_types.size(); }
-
-  const std::vector<std::uint32_t> &get_mesh_shape() const {
-    return m_mesh_shape;
-  }
-
-  // Checks if the output on the i-th index is a scalar.
-  bool isOutputScalar(size_t index) const;
 
   // Returns the sharding information for the i-th input.
   const mlir::tt::sharding_utils::MeshSharding &
@@ -114,11 +95,10 @@ private:
   // Original code fed to the compiler. Stored for debugging.
   const std::string m_code;
 
+  const size_t m_num_devices_to_utilize;
+
   size_t m_arg_count;
   size_t m_result_count;
-
-  // For every output, holds if the type is a scalar or not.
-  std::vector<bool> m_is_output_scalar;
 
   // For every output, holds PJRT_Buffer_Type.
   std::vector<PJRT_Buffer_Type> m_output_types;
@@ -149,4 +129,4 @@ private:
 
 } // namespace tt::pjrt
 
-#endif // TT_XLA_SRC_COMMON_API_IMPL_H_
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_

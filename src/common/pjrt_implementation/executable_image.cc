@@ -10,37 +10,36 @@
 
 #include "common/pjrt_implementation/executable_image.h"
 
+// c++ standard library includes
 #include <memory>
-#include <string>
 
+// tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
-#include "common/status.h"
 
 namespace tt::pjrt {
 
 const std::string_view kMlirFormat = "mlir";
 
 ExecutableImage::ExecutableImage(
-    const tt::runtime::Binary &binary, std::string code,
+    const tt::runtime::Binary &binary, const std::string &code,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<std::uint32_t> &mesh_shape,
     const std::vector<bool> &is_output_scalar)
     : m_ref_count(1), m_binary(binary), m_code(code),
-      m_input_sharding(input_sharding), m_output_sharding(output_sharding),
-      m_mesh_shape(mesh_shape), m_is_output_scalar(is_output_scalar) {
+      m_input_sharding(input_sharding), m_output_sharding(output_sharding) {
 
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_binary.getProgramOutputs(0);
   m_result_count = output_specs.size();
   m_arg_count = m_binary.getProgramInputs(0).size();
 
-  if (m_result_count != m_is_output_scalar.size()) {
+  if (m_result_count != is_output_scalar.size()) {
     // TODO: Move to module_builder and just assert here
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %zu "
            "than expected %zu",
-           m_result_count, m_is_output_scalar.size());
+           m_result_count, is_output_scalar.size());
   }
 
   m_output_types.resize(m_result_count);
@@ -51,93 +50,11 @@ ExecutableImage::ExecutableImage(
         output_specs[i].dataType);
 
     // PJRT expects an empty shape for scalars.
-    m_output_dims[i] = m_is_output_scalar[i] ? std::vector<std::uint32_t>()
-                                             : output_specs[i].shape;
+    m_output_dims[i] = is_output_scalar[i] ? std::vector<std::uint32_t>()
+                                           : output_specs[i].shape;
 
     m_output_strides[i] = output_specs[i].stride;
   }
-}
-
-void ExecutableImage::BindApi(PJRT_Api *api) {
-  api->PJRT_Executable_Destroy =
-      +[](PJRT_Executable_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Destroy");
-    ExecutableImage::Unwrap(args->executable)->DecRef();
-    return nullptr;
-  };
-  api->PJRT_Executable_Name =
-      +[](PJRT_Executable_Name_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Name");
-    const char *dummy_name = "tt_pjrt_exe";
-    args->executable_name = dummy_name;
-    args->executable_name_size = std::strlen(dummy_name);
-    return nullptr;
-  };
-  api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
-      +[](PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args)
-      -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "ExecutableImage::PJRT_Executable_SizeOfGeneratedCodeInBytes");
-    args->size_in_bytes =
-        0; // TODO:
-           // ExecutableImage::Unwrap(args->executable)->binary->GetDataSize();
-    return nullptr;
-  };
-  api->PJRT_Executable_NumOutputs =
-      +[](PJRT_Executable_NumOutputs_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->num_outputs = exec->get_result_count();
-    return nullptr;
-  };
-  api->PJRT_Executable_NumPartitions =
-      +[](PJRT_Executable_NumPartitions_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports partitioning.
-    args->num_partitions = 1;
-    return nullptr;
-  };
-  api->PJRT_Executable_NumReplicas =
-      +[](PJRT_Executable_NumReplicas_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports replicas.
-    args->num_replicas = 1;
-    return nullptr;
-  };
-  api->PJRT_Executable_OptimizedProgram =
-      +[](PJRT_Executable_OptimizedProgram_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OptimizedProgram");
-    ExecutableImage *executable = ExecutableImage::Unwrap(args->executable);
-    PJRT_Program *program = args->program;
-    program->format = kMlirFormat.data();
-    program->format_size = kMlirFormat.size();
-    size_t code_size = executable->get_code().size();
-    if (program->code == nullptr) {
-      program->code_size = code_size;
-    } else {
-      if (program->code_size < code_size) {
-        return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
-      }
-      std::memcpy(program->code, executable->get_code().c_str(), code_size);
-    }
-    return nullptr;
-  };
-  api->PJRT_Executable_OutputElementTypes =
-      +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->output_types = exec->get_output_types();
-    args->num_output_types = exec->get_num_outputs();
-    return nullptr;
-  };
-  api->PJRT_Executable_OutputDimensions =
-      +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-
-    args->num_outputs = exec->get_result_count();
-    exec->get_output_dims_concatenated(&args->dim_sizes, &args->dims);
-
-    return nullptr;
-  };
 }
 
 const std::vector<std::uint32_t> &

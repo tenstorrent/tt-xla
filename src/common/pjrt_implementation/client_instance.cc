@@ -296,8 +296,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
       reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Buffer_Destroy on buffer.
-  args->buffer = buffer.release();
+  // responsible for calling PJRT_Buffer_Destroy on the buffer.
+  args->buffer = *buffer.release();
 
   return nullptr;
 }
