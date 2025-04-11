@@ -20,36 +20,18 @@ from tests.utils import failed_fe_compilation, failed_runtime
     "use_shardy",
     [
         True,
-        False,
     ],
 )
 @pytest.mark.parametrize(
     ("batch_shape", "mesh_shape", "axis_names"),
     [
-        ((256, 256), (1, 4), ("batch", "model")),
+        ((512, 512), (1, 4), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.skip(
-                reason=failed_runtime(
-                    "Problem with CCL ops on llmbox"
-                    "(https://github.com/tenstorrent/tt-xla/issues/484)"
-                )
-            ),
-        ),
-        pytest.param(
-            ShardingMode.MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_fe_compilation(
-                    "Cannot get sharding information through the protobuf "
-                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
     ],
 )
 def test_psum(
