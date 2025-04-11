@@ -13,11 +13,11 @@ class BigBirdTester(ModelTester):
 
     def __init__(
         self,
-        model_name: str,
+        model_path: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_name = model_name
+        self._model_path = model_path
         super().__init__(comparison_config, run_mode)
 
     # @override

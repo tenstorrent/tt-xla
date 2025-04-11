@@ -22,27 +22,27 @@ class ViTTester(ModelTester):
 
     def __init__(
         self,
-        model_name: str,
+        model_path: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_name = model_name
+        self._model_path = model_path
         super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxViTForImageClassification.from_pretrained(self._model_name)
+        return FlaxViTForImageClassification.from_pretrained(self._model_path)
 
     # @override
     def _get_input_activations(self) -> jax.Array:
-        model_config = ViTConfig.from_pretrained(self._model_name)
+        model_config = ViTConfig.from_pretrained(self._model_path)
         image_size = model_config.image_size
         key = random.PRNGKey(0)
         random_image = random.randint(
             key, (image_size, image_size, 3), 0, 256, dtype=jnp.uint8
         )
 
-        processor = ViTImageProcessor.from_pretrained(self._model_name)
+        processor = ViTImageProcessor.from_pretrained(self._model_path)
         inputs = processor(images=random_image, return_tensors="jax")
         return inputs["pixel_values"]
 

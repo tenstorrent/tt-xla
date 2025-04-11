@@ -17,20 +17,20 @@ class FlaxRobertaForMaskedLMTester(ModelTester):
 
     def __init__(
         self,
-        model_name: str,
+        model_path: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_name = model_name
+        self._model_path = model_path
         super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxRobertaForMaskedLM.from_pretrained(self._model_name)
+        return FlaxRobertaForMaskedLM.from_pretrained(self._model_path)
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello <mask>.", return_tensors="jax")
         return inputs
 
