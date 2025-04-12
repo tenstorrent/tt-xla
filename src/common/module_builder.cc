@@ -54,10 +54,11 @@
 
 namespace tt::pjrt {
 
-ModuleBuilder::ModuleBuilder()
-    : m_status(tt_pjrt_status::kSuccess), m_flatbuffer_binary(nullptr) {
-  m_context = std::make_unique<mlir::MLIRContext>();
+const std::string ModuleBuilder::c_mlir_format_name = "mlir";
 
+ModuleBuilder::ModuleBuilder()
+    : m_context(std::make_unique<mlir::MLIRContext>()),
+      m_flatbuffer_binary(nullptr), m_status(tt_pjrt_status::kSuccess) {
   // Register all the required dialects and passes.
   mlir::DialectRegistry registry;
 
@@ -85,14 +86,13 @@ ModuleBuilder::ModuleBuilder()
 }
 
 tt_pjrt_status
-ModuleBuilder::buildModule(const std::string_view &code,
-                           const std::string_view &format,
+ModuleBuilder::buildModule(const std::string_view &mlir_code,
                            const std::string &system_descriptor_path) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
 
-  mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(code);
+  mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -126,10 +126,10 @@ ModuleBuilder::buildModule(const std::string_view &code,
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
-ModuleBuilder::createVHLOModule(const std::string_view &code) {
+ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
   mlir::OwningOpRef<mlir::ModuleOp> vhlo_module =
       mlir::parseSourceString<mlir::ModuleOp>(
-          llvm::StringRef(code.data(), code.size()),
+          llvm::StringRef(mlir_code.data(), mlir_code.size()),
           mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
 
   if (!vhlo_module) {
@@ -149,17 +149,30 @@ void ModuleBuilder::collectNumDevicesToUtilize(
   auto num_partitions_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_partitions");
+  m_num_partitions = 1;
+  if (num_partitions_attr) {
+    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
+  } else {
+    DLOG_F(WARNING,
+           "`mhlo.num_partitions` attribute not found, assuming default number "
+           "of partitions: %zu",
+           m_num_partitions);
+  }
+
   auto num_replicas_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_replicas");
-  if (num_partitions_attr && num_replicas_attr) {
-    m_num_devices_to_utilize =
-        num_partitions_attr.getInt() * num_replicas_attr.getInt();
+  m_num_replicas = 1;
+  if (num_replicas_attr) {
+    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
   } else {
-    m_num_devices_to_utilize = 1;
-    DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
-                    "default number of devices: 1");
+    DLOG_F(WARNING,
+           "`mhlo.num_replicas` attribute not found, assuming default number "
+           "of replicas: %zu",
+           m_num_replicas);
   }
+
+  m_num_devices_to_utilize = num_partitions * m_num_replicas;
 }
 
 void ModuleBuilder::convertFromVHLOToSHLO(
@@ -455,6 +468,44 @@ void ModuleBuilder::createFlatbufferBinary(
   if (m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
+  }
+
+  verifyCreatedFlatbufferBinary();
+}
+
+void ModuleBuilder::verifyCreatedFlatbufferBinary() {
+  // Assuming only one program per flatbuffer for now.
+  std::uint32_t program_index = 0;
+  size_t num_inputs = m_binary.getProgramInputs(program_index).size();
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      m_binary.getProgramOutputs(program_index);
+  size_t num_outputs = output_specs.size();
+
+  if (num_inputs != m_input_shardings.size()) {
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of inputs %zu "
+           "than expected from the m_input_shardings %zu",
+           num_inputs, m_input_shardings.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  if (num_outputs != is_output_scalar.size()) {
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %zu "
+           "than expected from the is_output_scalar %zu",
+           num_outputs, is_output_scalar.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  if (num_outputs != m_output_shardings.size()) {
+    DLOG_F(ERROR,
+           "Created flatbuffer binary contains different number of outputs %zu "
+           "than expected from the m_output_shardings %zu",
+           num_outputs, m_output_shardings.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
   }
 }
 

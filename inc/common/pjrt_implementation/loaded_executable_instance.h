@@ -36,12 +36,10 @@ namespace tt::pjrt {
 // execute.
 class LoadedExecutableInstance {
 public:
-  // Creates loaded executable instance from the executable image.
-  LoadedExecutableInstance(
-      std::shared_ptr<ExecutableImage> executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices)
-      : m_executable_image(std::move(executable_image)),
-        m_addressable_devices(addressable_devices) {}
+  // Creates new loaded executable instance from the executable image.
+  static std::unique_ptr<LoadedExecutableInstance>
+  createInstance(std::shared_ptr<ExecutableImage> executable_image,
+                 const std::vector<DeviceInstance *> &addressable_devices);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -73,12 +71,19 @@ public:
   bool isDeleted();
 
   // Releases the resources this loaded executable uses.
-  void delete();
+  void releaseResources();
 
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args);
 
 private:
+  // Creates loaded executable instance from the executable image.
+  LoadedExecutableInstance(
+      std::shared_ptr<ExecutableImage> executable_image,
+      const std::vector<DeviceInstance *> &addressable_devices)
+      : m_executable_image(std::move(executable_image)),
+        m_addressable_devices(addressable_devices), m_deleted(false) {}
+
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run.
   tt::runtime::Device openDevices(PJRT_Buffer *const *const *argument_lists,

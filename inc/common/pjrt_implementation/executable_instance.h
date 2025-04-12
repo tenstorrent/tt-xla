@@ -45,7 +45,6 @@ public:
     return reinterpret_cast<ExecutableInstance *>(exe);
   }
 
-  // TODO_OOM: Check if can be const.
   // Returns pointer to the underlying executable image.
   ExecutableImage *getExecutableImage() { return m_executable_image.get(); }
 
@@ -61,7 +60,36 @@ private:
 
 namespace internal {
 
-// TODO_OOM: finish
+// Implements PJRT_Executable_Destroy API function.
+PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args);
+
+// Implements PJRT_Executable_Name API function.
+PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args);
+
+// Implements PJRT_Executable_NumReplicas API function.
+PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args);
+
+// Implements PJRT_Executable_NumPartitions API function.
+PJRT_Error *onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args);
+
+// Implements PJRT_Executable_OptimizedProgram API function.
+PJRT_Error *
+onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args);
+
+// Implements PJRT_Executable_NumOutputs API function.
+PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args);
+
+// Implements PJRT_Executable_SizeOfGeneratedCodeInBytes API function.
+PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
+    PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args);
+
+// Implements PJRT_Executable_OutputElementTypes API function.
+PJRT_Error *
+onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args);
+
+// Implements PJRT_Executable_OutputDimensions API function.
+PJRT_Error *
+onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args);
 
 } // namespace internal
 

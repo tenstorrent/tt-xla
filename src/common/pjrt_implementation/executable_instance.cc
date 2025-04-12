@@ -10,6 +10,10 @@
 
 #include "common/pjrt_implementation/executable_instance.h"
 
+// c++ standard library includes
+#include <cstring>
+#include <string>
+
 // tt-xla includes
 #include "common/status.h"
 
@@ -20,91 +24,158 @@ std::unique_ptr<ExecutableInstance> ExecutableInstance::createInstance(
   return std::make_unique<ExecutableInstance>(std::move(executable_image));
 }
 
-void ExecutableImage::BindApi(PJRT_Api *api) {
-  api->PJRT_Executable_Destroy =
-      +[](PJRT_Executable_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Destroy");
-    ExecutableImage::Unwrap(args->executable)->DecRef();
-    return nullptr;
-  };
-  api->PJRT_Executable_Name =
-      +[](PJRT_Executable_Name_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_Name");
-    const char *dummy_name = "tt_pjrt_exe";
-    args->executable_name = dummy_name;
-    args->executable_name_size = std::strlen(dummy_name);
-    return nullptr;
-  };
-  api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
-      +[](PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args)
-      -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "ExecutableImage::PJRT_Executable_SizeOfGeneratedCodeInBytes");
-    args->size_in_bytes =
-        0; // TODO:
-           // ExecutableImage::Unwrap(args->executable)->binary->GetDataSize();
-    return nullptr;
-  };
-  api->PJRT_Executable_NumOutputs =
-      +[](PJRT_Executable_NumOutputs_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_NumOutputs");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->num_outputs = exec->get_result_count();
-    return nullptr;
-  };
-  api->PJRT_Executable_NumPartitions =
-      +[](PJRT_Executable_NumPartitions_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports partitioning.
-    args->num_partitions = 1;
-    return nullptr;
-  };
-  api->PJRT_Executable_NumReplicas =
-      +[](PJRT_Executable_NumReplicas_Args *args) -> PJRT_Error * {
-    // This should be updated once iree supports replicas.
-    args->num_replicas = 1;
-    return nullptr;
-  };
+void ExecutableInstance::bindApi(PJRT_Api *api) {
+  api->PJRT_Executable_Destroy = internal::onExecutableDestroy;
+  api->PJRT_Executable_Name = internal::onExecutableName;
+  api->PJRT_Executable_NumReplicas = internal::onExecutableNumReplicas;
+  api->PJRT_Executable_NumPartitions = internal::onExecutableNumPartitions;
   api->PJRT_Executable_OptimizedProgram =
-      +[](PJRT_Executable_OptimizedProgram_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OptimizedProgram");
-    ExecutableImage *executable = ExecutableImage::Unwrap(args->executable);
-    PJRT_Program *program = args->program;
-    program->format = kMlirFormat.data();
-    program->format_size = kMlirFormat.size();
-    size_t code_size = executable->get_code().size();
-    if (program->code == nullptr) {
-      program->code_size = code_size;
-    } else {
-      if (program->code_size < code_size) {
-        return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
-      }
-      std::memcpy(program->code, executable->get_code().c_str(), code_size);
-    }
-    return nullptr;
-  };
+      internal::onExecutableOptimizedProgram;
+  api->PJRT_Executable_NumOutputs = internal::onExecutableNumOutputs;
+  api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
+      internal::onExecutableSizeOfGeneratedCodeInBytes;
   api->PJRT_Executable_OutputElementTypes =
-      +[](PJRT_Executable_OutputElementTypes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputElementTypes");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-    args->output_types = exec->get_output_types();
-    args->num_output_types = exec->get_num_outputs();
-    return nullptr;
-  };
+      internal::onExecutableOutputElementTypes;
   api->PJRT_Executable_OutputDimensions =
-      +[](PJRT_Executable_OutputDimensions_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputDimensions_Args");
-    ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
-
-    args->num_outputs = exec->get_result_count();
-    exec->get_output_dims_concatenated(&args->dim_sizes, &args->dims);
-
-    return nullptr;
-  };
+      internal::onExecutableOutputDimensions;
 }
 
 namespace internal {
 
-// TODO_OOM: finish
+PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Destroy");
+
+  delete ExecutableInstance::Unwrap(args->executable);
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Name");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+  const std::string &executable_name =
+      executable_instance->getExecutableImage()->getExecutableName();
+
+  args->executable_name = executable_name.data();
+  args->executable_name_size = executable_name.size();
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumReplicas");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  args->num_replicas =
+      executable_instance->getExecutableImage()->getNumReplicas();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumPartitions");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  args->num_partitions =
+      executable_instance->getExecutableImage()->getNumPartitions();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OptimizedProgram");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  PJRT_Program *program = args->program;
+  program->format = ModuleBuilder::c_mlir_format_name.data();
+  program->format_size = ModuleBuilder::c_mlir_format_name.size();
+
+  const std::string &optimized_mlir_code =
+      executable_instance->getExecutableImage()->getOptimizedMlirCode();
+  size_t code_size = optimized_mlir_code.size();
+
+  if (program->code == nullptr) {
+    program->code_size = code_size;
+  } else {
+    if (program->code_size < code_size) {
+      DLOG_F(ERROR,
+             "Not enough space allocated for optimized program: expected %zu "
+             "bytes, allocated %zu bytes",
+             code_size, program->code_size);
+      return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+    }
+
+    std::memcpy(program->code, optimized_mlir_code.data(), code_size);
+  }
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumOutputs");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  args->num_outputs =
+      executable_instance->getExecutableImage()->getNumOutputs();
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
+    PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "ExecutableInstance::PJRT_Executable_SizeOfGeneratedCodeInBytes");
+
+  // In XLA they count this into on-device memory usage needed to run an
+  // executable. Only their GPU client implements it (in an unclear way), other
+  // clients either return 0 or -1, so it is probably not required to implement.
+  // Returning -1 for now since we cannot estimate device memory usage.
+  args->size_in_bytes = -1;
+
+  return nullptr;
+}
+
+PJRT_Error *
+onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputElementTypes");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  args->output_types =
+      executable_instance->getExecutableImage()->getOutputTypesRaw();
+  args->num_output_types =
+      executable_instance->getExecutableImage()->getNumOutputs();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputDimensions");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::Unwrap(args->executable);
+
+  args->dims =
+      executable_instance->getExecutableImage()->getOutputDimensionsFlatRaw();
+  args->dim_sizes =
+      executable_instance->getExecutableImage()->getOutputRanksRaw();
+
+  return nullptr;
+}
 
 } // namespace internal
 

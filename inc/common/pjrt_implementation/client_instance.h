@@ -61,21 +61,16 @@ public:
     return m_addressable_devices_raw;
   }
 
-  // Compiles.
-  // See TODOs in PJRT_Client_Compile.
-  PJRT_Error *
-  Compile(const PJRT_Program *program, /*xla::CompileOptions options, */
-          LoadedExecutableInstance **executable);
-
-  // Advances the timeline, returning (current, next) time point values.
-  std::tuple<uint64_t, uint64_t> AdvanceTimeline();
+  // Compiles given mlir program.
+  tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
+                                    LoadedExecutableInstance **out_executable);
 
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
 
 private:
-  tt_pjrt_status PopulateDevices();
+  tt_pjrt_status populateDevices();
 
   std::unique_ptr<Platform> platform_;
 
@@ -92,24 +87,15 @@ private:
   // `PJRT_Client_AddressableDevices` API call.
   std::vector<DeviceInstance *> m_addressable_devices_raw;
 
-  std::unique_ptr<ModuleBuilder> module_builder_;
+  // Module builder that compiles program code.
+  std::unique_ptr<ModuleBuilder> m_module_builder;
 
   // System descriptor (that TTIR to TTNN backend pipeline needs).
-  tt::runtime::SystemDesc system_descriptor_;
+  tt::runtime::SystemDesc m_system_descriptor;
 
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
-  std::string cached_system_descriptor_path_;
-
-  // Synchronization.
-  // We keep one global execution timeline across all devices. The management
-  // of this is currently somewhat primitive: we increment it by one for each
-  // invocation. Batch invocations (i.e. across multiple devices), only
-  // increment by one. In the future, additional parallelism could be plumbed
-  // up to the framework to allow different kinds of timeline management.
-  // Waiting on the current value of |execution_timeline_| will drain all
-  // scheduled work to date.
-  uint64_t execution_timeline_ = 0ull;
+  std::string m_cached_system_descriptor_path;
 };
 
 namespace internal {
@@ -127,6 +113,9 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args);
 // Implements PJRT_Client_LookupAddressableDevice API function.
 PJRT_Error *
 onClientLookupAddressableDevice(PJRT_Client_LookupAddressableDevice_Args *args);
+
+// Implements PJRT_Client_Compile API function.
+PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args);
 
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);

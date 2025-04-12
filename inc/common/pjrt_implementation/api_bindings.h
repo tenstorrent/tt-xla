@@ -8,10 +8,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "common/pjrt_implementation/error_instance.h"
-
+// c++ standard library includes
 #include <memory>
 #include <utility>
+
+// tt-xla includes
+#include "common/pjrt_implementation/error_instance.h"
+#include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_

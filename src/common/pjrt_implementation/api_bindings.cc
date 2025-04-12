@@ -16,6 +16,8 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/executable_instance.h"
+#include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/plugin_attributes.h"
 
 namespace tt::pjrt {
@@ -52,7 +54,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   DeviceInstance::bindApi(api);
   EventInstance::bindApi(api);
   ErrorInstance::BindApi(api);
-  ExecutableImage::BindApi(api);
+  ExecutableInstance::bindApi(api);
   LoadedExecutableInstance::bindApi(api);
 }
 

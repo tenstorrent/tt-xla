@@ -20,6 +20,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/device_instance.h"
+#include "common/status.h"
 
 namespace tt::pjrt {
 

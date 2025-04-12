@@ -10,6 +10,7 @@
 
 #include "common/pjrt_implementation/device_description.h"
 
+// tt-xla includes
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -48,28 +49,28 @@ void DeviceDescription::bindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Kind =
       +[](PJRT_DeviceDescription_Kind_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
-    std::string_view sv =
+    const std::string &device_kind =
         DeviceDescription::unwrap(args->device_description)->getDeviceKind();
-    args->device_kind = sv.data();
-    args->device_kind_size = sv.size();
+    args->device_kind = device_kind.data();
+    args->device_kind_size = device_kind.size();
     return nullptr;
   };
   api->PJRT_DeviceDescription_DebugString =
       +[](PJRT_DeviceDescription_DebugString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
-    std::string_view sv =
+    const std::string &debug_str =
         DeviceDescription::unwrap(args->device_description)->toDebugString();
-    args->debug_string = sv.data();
-    args->debug_string_size = sv.size();
+    args->debug_string = debug_str.data();
+    args->debug_string_size = debug_str.size();
     return nullptr;
   };
   api->PJRT_DeviceDescription_ToString =
       +[](PJRT_DeviceDescription_ToString_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
-    std::string_view sv =
+    const std::string &description_str =
         DeviceDescription::unwrap(args->device_description)->toString();
-    args->to_string = sv.data();
-    args->to_string_size = sv.size();
+    args->to_string = description_str.data();
+    args->to_string_size = description_str.size();
     return nullptr;
   };
 }

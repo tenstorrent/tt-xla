@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,92 +31,119 @@ namespace tt::pjrt {
 class ExecutableImage {
 
 public:
-  // Constructs executable image instance from the information given by the
+  // Creates new executable image instance from the information given by the
   // compiler.
-  ExecutableImage(
-      const tt::runtime::Binary &binary, const std::string &code,
+  static std::shared_ptr<ExecutableImage> createInstance(
+      const tt::runtime::Binary &flatbuffer_binary,
+      std::string &&optimized_mlir_code, std::string &&executable_name,
+      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<std::uint32_t> &mesh_shape,
       const std::vector<bool> &is_output_scalar);
 
-  const size_t get_arg_count() const { return m_arg_count; }
-
-  const size_t get_result_count() const { return m_result_count; }
-
-  const tt::runtime::Binary &get_binary() const { return m_binary; }
-
-  const std::string &get_code() const { return m_code; }
-
-  size_t get_num_devices_to_utilize() const { return m_num_devices_to_utilize; }
-
-  const std::vector<std::uint32_t> &get_output_shape(const size_t index) const;
-
-  const std::vector<std::uint32_t> &get_output_stride(const size_t index) const;
-
-  PJRT_Buffer_Type *get_output_types() { return m_output_types.data(); }
-
-  size_t get_num_outputs() const { return m_output_types.size(); }
-
-  // Returns the sharding information for the i-th input.
-  const mlir::tt::sharding_utils::MeshSharding &
-  getInputSharding(size_t index) const {
-    return m_input_sharding[index];
+  // Returns flatbuffer binary produced by the compiler.
+  const tt::runtime::Binary &getFlatbufferBinary() const {
+    return m_flatbuffer_binary;
   }
 
-  // Returns the sharding information for the i-th output.
-  const mlir::tt::sharding_utils::MeshSharding &
-  getOutputSharding(size_t index) const {
-    return m_output_sharding[index];
+  // Returns optimized mlir code produced by the compiler.
+  const std::string &getOptimizedMlirCode() const {
+    return m_optimized_mlir_code;
   }
+
+  // Returns a name that identifies the executable.
+  const std::string &getExecutableName() const { return m_executable_name; }
+
+  // Returns number of replicas of the executable.
+  size_t getNumReplicas() const { return m_num_replicas; }
+
+  // Returns number of partitions of the executable.
+  size_t getNumPartitions() const { return m_num_partitions; }
+
+  // Returns number of devices this executable should run on.
+  size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
+
+  // Returns number of input buffers per device this executable requires.
+  const size_t getNumInputs() const { return m_num_inputs; }
+
+  // Returns number of output buffers per device produced by this executable.
+  const size_t getNumOutputs() const { return m_num_outputs; }
+
+  // Returns raw pointer to data types for each output buffer.
+  PJRT_Buffer_Type *getOutputTypesRaw() { return m_output_types.data(); }
+
+  // Returns the shape for the output buffer with a given index.
+  const std::vector<std::uint32_t> &getOutputShape(size_t output_index) const;
+
+  // Returns raw pointer to ranks for each output buffer.
+  const size_t *getOutputRanksRaw() const { return m_output_ranks.data(); }
+
+  // Returns raw pointer to output dimensions concatenated in a flat array.
+  const std::int64_t *getOutputDimensionsFlatRaw() const {
+    return m_output_dimensions_flat.data();
+  }
+
+  // Returns the sharding information for the input buffer with a given index.
+  const mlir::tt::sharding_utils::MeshSharding &
+  getInputSharding(size_t input_index) const;
+
+  // Returns the sharding information for the output buffer with a given index.
+  const mlir::tt::sharding_utils::MeshSharding &
+  getOutputSharding(size_t output_index) const;
 
 private:
-  // Retrieves pointers to the concatenated list of output dimensions and the
-  // corresponding list of ranks (number of dimensions per output tensor).
-  void get_output_dims_concatenated(const size_t **dim_sizes,
-                                    const int64_t **dims);
+  // Constructs executable image instance from the information given by the
+  // compiler.
+  ExecutableImage(
+      const tt::runtime::Binary &flatbuffer_binary,
+      std::string &&optimized_mlir_code, std::string &&executable_name,
+      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<bool> &is_output_scalar);
 
-  // Checks if the concatenated output dimensions and the corresponding rank
-  // list have been initialized.
-  bool areOutputDimsConcatenated() const {
-    return m_output_dim_sizes && m_output_dims_concatenated;
-  }
+  // Flatbuffer binary produced by the compiler.
+  tt::runtime::Binary m_flatbuffer_binary;
 
-  // Populates the concatenated list of output dimensions and the corresponding
-  // list of ranks.
-  void populateOutputDimsConcatenated();
+  // Optimized mlir code produced by the compiler, stored for debugging
+  // purposes.
+  std::string m_optimized_mlir_code;
 
-  // The reference count. Must be disposed when reaching zero.
-  std::atomic<int> m_ref_count;
+  // A name that identifies the executable.
+  std::string m_executable_name;
 
-  // Raw compiler output.
-  tt::runtime::Binary m_binary;
+  // Number of partitions of the executable.
+  size_t m_num_partitions;
 
-  // Original code fed to the compiler. Stored for debugging.
-  const std::string m_code;
+  // Number of replicas of the executable.
+  size_t m_num_replicas;
 
-  const size_t m_num_devices_to_utilize;
+  // Number of devices this executable should run on, estimated from the
+  // compiled code.
+  size_t m_num_devices_to_utilize;
 
-  size_t m_arg_count;
-  size_t m_result_count;
+  // Number of input buffers per device this executable requires.
+  size_t m_num_inputs;
 
-  // For every output, holds PJRT_Buffer_Type.
+  // Number of output buffers per device produced by this executable.
+  size_t m_num_outputs;
+
+  // Holds data type for each output buffer.
   std::vector<PJRT_Buffer_Type> m_output_types;
 
-  // For every output, holds a list of its dimensions.
-  std::vector<std::vector<uint32_t>> m_output_dims;
+  // Holds dimensions for each output buffer.
+  std::vector<std::vector<std::uint32_t>> m_output_dimensions;
 
-  // For every output, stores rank (number of dimensions). Nullptr until its
-  // getter is called.
-  std::unique_ptr<size_t[]> m_output_dim_sizes;
+  // Stores rank (number of dimensions) of each output. It could be deduced from
+  // the output dimensions vector, but we need pointer to data to return back in
+  // `PJRT_Executable_OutputDimensions` API function.
+  std::vector<size_t> m_output_ranks;
 
-  // Stores all output dimensions concatenated in a flat array. Nullptr until
-  // its getter is called.
-  std::unique_ptr<int64_t[]> m_output_dims_concatenated;
-
-  // For every output, holds its stride.
-  std::vector<std::vector<uint32_t>> m_output_strides;
+  // Stores all output dimensions concatenated in a flat array.
+  std::vector<std::int64_t> m_output_dimensions_flat;
 
   // Hold the sharding information for each input.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_sharding;

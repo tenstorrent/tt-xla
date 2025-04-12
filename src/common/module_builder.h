@@ -30,31 +30,46 @@ class ModuleBuilder {
 public:
   ModuleBuilder();
 
-  tt_pjrt_status buildModule(const std::string_view &code,
-                             const std::string_view &format,
+  // Compiles given mlir module code and produces flatbuffer to execute on a
+  // given system.
+  tt_pjrt_status buildModule(const std::string_view &mlir_code,
                              const std::string &system_descriptor_path);
 
-  const tt::runtime::Binary &getBinary() const { return m_flatbuffer_binary; }
+  // Returns compiled flatbuffer binary.
+  const tt::runtime::Binary &getFlatbufferBinary() const {
+    return m_flatbuffer_binary;
+  }
 
+  // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
     return m_is_output_scalar;
   };
 
+  // Returns number of partitions defined for the program module.
+  size_t getNumPartitions() const { return m_num_partitions; }
+
+  // Returns number of replicas defined for the program module.
+  size_t getNumReplicas() const { return m_num_replicas; }
+
+  // Returns number of devices the binary is intended to run on, estimated from
+  // the compiled graph.
   size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
 
+  // Returns sharding information for inputs.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> &
   getInputShardings() const {
     return m_input_shardings;
   }
 
+  // Returns sharding information for outputs.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> &
   getOutputShardings() const {
     return m_output_shardings;
   }
 
-  const std::vector<std::uint32_t> &getMeshShape() const {
-    return m_mesh_shape;
-  }
+  // MLIR program format name. This would ideally be defined in PJRT API header
+  // but wcyd.
+  static const std::string c_mlir_format_name;
 
 private:
   // Creates VHLO module from the input program code.
@@ -89,6 +104,10 @@ private:
   // Creates flatbuffer binary from the built TTNN module.
   void
   createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Verifies that creates flatbuffer binary satisfies conditions estimated by
+  // the compiler from the input graph.
+  void verifyCreatedFlatbufferBinary();
 
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -143,7 +162,7 @@ private:
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
-  // Flatbuffer binary.
+  // Compiled flatbuffer binary.
   tt::runtime::Binary m_flatbuffer_binary;
 
   // Holds status of the last builder action.
@@ -152,7 +171,14 @@ private:
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
 
-  // Number of devices the binary is intended to run on.
+  // Number of partitions defined for the program module.
+  size_t m_num_partitions;
+
+  // Number of replicas defined for the program module.
+  size_t m_num_replicas;
+
+  // Number of devices the binary is intended to run on, estimated from the
+  // compiled graph.
   size_t m_num_devices_to_utilize;
 
   // For every input, holds the sharding information.

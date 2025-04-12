@@ -25,20 +25,23 @@
 namespace tt::pjrt {
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
-    : platform_(std::move(platform)), system_descriptor_(nullptr) {
+    : platform_(std::move(platform)), m_system_descriptor(nullptr) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
-  module_builder_ = std::make_unique<ModuleBuilder>();
+
+  m_module_builder = std::make_unique<ModuleBuilder>();
+
   // TODO: Ensure this name is unique to prevent clashes between multiple
   // clients. Since we plan to remove the need for storing the descriptor on
   // disk soon, we’re keeping it simple for now.
-  cached_system_descriptor_path_ =
+  m_cached_system_descriptor_path =
       std::filesystem::temp_directory_path().concat(
           "/tt_pjrt_system_descriptor");
 }
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
-  std::remove(cached_system_descriptor_path_.data());
+
+  std::remove(m_cached_system_descriptor_path.data());
 }
 
 PJRT_Error *ClientInstance::Initialize() {
@@ -48,6 +51,16 @@ PJRT_Error *ClientInstance::Initialize() {
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
+  api->PJRT_Client_Devices = internal::onClientDevices;
+  api->PJRT_Client_AddressableDevices = internal::onClientAddressableDevices;
+  api->PJRT_Client_LookupDevice = internal::onClientLookupDevice;
+  api->PJRT_Client_LookupAddressableDevice =
+      internal::onClientLookupAddressableDevice;
+  api->PJRT_Client_Compile = internal::onClientCompile;
+  api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
+
+  // TODO(mrakita): Move these below to internal too and revisit implementation.
+
   // PJRT_Client_Create is polymorphic
   api->PJRT_Client_Destroy =
       +[](PJRT_Client_Destroy_Args *args) -> PJRT_Error * {
@@ -76,11 +89,6 @@ void ClientInstance::bindApi(PJRT_Api *api) {
     args->platform_version_size = client->cached_platform_version().size();
     return nullptr;
   };
-  api->PJRT_Client_Devices = internal::onClientDevices;
-  api->PJRT_Client_AddressableDevices = internal::onClientAddressableDevices;
-  api->PJRT_Client_LookupDevice = internal::onClientLookupDevice;
-  api->PJRT_Client_LookupAddressableDevice =
-      internal::onClientLookupAddressableDevice;
   api->PJRT_Client_AddressableMemories =
       +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
@@ -89,25 +97,6 @@ void ClientInstance::bindApi(PJRT_Api *api) {
         0; // ClientInstance::unwrap(args->client)->addressable_memories.size();
     args->addressable_memories =
         nullptr; // ClientInstance::unwrap(args->client)->addressable_memories.data();
-    return nullptr;
-  };
-  api->PJRT_Client_Compile =
-      +[](PJRT_Client_Compile_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-    // TODO: It is not great that we only get a client here vs a list of
-    // devices to consider (or something). The issue is that systems often
-    // have unrelated devices that will not actually be scheduled and those
-    // will very naturally have different tuning flags. We therefore have to
-    // guess... which is an accident waiting to happen.
-    // Looks like what I need is buried in the compile options... need to
-    // work on that.
-    ClientInstance *client = ClientInstance::unwrap(args->client);
-    LoadedExecutableInstance *executable;
-
-    PJRT_Error *error = client->Compile(args->program, &executable);
-    if (error)
-      return error;
-    args->executable = *executable;
     return nullptr;
   };
   api->PJRT_Client_DefaultDeviceAssignment =
@@ -119,20 +108,17 @@ void ClientInstance::bindApi(PJRT_Api *api) {
     }
     return nullptr;
   };
-  api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
 }
 
-tt_pjrt_status ClientInstance::PopulateDevices() {
-  DLOG_F(LOG_DEBUG, "ClientInstance::PopulateDevices");
-
+tt_pjrt_status ClientInstance::populateDevices() {
   auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
 
-  system_descriptor_ = system_desc;
-  system_descriptor_.store(cached_system_descriptor_path_.data());
-  if (std::filesystem::exists(cached_system_descriptor_path_) == false) {
+  m_system_descriptor = system_desc;
+  m_system_descriptor.store(m_cached_system_descriptor_path.data());
+  if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,
            "Failed to store the system descriptor to the disk using path: %s",
-           cached_system_descriptor_path_.c_str());
+           m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
 
@@ -169,36 +155,62 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   return tt_pjrt_status::kSuccess;
 }
 
-PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
-                                    LoadedExecutableInstance **out_executable) {
-  DLOG_F(LOG_DEBUG, "ClientInstance::Compile");
+tt_pjrt_status
+ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
+                                   LoadedExecutableInstance **out_executable) {
 
-  std::string_view code(program->code, program->code_size);
-  std::string_view format(program->format, program->format_size);
+  std::string_view mlir_code(program->code, program->code_size);
 
-  tt_pjrt_status status = module_builder_->buildModule(
-      code, format, cached_system_descriptor_path_);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return ErrorInstance::MakeError(status);
+  tt_pjrt_status compile_status =
+      m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path);
+  if (!tt_pjrt_status_is_ok(compile_status)) {
+    return compile_status;
   }
 
-  auto executable = std::make_unique<LoadedExecutableInstance>(
-      new ExecutableImage(module_builder_->getBinary(),
-                          std::string(program->code, program->code_size),
-                          module_builder_->getInputShardings(),
-                          module_builder_->getOutputShardings(),
-                          module_builder_->getMeshShape(),
-                          module_builder_->getIsOutputScalar()),
-      m_addressable_devices_raw, module_builder_->getNumDevicesToUtilize());
-  *out_executable = executable.release();
-  return nullptr;
-}
+  // TODO(mrakita): Decide which module to pass here. If this is going to be
+  // used only for debugging then we might want TTIR or TTNN module, but if it
+  // is going to be used for the `PJRT_Executable_DeserializeAndLoad` to
+  // recompile the flatbuffer then we need either original program code or
+  // VHLO/SHLO module. Passing original program code for now.
+  std::string optimized_mlir_code =
+      std::string(program->code, program->code_size);
 
-std::tuple<uint64_t, uint64_t> ClientInstance::AdvanceTimeline() {
-  uint64_t current = execution_timeline_;
-  uint64_t next = current + 1;
-  execution_timeline_ = next;
-  return std::make_tuple(current, next);
+  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
+  // a name, otherwise some default string like the current one.
+  std::string executable_name = "tt_executable";
+
+  std::shared_ptr<ExecutableImage> executable_image =
+      ExecutableImage::createInstance(
+          m_module_builder->getFlatbufferBinary(),
+          std::move(optimized_mlir_code), std::move(executable_name),
+          m_module_builder->getNumPartitions(),
+          m_module_builder->getNumReplicas(),
+          m_module_builder->getNumDevicesToUtilize(),
+          m_module_builder->getInputShardings(),
+          m_module_builder->getOutputShardings(),
+          m_module_builder->getIsOutputScalar());
+
+  // TODO(mrakita): Currently there is no way to determine addressable devices
+  // from the mlir code. XLA parses device assignment from the `compile_options`
+  // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
+  // we cannot deserialize easily without linking whole XLA. Passing a subset of
+  // first `num_devices_to_utilize` client's addressable devices for now, but
+  // this will lead to errors if buffers are put on different devices than
+  // those. https://github.com/openxla/xla/issues/24990
+  std::vector<DeviceInstance *> addressable_devices(
+      m_addressable_devices_raw.begin(),
+      m_addressable_devices_raw.begin() +
+          m_module_builder->getNumDevicesToUtilize());
+
+  std::unique_ptr<LoadedExecutableInstance> executable =
+      LoadedExecutableInstance::createInstance(executable_image,
+                                               addressable_devices);
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling PJRT_LoadedExecutable_Destroy on the executable.
+  *out_executable = executable.release();
+
+  return tt_pjrt_status::kSuccess;
 }
 
 namespace internal {
@@ -263,6 +275,28 @@ PJRT_Error *onClientLookupAddressableDevice(
          args->id);
 
   return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+}
+
+PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
+
+  std::string_view program_format(args->program->format,
+                                  args->program->format_size);
+  if (program_format != ModuleBuilder::c_mlir_format_name) {
+    DLOG_F(ERROR,
+           "Program code format \"%s\" is not supported, only MLIR format is "
+           "currently supported",
+           args->program->format);
+    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+  }
+
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+
+  tt_pjrt_status compile_status = client_instance->compileMlirProgram(
+      args->program,
+      reinterpret_cast<LoadedExecutableInstance **>(&args->executable));
+
+  return ErrorInstance::MakeError(compile_status);
 }
 
 PJRT_Error *

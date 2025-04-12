@@ -76,6 +76,38 @@
   // ---------------------------------------------------------------------------
   // PJRT_LoadedExecutable stubs:
 
+  // This is not required to be implemented by all platforms. Shouldn't be hard
+  // to implement though, we can take hash of the optimized program, compile
+  // options, compiler version, metal version, etc.
+  // https://github.com/tenstorrent/tt-xla/issues/495
+  _STUB(PJRT_Executable_Fingerprint);
+
+  // Not required to be implemented and unclear how this is used by the clients
+  // (if at all).
+  _STUB(PJRT_Executable_GetCostAnalysis);
+
+  // This is not required to be implemented by all platforms. It should return
+  // memory stats that allow callers to estimate device memory usage when
+  // running the executable.
+  // https://github.com/tenstorrent/tt-xla/issues/496
+  _STUB(PJRT_Executable_GetCompiledMemoryStats);
+
+  // This should return list of lists of memory kind strings for outputs, in a
+  // shape [num_programs, num_outputs]. Most implementations I've found just
+  // populate it with default memory kind.
+  // https://github.com/tenstorrent/tt-xla/issues/497
+  _STUB(PJRT_Executable_OutputMemoryKinds);
+
+  // Serialization/deserialization of our executable is not yet supported.
+  // https://github.com/tenstorrent/tt-xla/issues/498
+  _STUB(PJRT_Executable_Serialize);
+  _STUB(PJRT_Executable_DeserializeAndLoad);
+  // ---------------------------------------------------------------------------
+
+
+  // ---------------------------------------------------------------------------
+  // PJRT_LoadedExecutable stubs:
+
   // Deprecated in v0.35, replaced by `PJRT_Executable_Fingerprint`.
   _STUB(PJRT_LoadedExecutable_Fingerprint);
   // ---------------------------------------------------------------------------
@@ -92,7 +124,6 @@
   _STUB(PJRT_Client_ProcessIndex);
   _STUB(PJRT_Client_PlatformVersion);
   _STUB(PJRT_Client_AddressableMemories);
-  _STUB(PJRT_Client_Compile);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
   _STUB(PJRT_DeviceDescription_Id);
   _STUB(PJRT_DeviceDescription_ProcessIndex);
@@ -105,17 +136,6 @@
   _STUB(PJRT_Memory_DebugString);
   _STUB(PJRT_Memory_ToString);
   _STUB(PJRT_Memory_AddressableByDevices);
-  _STUB(PJRT_Executable_Destroy);
-  _STUB(PJRT_Executable_Name);
-  _STUB(PJRT_Executable_NumReplicas);
-  _STUB(PJRT_Executable_NumPartitions);
-  _STUB(PJRT_Executable_NumOutputs);
-  _STUB(PJRT_Executable_SizeOfGeneratedCodeInBytes);
-  _STUB(PJRT_Executable_GetCostAnalysis);
-  _STUB(PJRT_Executable_OutputMemoryKinds);
-  _STUB(PJRT_Executable_OptimizedProgram);
-  _STUB(PJRT_Executable_Serialize);
-  _STUB(PJRT_Executable_DeserializeAndLoad);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);
@@ -129,13 +149,9 @@
   _STUB(PJRT_TopologyDescription_Serialize);
   _STUB(PJRT_TopologyDescription_Attributes);
   _STUB(PJRT_Compile);
-  _STUB(PJRT_Executable_OutputElementTypes);
-  _STUB(PJRT_Executable_OutputDimensions);
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
-  _STUB(PJRT_Executable_Fingerprint);
   _STUB(PJRT_Client_TopologyDescription);
-  _STUB(PJRT_Executable_GetCompiledMemoryStats);
   _STUB(PJRT_Memory_Kind_Id);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);

@@ -23,6 +23,14 @@
 
 namespace tt::pjrt {
 
+std::unique_ptr<LoadedExecutableInstance>
+LoadedExecutableInstance::createInstance(
+    std::shared_ptr<ExecutableImage> executable_image,
+    const std::vector<DeviceInstance *> &addressable_devices) {
+  return std::make_unique<LoadedExecutableInstance>(std::move(executable_image),
+                                                    addressable_devices);
+}
+
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
   api->PJRT_LoadedExecutable_GetExecutable =
@@ -39,7 +47,7 @@ bool LoadedExecutableInstance::isDeleted() {
   return m_deleted;
 }
 
-void LoadedExecutableInstance::delete() {
+void LoadedExecutableInstance::releaseResources() {
   if (m_deleted) {
     return;
   }
@@ -62,15 +70,21 @@ tt_pjrt_status
 LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  // Check that the number of devices matches the number of devices counted
-  // from the VHLO module.
-  if (args->num_devices != m_num_devices_to_utilize) {
-    DLOG_F(ERROR, "Number of devices in the executable does not match the "
-                  "number of devices to utilize.");
+  if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
+    DLOG_F(ERROR,
+           "Requested number of devices to run the executable on (%zu) doesn't "
+           "match the compiler estimated number of devices (%zu)",
+           args->num_devices, m_executable_image->getNumDevicesToUtilize());
     return tt_pjrt_status::kInternal;
   }
 
-  // TODO_OOM: Check here if args->num_args matches num_args from image
+  if (args->num_args != m_executable_image->getNumInputs()) {
+    DLOG_F(ERROR,
+           "Requested number of arguments to provide to the executable (%zu) "
+           "doesn't match the compiler estimated number of inputs (%zu)",
+           args->num_args, m_executable_image->getNumInputs());
+    return tt_pjrt_status::kInternal;
+  }
 
   tt::runtime::Device runtime_device =
       openDevices(args->argument_lists, args->num_args, args->num_devices);
@@ -92,11 +106,17 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // See issue: https://github.com/tenstorrent/tt-xla/issues/373
   tt::runtime::workaround::Env::get(true, true, false);
 
-  std::vector<tt::runtime::Tensor> output_tensors =
-      tt::runtime::submit(runtime_device, m_executable_image->get_binary(),
-                          program_index, input_tensors);
+  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
+      runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
+      input_tensors);
 
-  // TODO_OOM: Check here if output_tensors.size() == m_image->num_outputs()
+  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+    DLOG_F(ERROR,
+           "Runtime produced different number of output tensors (%zu) than the "
+           "compiler estimated number of outputs (%zu)",
+           output_tensors.size(), m_executable_image->getNumOutputs());
+    return tt_pjrt_status::kInternal;
+  }
 
   std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
   untilized_output_tensors.reserve(output_tensors.size());
@@ -243,8 +263,8 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
         isOutputReplicated(output_index) ? 1 : untilized_output_tensors.size();
     if (untilized_output.size() != expected_num_outputs) {
       DLOG_F(ERROR,
-             "Untilize to host produced invalid number of output tensors, "
-             "expected %zu got %zu",
+             "Untilize to host produced invalid number of output tensors: "
+             "expected %zu, got %zu",
              expected_num_outputs, untilized_output.size());
       return tt_pjrt_status::kInternal;
     }
@@ -303,7 +323,7 @@ std::vector<std::uint32_t>
 LoadedExecutableInstance::getOutputShape(size_t output_index,
                                          size_t num_devices) {
   std::vector<std::uint32_t> outputShape =
-      m_executable_image->get_output_shape(output_index);
+      m_executable_image->getOutputShape(output_index);
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
@@ -385,7 +405,7 @@ PJRT_Error *onLoadedExecutableAddressableDevices(
 PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
 
-  LoadedExecutableInstance::unwrap(args->executable)->delete ();
+  LoadedExecutableInstance::unwrap(args->executable)->releaseResources();
 
   return nullptr;
 }
