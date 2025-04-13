@@ -50,6 +50,9 @@ public:
     return cached_platform_version_;
   }
 
+  // Returns process index of this client.
+  int getProcessIndex() const { return m_process_index; }
+
   // Returns vector of raw pointers to all devices, including addressable and
   // non-addressable devices.
   const std::vector<DeviceInstance *> &getDevicesRaw() const {
@@ -73,6 +76,9 @@ private:
   tt_pjrt_status populateDevices();
 
   std::unique_ptr<Platform> platform_;
+
+  // Process index of this client. Always 0 in single-process settings.
+  int m_process_index;
 
   // Vector of all devices visible to the runtime, including addressable and
   // non-addressable devices.
@@ -99,6 +105,9 @@ private:
 };
 
 namespace internal {
+
+// Implements PJRT_Client_ProcessIndex API function.
+PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args);
 
 // Implements PJRT_Client_Devices API function.
 PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args);

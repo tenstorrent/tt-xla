@@ -121,16 +121,9 @@
   _STUB(PJRT_Client_Create);
   _STUB(PJRT_Client_Destroy);
   _STUB(PJRT_Client_PlatformName);
-  _STUB(PJRT_Client_ProcessIndex);
   _STUB(PJRT_Client_PlatformVersion);
   _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
-  _STUB(PJRT_DeviceDescription_Id);
-  _STUB(PJRT_DeviceDescription_ProcessIndex);
-  _STUB(PJRT_DeviceDescription_Attributes);
-  _STUB(PJRT_DeviceDescription_Kind);
-  _STUB(PJRT_DeviceDescription_DebugString);
-  _STUB(PJRT_DeviceDescription_ToString);
   _STUB(PJRT_Memory_Id);
   _STUB(PJRT_Memory_Kind);
   _STUB(PJRT_Memory_DebugString);

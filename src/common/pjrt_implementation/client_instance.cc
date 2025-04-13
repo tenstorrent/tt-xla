@@ -25,10 +25,13 @@
 namespace tt::pjrt {
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
-    : platform_(std::move(platform)), m_system_descriptor(nullptr) {
+    : platform_(std::move(platform)), m_system_descriptor(nullptr),
+      m_module_builder(std::make_unique<ModuleBuilder>()) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
-  m_module_builder = std::make_unique<ModuleBuilder>();
+  // TODO(mrakita): Add support for multi-process environment. Process index is
+  // always 0 in single-process settings.
+  m_process_index = 0;
 
   // TODO: Ensure this name is unique to prevent clashes between multiple
   // clients. Since we plan to remove the need for storing the descriptor on
@@ -51,6 +54,7 @@ PJRT_Error *ClientInstance::Initialize() {
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
+  api->PJRT_Client_ProcessIndex = internal::onClientProcessIndex;
   api->PJRT_Client_Devices = internal::onClientDevices;
   api->PJRT_Client_AddressableDevices = internal::onClientAddressableDevices;
   api->PJRT_Client_LookupDevice = internal::onClientLookupDevice;
@@ -74,11 +78,6 @@ void ClientInstance::bindApi(PJRT_Api *api) {
     ClientInstance *client = ClientInstance::unwrap(args->client);
     args->platform_name = client->cached_platform_name().data();
     args->platform_name_size = client->cached_platform_name().size();
-    return nullptr;
-  };
-  api->PJRT_Client_ProcessIndex =
-      +[](PJRT_Client_ProcessIndex_Args *args) -> PJRT_Error * {
-    args->process_index = 0;
     return nullptr;
   };
   api->PJRT_Client_PlatformVersion =
@@ -141,6 +140,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
     m_devices_raw.push_back(device_instance.get());
     if (is_addressable) {
+      device_instance->setProcessIndex(m_process_index);
       m_addressable_devices_raw.push_back(device_instance.get());
     }
 
@@ -214,6 +214,14 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 }
 
 namespace internal {
+
+PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_ProcessIndex");
+
+  args->process_index = ClientInstance::unwrap(args->client)->getProcessIndex();
+
+  return nullptr;
+}
 
 PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");

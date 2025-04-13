@@ -22,8 +22,8 @@
 
 namespace tt::pjrt {
 
+// Represents PJRT_Device structure and the functionality around it.
 class DeviceInstance {
-
 public:
   // Creates new device instance.
   static std::unique_ptr<DeviceInstance> createInstance(int global_device_id,
@@ -58,6 +58,11 @@ public:
 
   // Returns global device ID.
   int getGlobalDeviceId() const { return m_description.getDeviceId(); }
+
+  // Sets process index from which this device is addressable.
+  void setProcessIndex(int process_index) {
+    m_description->setProcessIndex(process_index);
+  }
 
 private:
   // Constructor.

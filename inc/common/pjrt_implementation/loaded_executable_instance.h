@@ -52,8 +52,8 @@ public:
 
   // Casts the PJRT_LoadedExecutable pointer to LoadedExecutableInstance
   // pointer.
-  static LoadedExecutableInstance *unwrap(PJRT_LoadedExecutable *exe) {
-    return reinterpret_cast<LoadedExecutableInstance *>(exe);
+  static LoadedExecutableInstance *unwrap(PJRT_LoadedExecutable *executable) {
+    return reinterpret_cast<LoadedExecutableInstance *>(executable);
   }
 
   // Shares the underlying executable image.

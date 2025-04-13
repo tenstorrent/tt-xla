@@ -41,8 +41,8 @@ public:
   }
 
   // Casts the PJRT_Executable pointer to ExecutableInstance pointer.
-  static ExecutableInstance *unwrap(PJRT_Executable *exe) {
-    return reinterpret_cast<ExecutableInstance *>(exe);
+  static ExecutableInstance *unwrap(PJRT_Executable *executable) {
+    return reinterpret_cast<ExecutableInstance *>(executable);
   }
 
   // Returns pointer to the underlying executable image.

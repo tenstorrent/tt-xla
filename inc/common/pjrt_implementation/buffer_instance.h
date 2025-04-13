@@ -38,7 +38,7 @@ class DeviceInstance;
 // `PJRT_LoadedExecutable_Execute` function, and transfer from device memory at
 // the end. The reason is that we can't know the layout in which transfer needs
 // to be done until compilation is done. Theoretically we could update the host
-// tensor with device tensor during first execute, and cache it for later
+// tensor with device tensor during first execute and cache it for later
 // executions which use the same input buffer, but it would cause issues if
 // multiple executions are running simultaneously and they update the buffer
 // with different device tensors.

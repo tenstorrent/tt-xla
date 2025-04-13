@@ -56,8 +56,8 @@ public:
   operator PJRT_Event *() { return reinterpret_cast<PJRT_Event *>(this); }
 
   // Casts the PJRT_Event pointer to EventInstance pointer.
-  static EventInstance *unwrap(PJRT_Event *exe) {
-    return reinterpret_cast<EventInstance *>(exe);
+  static EventInstance *unwrap(PJRT_Event *event) {
+    return reinterpret_cast<EventInstance *>(event);
   }
 
   // Returns true if the event is marked as ready, false otherwise.
