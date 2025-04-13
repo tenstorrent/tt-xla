@@ -151,7 +151,7 @@ tt_pjrt_status BufferInstance::copyFromHost(
   markAsDataReady();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on the event.
+  // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
@@ -230,7 +230,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       .join();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on the event.
+  // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_event = event.release();
 
   return tt_pjrt_status::kSuccess;
@@ -263,7 +263,7 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   m_data_ready_event = data_ready_event.get();
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Event_Destroy on the event.
+  // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_event = data_ready_event.release();
 
   return tt_pjrt_status::kSuccess;
@@ -329,7 +329,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // (tiled or strides) in the host_layout alive during the call."
   if (args->host_layout) {
     DLOG_F(ERROR, "Copying to host with custom memory layout is not supported");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
@@ -340,7 +340,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
     return nullptr;
   }
 
-  return ErrorInstance::MakeError(
+  return ErrorInstance::makeError(
       buffer->copyToHost(args->dst, args->dst_size,
                          reinterpret_cast<EventInstance **>(&args->event)));
 }
@@ -383,7 +383,7 @@ PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
 
-  return ErrorInstance::MakeError(buffer->createDataReadyEvent(
+  return ErrorInstance::makeError(buffer->createDataReadyEvent(
       reinterpret_cast<EventInstance **>(&args->event)));
 }
 

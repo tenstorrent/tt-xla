@@ -41,7 +41,7 @@ EventInstance::EventInstance()
 
         // After this point we shouldn't access the event anymore!
         for (OnReadyCallback &callback : on_ready_callbacks) {
-          callback.callback_function(ErrorInstance::MakeError(status),
+          callback.callback_function(ErrorInstance::makeError(status),
                                      callback.user_arg);
         }
       },
@@ -92,7 +92,7 @@ bool EventInstance::isReady() {
 }
 
 PJRT_Error *EventInstance::getErrorFromStatus() {
-  return ErrorInstance::MakeError(m_status);
+  return ErrorInstance::makeError(m_status);
 }
 
 static void inline logWarningOnMultipleReadyMarks() {

@@ -53,7 +53,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   DeviceDescription::bindApi(api);
   DeviceInstance::bindApi(api);
   EventInstance::bindApi(api);
-  ErrorInstance::BindApi(api);
+  ErrorInstance::bindApi(api);
   ExecutableInstance::bindApi(api);
   LoadedExecutableInstance::bindApi(api);
 }
@@ -62,7 +62,7 @@ void BindUndefineds(PJRT_Api *api) {
 #define _STUB(API)                                                             \
   api->API = +[](API##_Args *args) -> decltype(api->API(args)) {               \
     DLOG_F(WARNING, "STUB: " #API);                                            \
-    return (decltype(api->API(args)))ErrorInstance::MakeError(                 \
+    return (decltype(api->API(args)))ErrorInstance::makeError(                 \
         tt_pjrt_status::kUnimplemented);                                       \
   }
 

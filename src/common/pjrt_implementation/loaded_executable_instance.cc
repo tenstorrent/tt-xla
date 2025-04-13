@@ -140,7 +140,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
 
       // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling PJRT_Event_Destroy on the event.
+      // responsible for calling `PJRT_Event_Destroy` on the event.
       args->device_complete_events[device_num] =
           *device_complete_event.release();
     }
@@ -296,7 +296,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       output_buffer->markAsDataReady();
 
       // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling PJRT_Buffer_Destroy on the buffer.
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
       output_lists[device_index][output_index] = *result_buffer.release();
     }
   }
@@ -378,7 +378,7 @@ PJRT_Error *onLoadedExecutableGetExecutable(
           loaded_executable->getSharedExecutableImage());
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Executable_Destroy on the executable.
+  // responsible for calling `PJRT_Executable_Destroy` on the executable.
   args->executable = *loaded_executable->executable_instance.release();
 
   return nullptr;
@@ -427,10 +427,10 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   if (args->execute_device) {
     DLOG_F(ERROR, "Executing on specific single device is not supported");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 
-  return ErrorInstance::MakeError(
+  return ErrorInstance::makeError(
       LoadedExecutableInstance::unwrap(args->executable)->Execute(args));
 }
 

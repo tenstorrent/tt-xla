@@ -50,7 +50,7 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  return ErrorInstance::MakeError(PopulateDevices());
+  return ErrorInstance::makeError(PopulateDevices());
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
@@ -91,7 +91,7 @@ void ClientInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Client_AddressableMemories =
       +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
-    // return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    // return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
     args->num_addressable_memories =
         0; // ClientInstance::unwrap(args->client)->addressable_memories.size();
     args->addressable_memories =
@@ -207,7 +207,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
                                                addressable_devices);
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_LoadedExecutable_Destroy on the executable.
+  // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
   *out_executable = executable.release();
 
   return tt_pjrt_status::kSuccess;
@@ -262,7 +262,7 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
 
   DLOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
 
-  return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+  return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
 }
 
 PJRT_Error *onClientLookupAddressableDevice(
@@ -282,7 +282,7 @@ PJRT_Error *onClientLookupAddressableDevice(
          "Client addressable device lookup failed for device with local ID: %d",
          args->id);
 
-  return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+  return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
@@ -295,7 +295,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
            "Program code format \"%s\" is not supported, only MLIR format is "
            "currently supported",
            args->program->format);
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -304,7 +304,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable));
 
-  return ErrorInstance::MakeError(compile_status);
+  return ErrorInstance::makeError(compile_status);
 }
 
 PJRT_Error *
@@ -313,18 +313,18 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
 
   if (args->memory) {
     DLOG_F(ERROR, "Copying to custom memory is not supported");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
     DLOG_F(ERROR, "Only strided memory layout is supported");
-    return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
+    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 
   if (args->num_byte_strides != 0 && args->num_byte_strides != args->num_dims) {
     DLOG_F(ERROR, "Invalid `num_byte_strides` argument");
-    return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+    return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
   }
 
   std::unique_ptr<BufferInstance> buffer =
@@ -338,7 +338,7 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
       reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling PJRT_Buffer_Destroy on the buffer.
+  // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
   args->buffer = *buffer.release();
 
   return nullptr;

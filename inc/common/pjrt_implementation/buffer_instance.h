@@ -30,7 +30,7 @@ namespace tt::pjrt {
 
 class DeviceInstance;
 
-// Represents `PJRT_Buffer` structure and the functionality around it. Wraps
+// Represents PJRT_Buffer structure and the functionality around it. Wraps
 // `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
 // device buffers, but our runtime tensor will always be the host tensor,
 // created either by copying from host memory or by copying from device. We do

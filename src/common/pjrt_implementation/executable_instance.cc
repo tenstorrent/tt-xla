@@ -112,7 +112,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
              "Not enough space allocated for optimized program: expected %zu "
              "bytes, allocated %zu bytes",
              code_size, program->code_size);
-      return ErrorInstance::MakeError(tt_pjrt_status::kInvalidArgument);
+      return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
     }
 
     std::memcpy(program->code, optimized_mlir_code.data(), code_size);
