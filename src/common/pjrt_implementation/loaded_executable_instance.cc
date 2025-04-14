@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
+// c++ standard library includes
+#include <numeric>
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -93,8 +96,12 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  tt::runtime::Device runtime_device =
+  std::optional<tt::runtime::Device> runtime_device =
       openDevices(args->argument_lists, args->num_args, args->num_devices);
+  if (!runtime_device) {
+    // Logging is done inside `openDevices`.
+    return tt_pjrt_status::kInternal;
+  }
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -102,7 +109,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
-      args->argument_lists, args->num_args, args->num_devices, runtime_device,
+      args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -114,7 +121,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt::runtime::workaround::Env::get(true, true, false);
 
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
+      *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
       input_tensors);
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
@@ -153,36 +160,51 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeMeshDevice(runtime_device);
+  tt::runtime::closeMeshDevice(*runtime_device);
 
   return tt_pjrt_status::kSuccess;
 }
 
-tt::runtime::Device
+std::optional<tt::runtime::Device>
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
                                       size_t num_args, size_t num_devices) {
-  std::vector<int> device_ids =
+  std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
 
-  tt::runtime::MeshDeviceOptions options;
-  const std::vector<uint32_t> mesh_shape = {
-      1, static_cast<uint32_t>(device_ids.size())};
-  options.deviceIds = device_ids;
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
+  size_t mesh_shape_num_devices = static_cast<size_t>(
+      std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
+                      std::multiplies<std::uint32_t>{}));
 
-  return tt::runtime::openMeshDevice(mesh_shape, options);
+  if (device_ids.size() != mesh_shape_num_devices) {
+    DLOG_F(ERROR,
+           "Input buffers are placed on a different number of devices (%zu) "
+           "than in the mesh shape estimated by the compiler (%zu)",
+           device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  // TODO(mrakita): Currently runtime doesn't allow us to open specific devices
+  // subset, we can only open contiguous subset of devices starting from some
+  // offset. We need to keep track of opened devices in Client and map the
+  // buffers devices to these devices.
+  // https://github.com/tenstorrent/tt-xla/issues/502
+
+  return tt::runtime::openMeshDevice(devices_mesh_shape);
 }
 
-std::vector<int> LoadedExecutableInstance::getDeviceIds(
+std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices) {
-  std::vector<int> device_ids;
+  std::unordered_set<int> device_ids;
 
   for (size_t device_index = 0; num_args && device_index < num_devices;
        device_index++) {
     const BufferInstance *buffer =
         BufferInstance::unwrap(argument_lists[device_index][0]);
     int64_t buffer_device_id = buffer->getDevice()->getGlobalDeviceId();
-    device_ids.push_back(buffer_device_id);
+    device_ids.emplace(buffer_device_id);
   }
 
   // If there are no input buffers, we still want to run on a device.
@@ -190,7 +212,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
   // explicit. Maybe use `execute_device` from the args?
   if (device_ids.size() == 0) {
     assert(!m_addressable_devices.empty());
-    device_ids.push_back(m_addressable_devices.front()->getGlobalDeviceId());
+    device_ids.emplace(m_addressable_devices.front()->getGlobalDeviceId());
   }
 
   return device_ids;

@@ -37,10 +37,10 @@ public:
       const tt::runtime::Binary &flatbuffer_binary,
       std::string &&optimized_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<std::uint32_t> &mesh_shape,
       const std::vector<bool> &is_output_scalar);
 
   // Returns flatbuffer binary produced by the compiler.
@@ -64,6 +64,11 @@ public:
 
   // Returns number of devices this executable should run on.
   size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
+
+  // Returns devices mesh shape this executable should run on.
+  const std::vector<std::uint32_t> &getDevicesMeshShape() const {
+    return m_devices_mesh_shape;
+  }
 
   // Returns number of input buffers per device this executable requires.
   const size_t getNumInputs() const { return m_num_inputs; }
@@ -100,6 +105,7 @@ private:
       const tt::runtime::Binary &flatbuffer_binary,
       std::string &&optimized_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
@@ -124,6 +130,10 @@ private:
   // Number of devices this executable should run on, estimated from the
   // compiled code.
   size_t m_num_devices_to_utilize;
+
+  // Devices mesh shape this executable should run on, estimated from the
+  // compiled code.
+  const std::vector<std::uint32_t> m_devices_mesh_shape;
 
   // Number of input buffers per device this executable requires.
   size_t m_num_inputs;
@@ -150,9 +160,6 @@ private:
 
   // Hold the sharding information for each output.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
-
-  // Device mesh shape required by this image.
-  const std::vector<std::uint32_t> m_mesh_shape;
 };
 
 } // namespace tt::pjrt

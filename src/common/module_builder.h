@@ -55,6 +55,12 @@ public:
   // the compiled graph.
   size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
 
+  // Returns devices mesh shape the binary is intended to run on, estimated from
+  // the compiled graph.
+  const std::vector<std::uint32_t> &getDevicesMeshShape() const {
+    return m_devices_mesh_shape;
+  }
+
   // Returns sharding information for inputs.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> &
   getInputShardings() const {
@@ -97,6 +103,9 @@ private:
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // Estimates devices mesh shape the module is intended to run on.
+  void estimateMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Converts TTIR module to TTNN module.
   void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
                              mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -133,9 +142,6 @@ private:
 
   // Checks if the jax is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Collect the mesh shape needed by the module.
-  void collectMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
@@ -181,14 +187,15 @@ private:
   // compiled graph.
   size_t m_num_devices_to_utilize;
 
+  // Devices mesh shape the binary is intended to run on, estimated from the
+  // compiled graph.
+  std::vector<std::uint32_t> m_devices_mesh_shape;
+
   // For every input, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
-
-  // Device mesh shape required by this module.
-  std::vector<std::uint32_t> m_mesh_shape;
 };
 
 } // namespace tt::pjrt

@@ -186,6 +186,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
           m_module_builder->getNumPartitions(),
           m_module_builder->getNumReplicas(),
           m_module_builder->getNumDevicesToUtilize(),
+          m_module_builder->getDevicesMeshShape(),
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
           m_module_builder->getIsOutputScalar());

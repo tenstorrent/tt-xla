@@ -11,8 +11,10 @@
 // c++ standard library includes
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // PJRT C API includes
@@ -85,13 +87,16 @@ private:
         m_addressable_devices(addressable_devices), m_deleted(false) {}
 
   // Opens devices on which input arguments are placed, which we assume are the
-  // the devices where computation will run.
-  tt::runtime::Device openDevices(PJRT_Buffer *const *const *argument_lists,
-                                  size_t num_args, size_t num_devices);
+  // the devices where computation will run, if their count is equal to the
+  // corresponding devices count in the mesh shape estimated by the compiler.
+  std::optional<tt::runtime::Device>
+  openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
+              size_t num_devices);
 
   // Collects device ids from the addressable devices.
-  std::vector<int> getDeviceIds(PJRT_Buffer *const *const *argument_lists,
-                                size_t num_args, size_t num_devices);
+  std::unordered_set<int>
+  getDeviceIds(PJRT_Buffer *const *const *argument_lists, size_t num_args,
+               size_t num_devices);
 
   // Gets input runtime tensors from the arguments' buffers and converts them to
   // desired layout determined from the compiled graph.

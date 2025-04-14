@@ -18,6 +18,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
     std::string &&optimized_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+    const std::vector<std::uint32_t> &devices_mesh_shape,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<bool> &is_output_scalar) {
@@ -27,6 +28,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
         std::string &&optimized_mlir_code, std::string &&executable_name,
         size_t num_partitions, size_t num_replicas,
         size_t num_devices_to_utilize,
+        const std::vector<std::uint32_t> &devices_mesh_shape,
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
             &input_sharding,
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
@@ -34,30 +36,32 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
         const std::vector<bool> &is_output_scalar)
         : ExecutableImage(flatbuffer_binary, std::move(optimized_mlir_code),
                           std::move(executable_name), num_partitions,
-                          num_replicas, num_devices_to_utilize, input_sharding,
-                          output_sharding, is_output_scalar) {}
+                          num_replicas, num_devices_to_utilize,
+                          devices_mesh_shape, input_sharding, output_sharding,
+                          is_output_scalar) {}
   };
 
   return std::make_shared<make_shared_enabler>(
       flatbuffer_binary, std::move(optimized_mlir_code),
       std::move(executable_name), num_partitions, num_replicas,
-      num_devices_to_utilize, input_sharding, output_sharding,
-      is_output_scalar);
+      num_devices_to_utilize, devices_mesh_shape, input_sharding,
+      output_sharding, is_output_scalar);
 }
 
 ExecutableImage::ExecutableImage(
     const tt::runtime::Binary &flatbuffer_binary,
     std::string &&optimized_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+    const std::vector<std::uint32_t> &devices_mesh_shape,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<std::uint32_t> &mesh_shape,
     const std::vector<bool> &is_output_scalar)
     : m_flatbuffer_binary(flatbuffer_binary),
       m_optimized_mlir_code(std::move(optimized_mlir_code)),
       m_executable_name(std::move(executable_name)),
       m_num_partitions(num_partitions), m_num_replicas(num_replicas),
       m_num_devices_to_utilize(num_devices_to_utilize),
+      m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding) {
 
   // Assuming only one program per flatbuffer for now.
