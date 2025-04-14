@@ -71,7 +71,7 @@ private:
   // to data.
   tt::runtime::Tensor getTensorFromStrategy(
       const std::unordered_map<std::string, std::string> &strategy,
-      BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data);
+      BufferInstance *buffer, std::vector<const void *> &data);
 
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOuputShape(size_t index, size_t num_devices);
