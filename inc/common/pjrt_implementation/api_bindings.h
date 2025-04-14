@@ -12,11 +12,14 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
 
 namespace tt::pjrt {
+
+using TopologyDescriptionInstance = std::vector<int64_t>;
 
 // Top-level API bindings.
 void BindMonomorphicApi(PJRT_Api *api);

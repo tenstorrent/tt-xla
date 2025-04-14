@@ -3,7 +3,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import os
-
+import sys
 
 from torch_xla.experimental import plugins
 class TTPjrtPlugin(plugins.DevicePlugin):
@@ -13,33 +13,43 @@ class TTPjrtPlugin(plugins.DevicePlugin):
 
 plugins.register_plugin("TT", TTPjrtPlugin())
 
-from torch_xla.stablehlo import exported_program_to_stablehlo
-from torch.export import export
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+import torch.distributed.distributed_c10d as c10d
+from torch.export import export
+from torch_xla.stablehlo import exported_program_to_stablehlo
+default_group = None
+def _tt_get_default_group():
+    if default_group is None:
+        return c10d.GroupMember.WORLD
+    return default_group
 
+c10d._get_default_group = _tt_get_default_group
 
-import jax
-import jax._src.xla_bridge as xb
-
-
-def init_process(rank, world_size):
+def init_process():
     dist.init_process_group('xla', init_method='xla://')
+    global default_group
+    # pg_options = {'xla_pg_options': {'mesh': [[1, 2]]}}
+    num_devices = int(sys.argv[1])
+    default_group = dist.new_group([i for i in range(num_devices)])
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
     def forward(self, tensor):
-        tensor = tensor + 1
-        dist.all_reduce(tensor)
-
+        tensor = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, tensor, 1.0, [[0,1]])
         return tensor
 
-def dar(rank, world_size):
-    init_process(rank, world_size)
-    tensor = torch.ones(2, device='cpu') * (rank + 1)
+def dar(rank):
+    init_process()
+    print("process initialized")
+    tensor = torch.ones(6, device='cpu') * (rank + 1)
+    model = Model()
+    # prog = export(model, (tensor, ))
+    # stablehlo = exported_program_to_stablehlo(prog)
+    # print(stablehlo.get_stablehlo_text())
     xla_rank = xr.global_ordinal()
     world_size = xr.world_size()
     print(f"Rank: {rank}\nWorld Size: {world_size}")
@@ -48,11 +58,6 @@ def dar(rank, world_size):
     print(f"Device: {device}")
     tensor = tensor.to(device)
     print(f"Tensor: {tensor}")
-    model = Model()
-    # prog = export(model, (tensor,))
-    # prog.graph_module.graph.print_tabular()
-    # shlo = exported_program_to_stablehlo(prog)
-    # print(shlo.get_stablehlo_text())
     out = model(tensor)
     # out = out.to('cpu')
     # print(out)
@@ -60,31 +65,15 @@ def dar(rank, world_size):
     print(f"Out: {out}")
 
 def mp():
-    world_size = 2
-    torch_xla.launch(dar, args=(world_size,))
-
-class Linear(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.fc1 = nn.Linear(32, 64)
-
-    def forward(self, x):
-        return self.fc1(x)
+    num_devices = int(sys.argv[1])
+    if num_devices == 1:
+        dar(0)
+    else:
+        torch_xla.launch(dar, args=())
 
 
 os.environ["PJRT_DEVICE"] = "TT"
 os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
-def sanity():
-    device = xm.xla_device()
-    model = Linear()
-    model = model.to(device)
-    input = torch.randn(32, 32, dtype=torch.float32, device='cpu')
-    input = input.to(device)
-    out = model(input)
-    print(out)
-
-
 if __name__ == "__main__":
-    # sanity() 
     mp()

@@ -54,6 +54,8 @@ PJRT_Error *ClientInstance::Initialize() {
     return ErrorInstance::MakeError(status);
   }
 
+  topology_description_ = {1, 2};
+
   return nullptr;
 }
 
@@ -91,9 +93,16 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
     const std::vector<DeviceInstance *> &devices =
         ClientInstance::Unwrap(args->client)->devices();
+    for (size_t i = 0; i < devices.size(); ++i) {
+      DLOG_F(LOG_DEBUG, "Device %zu: %p", i, devices[i]);
+    }
     args->devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(devices.data()));
     args->num_devices = devices.size();
+
+    for (size_t i = 0; i < devices.size(); ++i) {
+      DLOG_F(LOG_DEBUG, "Device %zu: %p", i, args->devices[i]);
+    }
     return nullptr;
   };
   api->PJRT_Client_AddressableDevices =
@@ -159,13 +168,27 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     }
     return nullptr;
   };
+  api->PJRT_Client_TopologyDescription = 
+      +[](PJRT_Client_TopologyDescription_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_TopologyDescription");
+    args->topology = const_cast<PJRT_TopologyDescription *>(reinterpret_cast<const PJRT_TopologyDescription *>(
+        &ClientInstance::Unwrap(args->client)->topology_description()));
+    return nullptr;
+  };
+  api->PJRT_TopologyDescription_Attributes =
+      +[](PJRT_TopologyDescription_Attributes_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_TopologyDescription_Attributes");
+    args->attributes = nullptr;
+    args->num_attributes = 0;
+    return nullptr;
+  };
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    tt_pjrt_status status =
-        DeviceInstance::Unwrap(args->device)
-            ->HostBufferToDevice(
-                args->data, args->type, args->dims, args->num_dims,
+    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer device ptr: %p", args->memory);
+    // MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]
+    tt_pjrt_status status = HostBufferToDevice(
+      MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0], args->data, args->type, args->dims, args->num_dims,
                 args->byte_strides, args->num_byte_strides,
                 args->host_buffer_semantics,
                 reinterpret_cast<EventInstance **>(
@@ -205,10 +228,11 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   }
 
   // For now, just make all devices addressable.
-  addressable_devices_.reserve(devices_.size());
-  for (DeviceInstance *device : devices_) {
-    addressable_devices_.push_back(device);
-  }
+  addressable_devices_ = devices_;
+  // addressable_devices_.reserve(devices_.size());
+  // for (DeviceInstance *device : devices_) {
+  //   addressable_devices_.push_back(device);
+  // }
   return tt_pjrt_status::kSuccess;
 }
 
@@ -218,7 +242,7 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
 
   std::string_view code(program->code, program->code_size);
   std::string_view format(program->format, program->format_size);
-
+  auto module_builder_ = std::make_unique<ModuleBuilder>();
   tt_pjrt_status status = module_builder_->buildModule(
       code, format, cached_system_descriptor_path_);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -232,8 +256,10 @@ PJRT_Error *ClientInstance::Compile(const PJRT_Program *program,
                           module_builder_->getInputShardings(),
                           module_builder_->getOutputShardings(),
                           module_builder_->getIsOutputScalar()),
-      addressable_devices_, module_builder_->getNumDevicesToUtilize());
+      this->addressable_devices(), module_builder_->getNumDevicesToUtilize());
   *out_executable = executable.release();
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance device ptr: %p", (**out_executable).addressable_devices()[0]);
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance device ptr: %p", (**out_executable).addressable_devices()[1]);
   return nullptr;
 }
 

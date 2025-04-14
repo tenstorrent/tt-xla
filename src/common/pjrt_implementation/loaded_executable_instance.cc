@@ -237,9 +237,10 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       std::pair<tt::target::DataType, size_t> type_pair = {
           output_specs[output_index].dataType,
           output_specs[output_index].itemsize};
+      DLOG_F(LOG_DEBUG, "fillPJRTOutputLists device ptr: %p", this->addressable_devices_[device_index]);
       auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[device_index], output_tensor,
-          output_shape, output_specs[output_index].stride, type_pair);
+          this->addressable_devices_[device_index], output_tensor,
+          output_shape, output_specs[output_index].stride, type_pair, nullptr);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[output_index].dataType));
       output_lists[device_index][output_index] = *(result_buffer.release());
@@ -258,7 +259,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
     const BufferInstance *buffer =
         BufferInstance::Unwrap(argument_lists[device_index][0]);
     int64_t buffer_device_id =
-        buffer->device().device_description()->getDeviceId();
+        buffer->device()->device_description()->getDeviceId();
     device_ids.push_back(buffer_device_id);
   }
 

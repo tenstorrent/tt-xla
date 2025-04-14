@@ -316,12 +316,13 @@ void ModuleBuilder::collectOutputTypes(
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-
+    DLOG_F(LOG_DEBUG, "FuncOp: %s", func_op.getName().str().c_str());
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
     }
   }
+  DLOG_F(LOG_DEBUG, "FinishedCollectingOutputTypes");
 }
 
 std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
@@ -434,6 +435,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
+  options.meshShape = {1, 2};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.

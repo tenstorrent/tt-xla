@@ -10,6 +10,7 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -48,6 +49,9 @@ public:
 
   Platform &platform() { return *platform_; }
   const std::vector<DeviceInstance *> &devices() { return devices_; }
+  const std::vector<int64_t> &topology_description() {
+    return topology_description_;
+  }
   const std::vector<DeviceInstance *> &addressable_devices() {
     return addressable_devices_;
   }
@@ -101,6 +105,8 @@ private:
   uint64_t execution_timeline_ = 0ull;
 
   std::vector<MemoryInstance *> addressable_memories_;
+
+  std::vector<int64_t> topology_description_;
 };
 
 } // namespace tt::pjrt

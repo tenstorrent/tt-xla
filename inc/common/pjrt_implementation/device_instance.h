@@ -32,6 +32,7 @@ public:
       : client_(client), description_(device_id, arch), addressable_memories_(addressable_memories) {
         for (auto memory : addressable_memories_) {
           memory->addDevice(this);
+          DLOG_F(LOG_DEBUG, "DeviceInstance ADDRT %p", this);
       }
   }
   ~DeviceInstance();
@@ -63,37 +64,37 @@ public:
                           EventInstance **out_done_with_host_buffer_event,
                           BufferInstance **out_buffer);
 
-  tt_pjrt_status
-  HostBufferToDevice(const void *data, PJRT_Buffer_Type type,
-                     const int64_t *dims, size_t num_dims,
-                     const int64_t *byte_strides, size_t num_byte_strides,
-                     PJRT_HostBufferSemantics host_buffer_semantics,
-                     EventInstance **out_done_with_host_buffer_event,
-                     BufferInstance **out_buffer);
-
   DeviceDescription *device_description() { return &description_; }
   const DeviceDescription *device_description() const { return &description_; }
 
 private:
   tt_pjrt_status OpenDevice();
 
-  static size_t getTensorSize(const std::vector<std::uint32_t> &shape,
-                              size_t element_size);
-
-  // Create a buffer instance from a host data pointer, by copying it into
-  // another memory. This is necessary as we have no ownership of the passed
-  // pointer, and it might happen that the pointer is deallocated before the
-  // buffer is used. See issue #248 for more details.
-  std::unique_ptr<BufferInstance>
-  MakeDeviceBuffer(const void *data_ptr, std::vector<std::uint32_t> &shape,
-                   std::vector<std::uint32_t> &strides, size_t element_size,
-                   tt::target::DataType element_type);
-
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
   DeviceDescription description_;
   std::vector<MemoryInstance *> addressable_memories_;
 };
+
+size_t getTensorSize(const std::vector<std::uint32_t> &shape,
+  size_t element_size);
+
+// Create a buffer instance from a host data pointer, by copying it into
+// another memory. This is necessary as we have no ownership of the passed
+// pointer, and it might happen that the pointer is deallocated before the
+// buffer is used. See issue #248 for more details.
+std::unique_ptr<BufferInstance>
+MakeDeviceBuffer(DeviceInstance *device, const void *data_ptr, std::vector<std::uint32_t> &shape,
+                  std::vector<std::uint32_t> &strides, size_t element_size,
+                  tt::target::DataType element_type);
+
+tt_pjrt_status
+HostBufferToDevice(DeviceInstance *device, const void *data, PJRT_Buffer_Type type,
+                    const int64_t *dims, size_t num_dims,
+                    const int64_t *byte_strides, size_t num_byte_strides,
+                    PJRT_HostBufferSemantics host_buffer_semantics,
+                    EventInstance **out_done_with_host_buffer_event,
+                    BufferInstance **out_buffer);
 
 } // namespace tt::pjrt
 

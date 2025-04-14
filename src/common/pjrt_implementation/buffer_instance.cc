@@ -24,7 +24,9 @@ BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &shape,
     const std::vector<std::uint32_t> &stride,
     std::pair<tt::target::DataType, size_t> tt_buffer_type)
-    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {}
+    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {
+      DLOG_F(LOG_DEBUG, "BufferInstance Initialised device ptr: %p", &device);
+    }
 
 BufferInstance::BufferInstance(
     DeviceInstance &device, tt::runtime::Tensor &tensor,
@@ -32,11 +34,27 @@ BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &stride,
     std::pair<tt::target::DataType, size_t> tt_buffer_type,
     std::shared_ptr<void> host_buffer_ptr)
-    : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
+    : device_(&device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
       tt_buffer_type_(tt_buffer_type), dims_(shape.begin(), shape.end()),
       stride_(stride) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
+  DLOG_F(LOG_DEBUG, "BufferInstance Initialised device ptr: %p", &device);
   unique_id_ = id_counter_++;
+}
+
+
+BufferInstance::BufferInstance(
+  DeviceInstance *device, tt::runtime::Tensor &tensor,
+  const std::vector<std::uint32_t> &shape,
+  const std::vector<std::uint32_t> &stride,
+  std::pair<tt::target::DataType, size_t> tt_buffer_type,
+  std::shared_ptr<void> host_buffer_ptr)
+  : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
+    tt_buffer_type_(tt_buffer_type), dims_(shape.begin(), shape.end()),
+    stride_(stride) {
+DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
+DLOG_F(LOG_DEBUG, "BufferInstance Initialised device ptr: %p", &device);
+unique_id_ = id_counter_++;
 }
 
 void BufferInstance::ComputeLayout() {
@@ -122,7 +140,9 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   };
   api->PJRT_Buffer_Device = +[](PJRT_Buffer_Device_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
-    args->device = BufferInstance::Unwrap(args->buffer)->device();
+    DLOG_F(LOG_DEBUG, "DEVICE PTR: %p", BufferInstance::Unwrap(args->buffer)->device());
+    args->device = reinterpret_cast<PJRT_Device *>(BufferInstance::Unwrap(args->buffer)->device());
+    DLOG_F(LOG_DEBUG, "DEVICE PTR ASSIGNED: %p", args->device);
     return nullptr;
   };
   api->PJRT_Buffer_ReadyEvent =

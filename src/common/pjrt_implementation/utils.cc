@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/pjrt_implementation/utils.h"
+#include "common/status.h"
 
 namespace tt::pjrt::utils {
 
@@ -57,6 +58,7 @@ MapBufferTypeToElementType(PJRT_Buffer_Type buffer_type) {
   case PJRT_Buffer_Type_S8:
   case PJRT_Buffer_Type_S16:
   case PJRT_Buffer_Type_S64:
+  return std::make_pair(tt::target::DataType::Int32, 4);
   case PJRT_Buffer_Type_U4:
   case PJRT_Buffer_Type_PRED:
   case PJRT_Buffer_Type_U64:
@@ -64,7 +66,9 @@ MapBufferTypeToElementType(PJRT_Buffer_Type buffer_type) {
   case PJRT_Buffer_Type_C64:
   case PJRT_Buffer_Type_C128:
   default:
-    assert(false && "Unsupported buffer type");
+    auto msg = "Unsupported buffer type: " + std::to_string(buffer_type);
+    DLOG_F(LOG_DEBUG, "%s", msg.c_str());
+    assert(false && msg.c_str());
     return std::make_pair(tt::target::DataType::BFloat16, 2);
   }
 }

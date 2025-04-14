@@ -33,6 +33,13 @@ public:
                  const std::vector<std::uint32_t> &stride,
                  std::pair<tt::target::DataType, size_t> tt_buffer_type,
                  std::shared_ptr<void> host_buffer_ptr);
+
+BufferInstance(DeviceInstance *device, tt::runtime::Tensor &tensor,
+                  const std::vector<std::uint32_t> &shape,
+                  const std::vector<std::uint32_t> &stride,
+                  std::pair<tt::target::DataType, size_t> tt_buffer_type,
+                  std::shared_ptr<void> host_buffer_ptr);
+
   BufferInstance(DeviceInstance &device);
   ~BufferInstance();
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
@@ -42,8 +49,8 @@ public:
   static void BindApi(PJRT_Api *api);
 
   // iree_hal_buffer_view_t* buffer_view() { return buffer_view_.get(); }
-  DeviceInstance &device() { return device_; }
-  const DeviceInstance &device() const { return device_; }
+  DeviceInstance *device() { return device_; }
+  const DeviceInstance *device() const { return device_; }
   tt_pjrt_status AsyncDeallocate();
   tt_pjrt_status Delete();
   bool is_deleted() { return is_deleted_; }
@@ -84,7 +91,7 @@ private:
   int unique_id_;
   void ComputeLayout();
 
-  DeviceInstance &device_;
+  DeviceInstance *device_;
   // When the buffer resource gets freed, this is set to true.
   bool is_deleted_ = false;
 
