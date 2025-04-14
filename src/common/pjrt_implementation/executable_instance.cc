@@ -176,6 +176,12 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
   ExecutableInstance *executable_instance =
       ExecutableInstance::unwrap(args->executable);
 
+  // Not documented as out parameter in the PJRT API but turns out that it is
+  // required to be set.
+  // https://github.com/openxla/xla/issues/25211
+  args->num_outputs =
+      executable_instance->getExecutableImage()->getNumOutputs();
+
   args->dims =
       executable_instance->getExecutableImage()->getOutputDimensionsFlatRaw();
   args->dim_sizes =

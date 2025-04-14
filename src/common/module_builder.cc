@@ -203,22 +203,13 @@ void ModuleBuilder::convertFromVHLOToSHLO(
       return;
     }
   }
+
   DLOG_F(LOG_DEBUG, "SHLO Module:");
-
   printModule(mlir_module);
-}
-
-void ModuleBuilder::collectOutputShardings(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputShardings");
-  m_output_shardings.clear();
-  isUsingShardy(module) ? collectOutputShardingsShardy(module)
-                        : collectOutputShardingsGSPMD(module);
 }
 
 void ModuleBuilder::collectInputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectInputShardings");
   m_input_shardings.clear();
   isUsingShardy(module) ? collectInputShardingsShardy(module)
                         : collectInputShardingsGSPMD(module);
@@ -274,6 +265,13 @@ void ModuleBuilder::collectInputShardingsShardy(
   }
 }
 
+void ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  m_output_shardings.clear();
+  isUsingShardy(module) ? collectOutputShardingsShardy(module)
+                        : collectOutputShardingsGSPMD(module);
+}
+
 void ModuleBuilder::collectOutputShardingsGSPMD(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
@@ -325,8 +323,6 @@ void ModuleBuilder::collectOutputShardingsShardy(
 
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectOutputTypes");
-
   m_is_output_scalar.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);

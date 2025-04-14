@@ -106,6 +106,11 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
+  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
+  // workaround flag is turned off, which the line below does.
+  // https://github.com/tenstorrent/tt-xla/issues/373
+  tt::runtime::workaround::Env::get(true, true, false);
+
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
@@ -114,11 +119,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
-
-  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
-  // workaround flag is turned off, which the line below does.
-  // See issue: https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, false);
 
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
       *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
@@ -134,7 +134,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
   untilized_output_tensors.reserve(output_tensors.size());
-  status = untilizeToHost(output_tensors, untilized_output_tensors);
+  status = untilizeToHost(output_tensors, args->num_devices,
+                          untilized_output_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
@@ -281,20 +282,22 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
 }
 
 tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
-    const std::vector<tt::runtime::Tensor> &output_tensors,
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
-    size_t expected_num_outputs =
-        isOutputReplicated(output_index) ? 1 : output_tensors.size();
-    if (untilized_output.size() != expected_num_outputs) {
+    // TODO(mrakita): This will not be the case if runtime output tensor does
+    // not have multi-device storage, but I haven't yet encountered situation
+    // where executable is run on multiple devices and we produce a single
+    // device tensor. Leaving this check to help us find those situations.
+    if (untilized_output.size() != num_devices) {
       DLOG_F(ERROR,
              "Untilize to host produced invalid number of output tensors: "
              "expected %zu, got %zu",
-             expected_num_outputs, untilized_output.size());
+             num_devices, untilized_output.size());
       return tt_pjrt_status::kInternal;
     }
 
@@ -313,14 +316,14 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
   for (int device_index = 0; device_index < num_devices; device_index++) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       tt::runtime::Tensor output_tensor =
-          getOutputTensor(device_index, output_index, untilized_output_tensors);
+          untilized_output_tensors[output_index][device_index];
       std::vector<std::uint32_t> output_shape =
           getOutputShape(output_index, num_devices);
 
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
-              this->m_addressable_devices[device_index]);
+              m_addressable_devices[device_index]);
 
       output_buffer->markAsDataReady();
 
@@ -329,23 +332,6 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       output_lists[device_index][output_index] = *output_buffer.release();
     }
   }
-}
-
-tt::runtime::Tensor LoadedExecutableInstance::getOutputTensor(
-    size_t device_index, size_t output_index,
-    const std::vector<std::vector<tt::runtime::Tensor>>
-        &untilized_output_tensors) const {
-  // If the output is replicated, we just return the output tensor from the
-  // first device, as this is what PJRT expects.
-  return isOutputReplicated(output_index)
-             ? untilized_output_tensors[output_index][0]
-             : untilized_output_tensors[output_index][device_index];
-}
-
-bool LoadedExecutableInstance::isOutputReplicated(size_t output_index) const {
-  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      m_executable_image->getOutputSharding(output_index);
-  return outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate;
 }
 
 std::vector<std::uint32_t>

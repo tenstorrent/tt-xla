@@ -113,10 +113,10 @@ private:
       const std::vector<tt::runtime::Tensor> &arg_tensors,
       const std::unordered_map<std::string, std::string> &strategy);
 
-  // Untilizes output tensors and transfers them from device to host. Output
-  // tensors are in [`num_devices`, `num_args`] format as PJRT expects.
-  tt_pjrt_status untilizeToHost(
+  // Untilizes output tensors and transfers them from device to host.
+  static tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,
+      size_t num_devices,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
 
   // Fills the output lists of the PJRT API with the outputs of tt runtime
@@ -124,16 +124,6 @@ private:
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
       size_t num_devices, PJRT_Buffer **const *output_lists);
-
-  // Returns a tensor representing an output on a particular device with a
-  // particular index.
-  tt::runtime::Tensor
-  getOutputTensor(size_t device_index, size_t output_index,
-                  const std::vector<std::vector<tt::runtime::Tensor>>
-                      &untilized_output_tensors) const;
-
-  // Returns true if the output on the specified index is replicated.
-  bool isOutputReplicated(size_t output_index) const;
 
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index,
