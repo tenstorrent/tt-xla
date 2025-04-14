@@ -21,7 +21,24 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<bool> &is_output_scalar) {
-  return std::make_shared<ExecutableImage>(
+  struct make_shared_enabler : public ExecutableImage {
+    make_shared_enabler(
+        const tt::runtime::Binary &flatbuffer_binary,
+        std::string &&optimized_mlir_code, std::string &&executable_name,
+        size_t num_partitions, size_t num_replicas,
+        size_t num_devices_to_utilize,
+        const std::vector<mlir::tt::sharding_utils::MeshSharding>
+            &input_sharding,
+        const std::vector<mlir::tt::sharding_utils::MeshSharding>
+            &output_sharding,
+        const std::vector<bool> &is_output_scalar)
+        : ExecutableImage(flatbuffer_binary, std::move(optimized_mlir_code),
+                          std::move(executable_name), num_partitions,
+                          num_replicas, num_devices_to_utilize, input_sharding,
+                          output_sharding, is_output_scalar) {}
+  };
+
+  return std::make_shared<make_shared_enabler>(
       flatbuffer_binary, std::move(optimized_mlir_code),
       std::move(executable_name), num_partitions, num_replicas,
       num_devices_to_utilize, input_sharding, output_sharding,
@@ -45,9 +62,9 @@ ExecutableImage::ExecutableImage(
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
-  m_num_inputs = m_binary.getProgramInputs(program_index).size();
+  m_num_inputs = m_flatbuffer_binary.getProgramInputs(program_index).size();
   std::vector<tt::runtime::TensorDesc> output_specs =
-      m_binary.getProgramOutputs(program_index);
+      m_flatbuffer_binary.getProgramOutputs(program_index);
   m_num_outputs = output_specs.size();
 
   // We expect that these conditions are satisfied and checked in module builder
@@ -66,9 +83,9 @@ ExecutableImage::ExecutableImage(
             output_specs[output_index].dataType);
 
     // PJRT expects an empty shape for scalars.
-    m_output_dimensions.emplace_back(is_output_scalar[i]
+    m_output_dimensions.emplace_back(is_output_scalar[output_index]
                                          ? std::vector<std::uint32_t>()
-                                         : output_specs[i].shape);
+                                         : output_specs[output_index].shape);
 
     m_output_ranks[output_index] = m_output_dimensions[output_index].size();
 
@@ -80,8 +97,9 @@ ExecutableImage::ExecutableImage(
 
 const std::vector<std::uint32_t> &
 ExecutableImage::getOutputShape(size_t output_index) const {
-  assert(index < m_output_dims.size() && "Output index out of range");
-  return m_output_dims[index];
+  assert(output_index < m_output_dimensions.size() &&
+         "Output index out of range");
+  return m_output_dimensions[output_index];
 }
 
 const mlir::tt::sharding_utils::MeshSharding &
@@ -91,7 +109,7 @@ ExecutableImage::getInputSharding(size_t input_index) const {
 }
 
 const mlir::tt::sharding_utils::MeshSharding &
-getOutputSharding(size_t output_index) const {
+ExecutableImage::getOutputSharding(size_t output_index) const {
   assert(output_index < m_output_sharding.size() &&
          "Output index out of range");
   return m_output_sharding[output_index];

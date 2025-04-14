@@ -20,12 +20,17 @@ PJRT_Error *ErrorInstance::makeError(tt_pjrt_status status) {
     return nullptr;
   }
 
-  std::unique_ptr<ErrorInstance> error_instance =
-      std::make_unique<ErrorInstance>(status);
+  struct make_unique_enabler : public ErrorInstance {
+    make_unique_enabler(tt_pjrt_status status) : ErrorInstance(status) {}
+  };
 
   // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling `PJRT_Error_Destroy` on the error.
-  return *error_instance.release();
+  // responsible for calling `PJRT_Error_Destroy` on the error. This is usually
+  // done only in places where pointer is directly assigned to out parameter, to
+  // avoid memory leaks, but this is the only exception from that practice
+  // because errors don't have any setters and their creation is always done as
+  // a return step in API implementation functions.
+  return *std::make_unique<make_unique_enabler>(status).release();
 }
 
 ErrorInstance::ErrorInstance(tt_pjrt_status status)

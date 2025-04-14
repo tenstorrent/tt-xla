@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <string>
 #include <vector>
 
 // tt-xla includes

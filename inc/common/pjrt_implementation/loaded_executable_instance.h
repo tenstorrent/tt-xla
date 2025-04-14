@@ -39,7 +39,7 @@ public:
   // Creates new loaded executable instance from the executable image.
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 const std::vector<DeviceInstance *> &addressable_devices);
+                 std::vector<DeviceInstance *> &&addressable_devices);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -95,10 +95,10 @@ private:
 
   // Gets input runtime tensors from the arguments' buffers and converts them to
   // desired layout determined from the compiled graph.
-  std::vector<tt::runtime::Tensor>
+  tt_pjrt_status
   getInputRuntimeTensors(PJRT_Buffer *const *const *argument_lists,
                          size_t num_args, size_t num_devices,
-                         tt::runtime::Device runtime_device,
+                         const tt::runtime::Device &runtime_device,
                          std::uint32_t program_index,
                          std::vector<tt::runtime::Tensor> &input_tensors);
 

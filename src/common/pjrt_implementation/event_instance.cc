@@ -19,11 +19,14 @@
 namespace tt::pjrt {
 
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
-  return std::make_unique<EventInstance>();
+  struct make_unique_enabler : public EventInstance {};
+
+  return std::make_unique<make_unique_enabler>();
 }
 
 EventInstance::EventInstance()
-    : m_ready(false), m_status(tt_pjrt_status::kUnknown) {
+    : m_ready(false), m_status(tt_pjrt_status::kUnknown),
+      m_indestructible(false) {
 
   m_callbacks_thread = std::make_unique<std::thread>(
       [](EventInstance *event_instance) {
@@ -66,12 +69,10 @@ void EventInstance::killTheCallbacksThread() {
   // Caller should never destroy the event before it is ready, but in case that
   // happens we don't want to leave the callbacks thread hanging so marking the
   // event as ready with Aborted error status.
-  if (!m_ready) {
-    std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
-    if (!m_ready) {
-      DLOG_F(WARNING, "Destroying the event before it is ready!");
-      markAsReady(tt_pjrt_status::kAborted);
-    }
+  // Purposefully using `isReady` to wait in case `markAsReady` is in progress.
+  if (!isReady()) {
+    DLOG_F(WARNING, "Destroying the event before it is ready!");
+    markAsReady(tt_pjrt_status::kAborted);
   }
 
   // Let the callbacks thread finish.
@@ -169,11 +170,16 @@ namespace internal {
 PJRT_Error *onEventDestroy(PJRT_Event_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Destroy");
 
-  // We could return the error from here if the event is being destroyed before
-  // it is ready, but since the desired behavior in this situation is not well
-  // documented in PJRT docs we choose to play it safe and cleanup everything in
-  // the event destructor.
-  delete args->event;
+  EventInstance *event_instance = EventInstance::unwrap(args->event);
+
+  // See comment above `m_indestructible` declaration.
+  if (!event_instance->isIndestructible()) {
+    // We could return the error from here if the event is being destroyed
+    // before it is ready, but since the desired behavior in this situation is
+    // not well documented in PJRT docs we choose to play it safe and cleanup
+    // everything in the event destructor.
+    delete event_instance;
+  }
 
   return nullptr;
 }

@@ -61,7 +61,7 @@ public:
 
   // Sets process index from which this device is addressable.
   void setProcessIndex(int process_index) {
-    m_description->setProcessIndex(process_index);
+    m_description.setProcessIndex(process_index);
   }
 
 private:

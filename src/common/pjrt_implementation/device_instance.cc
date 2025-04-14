@@ -10,13 +10,23 @@
 
 #include "common/pjrt_implementation/device_instance.h"
 
+// tt-xla includes
+#include "common/status.h"
+
 namespace tt::pjrt {
 
 std::unique_ptr<DeviceInstance>
 DeviceInstance::createInstance(int global_device_id, bool is_addressable,
                                int local_device_id, tt::target::Arch arch) {
-  return std::make_unique<DeviceInstance>(global_device_id, is_addressable,
-                                          local_device_id, arch);
+  struct make_unique_enabler : public DeviceInstance {
+    make_unique_enabler(int global_device_id, bool is_addressable,
+                        int local_device_id, tt::target::Arch arch)
+        : DeviceInstance(global_device_id, is_addressable, local_device_id,
+                         arch) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(global_device_id, is_addressable,
+                                               local_device_id, arch);
 }
 
 void DeviceInstance::bindApi(PJRT_Api *api) {

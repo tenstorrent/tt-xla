@@ -26,9 +26,16 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    const std::vector<DeviceInstance *> &addressable_devices) {
-  return std::make_unique<LoadedExecutableInstance>(std::move(executable_image),
-                                                    addressable_devices);
+    std::vector<DeviceInstance *> &&addressable_devices) {
+  struct make_unique_enabler : public LoadedExecutableInstance {
+    make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
+                        std::vector<DeviceInstance *> &&addressable_devices)
+        : LoadedExecutableInstance(std::move(executable_image),
+                                   std::move(addressable_devices)) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(std::move(executable_image),
+                                               std::move(addressable_devices));
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -39,7 +46,7 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onLoadedExecutableAddressableDevices;
   api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
   api->PJRT_LoadedExecutable_IsDeleted = internal::onLoadedExecutableIsDeleted;
-  api->PJRT_LoadedExecutable_Execute = internal::;
+  api->PJRT_LoadedExecutable_Execute = internal::onLoadedExecutableExecute;
 }
 
 bool LoadedExecutableInstance::isDeleted() {
@@ -93,7 +100,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::uint32_t program_index = 0;
 
   std::vector<tt::runtime::Tensor> input_tensors;
-  input_tensors.reserve(num_args);
+  input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, runtime_device,
       program_index, input_tensors);
@@ -174,7 +181,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
        device_index++) {
     const BufferInstance *buffer =
         BufferInstance::unwrap(argument_lists[device_index][0]);
-    int64_t buffer_device_id = buffer->device().getGlobalDeviceId();
+    int64_t buffer_device_id = buffer->getDevice()->getGlobalDeviceId();
     device_ids.push_back(buffer_device_id);
   }
 
@@ -191,7 +198,7 @@ std::vector<int> LoadedExecutableInstance::getDeviceIds(
 
 tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
-    size_t num_devices, tt::runtime::Device runtime_device,
+    size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
@@ -206,18 +213,18 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
-            m_executable_image->getInputSharding(arg_num), num_devices);
+            m_executable_image->getInputSharding(arg_index), num_devices);
     if (mlir::failed(strategy)) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
       return tt_pjrt_status::kInternal;
     }
 
     tt::runtime::Tensor input_tensor =
-        getTensorFromStrategy(arg_tensors, strategy);
+        getTensorFromStrategy(arg_tensors, *strategy);
 
     // Converting input tensor to desired layout, this might move it on device.
-    tt::runtime::Layout layout =
-        tt::runtime::getLayout(binary, program_index, arg_index);
+    tt::runtime::Layout layout = tt::runtime::getLayout(
+        m_executable_image->getFlatbufferBinary(), program_index, arg_index);
     tt::runtime::Tensor laid_out_tensor =
         tt::runtime::toLayout(input_tensor, runtime_device, layout,
                               tt::runtime::getTensorRetain(input_tensor));
@@ -260,7 +267,7 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
     size_t expected_num_outputs =
-        isOutputReplicated(output_index) ? 1 : untilized_output_tensors.size();
+        isOutputReplicated(output_index) ? 1 : output_tensors.size();
     if (untilized_output.size() != expected_num_outputs) {
       DLOG_F(ERROR,
              "Untilize to host produced invalid number of output tensors: "
@@ -290,14 +297,14 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
 
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              output_tensor, output_shape,
+              output_tensor, std::move(output_shape),
               this->m_addressable_devices[device_index]);
 
       output_buffer->markAsDataReady();
 
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
-      output_lists[device_index][output_index] = *result_buffer.release();
+      output_lists[device_index][output_index] = *output_buffer.release();
     }
   }
 }
@@ -379,7 +386,7 @@ PJRT_Error *onLoadedExecutableGetExecutable(
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Executable_Destroy` on the executable.
-  args->executable = *loaded_executable->executable_instance.release();
+  args->executable = *executable_instance.release();
 
   return nullptr;
 }
@@ -431,7 +438,7 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   return ErrorInstance::makeError(
-      LoadedExecutableInstance::unwrap(args->executable)->Execute(args));
+      LoadedExecutableInstance::unwrap(args->executable)->execute(args));
 }
 
 } // namespace internal

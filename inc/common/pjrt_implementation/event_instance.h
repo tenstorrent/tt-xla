@@ -80,6 +80,10 @@ public:
   // thread once the event is ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
+  // See comment below for `m_indestructible`.
+  void setIndestructible() { m_indestructible = true; }
+  bool isIndestructible() const { return m_indestructible; }
+
 private:
   // Constructor, spawns the callbacks thread. Private because we wan't events
   // to be created via factory method.
@@ -108,6 +112,11 @@ private:
   // specify if only one callback can be registered per event, so we allow
   // registering multiple.
   std::vector<OnReadyCallback> m_on_ready_callbacks;
+
+  // TODO(mrakita): This is a major hack that we currently have to do because
+  // XLA PJRT client destroys event immediately after it sets callback on it.
+  // https://github.com/openxla/xla/issues/25172
+  bool m_indestructible;
 };
 
 namespace internal {

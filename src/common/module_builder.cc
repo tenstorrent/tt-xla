@@ -149,6 +149,7 @@ void ModuleBuilder::collectNumDevicesToUtilize(
   auto num_partitions_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_partitions");
+  // Assuming one partition by default.
   m_num_partitions = 1;
   if (num_partitions_attr) {
     m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
@@ -162,6 +163,7 @@ void ModuleBuilder::collectNumDevicesToUtilize(
   auto num_replicas_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_replicas");
+  // Assuming one replica by default.
   m_num_replicas = 1;
   if (num_replicas_attr) {
     m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
@@ -172,7 +174,7 @@ void ModuleBuilder::collectNumDevicesToUtilize(
            m_num_replicas);
   }
 
-  m_num_devices_to_utilize = num_partitions * m_num_replicas;
+  m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
 }
 
 void ModuleBuilder::convertFromVHLOToSHLO(
@@ -330,7 +332,6 @@ void ModuleBuilder::collectOutputTypes(
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
@@ -476,9 +477,10 @@ void ModuleBuilder::createFlatbufferBinary(
 void ModuleBuilder::verifyCreatedFlatbufferBinary() {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
-  size_t num_inputs = m_binary.getProgramInputs(program_index).size();
+  size_t num_inputs =
+      m_flatbuffer_binary.getProgramInputs(program_index).size();
   std::vector<tt::runtime::TensorDesc> output_specs =
-      m_binary.getProgramOutputs(program_index);
+      m_flatbuffer_binary.getProgramOutputs(program_index);
   size_t num_outputs = output_specs.size();
 
   if (num_inputs != m_input_shardings.size()) {
@@ -490,11 +492,11 @@ void ModuleBuilder::verifyCreatedFlatbufferBinary() {
     return;
   }
 
-  if (num_outputs != is_output_scalar.size()) {
+  if (num_outputs != m_is_output_scalar.size()) {
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %zu "
-           "than expected from the is_output_scalar %zu",
-           num_outputs, is_output_scalar.size());
+           "than expected from the m_is_output_scalar %zu",
+           num_outputs, m_is_output_scalar.size());
     m_status = tt_pjrt_status::kInternal;
     return;
   }

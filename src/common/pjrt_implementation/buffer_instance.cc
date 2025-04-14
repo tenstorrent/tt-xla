@@ -20,6 +20,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/device_instance.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -27,26 +28,38 @@ namespace tt::pjrt {
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
     DeviceInstance *device) {
-  return std::make_unique<BufferInstance>(data_type, dims, num_dims, device);
+  struct make_unique_enabler : public BufferInstance {
+    make_unique_enabler(PJRT_Buffer_Type data_type, const std::int64_t *dims,
+                        size_t num_dims, DeviceInstance *device)
+        : BufferInstance(data_type, dims, num_dims, device) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
+                                               device);
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
-    const tt::runtime::Tensor &tensor,
-    const std::vector<std::uint32_t> &dimensions, DeviceInstance *device) {
-  return std::make_unique<BufferInstance>(tensor, dimensions, device);
+    const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
+    DeviceInstance *device) {
+  struct make_unique_enabler : public BufferInstance {
+    make_unique_enabler(const tt::runtime::Tensor &tensor,
+                        std::vector<std::uint32_t> &&dimensions,
+                        DeviceInstance *device)
+        : BufferInstance(tensor, std::move(dimensions), device) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
+                                               device);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
                                DeviceInstance *device)
-    : m_data_type(data_type), m_device(device), m_data_ready(false),
-      m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {
-  m_dimensions.reserve(num_dims);
-  for (size_t i = 0; i < num_dims; ++i) {
-    m_dimensions.push_back(dims[i]);
-  }
-}
+    : m_data_type(data_type), m_dimensions(dims, dims + num_dims),
+      m_device(device),
+      m_runtime_tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN),
+      m_data_ready(false), m_data_ready_event(nullptr),
+      m_done_with_host_buffer_event(nullptr), m_data_deleted(false) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
@@ -107,10 +120,14 @@ void BufferInstance::deleteData() {
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
     m_done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+
+    // TODO(mrakita): Revert.
+    // https://github.com/openxla/xla/issues/25172
+    delete m_done_with_host_buffer_event;
   }
 }
 
-tt_pjrt_status BufferInstance::copyFromHost(
+void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
@@ -134,14 +151,24 @@ tt_pjrt_status BufferInstance::copyFromHost(
       PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
+
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
   } else {
+    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
+    // so we have to const cast here.
+    // https://github.com/tenstorrent/tt-metal/issues/20622
     m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
+        const_cast<void *>(host_buffer), shape, strides, element_size,
+        runtime_data_type);
+
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+
+    // TODO(mrakita): Revert.
+    // https://github.com/openxla/xla/issues/25172
+    m_done_with_host_buffer_event->setIndestructible();
   }
 
   // We want to be in control when input buffers are deallocated, which happens
@@ -190,7 +217,7 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
         num_byte_strides == 0
             ? 1
             : (byte_strides[i] / static_cast<std::int64_t>(element_size));
-    stride.push_back(stride);
+    strides.push_back(stride);
   }
 
   return strides;
@@ -323,14 +350,18 @@ PJRT_Error *onBufferDynamicDimensionIndices(
 PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
-  // TODO_OOM: Check the args->host_layout. PJRT comment for that arg:
-  // "The caller can specify an optional host layout. If nullptr, the layout of
-  // the src buffer will be used. The caller is responsible to keep the data
-  // (tiled or strides) in the host_layout alive during the call."
-  if (args->host_layout) {
-    DLOG_F(ERROR, "Copying to host with custom memory layout is not supported");
-    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
-  }
+  // TODO(mrakita): The caller can specify an optional `host_layout` arg to
+  // specify the memory layout in which data should be copied. It can sometimes
+  // be tiled layout but we support only strided, which might explain accuracy
+  // issues for some models. We need to investigate and add support for both
+  // layouts.
+  // https://github.com/tenstorrent/tt-xla/issues/500
+  // if (args->host_layout &&
+  //     args->host_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
+  //   DLOG_F(ERROR,
+  //          "Copying to host is supported only with strided memory layout");
+  //   return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
+  // }
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 

@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/device_description.h"
 
+// c++ standard library includes
+#include <sstream>
+
 // tt-xla includes
 #include "common/status.h"
 
@@ -25,7 +28,8 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
 
 void DeviceDescription::bindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Id = internal::onDeviceDescriptionId;
-  api->PJRT_DeviceDescription_ProcessIndex = internal::;
+  api->PJRT_DeviceDescription_ProcessIndex =
+      internal::onDeviceDescriptionProcessIndex;
   api->PJRT_DeviceDescription_Attributes =
       internal::onDeviceDescriptionAttributes;
   api->PJRT_DeviceDescription_Kind = internal::onDeviceDescriptionKind;

@@ -13,7 +13,6 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
-#include <string>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -21,6 +20,8 @@
 // tt-xla includes
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/buffer_instance.h"
+#include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/event_instance.h"
 
 namespace tt::pjrt {
 
@@ -50,7 +51,7 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  return ErrorInstance::makeError(PopulateDevices());
+  return ErrorInstance::makeError(populateDevices());
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
@@ -159,7 +160,7 @@ tt_pjrt_status
 ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
                                    LoadedExecutableInstance **out_executable) {
 
-  std::string_view mlir_code(program->code, program->code_size);
+  std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   tt_pjrt_status compile_status =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path);
@@ -172,8 +173,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
   // is going to be used for the `PJRT_Executable_DeserializeAndLoad` to
   // recompile the flatbuffer then we need either original program code or
   // VHLO/SHLO module. Passing original program code for now.
-  std::string optimized_mlir_code =
-      std::string(program->code, program->code_size);
+  std::string optimized_mlir_code(mlir_code);
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
@@ -204,7 +204,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
-                                               addressable_devices);
+                                               std::move(addressable_devices));
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
@@ -280,7 +280,7 @@ PJRT_Error *onClientLookupAddressableDevice(
 
   DLOG_F(ERROR,
          "Client addressable device lookup failed for device with local ID: %d",
-         args->id);
+         args->local_hardware_id);
 
   return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
 }
@@ -318,7 +318,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
-    DLOG_F(ERROR, "Only strided memory layout is supported");
+    DLOG_F(ERROR,
+           "Copying from host is supported only with strided memory layout");
     return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
   }
 

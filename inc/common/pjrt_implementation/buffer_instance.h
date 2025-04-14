@@ -53,7 +53,7 @@ public:
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
-                             const std::vector<std::uint32_t> &dimensions,
+                             std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device);
 
   // Destructor, deletes buffer data if not already deleted.
@@ -82,6 +82,9 @@ public:
   // Returns device instance on which this buffer resides.
   DeviceInstance *getDevice() { return m_device; }
 
+  // Returns const device instance on which this buffer resides.
+  const DeviceInstance *getDevice() const { return m_device; }
+
   // Returns the underlying runtime tensor created for this buffer.
   const tt::runtime::Tensor &getRuntimeTensor() const {
     return m_runtime_tensor;
@@ -102,13 +105,11 @@ public:
   // host and to be copied to device during execution, because it needs to read
   // from compiled flatbuffer how to do device transfers. That's why we create
   // host runtime tensor from the given host buffer.
-  tt_pjrt_status copyFromHost(const void *host_buffer,
-                              PJRT_Buffer_Type data_type,
-                              const std::int64_t *dims, size_t num_dims,
-                              const std::int64_t *byte_strides,
-                              size_t num_byte_strides,
-                              PJRT_HostBufferSemantics host_buffer_semantics,
-                              EventInstance **out_done_with_host_buffer_event);
+  void copyFromHost(const void *host_buffer, PJRT_Buffer_Type data_type,
+                    const std::int64_t *dims, size_t num_dims,
+                    const std::int64_t *byte_strides, size_t num_byte_strides,
+                    PJRT_HostBufferSemantics host_buffer_semantics,
+                    EventInstance **out_done_with_host_buffer_event);
 
   // Asynchronously copies the buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,

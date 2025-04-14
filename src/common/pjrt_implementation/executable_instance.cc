@@ -15,13 +15,20 @@
 #include <string>
 
 // tt-xla includes
+#include "common/module_builder.h"
+#include "common/pjrt_implementation/error_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
 
 std::unique_ptr<ExecutableInstance> ExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image) {
-  return std::make_unique<ExecutableInstance>(std::move(executable_image));
+  struct make_unique_enabler : public ExecutableInstance {
+    make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image)
+        : ExecutableInstance(std::move(executable_image)) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(std::move(executable_image));
 }
 
 void ExecutableInstance::bindApi(PJRT_Api *api) {
@@ -45,7 +52,7 @@ namespace internal {
 PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Destroy");
 
-  delete ExecutableInstance::Unwrap(args->executable);
+  delete ExecutableInstance::unwrap(args->executable);
 
   return nullptr;
 }
@@ -54,7 +61,7 @@ PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Name");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
   const std::string &executable_name =
       executable_instance->getExecutableImage()->getExecutableName();
 
@@ -68,7 +75,7 @@ PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumReplicas");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   args->num_replicas =
       executable_instance->getExecutableImage()->getNumReplicas();
@@ -81,7 +88,7 @@ onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumPartitions");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   args->num_partitions =
       executable_instance->getExecutableImage()->getNumPartitions();
@@ -94,7 +101,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OptimizedProgram");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   PJRT_Program *program = args->program;
   program->format = ModuleBuilder::c_mlir_format_name.data();
@@ -125,7 +132,7 @@ PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumOutputs");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   args->num_outputs =
       executable_instance->getExecutableImage()->getNumOutputs();
@@ -152,7 +159,7 @@ onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputElementTypes");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   args->output_types =
       executable_instance->getExecutableImage()->getOutputTypesRaw();
@@ -167,7 +174,7 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputDimensions");
 
   ExecutableInstance *executable_instance =
-      ExecutableInstance::Unwrap(args->executable);
+      ExecutableInstance::unwrap(args->executable);
 
   args->dims =
       executable_instance->getExecutableImage()->getOutputDimensionsFlatRaw();
