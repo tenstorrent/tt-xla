@@ -15,6 +15,7 @@ from infra import (
 from tests.utils import failed_fe_compilation
 
 
+@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
@@ -26,7 +27,7 @@ from tests.utils import failed_fe_compilation
 @pytest.mark.parametrize(
     ("batch_shape", "mesh_shape", "axis_names"),
     [
-        ((256, 256), (1, 2), ("batch", "model")),
+        ((2048, 2048), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(

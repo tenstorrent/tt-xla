@@ -12,7 +12,7 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_ttmlir_compilation
+from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
 
 
 @pytest.mark.nightly
@@ -21,6 +21,7 @@ from tests.utils import failed_ttmlir_compilation
     "use_shardy",
     [
         True,
+        False,
     ],
 )
 @pytest.mark.parametrize(
@@ -33,7 +34,22 @@ from tests.utils import failed_ttmlir_compilation
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "Cannot get sharding information through the protobuf "
+                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
+                )
+            ),
+        ),
     ],
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Get device id issue on 4 chips with LLMbox "
+        "(https://github.com/tenstorrent/tt-xla/issues/484)"
+    )
 )
 def test_dot_psum(
     use_shardy: bool,

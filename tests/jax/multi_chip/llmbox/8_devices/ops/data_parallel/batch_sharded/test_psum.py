@@ -12,9 +12,10 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_fe_compilation, failed_runtime
+from tests.utils import failed_fe_compilation
 
 
+@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",

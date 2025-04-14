@@ -12,9 +12,10 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_fe_compilation, failed_runtime
+from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
 
 
+@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
@@ -43,6 +44,12 @@ from tests.utils import failed_fe_compilation, failed_runtime
             ),
         ),
     ],
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Get device id issue on 4 chips with LLMbox "
+        "(https://github.com/tenstorrent/tt-xla/issues/484)"
+    )
 )
 def test_psum(
     use_shardy: bool,
