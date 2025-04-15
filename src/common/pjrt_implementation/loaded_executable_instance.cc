@@ -130,8 +130,22 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // See issue: https://github.com/tenstorrent/tt-xla/issues/373
   tt::runtime::workaround::Env::get(true, true, false);
 
-  std::vector<tt::runtime::Tensor> rt_outputs =
-      tt::runtime::submit(device, binary, 0 /* program_index */, rt_inputs);
+  std::vector<tt::runtime::Tensor> rt_inputs_with_layout;
+  rt_inputs_with_layout.reserve(rt_inputs.size());
+  std::transform(rt_inputs.begin(), rt_inputs.end(),
+                 std::back_inserter(rt_inputs_with_layout),
+                 [&](tt::runtime::Tensor &t) -> tt::runtime::Tensor {
+                   tt::runtime::Layout layout =
+                       tt::runtime::getLayout(binary, 0 /* programIndex */,
+                                              rt_inputs_with_layout.size());
+
+                   tt::runtime::Tensor tensor =
+                       tt::runtime::toLayout(t, device, layout, true);
+                   return tensor;
+                 });
+
+  std::vector<tt::runtime::Tensor> rt_outputs = tt::runtime::submit(
+      device, binary, 0 /* programIndex */, rt_inputs_with_layout);
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0 /* program_index */);
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
