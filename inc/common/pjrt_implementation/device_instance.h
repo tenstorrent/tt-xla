@@ -32,7 +32,7 @@ public:
       : client_(client), description_(device_id, arch), addressable_memories_(addressable_memories) {
         for (auto memory : addressable_memories_) {
           memory->addDevice(this);
-          DLOG_F(LOG_DEBUG, "DeviceInstance ADDRT %p", this);
+          DLOG_F(LOG_DEBUG, "DeviceInstance ADDRT %p of memory %p", this, memory);
       }
   }
   ~DeviceInstance();

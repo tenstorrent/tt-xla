@@ -56,6 +56,7 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
+    DLOG_F(LOG_DEBUG, "Number of addressable devices: %d", num_addressable_devices);
     return nullptr;
   };
   api->PJRT_LoadedExecutable_Execute =
@@ -86,6 +87,8 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Check that the number of devices matches the number of devices counted
   // from the VHLO module.
   size_t num_devices = args->num_devices;
+  DLOG_F(LOG_DEBUG, "Number of devices in args: %ld", num_devices);
+  DLOG_F(LOG_DEBUG, "Number of devices to utilize: %ld", num_devices_to_utilize_);
   if (num_devices != num_devices_to_utilize_) {
     DLOG_F(ERROR, "Number of devices in the executable does not match the "
                   "number of devices to utilize.");

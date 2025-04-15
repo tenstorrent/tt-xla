@@ -157,7 +157,8 @@ void ModuleBuilder::collectNumDevicesToUtilize(
   } else {
     m_num_devices_to_utilize = 1;
     DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
-                    "default number of devices: 1");
+                    "instead using environtment variable TT_XLA_NUM_DEVICES");
+    m_num_devices_to_utilize = std::stoi(std::getenv("TT_XLA_NUM_DEVICES"));
   }
 }
 

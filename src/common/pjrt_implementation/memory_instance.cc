@@ -20,8 +20,8 @@ void MemoryInstance::BindApi(PJRT_Api *api) {
 
     api->PJRT_Memory_AddressableByDevices = 
         +[](PJRT_Memory_AddressableByDevices_Args *args) -> PJRT_Error * {
-            DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
             args->num_devices = MemoryInstance::Unwrap(args->memory)->addressable_by_devices().size();
+            DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices num devices: %ld", args->num_devices);
             args->devices = const_cast<PJRT_Device **>(reinterpret_cast<PJRT_Device *const *>(MemoryInstance::Unwrap(args->memory)->addressable_by_devices().data()));
             return nullptr;
     };
