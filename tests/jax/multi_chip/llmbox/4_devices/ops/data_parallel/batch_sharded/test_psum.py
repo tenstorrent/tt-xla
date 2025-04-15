@@ -45,12 +45,6 @@ from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
         ),
     ],
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Get device id issue on 4 chips with LLMbox "
-        "(https://github.com/tenstorrent/tt-xla/issues/484)"
-    )
-)
 def test_psum(
     use_shardy: bool,
     batch_shape: tuple,
