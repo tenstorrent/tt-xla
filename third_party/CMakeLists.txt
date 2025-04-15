@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-set(TT_MLIR_VERSION "2265da2ddf3d05bbc9e0fe67a4bfcc9212cfce2d")
+set(TT_MLIR_VERSION "4c93bf6b4b815849398a7ec22c03268926f5351d")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -36,7 +36,7 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
