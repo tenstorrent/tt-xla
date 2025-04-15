@@ -136,7 +136,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
                  std::back_inserter(rt_inputs_with_layout),
                  [&](tt::runtime::Tensor &t) -> tt::runtime::Tensor {
                    tt::runtime::Layout layout =
-                       tt::runtime::getLayout(binary, 0 /* programIndex */,
+                       tt::runtime::getLayout(binary, 0 /* program_index */,
                                               rt_inputs_with_layout.size());
 
                    tt::runtime::Tensor tensor =
@@ -145,7 +145,7 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
                  });
 
   std::vector<tt::runtime::Tensor> rt_outputs = tt::runtime::submit(
-      device, binary, 0 /* programIndex */, rt_inputs_with_layout);
+      device, binary, 0 /* program_index */, rt_inputs_with_layout);
   std::vector<tt::runtime::TensorDesc> output_specs =
       binary.getProgramOutputs(0 /* program_index */);
   std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
