@@ -113,9 +113,6 @@
   // ---------------------------------------------------------------------------
 
 
-  _STUB(PJRT_Error_Destroy);
-  _STUB(PJRT_Error_Message);
-  _STUB(PJRT_Error_GetCode);
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
   _STUB(PJRT_Client_Create);
