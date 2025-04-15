@@ -12,9 +12,10 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_fe_compilation, failed_runtime
+from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
 
 
+@pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
@@ -26,21 +27,13 @@ from tests.utils import failed_fe_compilation, failed_runtime
 @pytest.mark.parametrize(
     ("batch_shape", "mesh_shape", "axis_names"),
     [
-        ((256, 256), (1, 4), ("batch", "model")),
+        ((2048, 2048), (1, 4), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.skip(
-                reason=failed_runtime(
-                    "Problem with CCL ops on llmbox"
-                    "(https://github.com/tenstorrent/tt-xla/issues/484)"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
