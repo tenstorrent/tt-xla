@@ -19,4 +19,5 @@ pytest
 sentencepiece
 soundfile
 torch
+torch_xla
 transformers

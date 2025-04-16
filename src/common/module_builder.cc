@@ -156,9 +156,11 @@ void ModuleBuilder::collectNumDevicesToUtilize(
     m_num_devices_to_utilize =
         num_partitions_attr.getInt() * num_replicas_attr.getInt();
   } else {
-    m_num_devices_to_utilize = 1;
-    DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
-                    "default number of devices: 1");
+    // mhlo.num_partitions and mhlo.num_replicas are not populated by torch_xla
+    m_num_devices_to_utilize = 2;
+    // DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
+    //                 "default number of devices: 1");
+    DLOG_F(WARNING, "Forcing m_num_devices_to_utilize = 2!");
   }
 }
 
@@ -435,6 +437,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
+  // Must force meshShape (do not know why it isn't inferred properly yet)
+  options.meshShape = {1, 2};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.
