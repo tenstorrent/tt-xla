@@ -9,6 +9,7 @@ from typing import Callable, Sequence
 
 import jax
 from jaxtyping import PyTree
+import numpy as np
 
 from .comparison import (
     ComparisonConfig,
@@ -50,6 +51,12 @@ class BaseTester(ABC):
         device_output, golden_output = self._match_data_types(
             device_output, golden_output
         )
+        # print("|||||||||||||||||||")
+        # np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+        # print(np.array(device_out))
+        # print("MMMMMMMMMMMM")
+        # print(np.array(golden_out))
+        # print("|||||||||||||||||||")
 
         if self._comparison_config.equal.enabled:
             compare_equal(device_output, golden_output)

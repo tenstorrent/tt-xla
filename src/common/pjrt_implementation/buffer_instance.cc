@@ -8,6 +8,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include <iostream>
+
 #include "common/pjrt_implementation/buffer_instance.h"
 
 #include "common/pjrt_implementation/device_instance.h"
@@ -89,6 +91,14 @@ void BufferInstance::BindApi(PJRT_Api *api) {
           buffer->GetHostSizeInBytes(&args->dst_size));
     } else {
       // Initiate transfer.
+      /*std::cerr << (args->host_layout->type == 
+          PJRT_Buffer_MemoryLayout_Type_Tiled
+                   ? "AAAAAA=Tiled"
+                   : "AAAAAA=Strided")
+                << std::endl;
+      std::cerr << "something=" << args->host_layout->tiled.num_tiles << std::endl;
+      std::cerr << "size: " << buffer->getDimensions().size() << " " << buffer->getDimensions()[0] << 
+      " " << buffer->getDimensions()[1] << " " << buffer->getDimensions()[2] << std::endl;*/
       return ErrorInstance::MakeError(
           buffer->CopyToHost(args->dst, args->dst_size,
                              reinterpret_cast<EventInstance **>(&args->event)));
@@ -154,6 +164,7 @@ void BufferInstance::BindApi(PJRT_Api *api) {
 PJRT_Error *
 BufferInstance::GetMemoryLayout(PJRT_Buffer_GetMemoryLayout_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::GetMemoryLayout");
+  std::cerr << "AAAAAAA" << std::endl;
   args->layout.type =
       PJRT_Buffer_MemoryLayout_Type::PJRT_Buffer_MemoryLayout_Type_Tiled;
   size_t rank = num_dims();

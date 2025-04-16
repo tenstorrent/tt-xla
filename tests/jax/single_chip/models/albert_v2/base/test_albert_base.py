@@ -51,12 +51,6 @@ def training_tester() -> AlbertV2Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=34.321659088134766. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 def test_flax_albert_v2_base_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()
 

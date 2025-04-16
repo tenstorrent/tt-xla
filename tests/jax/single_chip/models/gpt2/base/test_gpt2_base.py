@@ -51,12 +51,6 @@ def training_tester() -> GPT2Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=3745453.0. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 def test_gpt2_base_inference(inference_tester: GPT2Tester):
     inference_tester.test()
 

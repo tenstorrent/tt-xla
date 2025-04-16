@@ -14,6 +14,7 @@
 
 // llvm includes
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LogicalResult.h"
 
 // llvm mlir includes
@@ -139,7 +140,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &code) {
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
-  printModule(vhlo_module);
+  printModule(vhlo_module, "vhlo.mlir");
 
   return vhlo_module;
 }
@@ -190,7 +191,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   }
   DLOG_F(LOG_DEBUG, "SHLO Module:");
 
-  printModule(mlir_module);
+  printModule(mlir_module, "shlo.mlir");
 }
 
 void ModuleBuilder::collectOutputShardings(
@@ -425,7 +426,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   }
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
-  printModule(mlir_module);
+  printModule(mlir_module, "ttir.mlir");
 }
 
 void ModuleBuilder::convertFromTTIRToTTNN(
@@ -445,13 +446,15 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
-  printModule(mlir_module);
+  printModule(mlir_module, "ttnn.mlir");
 }
 
 void ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   m_flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
-
+  std::cerr << "AAAAAAAAAAA" << std::endl;
+  m_flatbuffer_binary.store("debug_file/fb.ttnn");
+  std::cerr << "AAAAAAAAAAA" << std::endl;
   if (m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
@@ -459,12 +462,13 @@ void ModuleBuilder::createFlatbufferBinary(
 }
 
 void ModuleBuilder::printModule(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string name) {
   if (loguru::g_stderr_verbosity < LOG_DEBUG) {
     return;
   }
-
-  mlir_module->dump();
+  std::error_code ec;
+  llvm::raw_fd_ostream file("debug_file/"+name, ec, llvm::sys::fs::OF_Text);
+  mlir_module->print(file); 
 }
 
 bool ModuleBuilder::isUsingShardy(

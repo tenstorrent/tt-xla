@@ -7,6 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Callable, Dict, Mapping, Sequence, Union
+import numpy as np
 
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
@@ -146,6 +147,29 @@ class ModelTester(BaseTester, ABC):
         """
         return []
 
+    def is_array_like(self, x):
+        # Works for jax.Array, np.ndarray, etc.
+        return hasattr(x, 'shape') and hasattr(x, '__array__')
+
+    def extract_leaf_arrays(self, obj):
+        leaf_arrays = []
+
+        def recurse(x):
+            if isinstance(x, (str, bytes)):
+                return
+
+            if self.is_array_like(x):
+                leaf_arrays.append(x)
+            elif isinstance(x, Mapping):
+                for v in x.values():
+                    recurse(v)
+            elif isinstance(x, Sequence):
+                for item in x:
+                    recurse(item)
+
+        recurse(obj)
+        return leaf_arrays
+
     def _test_inference(self) -> None:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
@@ -161,6 +185,13 @@ class ModelTester(BaseTester, ABC):
             self._workload.kwargs,
             self._workload.static_argnames,
         )
+        leaves = self.extract_leaf_arrays(compiled_workload.kwargs)
+        # Convert each leaf to a NumPy array
+        np_leaves = [np.array(leaf) for leaf in leaves]
+
+        # Put them into a NumPy array of dtype=object
+        array_of_arrays = np.array(np_leaves, dtype=object)
+        np.savez_compressed("debug_file/inputs.npz", *array_of_arrays)
 
         tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)

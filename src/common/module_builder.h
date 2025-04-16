@@ -91,7 +91,7 @@ private:
   createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Prints module to console for debug purposes.
-  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string name);
 
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
