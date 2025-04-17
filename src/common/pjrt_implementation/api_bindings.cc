@@ -62,8 +62,9 @@ void BindUndefineds(PJRT_Api *api) {
 #define _STUB(API)                                                             \
   api->API = +[](API##_Args *args) -> decltype(api->API(args)) {               \
     DLOG_F(WARNING, "STUB: " #API);                                            \
-    return (decltype(api->API(args)))ErrorInstance::makeError(                 \
-        tt_pjrt_status::kUnimplemented);                                       \
+    return (decltype(api->API(args)))*ErrorInstance::makeError(                \
+               tt_pjrt_status::kUnimplemented)                                 \
+        .release();                                                            \
   }
 
 #include "common/pjrt_implementation/stubs.inc"

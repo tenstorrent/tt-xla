@@ -51,63 +51,26 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  return ErrorInstance::makeError(populateDevices());
+  return *ErrorInstance::makeError(populateDevices()).release();
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
+  // TODO(mrakita): Add `PJRT_Client_Create` here too, currently it is
+  // polymorphic and defined in `api_bindings.h`.
+  api->PJRT_Client_Destroy = internal::onClientDestroy;
+  api->PJRT_Client_PlatformName = internal::onClientPlatformName;
   api->PJRT_Client_ProcessIndex = internal::onClientProcessIndex;
+  api->PJRT_Client_PlatformVersion = internal::onClientPlatformVersion;
   api->PJRT_Client_Devices = internal::onClientDevices;
   api->PJRT_Client_AddressableDevices = internal::onClientAddressableDevices;
   api->PJRT_Client_LookupDevice = internal::onClientLookupDevice;
   api->PJRT_Client_LookupAddressableDevice =
       internal::onClientLookupAddressableDevice;
+  api->PJRT_Client_AddressableMemories = internal::onClientAddressableMemories;
   api->PJRT_Client_Compile = internal::onClientCompile;
-  api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
-
-  // TODO(mrakita): Move these below to internal too and revisit implementation.
-
-  // PJRT_Client_Create is polymorphic
-  api->PJRT_Client_Destroy =
-      +[](PJRT_Client_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
-    delete ClientInstance::unwrap(args->client);
-    return nullptr;
-  };
-  api->PJRT_Client_PlatformName =
-      +[](PJRT_Client_PlatformName_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
-    ClientInstance *client = ClientInstance::unwrap(args->client);
-    args->platform_name = client->cached_platform_name().data();
-    args->platform_name_size = client->cached_platform_name().size();
-    return nullptr;
-  };
-  api->PJRT_Client_PlatformVersion =
-      +[](PJRT_Client_PlatformVersion_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
-    ClientInstance *client = ClientInstance::unwrap(args->client);
-    args->platform_version = client->cached_platform_version().data();
-    args->platform_version_size = client->cached_platform_version().size();
-    return nullptr;
-  };
-  api->PJRT_Client_AddressableMemories =
-      +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
-    // return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
-    args->num_addressable_memories =
-        0; // ClientInstance::unwrap(args->client)->addressable_memories.size();
-    args->addressable_memories =
-        nullptr; // ClientInstance::unwrap(args->client)->addressable_memories.data();
-    return nullptr;
-  };
   api->PJRT_Client_DefaultDeviceAssignment =
-      +[](PJRT_Client_DefaultDeviceAssignment_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
-    // TODO: Something sensible.
-    for (size_t i = 0; i < args->default_assignment_size; ++i) {
-      args->default_assignment[i] = 0;
-    }
-    return nullptr;
-  };
+      internal::onClientDefaultDeviceAssignment;
+  api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
@@ -216,10 +179,42 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 
 namespace internal {
 
+PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
+
+  delete ClientInstance::unwrap(args->client);
+
+  return nullptr;
+}
+
+PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
+
+  ClientInstance *client = ClientInstance::unwrap(args->client);
+
+  // TODO(mrakita): Revisit this implementation.
+  args->platform_name = client->cached_platform_name().data();
+  args->platform_name_size = client->cached_platform_name().size();
+
+  return nullptr;
+}
+
 PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_ProcessIndex");
 
   args->process_index = ClientInstance::unwrap(args->client)->getProcessIndex();
+
+  return nullptr;
+}
+
+PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
+
+  ClientInstance *client = ClientInstance::unwrap(args->client);
+
+  // TODO(mrakita): Revisit this implementation.
+  args->platform_version = client->cached_platform_version().data();
+  args->platform_version_size = client->cached_platform_version().size();
 
   return nullptr;
 }
@@ -263,7 +258,7 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
 
   DLOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
 
-  return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
+  return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
 }
 
 PJRT_Error *onClientLookupAddressableDevice(
@@ -283,7 +278,18 @@ PJRT_Error *onClientLookupAddressableDevice(
          "Client addressable device lookup failed for device with local ID: %d",
          args->local_hardware_id);
 
-  return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
+  return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
+}
+
+PJRT_Error *
+onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
+
+  // TODO(mrakita): Revisit this implementation.
+  args->num_addressable_memories = 0;
+  args->addressable_memories = nullptr;
+
+  return nullptr;
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
@@ -296,7 +302,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
            "Program code format \"%s\" is not supported, only MLIR format is "
            "currently supported",
            args->program->format);
-    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -305,7 +311,19 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable));
 
-  return ErrorInstance::makeError(compile_status);
+  return *ErrorInstance::makeError(compile_status).release();
+}
+
+PJRT_Error *onClientDefaultDeviceAssignment(
+    PJRT_Client_DefaultDeviceAssignment_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
+
+  // TODO(mrakita): Revisit this implementation.
+  for (size_t i = 0; i < args->default_assignment_size; ++i) {
+    args->default_assignment[i] = 0;
+  }
+
+  return nullptr;
 }
 
 PJRT_Error *
@@ -314,19 +332,20 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
 
   if (args->memory) {
     DLOG_F(ERROR, "Copying to custom memory is not supported");
-    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
     DLOG_F(ERROR,
            "Copying from host is supported only with strided memory layout");
-    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
   if (args->num_byte_strides != 0 && args->num_byte_strides != args->num_dims) {
     DLOG_F(ERROR, "Invalid `num_byte_strides` argument");
-    return ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument);
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
   }
 
   std::unique_ptr<BufferInstance> buffer =

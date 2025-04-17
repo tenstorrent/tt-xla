@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <memory>
 #include <string>
 
 // PJRT C API includes
@@ -26,10 +27,8 @@ namespace tt::pjrt {
 class ErrorInstance {
 
 public:
-  // Convenience factory method to create new error instance and return it as
-  // `PJRT_Error *`. Client is responsible for calling `PJRT_Error_Destroy` on
-  // returned error. If status is success returns nullptr.
-  static PJRT_Error *makeError(tt_pjrt_status status);
+  // Creates new error instance.
+  static std::unique_ptr<ErrorInstance> makeError(tt_pjrt_status status);
 
   // Binds PJRT API functions implementation related to PJRT_Error structure.
   static void bindApi(PJRT_Api *api);

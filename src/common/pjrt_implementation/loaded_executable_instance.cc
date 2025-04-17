@@ -245,12 +245,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor input_tensor =
         getTensorFromStrategy(arg_tensors, *strategy);
 
-    // Converting input tensor to desired layout, this might move it on device.
-    tt::runtime::Layout layout = tt::runtime::getLayout(
-        m_executable_image->getFlatbufferBinary(), program_index, arg_index);
-    tt::runtime::Tensor laid_out_tensor =
-        tt::runtime::toLayout(input_tensor, runtime_device, layout,
-                              tt::runtime::getTensorRetain(input_tensor));
+    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
+        input_tensor, program_index, arg_index, runtime_device);
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
@@ -279,6 +275,16 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
   tt::runtime::setTensorRetain(tensor, /*retain=*/false);
 
   return tensor;
+}
+
+tt::runtime::Tensor LoadedExecutableInstance::convertTensorLayout(
+    tt::runtime::Tensor input_tensor, std::uint32_t program_index,
+    size_t arg_index, const tt::runtime::Device &runtime_device) {
+  tt::runtime::Layout layout = tt::runtime::getLayout(
+      m_executable_image->getFlatbufferBinary(), program_index, arg_index);
+
+  return tt::runtime::toLayout(input_tensor, runtime_device, layout,
+                               tt::runtime::getTensorRetain(input_tensor));
 }
 
 tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
@@ -313,7 +319,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     size_t num_devices, PJRT_Buffer **const *output_lists) {
   size_t num_outputs = untilized_output_tensors.size();
 
-  for (int device_index = 0; device_index < num_devices; device_index++) {
+  for (int device_index = 0; device_index < num_devices; ++device_index) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
@@ -440,13 +446,15 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
+  tt_pjrt_status status;
   if (args->execute_device) {
-    DLOG_F(ERROR, "Executing on specific single device is not supported");
-    return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
+    DLOG_F(ERROR, "Executing on a specific single device is not supported");
+    status = tt_pjrt_status::kUnimplemented;
+  } else {
+    status = LoadedExecutableInstance::unwrap(args->executable)->execute(args);
   }
 
-  return ErrorInstance::makeError(
-      LoadedExecutableInstance::unwrap(args->executable)->execute(args));
+  return *ErrorInstance::makeError(status).release();
 }
 
 } // namespace internal

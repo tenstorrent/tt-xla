@@ -107,8 +107,17 @@ private:
 
 namespace internal {
 
+// Implements PJRT_Client_Destroy API function.
+PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args);
+
+// Implements PJRT_Client_PlatformName API function.
+PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args);
+
 // Implements PJRT_Client_ProcessIndex API function.
 PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args);
+
+// Implements PJRT_Client_PlatformVersion API function.
+PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args);
 
 // Implements PJRT_Client_Devices API function.
 PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args);
@@ -124,8 +133,16 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args);
 PJRT_Error *
 onClientLookupAddressableDevice(PJRT_Client_LookupAddressableDevice_Args *args);
 
+// Implements PJRT_Client_AddressableMemories API function.
+PJRT_Error *
+onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args);
+
 // Implements PJRT_Client_Compile API function.
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args);
+
+// Implements PJRT_Client_DefaultDeviceAssignment API function.
+PJRT_Error *
+onClientDefaultDeviceAssignment(PJRT_Client_DefaultDeviceAssignment_Args *args);
 
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);

@@ -45,7 +45,7 @@ void BindApi(PJRT_Api *api) {
 
     auto status = platform->Initialize();
     if (!tt_pjrt_status_is_ok(status)) {
-      return ErrorInstance::makeError(status);
+      return *ErrorInstance::makeError(status).release();
     }
 
     auto client = std::make_unique<ClientInstanceTy>(std::move(platform));

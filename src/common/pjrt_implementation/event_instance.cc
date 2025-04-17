@@ -44,8 +44,8 @@ EventInstance::EventInstance()
 
         // After this point we shouldn't access the event anymore!
         for (OnReadyCallback &callback : on_ready_callbacks) {
-          callback.callback_function(ErrorInstance::makeError(status),
-                                     callback.user_arg);
+          callback.callback_function(
+              *ErrorInstance::makeError(status).release(), callback.user_arg);
         }
       },
       this);
@@ -93,7 +93,7 @@ bool EventInstance::isReady() {
 }
 
 PJRT_Error *EventInstance::getErrorFromStatus() {
-  return ErrorInstance::makeError(m_status);
+  return *ErrorInstance::makeError(m_status).release();
 }
 
 static void inline logWarningOnMultipleReadyMarks() {
@@ -172,7 +172,9 @@ PJRT_Error *onEventDestroy(PJRT_Event_Destroy_Args *args) {
 
   EventInstance *event_instance = EventInstance::unwrap(args->event);
 
-  // See comment above `m_indestructible` declaration.
+  // TODO(mrakita): This is a major hack that we currently have to do because
+  // XLA PJRT client destroys event immediately after it sets callback on it.
+  // https://github.com/openxla/xla/issues/25172
   if (!event_instance->isIndestructible()) {
     // We could return the error from here if the event is being destroyed
     // before it is ready, but since the desired behavior in this situation is

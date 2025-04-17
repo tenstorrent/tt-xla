@@ -116,7 +116,6 @@
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
   _STUB(PJRT_Client_Create);
-  _STUB(PJRT_Client_Destroy);
   _STUB(PJRT_Client_PlatformName);
   _STUB(PJRT_Client_PlatformVersion);
   _STUB(PJRT_Client_AddressableMemories);

@@ -113,6 +113,12 @@ private:
       const std::vector<tt::runtime::Tensor> &arg_tensors,
       const std::unordered_map<std::string, std::string> &strategy);
 
+  // Converts input tensor to desired layout. This might move it on device.
+  tt::runtime::Tensor
+  convertTensorLayout(tt::runtime::Tensor input_tensor,
+                      std::uint32_t program_index, size_t arg_index,
+                      const tt::runtime::Device &runtime_device);
+
   // Untilizes output tensors and transfers them from device to host.
   static tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,

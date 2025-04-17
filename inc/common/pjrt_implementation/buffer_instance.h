@@ -113,7 +113,7 @@ public:
 
   // Asynchronously copies the buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
-                            EventInstance **out_event);
+                            EventInstance **out_copy_done_event);
 
   // Sets that buffer data is ready (transferred from host or computed on
   // device) and marks data ready event as ready (if it is already created).

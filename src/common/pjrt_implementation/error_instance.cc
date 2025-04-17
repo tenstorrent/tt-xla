@@ -10,12 +10,9 @@
 
 #include "common/pjrt_implementation/error_instance.h"
 
-// c++ standard library includes
-#include <memory>
-
 namespace tt::pjrt {
 
-PJRT_Error *ErrorInstance::makeError(tt_pjrt_status status) {
+std::unique_ptr<ErrorInstance> ErrorInstance::makeError(tt_pjrt_status status) {
   if (tt_pjrt_status_is_ok(status)) {
     return nullptr;
   }
@@ -24,13 +21,7 @@ PJRT_Error *ErrorInstance::makeError(tt_pjrt_status status) {
     make_unique_enabler(tt_pjrt_status status) : ErrorInstance(status) {}
   };
 
-  // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling `PJRT_Error_Destroy` on the error. This is usually
-  // done only in places where pointer is directly assigned to out parameter, to
-  // avoid memory leaks, but this is the only exception from that practice
-  // because errors don't have any setters and their creation is always done as
-  // a return step in API implementation functions.
-  return *std::make_unique<make_unique_enabler>(status).release();
+  return std::make_unique<make_unique_enabler>(status);
 }
 
 ErrorInstance::ErrorInstance(tt_pjrt_status status)

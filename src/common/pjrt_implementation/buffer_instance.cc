@@ -145,8 +145,10 @@ void BufferInstance::copyFromHost(
 
   // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
   // we are not allowed to alias it directly, so we have to create owned host
-  // buffer, i.e. to copy its data. In JAX this semantic is used only for
-  // copying scalars and numpy arrays, so the copy shouldn't take long.
+  // tensor which copies buffer data. In JAX this semantic is used only for
+  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
+  // mark the event as ready since we don't need the original host buffer
+  // anymore.
   if (host_buffer_semantics ==
       PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
@@ -154,7 +156,13 @@ void BufferInstance::copyFromHost(
 
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
-  } else {
+  }
+  // Otherwise when input host buffer has other semantic we are allowed to alias
+  // it, so we can create borrowed host which doesn't copy any data and instead
+  // uses direct pointer to existing data. Since we are holding a pointer to the
+  // original data we can't mark the event as ready yet, so we remember it and
+  // mark it as ready once the buffer is destroyed.
+  else {
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
@@ -166,7 +174,8 @@ void BufferInstance::copyFromHost(
     // deleted.
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
 
-    // TODO(mrakita): Revert.
+    // TODO(mrakita): This is a major hack that we currently have to do because
+    // XLA PJRT client destroys event immediately after it sets callback on it.
     // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
   }
@@ -225,7 +234,7 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
-                                          EventInstance **out_event) {
+                                          EventInstance **out_copy_done_event) {
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
   size_t runtime_tensor_size = getRuntimeTensorSize();
@@ -234,7 +243,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
            "Tried to copy device buffer to the host buffer with smaller size "
            "than required (device buffer size: %zu, host buffer size: %zu)",
            runtime_tensor_size, host_buffer_size);
-    out_event = nullptr;
+    out_copy_done_event = nullptr;
     return tt_pjrt_status::kFailedPrecondition;
   }
 
@@ -258,7 +267,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
-  *out_event = event.release();
+  *out_copy_done_event = event.release();
 
   return tt_pjrt_status::kSuccess;
 }
@@ -356,12 +365,6 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // issues for some models. We need to investigate and add support for both
   // layouts.
   // https://github.com/tenstorrent/tt-xla/issues/500
-  // if (args->host_layout &&
-  //     args->host_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
-  //   DLOG_F(ERROR,
-  //          "Copying to host is supported only with strided memory layout");
-  //   return ErrorInstance::makeError(tt_pjrt_status::kUnimplemented);
-  // }
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
@@ -371,9 +374,11 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
     return nullptr;
   }
 
-  return ErrorInstance::makeError(
-      buffer->copyToHost(args->dst, args->dst_size,
-                         reinterpret_cast<EventInstance **>(&args->event)));
+  return *ErrorInstance::makeError(
+              buffer->copyToHost(
+                  args->dst, args->dst_size,
+                  reinterpret_cast<EventInstance **>(&args->event)))
+              .release();
 }
 
 PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
@@ -414,8 +419,10 @@ PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
 
-  return ErrorInstance::makeError(buffer->createDataReadyEvent(
-      reinterpret_cast<EventInstance **>(&args->event)));
+  return *ErrorInstance::makeError(
+              buffer->createDataReadyEvent(
+                  reinterpret_cast<EventInstance **>(&args->event)))
+              .release();
 }
 
 } // namespace internal

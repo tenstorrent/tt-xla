@@ -73,8 +73,7 @@ public:
     return m_output_shardings;
   }
 
-  // MLIR program format name. This would ideally be defined in PJRT API header
-  // but wcyd.
+  // MLIR program format name. This would ideally be defined in PJRT API header.
   static const std::string c_mlir_format_name;
 
 private:
@@ -103,8 +102,13 @@ private:
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Estimates devices mesh shape the module is intended to run on.
-  void estimateMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  // Collects the information about the mesh shape the module is intended to run
+  // on.
+  void collectMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Estimates devices mesh shape from input shardings in case the mesh
+  // attribute is not set on the module.
+  void estimateMeshShape();
 
   // Converts TTIR module to TTNN module.
   void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
