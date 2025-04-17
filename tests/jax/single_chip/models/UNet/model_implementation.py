@@ -52,6 +52,7 @@ class UNet(nn.Module):
             out_ch = self.hidden_channels * 2 ** (i + 1)
             down.append(DoubleConv(in_ch, out_ch, self.activation))
             in_ch = out_ch
+
         down.append(DoubleConv(in_ch, in_ch * 2, self.activation))
         in_ch = in_ch * 2
         self.down = tuple(down)
@@ -67,6 +68,7 @@ class UNet(nn.Module):
             )
             up_blocks.append(DoubleConv(in_ch, out_ch, self.activation))
             in_ch = out_ch
+
         self.up_blocks = tuple(up_blocks)
         self.up_convs = tuple(up_convs)
 
@@ -83,12 +85,16 @@ class UNet(nn.Module):
             x = nn.max_pool(x, window_shape=(2, 2), strides=(2, 2), padding="VALID")
             x = block(x, train)
             skips.append(x)
+
         x = nn.max_pool(x, window_shape=(2, 2), strides=(2, 2), padding="VALID")
         x = self.down[-1](x, train)
 
-        # After upsampling with ConvTranspose, 'x' might not perfectly match the size of the corresponding skip connection 'skip'.
-        # To concatenate them correctly, we center-crop 'skip' to match 'x' spatially.
-        # Then, we concatenate 'x' and cropped 'skip' along the channel axis before applying DoubleConv.
+        """
+        After upsampling with ConvTranspose, 'x' might not perfectly match the size
+        of the corresponding skip connection. To concatenate them correctly, we
+        center-crop 'skip' to match 'x' spatially. Then, we concatenate 'x' and the
+        cropped 'skip' along the channel axis before applying DoubleConv.
+        """
         for i in range(self.num_levels):
             x = self.up_convs[i](x)
             skip = skips[-(i + 1)]
@@ -103,4 +109,5 @@ class UNet(nn.Module):
             x = self.up_blocks[i](x, train)
 
         x = self.output_conv(x)
+
         return x
