@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <numeric>
 #include <optional>
 
 // loguru includes
@@ -97,8 +98,6 @@ ModuleBuilder::buildModule(const std::string_view &code,
     return m_status;
   }
 
-  collectNumDevicesToUtilize(mlir_module);
-
   convertFromVHLOToSHLO(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
@@ -114,6 +113,7 @@ ModuleBuilder::buildModule(const std::string_view &code,
   }
 
   collectMeshShape(mlir_module);
+  collectNumDevicesToUtilize(mlir_module);
 
   convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -156,11 +156,12 @@ void ModuleBuilder::collectNumDevicesToUtilize(
     m_num_devices_to_utilize =
         num_partitions_attr.getInt() * num_replicas_attr.getInt();
   } else {
-    // mhlo.num_partitions and mhlo.num_replicas are not populated by torch_xla
-    m_num_devices_to_utilize = 2;
-    // DLOG_F(WARNING, "mhlo.num_partitions, mhlo.num_replicas not found, using "
-    //                 "default number of devices: 1");
-    DLOG_F(WARNING, "Forcing m_num_devices_to_utilize = 2!");
+    // mhlo.num_partitions and mhlo.num_replicas are not populated by torch_xla,
+    // so we infer the number of devices from mesh shape.
+    DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
+                    "the number of devices from mesh shape");
+    m_num_devices_to_utilize = std::accumulate(
+        m_mesh_shape.begin(), m_mesh_shape.end(), 1, std::multiplies<>());
   }
 }
 
@@ -437,8 +438,16 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
-  // Must force meshShape (do not know why it isn't inferred properly yet)
-  options.meshShape = {1, 2};
+
+  if (m_mesh_shape.size() != 2) {
+    DLOG_F(ERROR,
+           "Invalid mesh shape size: %zu. Shape must have two dimensions!",
+           m_mesh_shape.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  options.meshShape = {m_mesh_shape[0], m_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.
