@@ -8,10 +8,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "common/pjrt_implementation/error_instance.h"
-
+// c++ standard library includes
 #include <memory>
 #include <utility>
+
+// tt-xla includes
+#include "common/pjrt_implementation/error_instance.h"
+#include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
@@ -42,7 +45,7 @@ void BindApi(PJRT_Api *api) {
 
     auto status = platform->Initialize();
     if (!tt_pjrt_status_is_ok(status)) {
-      return ErrorInstance::MakeError(status);
+      return *ErrorInstance::makeError(status).release();
     }
 
     auto client = std::make_unique<ClientInstanceTy>(std::move(platform));

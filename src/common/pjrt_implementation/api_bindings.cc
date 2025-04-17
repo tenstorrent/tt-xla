@@ -16,6 +16,8 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/executable_instance.h"
+#include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/plugin_attributes.h"
 
 namespace tt::pjrt {
@@ -46,22 +48,23 @@ void BindMonomorphicApi(PJRT_Api *api) {
   api->PJRT_Plugin_Attributes = InitializePluginAttributes;
 
   // Bind by object types.
-  BufferInstance::BindApi(api);
-  ClientInstance::BindApi(api);
-  DeviceDescription::BindApi(api);
-  DeviceInstance::BindApi(api);
-  EventInstance::BindApi(api);
-  ErrorInstance::BindApi(api);
-  ExecutableImage::BindApi(api);
-  LoadedExecutableInstance::BindApi(api);
+  BufferInstance::bindApi(api);
+  ClientInstance::bindApi(api);
+  DeviceDescription::bindApi(api);
+  DeviceInstance::bindApi(api);
+  EventInstance::bindApi(api);
+  ErrorInstance::bindApi(api);
+  ExecutableInstance::bindApi(api);
+  LoadedExecutableInstance::bindApi(api);
 }
 
 void BindUndefineds(PJRT_Api *api) {
 #define _STUB(API)                                                             \
   api->API = +[](API##_Args *args) -> decltype(api->API(args)) {               \
-    DLOG_F(LOG_DEBUG, "STUB: " #API);                                          \
-    return (decltype(api->API(args)))ErrorInstance::MakeError(                 \
-        tt_pjrt_status::kUnimplemented);                                       \
+    DLOG_F(WARNING, "STUB: " #API);                                            \
+    return (decltype(api->API(args)))*ErrorInstance::makeError(                \
+               tt_pjrt_status::kUnimplemented)                                 \
+        .release();                                                            \
   }
 
 #include "common/pjrt_implementation/stubs.inc"

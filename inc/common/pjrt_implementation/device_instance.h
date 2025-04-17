@@ -8,85 +8,93 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+// c++ standard library includes
+#include <memory>
+
+// PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
-#include "tt/runtime/runtime.h"
-
+// tt-xla includes
 #include "common/pjrt_implementation/device_description.h"
-#include "common/pjrt_implementation/event_instance.h"
-#include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
 
 namespace tt::pjrt {
 
-class ClientInstance;
-class BufferInstance;
-
+// Represents PJRT_Device structure and the functionality around it.
 class DeviceInstance {
-
 public:
-  DeviceInstance(int device_id, ClientInstance &client, tt::target::Arch arch)
-      : client_(client), description_(device_id, arch) {}
-  ~DeviceInstance();
-  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
-  static void BindApi(PJRT_Api *api);
+  // Creates new device instance.
+  static std::unique_ptr<DeviceInstance> createInstance(int global_device_id,
+                                                        bool is_addressable,
+                                                        int local_device_id,
+                                                        tt::target::Arch arch);
 
-  static DeviceInstance *Unwrap(PJRT_Device *device) {
+  // Binds PJRT API functions implementation related to PJRT_Device structure.
+  static void bindApi(PJRT_Api *api);
+
+  // Casts this device instance to PJRT_Device pointer.
+  operator PJRT_Device *() { return reinterpret_cast<PJRT_Device *>(this); }
+
+  // Casts the PJRT_Device pointer to DeviceInstance pointer.
+  static DeviceInstance *unwrap(PJRT_Device *device) {
     return reinterpret_cast<DeviceInstance *>(device);
   }
 
-  static DeviceInstance *Unwrap(PJRT_DeviceDescription *device_description) {
-    return reinterpret_cast<DeviceInstance *>(device_description);
+  // Returns reference to device description.
+  DeviceDescription &getDeviceDescription() { return m_description; }
+
+  // Returns const reference to device description.
+  const DeviceDescription &getDeviceDescription() const {
+    return m_description;
   }
-  ClientInstance &client() { return client_; }
-  bool is_addressable() { return true; }
-  int local_hardware_id() { return -1; }
 
-  tt_pjrt_status
-  HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
-                            size_t num_dims,
-                            EventInstance **out_done_with_host_buffer_event,
-                            BufferInstance **out_buffer);
+  // Returns true if device is addressable.
+  bool isAddressable() const { return m_is_addressable; }
 
-  tt_pjrt_status
-  HostBufferToDeviceSplat(const void *data, PJRT_Buffer_Type type,
-                          const int64_t *dims, size_t num_dims,
-                          EventInstance **out_done_with_host_buffer_event,
-                          BufferInstance **out_buffer);
+  // Returns local device ID.
+  int getLocalDeviceId() const { return m_local_device_id; }
 
-  tt_pjrt_status
-  HostBufferToDevice(const void *data, PJRT_Buffer_Type type,
-                     const int64_t *dims, size_t num_dims,
-                     const int64_t *byte_strides, size_t num_byte_strides,
-                     PJRT_HostBufferSemantics host_buffer_semantics,
-                     EventInstance **out_done_with_host_buffer_event,
-                     BufferInstance **out_buffer);
+  // Returns global device ID.
+  int getGlobalDeviceId() const { return m_description.getDeviceId(); }
 
-  DeviceDescription *device_description() { return &description_; }
-  const DeviceDescription *device_description() const { return &description_; }
+  // Sets process index from which this device is addressable.
+  void setProcessIndex(int process_index) {
+    m_description.setProcessIndex(process_index);
+  }
 
 private:
-  tt_pjrt_status OpenDevice();
+  // Constructor.
+  DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,
+                 tt::target::Arch arch)
+      : m_description(global_device_id, arch), m_is_addressable(is_addressable),
+        m_local_device_id(local_device_id) {}
 
-  static size_t getTensorSize(const std::vector<std::uint32_t> &shape,
-                              size_t element_size);
+  // Device description.
+  DeviceDescription m_description;
 
-  // Create a buffer instance from a host data pointer, by copying it into
-  // another memory. This is necessary as we have no ownership of the passed
-  // pointer, and it might happen that the pointer is deallocated before the
-  // buffer is used. See issue #248 for more details.
-  std::unique_ptr<BufferInstance>
-  MakeDeviceBuffer(const void *data_ptr, std::vector<std::uint32_t> &shape,
-                   std::vector<std::uint32_t> &strides, size_t element_size,
-                   tt::target::DataType element_type);
+  // True if device is addressable. Addressable devices are those that the
+  // client can issue commands to.
+  bool m_is_addressable;
 
-  ClientInstance &client_;
-  uint64_t last_transfer_timepoint_ = 0;
-  DeviceDescription description_;
+  // Local ID of this device unique between all addressable devices.
+  int m_local_device_id;
 };
+
+namespace internal {
+
+// Implements PJRT_Device_GetDescription API function.
+PJRT_Error *onDeviceGetDescription(PJRT_Device_GetDescription_Args *args);
+
+// Implements PJRT_Device_IsAddressable API function.
+PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args);
+
+// Implements PJRT_Device_LocalHardwareId API function.
+PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args);
+
+} // namespace internal
 
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
