@@ -40,7 +40,6 @@
   _STUB(PJRT_Device_IsAddressable);
   _STUB(PJRT_Device_LocalHardwareId);
   _STUB(PJRT_Device_AddressableMemories);
-  _STUB(PJRT_Device_DefaultMemory);
   _STUB(PJRT_Device_MemoryStats);
   _STUB(PJRT_Memory_Id);
   _STUB(PJRT_Memory_Kind);

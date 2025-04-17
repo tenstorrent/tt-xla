@@ -24,6 +24,9 @@
 
 namespace tt::pjrt {
 
+// Forward declarations.
+class MemoryInstance;
+
 //===----------------------------------------------------------------------===//
 // ClientInstance
 // The root of the runtime hierarchy, these map to an IREE driver and are
@@ -71,11 +74,13 @@ protected:
 private:
   tt_pjrt_status InitializeCompiler();
   tt_pjrt_status PopulateDevices();
+  tt_pjrt_status PopulateMemories();
 
   std::unique_ptr<Platform> platform_;
 
   std::vector<DeviceInstance *> devices_;
   std::vector<DeviceInstance *> addressable_devices_;
+  std::vector<MemoryInstance *> m_memories;
 
   std::unique_ptr<ModuleBuilder> module_builder_;
 

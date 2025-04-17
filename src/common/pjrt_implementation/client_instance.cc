@@ -15,6 +15,7 @@
 #include <string>
 
 #include "common/pjrt_implementation/utils.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "tt/runtime/types.h"
 
 namespace tt::pjrt {
@@ -43,9 +44,14 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  tt_pjrt_status status = PopulateDevices();
-  if (!tt_pjrt_status_is_ok(status)) {
-    return ErrorInstance::MakeError(status);
+  tt_pjrt_status device_status = PopulateDevices();
+  if (!tt_pjrt_status_is_ok(device_status)) {
+    return ErrorInstance::MakeError(device_status);
+  }
+
+  tt_pjrt_status memory_status = PopulateMemories();
+  if (!tt_pjrt_status_is_ok(memory_status)) {
+    return ErrorInstance::MakeError(memory_status);
   }
 
   return nullptr;
@@ -190,6 +196,21 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
   addressable_devices_.reserve(devices_.size());
   for (DeviceInstance *device : devices_) {
     addressable_devices_.push_back(device);
+  }
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ClientInstance::PopulateMemories() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
+  MemoryInstance *host_memory =
+      new MemoryInstance(addressable_devices_, *this, -1);
+  m_memories.push_back(host_memory);
+  for (DeviceInstance *device : devices_) {
+    MemoryInstance *device_memory =
+        new MemoryInstance(addressable_devices_, *this,
+                           device->device_description()->getDeviceId());
+    m_memories.push_back(device_memory);
+    device->setDefaultMemory(device_memory);
   }
   return tt_pjrt_status::kSuccess;
 }

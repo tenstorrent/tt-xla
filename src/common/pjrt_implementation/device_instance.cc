@@ -43,6 +43,12 @@ void DeviceInstance::BindApi(PJRT_Api *api) {
         DeviceInstance::Unwrap(args->device)->device_description());
     return nullptr;
   };
+  api->PJRT_Device_DefaultMemory = 
+  +[](PJRT_Device_DefaultMemory_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
+    args->memory = *(DeviceInstance::Unwrap(args->device)->getDefaultMemory());
+    return nullptr;
+  };
 }
 
 tt_pjrt_status DeviceInstance::OpenDevice() {

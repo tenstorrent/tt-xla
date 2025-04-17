@@ -14,6 +14,7 @@
 
 #include "common/pjrt_implementation/device_description.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DEVICE_INSTANCE_H_
@@ -44,6 +45,12 @@ public:
   bool is_addressable() { return true; }
   int local_hardware_id() { return -1; }
 
+  const MemoryInstance* getDefaultMemory() const { return m_default_memory; }
+
+  void setDefaultMemory(MemoryInstance* memory) {
+    m_default_memory = memory;
+  }
+  
   tt_pjrt_status
   HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
                             size_t num_dims,
@@ -85,6 +92,7 @@ private:
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
   DeviceDescription description_;
+  MemoryInstance* m_default_memory;
 };
 
 } // namespace tt::pjrt
