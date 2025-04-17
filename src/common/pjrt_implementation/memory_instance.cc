@@ -12,6 +12,8 @@
 #include "common/status.h"
 
 #include "xla/pjrt/c/pjrt_c_api.h"
+#include "common/pjrt_implementation/error_instance.h"
+#include <iostream>
 
 namespace tt::pjrt {
 
@@ -20,9 +22,10 @@ void MemoryInstance::BindApi(PJRT_Api *api) {
 
     api->PJRT_Memory_AddressableByDevices = 
         +[](PJRT_Memory_AddressableByDevices_Args *args) -> PJRT_Error * {
-            DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
+            DLOG_F(LOG_DEBUG, "STUB: MemoryInstance::PJRT_Memory_AddressableByDevices");
             args->num_devices = MemoryInstance::Unwrap(args->memory)->addressable_by_devices().size();
-            args->devices = const_cast<PJRT_Device **>(reinterpret_cast<PJRT_Device *const *>(MemoryInstance::Unwrap(args->memory)->addressable_by_devices().data()));
+            args->devices = reinterpret_cast<PJRT_Device *const *>(MemoryInstance::Unwrap(args->memory)->addressable_by_devices().data());
+            std::cerr << MemoryInstance::Unwrap(args->memory)->addressable_by_devices().size() << std::endl;
             return nullptr;
     };
 }

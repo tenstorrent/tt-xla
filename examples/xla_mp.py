@@ -39,13 +39,13 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, tensor):
-        tensor = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, tensor, 1.0, [[0,1]])
+        tensor = torch.neg(tensor)
         return tensor
 
 def dar(rank):
     init_process()
     print("process initialized")
-    tensor = torch.ones(6, device='cpu') * (rank + 1)
+    tensor = torch.ones((64), device='cpu') * (rank + 1)
     model = Model()
     # prog = export(model, (tensor, ))
     # stablehlo = exported_program_to_stablehlo(prog)

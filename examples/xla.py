@@ -33,8 +33,7 @@ def test():
             # y = torch.distributed.all_reduce(x, torch.distributed.ReduceOp.SUM, 0)
             z = torch.distributed.all_reduce(x, torch.distributed.ReduceOp.AVG, 0)
             return z
-
-    breakpoint()
+        
     initialize_pjrt()
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29501"

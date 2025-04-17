@@ -188,7 +188,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer device ptr: %p", args->memory);
     // MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]
     tt_pjrt_status status = HostBufferToDevice(
-      MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0], args->data, args->type, args->dims, args->num_dims,
+      DeviceInstance::Unwrap(args->device), args->data, args->type, args->dims, args->num_dims,
                 args->byte_strides, args->num_byte_strides,
                 args->host_buffer_semantics,
                 reinterpret_cast<EventInstance **>(
