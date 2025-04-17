@@ -203,11 +203,11 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 tt_pjrt_status ClientInstance::PopulateMemories() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
   MemoryInstance *host_memory =
-      new MemoryInstance(addressable_devices_, *this, -1);
+      new MemoryInstance(addressable_devices_, -1);
   m_memories.push_back(host_memory);
   for (DeviceInstance *device : devices_) {
     MemoryInstance *device_memory =
-        new MemoryInstance(addressable_devices_, *this,
+        new MemoryInstance(addressable_devices_,
                            device->device_description()->getDeviceId());
     m_memories.push_back(device_memory);
     device->setDefaultMemory(device_memory);

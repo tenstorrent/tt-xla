@@ -45,7 +45,7 @@ public:
   bool is_addressable() { return true; }
   int local_hardware_id() { return -1; }
 
-  const MemoryInstance* getDefaultMemory() const { return m_default_memory; }
+  MemoryInstance* getDefaultMemory() const { return m_default_memory; }
 
   void setDefaultMemory(MemoryInstance* memory) {
     m_default_memory = memory;

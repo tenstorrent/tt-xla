@@ -15,6 +15,7 @@
 
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/device_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
@@ -23,9 +24,6 @@
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
 
 namespace tt::pjrt {
-
-// Forward declarations.
-class MemoryInstance;
 
 //===----------------------------------------------------------------------===//
 // ClientInstance
