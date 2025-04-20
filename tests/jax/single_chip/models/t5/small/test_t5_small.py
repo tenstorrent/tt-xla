@@ -51,7 +51,7 @@ def training_tester() -> T5Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
         "ttnn::operations::binary::BinaryDeviceOperation: unsupported broadcast "
         "(https://github.com/tenstorrent/tt-xla/issues/505)"

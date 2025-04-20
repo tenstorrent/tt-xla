@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 from typing import Dict
 
 import jax
+import pytest
 from infra import ComparisonConfig, Framework, RunMode
 from transformers import (
     AutoTokenizer,
@@ -81,10 +81,10 @@ def training_tester() -> BigBirdBaseTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "failed to legalize unresolved materialization from ('tensor<1x16x1xbf16>') to ('tensor<1x16x1xi1>') that remained live after conversion "
-        "https://github.com/tenstorrent/tt-xla/issues/476"
+        "'ttir.scatter' op Dimension size to slice into must be 1 "
+        "https://github.com/tenstorrent/tt-xla/issues/386"
     )
 )
 def test_bigbird_roberta_base_inference(inference_tester: BigBirdBaseTester):

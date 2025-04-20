@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import Mistral7BTester
@@ -48,11 +48,12 @@ def training_tester() -> Mistral7BTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+    reason=failed_ttmlir_compilation(
+        "failed to legalize operation 'ttir.gather' "
+        "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
 def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):

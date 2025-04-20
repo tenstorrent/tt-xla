@@ -52,7 +52,10 @@ def training_tester() -> FlaxCLIPTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+    reason=failed_ttmlir_compilation(
+        "failed to legalize operation 'ttir.gather' "
+        "https://github.com/tenstorrent/tt-xla/issues/318"
+    )
 )
 def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
