@@ -158,7 +158,6 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    std::cerr << "WHAT IS THIS=" << MemoryInstance::Unwrap(args->memory) << std::endl;
     DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]);
     tt_pjrt_status status =
     device_instance
@@ -204,12 +203,12 @@ tt_pjrt_status ClientInstance::PopulateDevices() {
 tt_pjrt_status ClientInstance::PopulateMemories() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
   MemoryInstance *host_memory =
-      new MemoryInstance(addressable_devices_, -1);
+      new MemoryInstance(addressable_devices_, -1, "tt_host");
   m_memories.push_back(host_memory);
   for (DeviceInstance *device : devices_) {
     MemoryInstance *device_memory =
         new MemoryInstance(addressable_devices_,
-                           device->device_description()->getDeviceId());
+                           device->device_description()->getDeviceId(), "tt_device");
     m_memories.push_back(device_memory);
     device->setDefaultMemory(device_memory);
   }

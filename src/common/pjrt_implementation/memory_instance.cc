@@ -11,6 +11,7 @@
 #include "common/pjrt_implementation/memory_instance.h"
 
 #include "common/status.h"
+#include <cstring>
 
 namespace tt::pjrt {
 
@@ -22,6 +23,15 @@ void MemoryInstance::BindApi(PJRT_Api *api) {
             DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
             args->num_devices = MemoryInstance::Unwrap(args->memory)->addressable_by_devices().size();
             args->devices = const_cast<PJRT_Device **>(reinterpret_cast<PJRT_Device *const *>(MemoryInstance::Unwrap(args->memory)->addressable_by_devices().data()));
+            return nullptr;
+    };
+
+    api->PJRT_Memory_Kind =
+        +[](PJRT_Memory_Kind_Args *args) -> PJRT_Error * {
+            DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind");
+            MemoryInstance *memory_instance = MemoryInstance::Unwrap(args->memory);
+            args->kind = memory_instance->memory_kind().data();
+            args->kind_size = memory_instance->memory_kind().size();
             return nullptr;
     };
 }
