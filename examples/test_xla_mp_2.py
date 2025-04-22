@@ -39,7 +39,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, tensor):
-        dist.all_reduce(tensor)
+        tensor = torch.neg(tensor)
         return tensor
 
 def dar(rank):

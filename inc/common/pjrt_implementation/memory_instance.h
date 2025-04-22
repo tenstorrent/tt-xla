@@ -39,6 +39,8 @@ public:
 
     const std::string &memory_kind() const { return m_memory_kind; }
 
+    const int getMemoryId() const { return m_memory_id; }
+
 private:
     // List of devices that can access this memory.
     std::vector<DeviceInstance *>& m_addressable_by_devices;

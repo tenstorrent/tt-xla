@@ -158,7 +158,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]);
+    DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[MemoryInstance::Unwrap(args->memory)->getMemoryId()]);
     tt_pjrt_status status =
     device_instance
             ->HostBufferToDevice(
