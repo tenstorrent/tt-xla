@@ -26,7 +26,6 @@
   _STUB(PJRT_Client_AddressableDevices);
   _STUB(PJRT_Client_LookupDevice);
   _STUB(PJRT_Client_LookupAddressableDevice);
-  _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_Compile);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
   _STUB(PJRT_Client_BufferFromHostBuffer);
@@ -39,7 +38,6 @@
   _STUB(PJRT_Device_GetDescription);
   _STUB(PJRT_Device_IsAddressable);
   _STUB(PJRT_Device_LocalHardwareId);
-  _STUB(PJRT_Device_AddressableMemories);
   _STUB(PJRT_Device_MemoryStats);
   _STUB(PJRT_Memory_Id);
   _STUB(PJRT_Memory_Kind);

@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <iostream>
 
 #include "common/pjrt_implementation/utils.h"
 #include "common/pjrt_implementation/memory_instance.h"
@@ -122,10 +123,8 @@ void ClientInstance::BindApi(PJRT_Api *api) {
       +[](PJRT_Client_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
     // return ErrorInstance::MakeError(tt_pjrt_status::kUnimplemented);
-    args->num_addressable_memories =
-        0; // ClientInstance::Unwrap(args->client)->addressable_memories.size();
-    args->addressable_memories =
-        nullptr; // ClientInstance::Unwrap(args->client)->addressable_memories.data();
+    args->num_addressable_memories = ClientInstance::Unwrap(args->client)->addressable_memories().size();
+    args->addressable_memories = (PJRT_Memory *const *)(ClientInstance::Unwrap(args->client)->addressable_memories().data());
     return nullptr;
   };
   api->PJRT_Client_Compile =
@@ -159,8 +158,10 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+    std::cerr << "WHAT IS THIS=" << MemoryInstance::Unwrap(args->memory) << std::endl;
+    DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]);
     tt_pjrt_status status =
-        DeviceInstance::Unwrap(args->device)
+    device_instance
             ->HostBufferToDevice(
                 args->data, args->type, args->dims, args->num_dims,
                 args->byte_strides, args->num_byte_strides,

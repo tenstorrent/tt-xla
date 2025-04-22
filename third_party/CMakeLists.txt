@@ -4,7 +4,7 @@
 #
 
 # @wooseokTT has created a branch to parse mhlo.sharding, which is provided differently than JAX does
-set(TT_MLIR_VERSION "477ef0e7e4b21503391b600ae85570af073c6de7")
+set(TT_MLIR_VERSION "ac2d32d39662623866b8cadb4af045e7862a4942")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")

@@ -11,6 +11,7 @@
 #include <memory>
 #include <numeric>
 
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/device_instance.h"
 
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -49,6 +50,16 @@ void DeviceInstance::BindApi(PJRT_Api *api) {
     args->memory = *(DeviceInstance::Unwrap(args->device)->getDefaultMemory());
     return nullptr;
   };
+  api->PJRT_Device_AddressableMemories = 
+  +[](PJRT_Device_AddressableMemories_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
+    DeviceInstance *device = DeviceInstance::Unwrap(args->device);
+    args->num_memories = device->client().addressable_memories().size();
+    args->memories = const_cast<PJRT_Memory **>(reinterpret_cast<PJRT_Memory *const *>(
+      device->client().addressable_memories().data())
+    );
+    return nullptr;
+};
 }
 
 tt_pjrt_status DeviceInstance::OpenDevice() {

@@ -51,6 +51,9 @@ public:
   const std::vector<DeviceInstance *> &addressable_devices() {
     return addressable_devices_;
   }
+  const std::vector<MemoryInstance *> &addressable_memories() {
+    return m_memories;
+  }
   const std::string &cached_platform_name() { return cached_platform_name_; }
   const std::string &cached_platform_version() {
     return cached_platform_version_;
