@@ -144,7 +144,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 
   std::shared_ptr<ExecutableImage> executable_image =
       ExecutableImage::createInstance(
-          m_module_builder->getFlatbufferBinary(),
+          m_module_builder->getSharedFlatbufferBinary(),
           std::move(optimized_mlir_code), std::move(executable_name),
           m_module_builder->getNumPartitions(),
           m_module_builder->getNumReplicas(),

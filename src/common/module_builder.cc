@@ -519,13 +519,14 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
 void ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  m_flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+  tt::runtime::Binary binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+  m_flatbuffer_binary = std::make_shared<tt::runtime::Binary>(std::move(binary));
 
   verifyCreatedFlatbufferBinary();
 }
 
 void ModuleBuilder::verifyCreatedFlatbufferBinary() {
-  if (m_flatbuffer_binary.handle == nullptr) {
+  if (m_flatbuffer_binary == nullptr || m_flatbuffer_binary->handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
     return;
@@ -534,9 +535,9 @@ void ModuleBuilder::verifyCreatedFlatbufferBinary() {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   size_t num_inputs =
-      m_flatbuffer_binary.getProgramInputs(program_index).size();
+      m_flatbuffer_binary->getProgramInputs(program_index).size();
   std::vector<tt::runtime::TensorDesc> output_specs =
-      m_flatbuffer_binary.getProgramOutputs(program_index);
+      m_flatbuffer_binary->getProgramOutputs(program_index);
   size_t num_outputs = output_specs.size();
 
   if (num_inputs != m_input_shardings.size()) {

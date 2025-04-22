@@ -15,7 +15,7 @@
 namespace tt::pjrt {
 
 std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
-    const tt::runtime::Binary &flatbuffer_binary,
+    std::shared_ptr<tt::runtime::Binary> flatbuffer_binary,
     std::string &&optimized_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
     const std::vector<std::uint32_t> &devices_mesh_shape,
@@ -24,7 +24,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const std::vector<bool> &is_output_scalar) {
   struct make_shared_enabler : public ExecutableImage {
     make_shared_enabler(
-        const tt::runtime::Binary &flatbuffer_binary,
+        std::shared_ptr<tt::runtime::Binary> flatbuffer_binary,
         std::string &&optimized_mlir_code, std::string &&executable_name,
         size_t num_partitions, size_t num_replicas,
         size_t num_devices_to_utilize,
@@ -34,7 +34,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
             &output_sharding,
         const std::vector<bool> &is_output_scalar)
-        : ExecutableImage(flatbuffer_binary, std::move(optimized_mlir_code),
+        : ExecutableImage(std::move(flatbuffer_binary), std::move(optimized_mlir_code),
                           std::move(executable_name), num_partitions,
                           num_replicas, num_devices_to_utilize,
                           devices_mesh_shape, input_sharding, output_sharding,
@@ -42,21 +42,21 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
   };
 
   return std::make_shared<make_shared_enabler>(
-      flatbuffer_binary, std::move(optimized_mlir_code),
+      std::move(flatbuffer_binary), std::move(optimized_mlir_code),
       std::move(executable_name), num_partitions, num_replicas,
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
       output_sharding, is_output_scalar);
 }
 
 ExecutableImage::ExecutableImage(
-    const tt::runtime::Binary &flatbuffer_binary,
+    std::shared_ptr<tt::runtime::Binary> flatbuffer_binary,
     std::string &&optimized_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
     const std::vector<std::uint32_t> &devices_mesh_shape,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<bool> &is_output_scalar)
-    : m_flatbuffer_binary(flatbuffer_binary),
+    : m_flatbuffer_binary(std::move(flatbuffer_binary)),
       m_optimized_mlir_code(std::move(optimized_mlir_code)),
       m_executable_name(std::move(executable_name)),
       m_num_partitions(num_partitions), m_num_replicas(num_replicas),
@@ -66,9 +66,9 @@ ExecutableImage::ExecutableImage(
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
-  m_num_inputs = m_flatbuffer_binary.getProgramInputs(program_index).size();
+  m_num_inputs = m_flatbuffer_binary->getProgramInputs(program_index).size();
   std::vector<tt::runtime::TensorDesc> output_specs =
-      m_flatbuffer_binary.getProgramOutputs(program_index);
+      m_flatbuffer_binary->getProgramOutputs(program_index);
   m_num_outputs = output_specs.size();
 
   // We expect that these conditions are satisfied and checked in module builder

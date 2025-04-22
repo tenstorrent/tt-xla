@@ -34,7 +34,7 @@ public:
   // Creates new executable image instance from the information given by the
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
-      const tt::runtime::Binary &flatbuffer_binary,
+      std::shared_ptr<tt::runtime::Binary> flatbuffer_binary,
       std::string &&optimized_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
@@ -45,12 +45,10 @@ public:
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
-    return m_flatbuffer_binary;
+    return *m_flatbuffer_binary;
   }
 
-  tt::runtime::Binary &getFlatbufferBinary() {
-    return m_flatbuffer_binary;
-  }
+  tt::runtime::Binary &getFlatbufferBinary() { return *m_flatbuffer_binary; }
 
   // Returns optimized mlir code produced by the compiler.
   const std::string &getOptimizedMlirCode() const {
@@ -106,7 +104,7 @@ private:
   // Constructs executable image instance from the information given by the
   // compiler.
   ExecutableImage(
-      const tt::runtime::Binary &flatbuffer_binary,
+      std::shared_ptr<tt::runtime::Binary> flatbuffer_binary,
       std::string &&optimized_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
@@ -116,7 +114,7 @@ private:
       const std::vector<bool> &is_output_scalar);
 
   // Flatbuffer binary produced by the compiler.
-  tt::runtime::Binary m_flatbuffer_binary;
+  std::shared_ptr<tt::runtime::Binary> m_flatbuffer_binary;
 
   // Optimized mlir code produced by the compiler, stored for debugging
   // purposes.

@@ -37,6 +37,11 @@ public:
 
   // Returns compiled flatbuffer binary.
   const tt::runtime::Binary &getFlatbufferBinary() const {
+    return *m_flatbuffer_binary;
+  }
+
+  // Returns a shared_ptr to the compiled flatbuffer binary.
+  std::shared_ptr<tt::runtime::Binary> getSharedFlatbufferBinary() const {
     return m_flatbuffer_binary;
   }
 
@@ -173,7 +178,7 @@ private:
   std::unique_ptr<mlir::MLIRContext> m_context;
 
   // Compiled flatbuffer binary.
-  tt::runtime::Binary m_flatbuffer_binary;
+  std::shared_ptr<tt::runtime::Binary> m_flatbuffer_binary;
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;
