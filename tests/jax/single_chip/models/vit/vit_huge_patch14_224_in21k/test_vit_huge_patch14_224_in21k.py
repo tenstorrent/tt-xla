@@ -13,7 +13,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
 
 from ..tester import ViTTester
@@ -50,11 +50,12 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=4800.00048828125. Required: atol=0.16. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_vit_huge_patch14_224_in21k_inference(

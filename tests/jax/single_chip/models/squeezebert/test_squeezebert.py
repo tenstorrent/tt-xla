@@ -11,8 +11,8 @@ import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
 from infra import Framework, ModelTester, RunMode
-from transformers import AutoTokenizer
 from jaxtyping import PyTree
+from transformers import AutoTokenizer
 
 from tests.utils import (
     BringupStatus,
@@ -101,7 +101,10 @@ def training_tester() -> SqueezeBertTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+    reason=failed_ttmlir_compilation(
+        "failed to legalize operation 'ttir.gather' "
+        "https://github.com/tenstorrent/tt-xla/issues/318"
+    )
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()

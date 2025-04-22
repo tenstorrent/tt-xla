@@ -114,8 +114,8 @@ def training_tester() -> AlexNetTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.gather'"
-        "(https://github.com/tenstorrent/tt-xla/issues/318)"
+        "failed to legalize operation 'ttir.gather' "
+        "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
 def test_alexnet_inference(inference_tester: AlexNetTester):

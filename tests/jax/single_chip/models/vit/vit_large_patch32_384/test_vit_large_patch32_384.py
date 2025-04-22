@@ -13,7 +13,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_runtime,
 )
 
 from ..tester import ViTTester
@@ -50,11 +50,14 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Statically allocated circular buffers in program 453 clash with L1 "
+        "buffers on core range [(x=0,y=0) - (x=4,y=0)]. L1 buffer allocated at "
+        "622592 and static circular buffer region ends at 654368 "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
     )
 )
 def test_vit_large_patch32_384_inference(

@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from infra import ComparisonConfig, ModelTester, RunMode
+from typing import Dict, Sequence
 
+import jax
 import jax.numpy as jnp
 import jax.random as random
-import jax
-
-from typing import Dict, List, Sequence, Tuple, Union
+from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import (
     FlaxPreTrainedModel,
     FlaxViTForImageClassification,
@@ -31,7 +30,11 @@ class ViTTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxViTForImageClassification.from_pretrained(self._model_path)
+        model = FlaxViTForImageClassification.from_pretrained(
+            self._model_path, dtype=jnp.bfloat16
+        )
+        model.params = model.to_bf16(model.params)
+        return model
 
     # @override
     def _get_input_activations(self) -> jax.Array:

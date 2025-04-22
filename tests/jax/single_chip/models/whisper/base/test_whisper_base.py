@@ -51,9 +51,9 @@ def training_tester() -> WhisperTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
+        "failed to legalize operation 'ttir.gather' "
         "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
