@@ -519,14 +519,17 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
 void ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  tt::runtime::Binary binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
-  m_flatbuffer_binary = std::make_shared<tt::runtime::Binary>(std::move(binary));
+  tt::runtime::Binary binary =
+      mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+  m_flatbuffer_binary =
+      std::make_shared<tt::runtime::Binary>(std::move(binary));
 
   verifyCreatedFlatbufferBinary();
 }
 
 void ModuleBuilder::verifyCreatedFlatbufferBinary() {
-  if (m_flatbuffer_binary == nullptr || m_flatbuffer_binary->handle == nullptr) {
+  if (m_flatbuffer_binary == nullptr ||
+      m_flatbuffer_binary->handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     m_status = tt_pjrt_status::kInternal;
     return;

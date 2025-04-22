@@ -34,11 +34,11 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
             &output_sharding,
         const std::vector<bool> &is_output_scalar)
-        : ExecutableImage(std::move(flatbuffer_binary), std::move(optimized_mlir_code),
-                          std::move(executable_name), num_partitions,
-                          num_replicas, num_devices_to_utilize,
-                          devices_mesh_shape, input_sharding, output_sharding,
-                          is_output_scalar) {}
+        : ExecutableImage(
+              std::move(flatbuffer_binary), std::move(optimized_mlir_code),
+              std::move(executable_name), num_partitions, num_replicas,
+              num_devices_to_utilize, devices_mesh_shape, input_sharding,
+              output_sharding, is_output_scalar) {}
   };
 
   return std::make_shared<make_shared_enabler>(
