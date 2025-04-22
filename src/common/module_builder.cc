@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <numeric>
 #include <optional>
 
 // loguru includes
@@ -97,8 +98,6 @@ ModuleBuilder::buildModule(const std::string_view &mlir_code,
     return m_status;
   }
 
-  collectNumDevicesToUtilize(mlir_module);
-
   convertFromVHLOToSHLO(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
@@ -114,6 +113,7 @@ ModuleBuilder::buildModule(const std::string_view &mlir_code,
   }
 
   collectMeshShape(mlir_module);
+  collectNumDevicesToUtilize(mlir_module);
 
   convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -142,39 +142,6 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
   printModule(vhlo_module);
 
   return vhlo_module;
-}
-
-void ModuleBuilder::collectNumDevicesToUtilize(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  auto num_partitions_attr =
-      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-          "mhlo.num_partitions");
-  // Assuming one partition by default.
-  m_num_partitions = 1;
-  if (num_partitions_attr) {
-    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
-  } else {
-    DLOG_F(WARNING,
-           "`mhlo.num_partitions` attribute not found, assuming default number "
-           "of partitions: %zu",
-           m_num_partitions);
-  }
-
-  auto num_replicas_attr =
-      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-          "mhlo.num_replicas");
-  // Assuming one replica by default.
-  m_num_replicas = 1;
-  if (num_replicas_attr) {
-    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
-  } else {
-    DLOG_F(WARNING,
-           "`mhlo.num_replicas` attribute not found, assuming default number "
-           "of replicas: %zu",
-           m_num_replicas);
-  }
-
-  m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
 }
 
 void ModuleBuilder::convertFromVHLOToSHLO(
@@ -474,6 +441,52 @@ void ModuleBuilder::estimateMeshShape() {
   m_devices_mesh_shape = {1, 1};
 }
 
+void ModuleBuilder::collectNumDevicesToUtilize(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  auto num_partitions_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions");
+  // Assuming one partition by default.
+  m_num_partitions = 1;
+  if (num_partitions_attr) {
+    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
+  } else {
+    DLOG_F(WARNING,
+           "`mhlo.num_partitions` attribute not found, assuming default number "
+           "of partitions: %zu",
+           m_num_partitions);
+  }
+
+  auto num_replicas_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_replicas");
+  // Assuming one replica by default.
+  m_num_replicas = 1;
+  if (num_replicas_attr) {
+    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
+  } else {
+    DLOG_F(WARNING,
+           "`mhlo.num_replicas` attribute not found, assuming default number "
+           "of replicas: %zu",
+           m_num_replicas);
+  }
+
+  if (!num_partitions_attr && !num_replicas_attr) {
+    // When both mhlo.num_partitions and mhlo.num_replicas are not populated
+    // (torch_xla doesn't populate them), we estimate the number of devices from
+    // the mesh shape.
+    DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
+                    "the number of devices from mesh shape");
+    m_num_devices_to_utilize =
+        std::accumulate(m_devices_mesh_shape.begin(),
+                        m_devices_mesh_shape.end(), 1, std::multiplies<>());
+  } else {
+    // If at least one mhlo parameter is populated we assume the default value
+    // of the other one.
+    m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
+  }
+}
+
 void ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
@@ -481,6 +494,16 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
+
+  if (m_devices_mesh_shape.size() != 2) {
+    DLOG_F(ERROR,
+           "Invalid mesh shape size: %zu. Shape must have two dimensions!",
+           m_devices_mesh_shape.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.

@@ -81,11 +81,6 @@ private:
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
 
-  // Gets the number of devices the binary is intended to run on from the VHLO
-  // module.
-  void
-  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -109,6 +104,11 @@ private:
   // Estimates devices mesh shape from input shardings in case the mesh
   // attribute is not set on the module.
   void estimateMeshShape();
+
+  // Gets the number of devices the binary is intended to run on from the VHLO
+  // module.
+  void
+  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts TTIR module to TTNN module.
   void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
