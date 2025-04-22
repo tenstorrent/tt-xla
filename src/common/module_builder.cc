@@ -144,53 +144,6 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
   return vhlo_module;
 }
 
-void ModuleBuilder::collectNumDevicesToUtilize(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  auto num_partitions_attr =
-      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-          "mhlo.num_partitions");
-  // Assuming one partition by default.
-  m_num_partitions = 1;
-  if (num_partitions_attr) {
-    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
-  } else {
-    DLOG_F(WARNING,
-           "`mhlo.num_partitions` attribute not found, assuming default number "
-           "of partitions: %zu",
-           m_num_partitions);
-  }
-
-  auto num_replicas_attr =
-      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-          "mhlo.num_replicas");
-  // Assuming one replica by default.
-  m_num_replicas = 1;
-  if (num_replicas_attr) {
-    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
-  } else {
-    DLOG_F(WARNING,
-           "`mhlo.num_replicas` attribute not found, assuming default number "
-           "of replicas: %zu",
-           m_num_replicas);
-  }
-
-  if (!num_partitions_attr && !num_replicas_attr) {
-    // When both mhlo.num_partitions and mhlo.num_replicas are not populated
-    // (torch_xla doesn't populate them), we estimate the number of devices from
-    // the mesh shape.
-    DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
-                    "the number of devices from mesh shape");
-    m_num_devices_to_utilize = std::accumulate(
-        m_devices_mesh_shape.begin(), m_devices_mesh_shape.end(), 1, std::multiplies<>());
-  } else {
-    // If at least one mhlo parameter is populated we assume the default value
-    // of the other one.
-    m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
-  }
-
-  m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
-}
-
 void ModuleBuilder::convertFromVHLOToSHLO(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
@@ -486,6 +439,52 @@ void ModuleBuilder::estimateMeshShape() {
 
   // Assuming single device if there are no inputs sharded on device.
   m_devices_mesh_shape = {1, 1};
+}
+
+void ModuleBuilder::collectNumDevicesToUtilize(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  auto num_partitions_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions");
+  // Assuming one partition by default.
+  m_num_partitions = 1;
+  if (num_partitions_attr) {
+    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
+  } else {
+    DLOG_F(WARNING,
+           "`mhlo.num_partitions` attribute not found, assuming default number "
+           "of partitions: %zu",
+           m_num_partitions);
+  }
+
+  auto num_replicas_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_replicas");
+  // Assuming one replica by default.
+  m_num_replicas = 1;
+  if (num_replicas_attr) {
+    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
+  } else {
+    DLOG_F(WARNING,
+           "`mhlo.num_replicas` attribute not found, assuming default number "
+           "of replicas: %zu",
+           m_num_replicas);
+  }
+
+  if (!num_partitions_attr && !num_replicas_attr) {
+    // When both mhlo.num_partitions and mhlo.num_replicas are not populated
+    // (torch_xla doesn't populate them), we estimate the number of devices from
+    // the mesh shape.
+    DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
+                    "the number of devices from mesh shape");
+    m_num_devices_to_utilize =
+        std::accumulate(m_devices_mesh_shape.begin(),
+                        m_devices_mesh_shape.end(), 1, std::multiplies<>());
+  } else {
+    // If at least one mhlo parameter is populated we assume the default value
+    // of the other one.
+    m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
+  }
 }
 
 void ModuleBuilder::convertFromTTIRToTTNN(
