@@ -48,6 +48,10 @@ public:
     return m_flatbuffer_binary;
   }
 
+  tt::runtime::Binary &getFlatbufferBinary() {
+    return m_flatbuffer_binary;
+  }
+
   // Returns optimized mlir code produced by the compiler.
   const std::string &getOptimizedMlirCode() const {
     return m_optimized_mlir_code;
