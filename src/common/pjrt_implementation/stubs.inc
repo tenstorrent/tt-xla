@@ -15,11 +15,6 @@
   // ---------------------------------------------------------------------------
   // PJRT_Device stubs:
 
-  // PJRT_Memory is not yet supported in our implementation.
-  // https://github.com/tenstorrent/tt-xla/issues/468
-  _STUB(PJRT_Device_AddressableMemories);
-  _STUB(PJRT_Device_DefaultMemory);
-
   // This is used for diagnostic purposes and is allowed to return unimplemented
   // status code, but we could implement at least `bytes_in_use` calculation
   // which is the only non-optional stat that has to be set in this function.
@@ -49,7 +44,6 @@
   // PJRT_Memory is not yet supported in our implementation.
   // https://github.com/tenstorrent/tt-xla/issues/468
   _STUB(PJRT_Buffer_CopyToMemory);
-  _STUB(PJRT_Buffer_Memory);
 
   // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
   // optimizations (avoids memory copy), but currently all our inputs are
@@ -123,7 +117,6 @@
   _STUB(PJRT_Memory_Kind);
   _STUB(PJRT_Memory_DebugString);
   _STUB(PJRT_Memory_ToString);
-  _STUB(PJRT_Memory_AddressableByDevices);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);
@@ -140,6 +133,5 @@
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Client_TopologyDescription);
-  _STUB(PJRT_Memory_Kind_Id);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
