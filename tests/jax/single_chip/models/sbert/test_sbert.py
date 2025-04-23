@@ -1,11 +1,10 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict
 
 import jax
-import jax.numpy as jnp
 import pytest
 from flax import linen as nn
 from transformers import AutoTokenizer, FlaxBertModel, BertConfig
@@ -36,7 +35,7 @@ MODEL_NAME = build_model_name(
 
 
 class FlaxSBERTTester(ModelTester):
-    """Tester for a SentenceTransformer BERT model (Flax version)"""
+    """Tester for a SentenceTransformer BERT model"""
 
     def __init__(
         self,
@@ -59,13 +58,13 @@ class FlaxSBERTTester(ModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        encoded = tokenizer(
+        inputs = tokenizer(
             ["Bu örnek bir cümle", "Her cümle vektöre çevriliyor"],
             padding=True,
             truncation=True,
             return_tensors="jax",
         )
-        return encoded
+        return inputs
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
@@ -85,7 +84,7 @@ class FlaxSBERTTester(ModelTester):
 
     # @override
     def _get_static_argnames(self):
-        return ["normalize", "include_prompt", "prompt_length"]
+        return ["normalize", "include_prompt"]
 
 
 # ----- Fixtures -----

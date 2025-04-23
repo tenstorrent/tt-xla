@@ -40,9 +40,4 @@ class FlaxSentenceTransformerBERT(nn.Module):
             norm = jnp.linalg.norm(embeddings, axis=1, keepdims=True)
             embeddings = embeddings / norm
 
-        return self.cosine_similarity(embeddings[0], embeddings[1])
-
-    def cosine_similarity(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
-        return jnp.dot(a, b) / jnp.maximum(
-            jnp.linalg.norm(a) * jnp.linalg.norm(b), 1e-9
-        )
+        return embeddings
