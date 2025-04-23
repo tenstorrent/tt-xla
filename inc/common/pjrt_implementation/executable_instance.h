@@ -48,9 +48,6 @@ public:
   // Returns pointer to the underlying executable image.
   ExecutableImage *getExecutableImage() { return m_executable_image.get(); }
 
-  // MLIR program format name. This would ideally be defined in PJRT API header.
-  static const std::string host_memory_kind_name;
-
 private:
   // Constructs executable instance from the compiled executable image.
   ExecutableInstance(std::shared_ptr<ExecutableImage> executable_image)

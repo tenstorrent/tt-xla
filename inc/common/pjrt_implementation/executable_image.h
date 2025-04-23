@@ -98,6 +98,16 @@ public:
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
 
+  // String that represents the host memory kind.
+  static const std::string host_memory_kind_name;
+
+  const std::vector<const char *> &getOutputMemoryKinds() const {
+    return m_output_memory_kinds;
+  }
+  const std::vector<size_t> &getOutputMemoryKindsSizes() const {
+    return m_output_memory_kinds_sizes;
+  }
+
 private:
   // Constructs executable image instance from the information given by the
   // compiler.
@@ -160,6 +170,13 @@ private:
 
   // Hold the sharding information for each output.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
+
+  // Holds the information on memory kind of the output.
+  std::vector<const char *> m_output_memory_kinds;
+
+  // Holds the information about the individual sizes of the memory kind strings
+  // of the outputs.
+  std::vector<size_t> m_output_memory_kinds_sizes;
 };
 
 } // namespace tt::pjrt
