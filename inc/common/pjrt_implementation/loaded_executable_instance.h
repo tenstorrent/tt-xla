@@ -41,7 +41,8 @@ public:
   // Creates new loaded executable instance from the executable image.
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 std::vector<DeviceInstance *> &&addressable_devices);
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 MemoryInstance *host_memory);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -82,9 +83,11 @@ private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices)
+      const std::vector<DeviceInstance *> &addressable_devices,
+      MemoryInstance *host_memory)
       : m_executable_image(std::move(executable_image)),
-        m_addressable_devices(addressable_devices), m_deleted(false) {}
+        m_addressable_devices(addressable_devices), m_deleted(false),
+        m_host_memory(host_memory) {}
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
@@ -141,6 +144,9 @@ private:
 
   // Subset of client's addressable devices that this executable will run on.
   const std::vector<DeviceInstance *> m_addressable_devices;
+
+  // The list host addressable memory.
+  MemoryInstance *m_host_memory;
 
   // True if loaded executable was deleted, i.e. its resources are released.
   bool m_deleted;

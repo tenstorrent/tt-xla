@@ -48,6 +48,9 @@ public:
   // Returns pointer to the underlying executable image.
   ExecutableImage *getExecutableImage() { return m_executable_image.get(); }
 
+  // MLIR program format name. This would ideally be defined in PJRT API header.
+  static const std::string host_memory_kind_name;
+
 private:
   // Constructs executable instance from the compiled executable image.
   ExecutableInstance(std::shared_ptr<ExecutableImage> executable_image)
@@ -90,6 +93,10 @@ onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args);
 // Implements PJRT_Executable_OutputDimensions API function.
 PJRT_Error *
 onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args);
+
+// Implements PJRT_Executable_OutputMemoryKinds API function.
+PJRT_Error *
+onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
 
 } // namespace internal
 
