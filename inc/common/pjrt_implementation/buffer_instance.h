@@ -29,6 +29,7 @@
 namespace tt::pjrt {
 
 class DeviceInstance;
+class MemoryInstance;
 
 // Represents PJRT_Buffer structure and the functionality around it. Wraps
 // `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
@@ -48,13 +49,13 @@ public:
   static std::unique_ptr<BufferInstance>
   createInputBufferInstance(PJRT_Buffer_Type data_type,
                             const std::int64_t *dims, size_t num_dims,
-                            DeviceInstance *device);
+                            DeviceInstance *device, MemoryInstance *memory);
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
                              std::vector<std::uint32_t> &&dimensions,
-                             DeviceInstance *device);
+                             DeviceInstance *device, MemoryInstance *memory);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -89,6 +90,8 @@ public:
   const tt::runtime::Tensor &getRuntimeTensor() const {
     return m_runtime_tensor;
   }
+
+  MemoryInstance *getMemory() const { return m_memory; }
 
   // Returns the size of the underlying runtime tensor, in bytes.
   size_t getRuntimeTensorSize() const;
@@ -126,12 +129,13 @@ public:
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
-                 size_t num_dims, DeviceInstance *device);
+                 size_t num_dims, DeviceInstance *device,
+                 MemoryInstance *memory);
 
   // Constructor used for the output buffers.
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
-                 DeviceInstance *device);
+                 DeviceInstance *device, MemoryInstance *memory);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
@@ -151,6 +155,10 @@ private:
 
   // Device instance on which this buffer resides.
   DeviceInstance *m_device;
+
+  // Memory on which this buffer resides, can be nullptr if there is no memory
+  // defined.
+  MemoryInstance *m_memory;
 
   // Underlying runtime tensor created for this buffer.
   tt::runtime::Tensor m_runtime_tensor;
@@ -216,6 +224,9 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args);
 
 // Implements PJRT_Buffer_ReadyEvent API function.
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args);
+
+// Implements PJRT_Buffer_Memory API function.
+PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args);
 
 } // namespace internal
 

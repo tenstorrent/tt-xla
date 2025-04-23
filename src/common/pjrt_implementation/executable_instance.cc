@@ -14,12 +14,23 @@
 #include <cstring>
 #include <string>
 
+#include <iostream>
+
 // tt-xla includes
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
+
+const std::string ExecutableInstance::host_memory_kind_name = "tt_host";
+
+std::vector<const char *> output_memory_kinds = {
+    ExecutableInstance::host_memory_kind_name.c_str(),
+};
+std::vector<size_t> output_memory_kinds_sizes = {
+    ExecutableInstance::host_memory_kind_name.size(),
+};
 
 std::unique_ptr<ExecutableInstance> ExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image) {
@@ -45,6 +56,8 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onExecutableOutputElementTypes;
   api->PJRT_Executable_OutputDimensions =
       internal::onExecutableOutputDimensions;
+  api->PJRT_Executable_OutputMemoryKinds =
+      internal::onExecutableOutputMemoryKinds;
 }
 
 namespace internal {
@@ -190,6 +203,20 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
 
   return nullptr;
 }
+
+PJRT_Error *
+onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+  args->num_outputs =
+      executable_instance->getExecutableImage()->getNumOutputs();
+  args->memory_kinds = output_memory_kinds.data();
+  args->memory_kind_sizes = output_memory_kinds_sizes.data();
+
+  return nullptr;
+};
 
 } // namespace internal
 

@@ -118,7 +118,6 @@
   _STUB(PJRT_Client_Create);
   _STUB(PJRT_Client_PlatformName);
   _STUB(PJRT_Client_PlatformVersion);
-  _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
   _STUB(PJRT_Memory_Id);
   _STUB(PJRT_Memory_Kind);

@@ -21,53 +21,55 @@
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
-    DeviceInstance *device) {
+    DeviceInstance *device, MemoryInstance *memory) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(PJRT_Buffer_Type data_type, const std::int64_t *dims,
-                        size_t num_dims, DeviceInstance *device)
-        : BufferInstance(data_type, dims, num_dims, device) {}
+                        size_t num_dims, DeviceInstance *device,
+                        MemoryInstance *memory)
+        : BufferInstance(data_type, dims, num_dims, device, memory) {}
   };
 
   return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
-                                               device);
+                                               device, memory);
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
     const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
-    DeviceInstance *device) {
+    DeviceInstance *device, MemoryInstance *memory) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(const tt::runtime::Tensor &tensor,
                         std::vector<std::uint32_t> &&dimensions,
-                        DeviceInstance *device)
-        : BufferInstance(tensor, std::move(dimensions), device) {}
+                        DeviceInstance *device, MemoryInstance *memory)
+        : BufferInstance(tensor, std::move(dimensions), device, memory) {}
   };
 
   return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device);
+                                               device, memory);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
-                               DeviceInstance *device)
+                               DeviceInstance *device, MemoryInstance *memory)
     : m_data_type(data_type), m_dimensions(dims, dims + num_dims),
-      m_device(device),
+      m_device(device), m_memory(memory),
       m_runtime_tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN),
       m_data_ready(false), m_data_ready_event(nullptr),
       m_done_with_host_buffer_event(nullptr), m_data_deleted(false) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
-                               DeviceInstance *device)
+                               DeviceInstance *device, MemoryInstance *memory)
     : m_data_type(tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
           tt::runtime::getTensorDataType(tensor))),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_runtime_tensor(tensor), m_data_ready(false),
+      m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false) {
   // We want to be in control when buffers are deallocated, which happens during
@@ -90,6 +92,7 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
+  api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
 size_t BufferInstance::getRuntimeTensorSize() const {
@@ -423,6 +426,14 @@ PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
               buffer->createDataReadyEvent(
                   reinterpret_cast<EventInstance **>(&args->event)))
               .release();
+}
+
+PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
+
+  args->memory = *BufferInstance::unwrap(args->buffer)->getMemory();
+
+  return nullptr;
 }
 
 } // namespace internal
