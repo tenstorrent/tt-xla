@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import BlenderBotTester
@@ -50,12 +50,7 @@ def training_tester() -> BlenderBotTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386 "
-    )
-)
+@pytest.mark.skip(reason=failed_fe_compilation("Segfault"))
 def test_blenderbot_400m_distill_inference(inference_tester: BlenderBotTester):
     inference_tester.test()
 

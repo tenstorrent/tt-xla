@@ -64,6 +64,7 @@ def training_tester() -> BlenderBotSmallTester:
 # ----- Tests -----
 
 
+@pytest.mark.push  # verify in CI that it works
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
