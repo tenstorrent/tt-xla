@@ -14,6 +14,8 @@
 
 namespace tt::pjrt {
 
+const std::string ExecutableImage::host_memory_kind_name = "tt_host";
+
 std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
     std::string &&optimized_mlir_code, std::string &&executable_name,
@@ -96,6 +98,16 @@ ExecutableImage::ExecutableImage(
     for (std::uint32_t dim : m_output_dimensions[output_index]) {
       m_output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
     }
+  }
+
+  m_output_memory_kinds.reserve(m_num_outputs);
+  m_output_memory_kinds_sizes.reserve(m_num_outputs);
+
+  for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
+    m_output_memory_kinds.emplace_back(
+        ExecutableImage::host_memory_kind_name.c_str());
+    m_output_memory_kinds_sizes.emplace_back(
+        ExecutableImage::host_memory_kind_name.size());
   }
 }
 

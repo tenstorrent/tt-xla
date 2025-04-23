@@ -433,7 +433,8 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
-  tt_pjrt_status status = LoadedExecutableInstance::unwrap(args->executable)->execute(args);
+  tt_pjrt_status status =
+      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
 
   return *ErrorInstance::makeError(status).release();
 }

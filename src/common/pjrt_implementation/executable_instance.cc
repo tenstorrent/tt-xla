@@ -23,15 +23,6 @@
 
 namespace tt::pjrt {
 
-const std::string ExecutableInstance::host_memory_kind_name = "tt_host";
-
-std::vector<const char *> output_memory_kinds = {
-    ExecutableInstance::host_memory_kind_name.c_str(),
-};
-std::vector<size_t> output_memory_kinds_sizes = {
-    ExecutableInstance::host_memory_kind_name.size(),
-};
-
 std::unique_ptr<ExecutableInstance> ExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image) {
   struct make_unique_enabler : public ExecutableInstance {
@@ -212,8 +203,11 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
       ExecutableInstance::unwrap(args->executable);
   args->num_outputs =
       executable_instance->getExecutableImage()->getNumOutputs();
-  args->memory_kinds = output_memory_kinds.data();
-  args->memory_kind_sizes = output_memory_kinds_sizes.data();
+  args->memory_kinds =
+      executable_instance->getExecutableImage()->getOutputMemoryKinds().data();
+  args->memory_kind_sizes = executable_instance->getExecutableImage()
+                                ->getOutputMemoryKindsSizes()
+                                .data();
 
   return nullptr;
 };
