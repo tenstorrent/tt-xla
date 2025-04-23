@@ -28,9 +28,11 @@ class BlenderBotTester(ModelTester):
 
     # @override
     def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxBlenderbotForConditionalGeneration.from_pretrained(
+        model = FlaxBlenderbotForConditionalGeneration.from_pretrained(
             self._model_path, from_pt=True
         )
+        model.params = model.to_bf16(model.params)
+        return model
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
