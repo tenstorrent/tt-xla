@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <numeric>
+#include <iostream>
 
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/device_instance.h"
@@ -48,15 +49,17 @@ void DeviceInstance::BindApi(PJRT_Api *api) {
   +[](PJRT_Device_DefaultMemory_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
     args->memory = *(DeviceInstance::Unwrap(args->device)->getDefaultMemory());
+    std::cerr << "device=" << args->device << std::endl;
+    std::cerr << "default memory=" << args->memory << std::endl;
     return nullptr;
   };
   api->PJRT_Device_AddressableMemories = 
   +[](PJRT_Device_AddressableMemories_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
     DeviceInstance *device = DeviceInstance::Unwrap(args->device);
-    args->num_memories = device->client().addressable_memories().size();
+    args->num_memories =  device->addressable_memories().size();
     args->memories = const_cast<PJRT_Memory **>(reinterpret_cast<PJRT_Memory *const *>(
-      device->client().addressable_memories().data())
+      device->addressable_memories().data())
     );
     return nullptr;
 };
@@ -72,7 +75,8 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     size_t num_dims, const int64_t *byte_strides, size_t num_byte_strides,
     PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event,
-    BufferInstance **out_buffer) {
+    BufferInstance **out_buffer,
+    MemoryInstance *memory) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::HostBufferToDevice");
 
   std::pair<tt::target::DataType, size_t> tt_buffer_type =
@@ -91,7 +95,7 @@ tt_pjrt_status DeviceInstance::HostBufferToDevice(
     strides.push_back(byte_strides[i] / element_size);
   }
   std::unique_ptr<BufferInstance> buffer_instance =
-      MakeDeviceBuffer(data, shape, strides, element_size, element_type);
+      MakeDeviceBuffer(data, shape, strides, element_size, element_type, memory);
   DLOG_F(INFO, "Buffer created with id: %d", buffer_instance->unique_id());
   buffer_instance->setType(type);
   *out_buffer = buffer_instance.release();
@@ -111,9 +115,9 @@ size_t DeviceInstance::getTensorSize(const std::vector<std::uint32_t> &shape,
 std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
     const void *data, std::vector<std::uint32_t> &shape,
     std::vector<std::uint32_t> &strides, size_t element_size,
-    tt::target::DataType element_type) {
+    tt::target::DataType element_type, MemoryInstance *memory) {
   size_t tensor_size = getTensorSize(shape, element_size);
-
+  std::cerr << "made_buffer=" << memory << std::endl;
   std::shared_ptr<void> new_memory(new std::byte[tensor_size], [](void *ptr) {
     delete[] static_cast<std::byte *>(ptr);
   });
@@ -125,9 +129,9 @@ std::unique_ptr<BufferInstance> DeviceInstance::MakeDeviceBuffer(
 
   std::pair<tt::target::DataType, size_t> tt_buffer_type = {element_type,
                                                             element_size};
-
+  std::cerr << "help_me=" << this << std::endl;
   return std::make_unique<BufferInstance>(*this, device_tensor, shape, strides,
-                                          tt_buffer_type, new_memory);
+                                          tt_buffer_type, new_memory, memory);
 }
 
 } // namespace tt::pjrt

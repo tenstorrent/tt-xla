@@ -50,6 +50,14 @@ public:
   void setDefaultMemory(MemoryInstance* memory) {
     m_default_memory = memory;
   }
+
+  void add_addressable_memory(MemoryInstance* memory) {
+    m_addressable_memories.push_back(memory);
+  }
+
+  const std::vector<MemoryInstance *> &addressable_memories() {
+    return m_addressable_memories;
+  }
   
   tt_pjrt_status
   HostBufferToDeviceZeroDim(PJRT_Buffer_Type type, const int64_t *dims,
@@ -69,7 +77,7 @@ public:
                      const int64_t *byte_strides, size_t num_byte_strides,
                      PJRT_HostBufferSemantics host_buffer_semantics,
                      EventInstance **out_done_with_host_buffer_event,
-                     BufferInstance **out_buffer);
+                     BufferInstance **out_buffer, MemoryInstance *memory);
 
   DeviceDescription *device_description() { return &description_; }
   const DeviceDescription *device_description() const { return &description_; }
@@ -87,12 +95,13 @@ private:
   std::unique_ptr<BufferInstance>
   MakeDeviceBuffer(const void *data_ptr, std::vector<std::uint32_t> &shape,
                    std::vector<std::uint32_t> &strides, size_t element_size,
-                   tt::target::DataType element_type);
+                   tt::target::DataType element_type, MemoryInstance *memory);
 
   ClientInstance &client_;
   uint64_t last_transfer_timepoint_ = 0;
   DeviceDescription description_;
   MemoryInstance* m_default_memory;
+  std::vector<MemoryInstance *> m_addressable_memories;
 };
 
 } // namespace tt::pjrt

@@ -70,7 +70,6 @@
   _STUB(PJRT_Buffer_GetMemoryLayout);
   _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_Device);
-  _STUB(PJRT_Buffer_Memory);
   _STUB(PJRT_Buffer_Delete);
   _STUB(PJRT_Buffer_IsDeleted);
   _STUB(PJRT_Buffer_CopyRawToHost);

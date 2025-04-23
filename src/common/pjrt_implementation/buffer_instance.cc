@@ -13,6 +13,7 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/utils.h"
 
+#include <iostream>
 namespace tt::pjrt {
 int BufferInstance::id_counter_ = 0;
 
@@ -23,17 +24,17 @@ BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &shape,
     const std::vector<std::uint32_t> &stride,
     std::pair<tt::target::DataType, size_t> tt_buffer_type)
-    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr) {}
+    : BufferInstance(device, tensor, shape, stride, tt_buffer_type, nullptr, nullptr) {}
 
 BufferInstance::BufferInstance(
     DeviceInstance &device, tt::runtime::Tensor &tensor,
     const std::vector<std::uint32_t> &shape,
     const std::vector<std::uint32_t> &stride,
     std::pair<tt::target::DataType, size_t> tt_buffer_type,
-    std::shared_ptr<void> host_buffer_ptr)
+    std::shared_ptr<void> host_buffer_ptr, MemoryInstance *memory)
     : device_(device), tensor_(tensor), host_buffer_ptr_(host_buffer_ptr),
       tt_buffer_type_(tt_buffer_type), dims_(shape.begin(), shape.end()),
-      stride_(stride) {
+      stride_(stride), m_memory(memory) {
   DLOG_F(LOG_DEBUG, "BufferInstance::BufferInstance");
   unique_id_ = id_counter_++;
 }
@@ -147,6 +148,16 @@ void BufferInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Buffer_UnsafePointer =
       +[](PJRT_Buffer_UnsafePointer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnsafePointer");
+    return nullptr;
+  };
+  api->PJRT_Buffer_Memory = 
+      +[](PJRT_Buffer_Memory_Args *args) -> PJRT_Error * {
+    DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
+    BufferInstance *buffer = BufferInstance::Unwrap(args->buffer);
+    std::cerr << "buffer=" << buffer << std::endl;
+    args->memory = *buffer->m_memory;
+    std::cerr << "wtf=" << args->memory << std::endl;
+    std::cerr << "memory=" << buffer->m_memory->memory_kind() << std::endl;
     return nullptr;
   };
 }

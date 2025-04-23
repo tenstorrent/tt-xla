@@ -13,6 +13,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <iostream>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -53,6 +54,8 @@ void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
         loaded_executable->addressable_devices();
     int num_addressable_devices =
         loaded_executable->get_num_devices_to_utilize();
+    std::cerr << "num_addressable_devices=" << num_addressable_devices
+              << std::endl;
     args->addressable_devices = const_cast<PJRT_Device **>(
         reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
     args->num_addressable_devices = num_addressable_devices;
@@ -235,7 +238,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
           output_specs[output_index].itemsize};
       auto result_buffer = std::make_unique<BufferInstance>(
           *this->addressable_devices_[device_index], output_tensor,
-          output_shape, output_specs[output_index].stride, type_pair);
+          output_shape, output_specs[output_index].stride, type_pair, nullptr, client_.addressable_memories()[0]);
       result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
           output_specs[output_index].dataType));
       output_lists[device_index][output_index] = *(result_buffer.release());

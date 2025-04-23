@@ -12,6 +12,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_BUFFER_INSTANCE_H_
@@ -32,7 +33,7 @@ public:
                  const std::vector<std::uint32_t> &shape,
                  const std::vector<std::uint32_t> &stride,
                  std::pair<tt::target::DataType, size_t> tt_buffer_type,
-                 std::shared_ptr<void> host_buffer_ptr);
+                 std::shared_ptr<void> host_buffer_ptr, MemoryInstance *memory);
   BufferInstance(DeviceInstance &device);
   ~BufferInstance();
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
@@ -103,6 +104,9 @@ private:
 
   // OnReady event - currently not used.
   EventInstance *on_ready_event_;
+
+  // The memory that this buffer is allocated on, if it is not defined, can be nullptr.
+  MemoryInstance *m_memory = nullptr;
 
   // Pointer to the host memory used to create this buffer.
   // If buffer is created

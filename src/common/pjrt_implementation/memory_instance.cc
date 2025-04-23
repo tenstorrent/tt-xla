@@ -12,6 +12,7 @@
 
 #include "common/status.h"
 #include <cstring>
+#include <iostream>
 
 namespace tt::pjrt {
 
@@ -22,6 +23,8 @@ void MemoryInstance::BindApi(PJRT_Api *api) {
         +[](PJRT_Memory_AddressableByDevices_Args *args) -> PJRT_Error * {
             DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
             args->num_devices = MemoryInstance::Unwrap(args->memory)->addressable_by_devices().size();
+            std::cerr << "memory=" << args->memory << std::endl;
+            std::cerr << "num_devices=" << args->num_devices << std::endl;
             args->devices = const_cast<PJRT_Device **>(reinterpret_cast<PJRT_Device *const *>(MemoryInstance::Unwrap(args->memory)->addressable_by_devices().data()));
             return nullptr;
     };

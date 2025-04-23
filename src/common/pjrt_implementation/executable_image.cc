@@ -146,11 +146,16 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
     DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
     ExecutableImage *exec = ExecutableImage::Unwrap(args->executable);
     args->num_outputs = exec->get_result_count();
-    std::vector<const char*> memory_kinds_cstr(args->num_outputs, "tt_device");
-    std::vector<size_t> memory_kinds_cstr_size(args->num_outputs, 10);
-    args->memory_kinds = memory_kinds_cstr.data();
-    args->memory_kind_sizes = memory_kinds_cstr_size.data();
-    std::cerr << "args->num_outputs=" << args->num_outputs << std::endl;
+    std::cerr << "num_outputs=" << args->num_outputs << std::endl;
+    const char* memory_kinds_cstr[args->num_outputs];
+    size_t memory_kinds_cstr_size[args->num_outputs];
+    for (size_t i = 0; i < args->num_outputs; ++i) {
+      std::string kind = "tt_host";
+      memory_kinds_cstr[i] = kind.c_str();
+      memory_kinds_cstr_size[i] = kind.size();
+    }
+    args->memory_kinds = memory_kinds_cstr;
+    args->memory_kind_sizes = memory_kinds_cstr_size;
     return nullptr;
   };
 }

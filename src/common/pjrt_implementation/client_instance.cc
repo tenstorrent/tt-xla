@@ -158,8 +158,10 @@ void ClientInstance::BindApi(PJRT_Api *api) {
   api->PJRT_Client_BufferFromHostBuffer =
       +[](PJRT_Client_BufferFromHostBuffer_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-    DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[MemoryInstance::Unwrap(args->memory)->getMemoryId()]);
-    std::cerr << "MEMORY=" << args->memory << std::endl;
+    DeviceInstance* device_instance = args->memory==nullptr?(DeviceInstance::Unwrap(args->device)):(MemoryInstance::Unwrap(args->memory)->addressable_by_devices()[0]);
+    std::cerr << "memory=" << args->memory << std::endl;
+    std::cerr << "device=" << device_instance << std::endl;
+    std::cerr << "api_device=" << args->device << std::endl;
     tt_pjrt_status status =
     device_instance
             ->HostBufferToDevice(
@@ -168,7 +170,7 @@ void ClientInstance::BindApi(PJRT_Api *api) {
                 args->host_buffer_semantics,
                 reinterpret_cast<EventInstance **>(
                     &args->done_with_host_buffer),
-                reinterpret_cast<BufferInstance **>(&args->buffer));
+                reinterpret_cast<BufferInstance **>(&args->buffer), MemoryInstance::Unwrap(args->memory));
     return ErrorInstance::MakeError(status);
   };
 }
@@ -206,12 +208,17 @@ tt_pjrt_status ClientInstance::PopulateMemories() {
   MemoryInstance *host_memory =
       new MemoryInstance(addressable_devices_, -1, "tt_host");
   m_memories.push_back(host_memory);
-  for (DeviceInstance *device : devices_) {
+  std::cerr << "HOST MEMORY=" << host_memory << std::endl;
+  for (size_t i = 0; i < devices_.size(); ++i) {
+    devices_[i]->add_addressable_memory(host_memory);
+    std::vector<DeviceInstance *> single_addressable_device = {addressable_devices_[i]};
     MemoryInstance *device_memory =
-        new MemoryInstance(addressable_devices_,
-                           device->device_description()->getDeviceId(), "tt_device");
+        new MemoryInstance(single_addressable_device,
+                           devices_[i]->device_description()->getDeviceId(), "tt_device");
+    std::cerr << "MY MEMORY=" << device_memory << std::endl;
     m_memories.push_back(device_memory);
-    device->setDefaultMemory(device_memory);
+    devices_[i]->add_addressable_memory(device_memory);
+    devices_[i]->setDefaultMemory(device_memory);
   }
   return tt_pjrt_status::kSuccess;
 }

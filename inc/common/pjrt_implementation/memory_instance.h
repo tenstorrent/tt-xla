@@ -43,7 +43,7 @@ public:
 
 private:
     // List of devices that can access this memory.
-    std::vector<DeviceInstance *>& m_addressable_by_devices;
+    std::vector<DeviceInstance *> m_addressable_by_devices;
 
     // Id of the memory instance.
     int m_memory_id;
