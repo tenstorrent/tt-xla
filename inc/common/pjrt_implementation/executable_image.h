@@ -98,10 +98,12 @@ public:
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
 
+  // Gets the vector of memory kinds for each output.
   const std::vector<const char *> &getOutputMemoryKinds() const {
     return m_output_memory_kinds;
   }
 
+  // Gets the vector of sizes of the memory kinds for each output.
   const std::vector<size_t> &getOutputMemoryKindsSizes() const {
     return m_output_memory_kinds_sizes;
   }
