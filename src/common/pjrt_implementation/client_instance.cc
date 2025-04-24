@@ -132,17 +132,18 @@ tt_pjrt_status ClientInstance::populateDevices() {
 tt_pjrt_status ClientInstance::populateMemories() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
 
-  std::unique_ptr<MemoryInstance> host_memory = MemoryInstance::createInstance(
-      m_addressable_devices_raw, /*id=*/0, "tt_host");
-  m_addressable_memories_raw.push_back(host_memory.get());
-  m_addressable_memories.push_back(std::move(host_memory));
+  m_host_memory =
+      MemoryInstance::createInstance(m_addressable_devices_raw, /*id=*/0,
+                                     MemoryInstance::host_memory_kind_name);
+  m_addressable_memories_raw.push_back(m_host_memory.get());
+
   for (size_t i = 0; i < m_devices.size(); ++i) {
     m_devices[i]->addAddressableMemory(m_addressable_memories_raw[0]);
     std::vector<DeviceInstance *> single_addressable_device = {
         m_addressable_devices_raw[i]};
     std::unique_ptr<MemoryInstance> device_memory =
         MemoryInstance::createInstance(single_addressable_device, /*id=*/i + 1,
-                                       "tt_device");
+                                       MemoryInstance::device_memory_kind_name);
     m_addressable_memories_raw.push_back(device_memory.get());
     m_devices[i]->addAddressableMemory(device_memory.get());
     m_devices[i]->setDefaultMemory(device_memory.get());
@@ -201,7 +202,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
                                                std::move(addressable_devices),
-                                               m_addressable_memories[0].get());
+                                               m_host_memory.get());
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
@@ -382,10 +383,10 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DeviceInstance *device_instance =
       args->memory == nullptr
           ? DeviceInstance::unwrap(args->device)
-          : MemoryInstance::Unwrap(args->memory)->getAddressableByDevices()[0];
+          : MemoryInstance::unwrap(args->memory)->getDevice();
 
   MemoryInstance *memory_instance =
-      args->memory == nullptr ? nullptr : MemoryInstance::Unwrap(args->memory);
+      args->memory == nullptr ? nullptr : MemoryInstance::unwrap(args->memory);
 
   std::unique_ptr<BufferInstance> buffer =
       BufferInstance::createInputBufferInstance(args->type, args->dims,

@@ -11,12 +11,16 @@
 #include "common/pjrt_implementation/memory_instance.h"
 
 // c++ standard library includes
+#include <cassert>
 #include <cstring>
 
 // tt-xla includes
 #include "common/status.h"
 
 namespace tt::pjrt {
+
+const std::string MemoryInstance::host_memory_kind_name = "tt_host";
+const std::string MemoryInstance::device_memory_kind_name = "tt_device";
 
 std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
@@ -50,15 +54,29 @@ MemoryInstance::MemoryInstance(
       "MemoryInstance: " + std::to_string(id) + " (" + memory_kind + ")";
 }
 
+DeviceInstance *MemoryInstance::getDevice() const {
+  if (m_memory_kind == host_memory_kind_name) {
+    DLOG_F(WARNING,
+           "MemoryInstance::getDevice: Host memory does not have a device.");
+
+    return nullptr;
+  }
+  assert(m_addressable_by_devices.size() == 1 &&
+         "MemoryInstance::getDevice: Device memory should have exactly one "
+         "device.");
+
+  return m_addressable_by_devices[0];
+}
+
 namespace internal {
 
 PJRT_Error *
 onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
   args->num_devices =
-      MemoryInstance::Unwrap(args->memory)->getAddressableByDevices().size();
+      MemoryInstance::unwrap(args->memory)->getAddressableByDevices().size();
   const std::vector<DeviceInstance *> &addressable_by_devices =
-      MemoryInstance::Unwrap(args->memory)->getAddressableByDevices();
+      MemoryInstance::unwrap(args->memory)->getAddressableByDevices();
   args->devices = const_cast<PJRT_Device **>(
       reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data()));
   return nullptr;
@@ -66,7 +84,7 @@ onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
 
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind");
-  MemoryInstance *memory_instance = MemoryInstance::Unwrap(args->memory);
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->kind = memory_instance->getMemoryKind().data();
   args->kind_size = memory_instance->getMemoryKind().size();
   return nullptr;
@@ -74,14 +92,14 @@ PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
 
 PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
-  MemoryInstance *memory_instance = MemoryInstance::Unwrap(args->memory);
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->id = memory_instance->getId();
   return nullptr;
 }
 
 PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_DebugString");
-  MemoryInstance *memory_instance = MemoryInstance::Unwrap(args->memory);
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->debug_string = memory_instance->getDebugString().data();
   args->debug_string_size = memory_instance->getDebugString().size();
   return nullptr;
@@ -89,7 +107,7 @@ PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
 
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_ToString");
-  MemoryInstance *memory_instance = MemoryInstance::Unwrap(args->memory);
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->to_string = memory_instance->getDebugString().data();
   args->to_string_size = memory_instance->getDebugString().size();
   return nullptr;

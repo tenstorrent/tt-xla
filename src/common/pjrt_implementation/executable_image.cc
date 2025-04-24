@@ -12,10 +12,9 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/memory_instance.h"
 
 namespace tt::pjrt {
-
-const std::string ExecutableImage::host_memory_kind_name = "tt_host";
 
 std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
@@ -106,9 +105,9 @@ ExecutableImage::ExecutableImage(
 
   for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
     m_output_memory_kinds.emplace_back(
-        ExecutableImage::host_memory_kind_name.c_str());
+        MemoryInstance::host_memory_kind_name.c_str());
     m_output_memory_kinds_sizes.emplace_back(
-        ExecutableImage::host_memory_kind_name.size());
+        MemoryInstance::host_memory_kind_name.size());
   }
 }
 
