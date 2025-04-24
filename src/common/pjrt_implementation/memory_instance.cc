@@ -12,9 +12,20 @@
 
 #include "common/status.h"
 #include <cstring>
-#include <iostream>
 
 namespace tt::pjrt {
+
+std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
+    std::vector<DeviceInstance *> &addressable_by_devices,
+    std::string memory_kind) {
+  struct make_unique_enabler : public MemoryInstance {
+    make_unique_enabler(std::vector<DeviceInstance *> &addressable_by_devices,
+                        std::string memory_kind)
+        : MemoryInstance(addressable_by_devices, memory_kind) {}
+  };
+  return std::make_unique<make_unique_enabler>(addressable_by_devices,
+                                               memory_kind);
+}
 
 void MemoryInstance::bindApi(PJRT_Api *api) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::BindApi");
