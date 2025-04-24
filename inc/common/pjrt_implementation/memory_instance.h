@@ -10,6 +10,7 @@
 
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -23,10 +24,10 @@ class DeviceInstance;
 class MemoryInstance {
 
 public:
-  MemoryInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 std::string memory_kind)
-      : m_addressable_by_devices(addressable_by_devices),
-        m_memory_kind(memory_kind) {}
+  static std::unique_ptr<MemoryInstance>
+  createInstance(std::vector<DeviceInstance *> &addressable_by_devices,
+                 std::string memory_kind);
+
   ~MemoryInstance() = default;
 
   operator PJRT_Memory *() { return reinterpret_cast<PJRT_Memory *>(this); }
@@ -46,9 +47,15 @@ public:
   const std::string &getMemoryKind() const { return m_memory_kind; }
 
 private:
+  MemoryInstance(std::vector<DeviceInstance *> &addressable_by_devices,
+                 std::string memory_kind)
+      : m_addressable_by_devices(addressable_by_devices),
+        m_memory_kind(memory_kind) {}
+
   // List of devices that can access this memory.
   std::vector<DeviceInstance *> m_addressable_by_devices;
 
+  // String representing the kind of memory, can be 'tt_host' or 'tt_device'.
   std::string m_memory_kind;
 };
 

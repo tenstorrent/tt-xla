@@ -14,8 +14,6 @@
 #include <cstring>
 #include <string>
 
-#include <iostream>
-
 // tt-xla includes
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/error_instance.h"
