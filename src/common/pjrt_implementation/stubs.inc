@@ -41,8 +41,8 @@
   // https://github.com/tenstorrent/tt-xla/issues/467
   _STUB(PJRT_Buffer_CopyToDevice);
 
-  // PJRT_Memory is not yet supported in our implementation.
-  // https://github.com/tenstorrent/tt-xla/issues/468
+  // PJRT_Buffer_CopyToMemory is not used in jax or torch client, but should be implemented.
+  // https://github.com/tenstorrent/tt-xla/issues/537
   _STUB(PJRT_Buffer_CopyToMemory);
 
   // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
