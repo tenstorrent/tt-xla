@@ -8,11 +8,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "xla/pjrt/c/pjrt_c_api.h"
-
+// c++ standard library includes
 #include <memory>
 #include <string>
 #include <vector>
+
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MEMORY_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MEMORY_INSTANCE_H_
@@ -26,9 +28,7 @@ class MemoryInstance {
 public:
   static std::unique_ptr<MemoryInstance>
   createInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 std::string memory_kind);
-
-  ~MemoryInstance() = default;
+                 size_t id, std::string memory_kind);
 
   operator PJRT_Memory *() { return reinterpret_cast<PJRT_Memory *>(this); }
 
@@ -46,17 +46,25 @@ public:
 
   const std::string &getMemoryKind() const { return m_memory_kind; }
 
+  const size_t getId() const { return m_id; }
+
+  const std::string &getDebugString() const { return m_debug_string; }
+
 private:
   MemoryInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 std::string memory_kind)
-      : m_addressable_by_devices(addressable_by_devices),
-        m_memory_kind(memory_kind) {}
+                 size_t id, std::string memory_kind);
 
   // List of devices that can access this memory.
   std::vector<DeviceInstance *> m_addressable_by_devices;
 
   // String representing the kind of memory, can be 'tt_host' or 'tt_device'.
   std::string m_memory_kind;
+
+  // Id of the memory.
+  size_t m_id;
+
+  // Debug string of the memory.
+  std::string m_debug_string;
 };
 
 namespace internal {
@@ -67,6 +75,15 @@ onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args);
 
 // Implements PJRT_Memory_Kind API function.
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args);
+
+// Implements PJRT_Memory_Id API function.
+PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args);
+
+// Implements PJRT_Memory_DebugString API function.
+PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args);
+
+// Implements PJRT_Memory_ToString API function.
+PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args);
 
 } // namespace internal
 

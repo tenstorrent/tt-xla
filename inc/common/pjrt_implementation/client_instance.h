@@ -95,8 +95,9 @@ private:
   // non-addressable devices.
   std::vector<std::unique_ptr<MemoryInstance>> m_addressable_memories;
 
-  // Vector of all memories visible to the runtime, including addressable and
-  // non-addressable devices.
+  // Vector of raw pointers to all addressable memories, owned by
+  // `m_addressable_memories`. Necessary to have to be able to return it in
+  // `PJRT_Client_AddressableMemories` API call.
   std::vector<MemoryInstance *> m_addressable_memories_raw;
 
   // Vector of raw pointers to all devices, owned by `m_devices`. Necessary to

@@ -86,12 +86,6 @@
   // https://github.com/tenstorrent/tt-xla/issues/496
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
 
-  // This should return list of lists of memory kind strings for outputs, in a
-  // shape [num_programs, num_outputs]. Most implementations I've found just
-  // populate it with default memory kind.
-  // https://github.com/tenstorrent/tt-xla/issues/497
-  _STUB(PJRT_Executable_OutputMemoryKinds);
-
   // Serialization/deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
   _STUB(PJRT_Executable_Serialize);
@@ -106,6 +100,11 @@
   _STUB(PJRT_LoadedExecutable_Fingerprint);
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // PJRT_Memory stubs:
+
+  _STUB(PJRT_Memory_Kind_Id);
+  // ---------------------------------------------------------------------------
 
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
@@ -113,10 +112,6 @@
   _STUB(PJRT_Client_PlatformName);
   _STUB(PJRT_Client_PlatformVersion);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
-  _STUB(PJRT_Memory_Id);
-  _STUB(PJRT_Memory_Kind);
-  _STUB(PJRT_Memory_DebugString);
-  _STUB(PJRT_Memory_ToString);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);

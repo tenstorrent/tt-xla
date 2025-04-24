@@ -132,8 +132,8 @@ tt_pjrt_status ClientInstance::populateDevices() {
 tt_pjrt_status ClientInstance::populateMemories() {
   DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
 
-  std::unique_ptr<MemoryInstance> host_memory =
-      MemoryInstance::createInstance(m_addressable_devices_raw, "tt_host");
+  std::unique_ptr<MemoryInstance> host_memory = MemoryInstance::createInstance(
+      m_addressable_devices_raw, /*id=*/0, "tt_host");
   m_addressable_memories_raw.push_back(host_memory.get());
   m_addressable_memories.push_back(std::move(host_memory));
   for (size_t i = 0; i < m_devices.size(); ++i) {
@@ -141,7 +141,8 @@ tt_pjrt_status ClientInstance::populateMemories() {
     std::vector<DeviceInstance *> single_addressable_device = {
         m_addressable_devices_raw[i]};
     std::unique_ptr<MemoryInstance> device_memory =
-        MemoryInstance::createInstance(single_addressable_device, "tt_device");
+        MemoryInstance::createInstance(single_addressable_device, /*id=*/i + 1,
+                                       "tt_device");
     m_addressable_memories_raw.push_back(device_memory.get());
     m_devices[i]->addAddressableMemory(device_memory.get());
     m_devices[i]->setDefaultMemory(device_memory.get());
