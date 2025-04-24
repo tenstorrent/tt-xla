@@ -43,6 +43,7 @@ void MemoryInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Memory_Id = internal::onMemoryId;
   api->PJRT_Memory_DebugString = internal::onMemoryDebugString;
   api->PJRT_Memory_ToString = internal::onMemoryToString;
+  api->PJRT_Memory_Kind_Id = internal::onMemoryKindId;
 }
 
 MemoryInstance::MemoryInstance(
@@ -110,6 +111,16 @@ PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->to_string = memory_instance->getDebugString().data();
   args->to_string_size = memory_instance->getDebugString().size();
+  return nullptr;
+}
+
+PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
+  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+  args->kind_id =
+      memory_instance->getMemoryKind() == MemoryInstance::host_memory_kind_name
+          ? 0
+          : 1;
   return nullptr;
 }
 

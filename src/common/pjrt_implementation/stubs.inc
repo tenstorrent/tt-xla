@@ -100,12 +100,6 @@
   _STUB(PJRT_LoadedExecutable_Fingerprint);
   // ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // PJRT_Memory stubs:
-
-  _STUB(PJRT_Memory_Kind_Id);
-  // ---------------------------------------------------------------------------
-
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
   _STUB(PJRT_Client_Create);

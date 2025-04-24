@@ -103,6 +103,9 @@ PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args);
 // Implements PJRT_Memory_ToString API function.
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args);
 
+// Implements PJRT_Memory_Kind_Id API function.
+PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt
