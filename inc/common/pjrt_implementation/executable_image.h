@@ -98,12 +98,10 @@ public:
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
 
-  // String that represents the host memory kind.
-  static const std::string host_memory_kind_name;
-
   const std::vector<const char *> &getOutputMemoryKinds() const {
     return m_output_memory_kinds;
   }
+
   const std::vector<size_t> &getOutputMemoryKindsSizes() const {
     return m_output_memory_kinds_sizes;
   }

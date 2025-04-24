@@ -145,7 +145,7 @@ private:
   // Subset of client's addressable devices that this executable will run on.
   const std::vector<DeviceInstance *> m_addressable_devices;
 
-  // The list host addressable memory.
+  // The pointer to the MemoryInstance object representing host memory.
   MemoryInstance *m_host_memory;
 
   // True if loaded executable was deleted, i.e. its resources are released.
