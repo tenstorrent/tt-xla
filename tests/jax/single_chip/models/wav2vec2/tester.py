@@ -3,19 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict
+
 import jax
-
-from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import (
-    AutoProcessor,
-    FlaxWav2Vec2ForCTC,
-    FlaxPreTrainedModel,
-)
 from datasets import load_dataset
-from jaxtyping import PyTree
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from transformers import AutoProcessor, FlaxPreTrainedModel, FlaxWav2Vec2ForCTC
 
 
-class Wav2Vec2Tester(ModelTester):
+class Wav2Vec2Tester(JaxModelTester):
     """Tester for Wav2Vec2 model."""
 
     def __init__(

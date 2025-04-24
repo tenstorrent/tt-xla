@@ -5,11 +5,12 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import AutoTokenizer, FlaxPreTrainedModel, FlaxXLMRobertaForCausalLM
 
 
-class XLMRobertaTester(ModelTester):
+class XLMRobertaTester(JaxModelTester):
     """Tester for XLMRoberta model for language modeling task."""
 
     def __init__(

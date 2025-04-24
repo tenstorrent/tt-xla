@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Sequence
 
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 
 
-class BigBirdTester(ModelTester):
+class BigBirdTester(JaxModelTester):
     """Tester for BigBird Model variants."""
 
     def __init__(

@@ -3,17 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from infra.multichip_utils import enable_shardy
-
-from tests.utils import (
+from infra import Framework, RunMode, enable_shardy
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from .tester import AlexNetMultichipTester

@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import flax.linen as nn
 import jax
 import pytest
 from infra import run_graph_test_with_random_inputs
-from tests.utils import incorrect_result
-from tests.utils import Category
-
-import flax.linen as nn
+from utils import Category, incorrect_result
 
 
 @pytest.mark.push

@@ -2,13 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Optional, Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, MultichipModelTester, RunMode
-from infra.device_connector import device_connector
-from infra.multichip_utils import (
+from infra import (
+    ComparisonConfig,
+    DeviceConnectorFactory,
+    Framework,
+    JaxMultichipModelTester,
+    RunMode,
     initialize_flax_linen_parameters_on_cpu,
     make_flax_linen_parameters_partition_specs_on_cpu,
 )
@@ -23,7 +26,7 @@ from tests.jax.single_chip.models.mnist.mlp.tester import (
 from .model_implementation import MNISTMLPMultichipModel
 
 
-class MnistMLPMultichipTester(MultichipModelTester):
+class MnistMLPMultichipTester(JaxMultichipModelTester):
     """Tester for multichip versions of MNIST MLP model."""
 
     def __init__(
@@ -31,12 +34,16 @@ class MnistMLPMultichipTester(MultichipModelTester):
         hidden_sizes: Sequence[int],
         run_mode: RunMode,
         comparison_config: ComparisonConfig = ComparisonConfig(),
-        num_devices: int = device_connector.get_number_of_tt_devices(),
+        num_devices: Optional[int] = None,
     ) -> None:
+        if num_devices is not None:
+            self.num_devices = num_devices
+        else:
+            device_connector = DeviceConnectorFactory.create_connector(Framework.JAX)
+            self.num_devices = device_connector.get_number_of_tt_devices()
+
         self._hidden_sizes = hidden_sizes
         self.main_axis_name = "X"
-        self.num_devices = num_devices
-
         mesh_shape = (self.num_devices,)
         axis_names = (self.main_axis_name,)
 
@@ -56,7 +63,7 @@ class MnistMLPMultichipTester(MultichipModelTester):
         return "apply"
 
     # @override
-    def _get_input_activations_partition_specs(self) -> PartitionSpec:
+    def _get_input_activations_partition_spec(self) -> PartitionSpec:
         # No data parallelism utilized in this model.
         return PartitionSpec()
 
@@ -65,10 +72,10 @@ class MnistMLPMultichipTester(MultichipModelTester):
         return create_mnist_random_input_image()
 
     # @override
-    def _get_input_parameters_partition_specs(self) -> PyTree:
+    def _get_input_parameters_partition_spec(self) -> PyTree:
         return make_flax_linen_parameters_partition_specs_on_cpu(
             self._model,
-            self.cpu_mesh,
+            self._cpu_mesh,
             self._input_activations_partition_specs,
             self._input_activations,
         )
@@ -80,6 +87,6 @@ class MnistMLPMultichipTester(MultichipModelTester):
             self._input_activations_partition_specs,
             self._input_activations,
             self._input_parameters_partition_specs,
-            self.cpu_mesh,
+            self._cpu_mesh,
             MNIST_MLP_PARAMS_INIT_SEED,
         )

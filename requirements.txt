@@ -21,6 +21,8 @@ pytest
 sentencepiece
 setuptools
 soundfile
-torch
 transformers
 wheel
+torch==2.7.0
+torch_xla==2.7.0
+torchvision

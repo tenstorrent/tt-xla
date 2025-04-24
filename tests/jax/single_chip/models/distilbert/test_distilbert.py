@@ -6,10 +6,9 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import Framework, ModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -31,7 +30,7 @@ MODEL_NAME = build_model_name(
 # ----- Tester -----
 
 
-class FlaxDistilBertForMaskedLMTester(ModelTester):
+class FlaxDistilBertForMaskedLMTester(JaxModelTester):
     """Tester for DistilBert model on a masked language modeling task"""
 
     # @override

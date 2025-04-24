@@ -5,7 +5,8 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
     FlaxMistralForCausalLM,
@@ -14,7 +15,7 @@ from transformers import (
 )
 
 
-class Mistral7BTester(ModelTester):
+class Mistral7BTester(JaxModelTester):
     """Tester for Mistral-7B model variants with a language modeling head on top."""
 
     def __init__(

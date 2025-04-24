@@ -2,13 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Optional, Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, MultichipModelTester, RunMode
-from infra.device_connector import device_connector
-from infra.multichip_utils import (
+from infra import (
+    ComparisonConfig,
+    DeviceConnectorFactory,
+    Framework,
+    JaxMultichipModelTester,
+    RunMode,
     initialize_flax_linen_parameters_on_cpu,
     make_flax_linen_parameters_partition_specs_on_cpu,
 )
@@ -23,18 +26,22 @@ from tests.jax.single_chip.models.alexnet.tester import (
 from .model_implementation import AlexNetMultichipModel
 
 
-class AlexNetMultichipTester(MultichipModelTester):
+class AlexNetMultichipTester(JaxMultichipModelTester):
     """Tester for multichip versions of AlexNet CNN model."""
 
     def __init__(
         self,
         run_mode: RunMode,
         comparison_config: ComparisonConfig = ComparisonConfig(),
-        num_devices: int = device_connector.get_number_of_tt_devices(),
+        num_devices: Optional[int] = None,
     ) -> None:
-        self.main_axis_name = "X"
-        self.num_devices = num_devices
+        if num_devices is not None:
+            self.num_devices = num_devices
+        else:
+            device_connector = DeviceConnectorFactory.create_connector(Framework.JAX)
+            self.num_devices = device_connector.get_number_of_tt_devices()
 
+        self.main_axis_name = "X"
         mesh_shape = (self.num_devices,)
         axis_names = (self.main_axis_name,)
 
@@ -53,7 +60,7 @@ class AlexNetMultichipTester(MultichipModelTester):
         return "apply"
 
     # @override
-    def _get_input_activations_partition_specs(self) -> PartitionSpec:
+    def _get_input_activations_partition_spec(self) -> PartitionSpec:
         # Sharding data on batch axis since data parallelism is utilized for the
         # convolutional layers.
         return PartitionSpec(self.main_axis_name)
@@ -63,10 +70,10 @@ class AlexNetMultichipTester(MultichipModelTester):
         return create_alexnet_random_input_image()
 
     # @override
-    def _get_input_parameters_partition_specs(self) -> PyTree:
+    def _get_input_parameters_partition_spec(self) -> PyTree:
         return make_flax_linen_parameters_partition_specs_on_cpu(
             self._model,
-            self.cpu_mesh,
+            self._cpu_mesh,
             self._input_activations_partition_specs,
             self._input_activations,
         )
@@ -78,6 +85,6 @@ class AlexNetMultichipTester(MultichipModelTester):
             self._input_activations_partition_specs,
             self._input_activations,
             self._input_parameters_partition_specs,
-            self.cpu_mesh,
+            self._cpu_mesh,
             ALEXNET_PARAMS_INIT_SEED,
         )

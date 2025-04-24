@@ -6,7 +6,7 @@ from typing import Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
 
 from .model_implementation import MNISTMLPModel
@@ -22,7 +22,7 @@ def create_mnist_random_input_image() -> jax.Array:
     return img
 
 
-class MNISTMLPTester(ModelTester):
+class MNISTMLPTester(JaxModelTester):
     """Tester for MNIST MLP model."""
 
     def __init__(
