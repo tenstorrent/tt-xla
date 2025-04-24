@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from __future__ import annotations
+
 import pytest
 from infra import Framework, RunMode
 
@@ -18,7 +20,7 @@ from ..tester import MNISTCNNTester
 from .model_implementation import MNISTCNNDropoutModel
 
 MODEL_NAME = build_model_name(
-    Framework.JAX,
+    Framework.TORCH,
     "mnist",
     "cnn_dropout",
     ModelTask.CV_IMAGE_CLS,

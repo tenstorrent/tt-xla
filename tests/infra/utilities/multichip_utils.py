@@ -2,10 +2,39 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Mapping, Optional, Sequence
+
 import jax
+from jax.sharding import Mesh, PartitionSpec
+
+from .workloads.jax_workload import JaxWorkload
+
+
+@dataclass
+class MultichipWorkload(JaxWorkload):
+    """
+    An extension of the JaxWorkload dataclass that includes a mesh and partition specs,
+    necessary for multichip sharding.
+
+    TODO shouldn't inherit from JaxWorkload, but for now only used with jax.
+    """
+
+    def __init__(
+        self,
+        executable: Callable,
+        args: Optional[Sequence[Any]] = None,
+        kwargs: Optional[Mapping[str, Any]] = None,
+        static_argnames: Optional[Sequence[str]] = None,
+        device_mesh: Optional[Mesh] = None,
+        in_specs: Optional[Sequence[PartitionSpec]] = None,
+    ) -> None:
+        super().__init__(executable, args, kwargs, static_argnames)
+
+        self.device_mesh = device_mesh
+        self.in_specs = in_specs
 
 
 class ShardingMode(Enum):

@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from contextlib import contextmanager
+from typing import Union
+
 import jax
 import jax.numpy as jnp
 from jax import export
 from jax._src.typing import DTypeLike
-from typing import Union
+from runners.utils import run_on_cpu
 
-from .device_runner import run_on_cpu
 from .types import Framework, Tensor
-from .workload import Workload
+from .workloads import Workload
 
 
 def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):
@@ -23,7 +23,7 @@ def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):
         raise ValueError(f"Unsupported framework: {framework.value}.")
 
 
-@run_on_cpu
+@run_on_cpu(Framework.JAX)
 def random_tensor(
     shape: tuple,
     dtype: Union[str, DTypeLike] = jnp.float32,
@@ -96,27 +96,3 @@ def workload_as_mlir_module(
             return ""
     else:
         raise ValueError(f"Unsupported framework: {framework.value}.")
-
-
-@contextmanager
-def enable_shardy(use_shardy: bool):
-    """
-    Context manager that temporarily enables shardy in jax.config.
-
-    Isolated as a context manager so that it doesn't change global config for all jax
-    imports and cause unexpected fails elsewhere.
-    """
-    try:
-        # Set the config to True within this block, and yield back control.
-        jax.config.update("jax_use_shardy_partitioner", use_shardy)
-        yield
-    finally:
-        # After `with` statement ends, turn it off again.
-        jax.config.update("jax_use_shardy_partitioner", False)
-
-
-def make_partition_spec(axis_names: tuple) -> jax.sharding.PartitionSpec:
-    """
-    Returns a PartitionSpec object for the given `axis_names`.
-    """
-    return jax.sharding.PartitionSpec(*axis_names)

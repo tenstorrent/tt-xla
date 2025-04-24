@@ -5,7 +5,7 @@
 import jax
 import pytest
 from infra import random_tensor
-from infra.device_connector import DeviceConnector
+from infra.device_connector.device_connector import DeviceConnector
 
 from tests.utils import Category
 
