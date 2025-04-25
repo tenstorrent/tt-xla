@@ -132,8 +132,7 @@ private:
       size_t num_devices, PJRT_Buffer **const *output_lists);
 
   // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOutputShape(size_t output_index,
-                                            size_t num_devices);
+  std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
   // Executable image instance which is shared between executable and loaded
   // executable instances.
