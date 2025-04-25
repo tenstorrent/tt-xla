@@ -53,8 +53,8 @@ def training_tester() -> T5Tester:
 )
 @pytest.mark.skip(
     reason=failed_runtime(
-        "ttnn::operations::binary::BinaryDeviceOperation: unsupported broadcast "
-        "(https://github.com/tenstorrent/tt-xla/issues/505)"
+        "T5 model hangs on ttnn.abs operation  "
+        "(https://github.com/tenstorrent/tt-xla/issues/539)"
     )
 )
 def test_t5_large_inference(inference_tester: T5Tester):
