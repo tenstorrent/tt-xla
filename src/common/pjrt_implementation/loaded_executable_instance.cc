@@ -346,25 +346,19 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
-  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity) {
-    DLOG_F(WARNING, "No output sharding, returning the original shape");
+  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
+      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
     return outputShape;
   }
 
   llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
-  if (shard_shape.size() != outputShape.size()) {
-    DLOG_F(ERROR,
-           "Output sharding shape (%zu) doesn't match the output shape (%zu)",
-           shard_shape.size(), outputShape.size());
-    return outputShape;
-  }
+  assert(shard_shape.size() == outputShape.size() &&
+         "Output sharding shape doesn't match the output shape");
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    if (shard_shape[i] != 1) {
-      assert(outputShape[i] % shard_shape[i] == 0 &&
-             "Output shape is not divisible by the sharding shape");
-      outputShape[i] /= shard_shape[i];
-    }
+    assert(outputShape[i] % shard_shape[i] == 0 &&
+           "Output shape is not divisible by the sharding shape");
+    outputShape[i] /= shard_shape[i];
   }
 
   return outputShape;

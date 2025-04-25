@@ -147,6 +147,9 @@ private:
   // Checks if the jax is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Checks if the resulting outputs and their shardings are valid.
+  void checkOutputValidity();
+
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
   mlir::LogicalResult createShardingsFromGSPMD(

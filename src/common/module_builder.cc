@@ -122,7 +122,63 @@ ModuleBuilder::buildModule(const std::string_view &mlir_code,
 
   createFlatbufferBinary(mlir_module);
 
+  checkOutputValidity();
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
+
   return m_status;
+}
+
+void ModuleBuilder::checkOutputValidity() {
+  // Assuming only one program per flatbuffer for now.
+  std::uint32_t program_index = 0;
+  std::vector<tt::runtime::TensorDesc> output_specs =
+      m_flatbuffer_binary.getProgramOutputs(program_index);
+  size_t num_outputs = output_specs.size();
+  if (m_output_shardings.size() != num_outputs) {
+    DLOG_F(ERROR,
+           "Number of output shardings (%zu) doesn't match the number of "
+           "outputs (%zu)",
+           m_output_shardings.size(), num_outputs);
+
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
+    const mlir::tt::sharding_utils::MeshSharding &output_sharding =
+        m_output_shardings[output_index];
+    if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
+        output_sharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+      continue;
+    }
+
+    const llvm::ArrayRef<int64_t> &shard_shape =
+        output_sharding.getShardShape();
+    const std::vector<std::uint32_t> &output_shape =
+        output_specs[output_index].shape;
+
+    if (shard_shape.size() != output_shape.size()) {
+      DLOG_F(ERROR,
+             "Output sharding shape (%zu) doesn't match the output shape (%zu)",
+             shard_shape.size(), output_shape.size());
+
+      m_status = tt_pjrt_status::kInternal;
+      return;
+    }
+
+    for (size_t shard_dim = 0; shard_dim < shard_shape.size(); ++shard_dim) {
+      if (output_shape[shard_dim] % shard_shape[shard_dim] != 0) {
+        DLOG_F(ERROR,
+               "Output shape (%u) is not divisible by the sharding shape (%zu)",
+               output_shape[shard_dim], shard_shape[shard_dim]);
+
+        m_status = tt_pjrt_status::kInternal;
+        return;
+      }
+    }
+  }
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
