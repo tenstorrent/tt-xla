@@ -122,6 +122,9 @@ private:
   // the compiler from the input graph.
   void verifyCreatedFlatbufferBinary();
 
+  // Checks if the resulting outputs and their shardings are valid.
+  void checkOutputShardingShapes();
+
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -146,9 +149,6 @@ private:
 
   // Checks if the jax is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Checks if the resulting outputs and their shardings are valid.
-  void checkOutputValidity();
 
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
