@@ -124,8 +124,7 @@ private:
 
   // Checks if the resulting outputs and their shardings are valid.
   void checkOutputShardingShapes(
-      const std::vector<tt::runtime::TensorDesc> &output_specs,
-      size_t num_outputs);
+      const std::vector<tt::runtime::TensorDesc> &output_specs);
 
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);

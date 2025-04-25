@@ -566,13 +566,13 @@ void ModuleBuilder::verifyCreatedFlatbufferBinary() {
     return;
   }
 
-  checkOutputShardingShapes(output_specs, num_outputs);
+  checkOutputShardingShapes(output_specs);
 }
 
 void ModuleBuilder::checkOutputShardingShapes(
-    const std::vector<tt::runtime::TensorDesc> &output_specs,
-    size_t num_outputs) {
-  for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
+    const std::vector<tt::runtime::TensorDesc> &output_specs) {
+  for (size_t output_index = 0; output_index < output_specs.size();
+       ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         m_output_shardings[output_index];
     if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
