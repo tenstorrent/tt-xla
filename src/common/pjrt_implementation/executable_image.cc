@@ -153,6 +153,8 @@ void ExecutableImage::BindApi(PJRT_Api *api) {
       std::string kind = "tt_host";
       memory_kinds_cstr[i] = kind.c_str();
       memory_kinds_cstr_size[i] = kind.size();
+      std::cerr << "memory_kinds_cstr[i]=" << memory_kinds_cstr[i] << std::endl;
+      std::cerr << "memory_kinds_cstr_size[i]=" << memory_kinds_cstr_size[i] << std::endl;
     }
     args->memory_kinds = memory_kinds_cstr;
     args->memory_kind_sizes = memory_kinds_cstr_size;
