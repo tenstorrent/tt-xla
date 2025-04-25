@@ -91,10 +91,12 @@ private:
   // non-addressable devices.
   std::vector<std::unique_ptr<DeviceInstance>> m_devices;
 
-  // Vector of all device memories visible to the runtime, including addressable
-  // and non-addressable devices. The host memory is in the m_host_memory
-  // member.
+  // Vector of all device memories visible to the runtime.
+  // The host memory is in the m_host_memory member.
   std::vector<std::unique_ptr<MemoryInstance>> m_addressable_memories;
+
+  // MemoryInstance object representing host memory.
+  std::unique_ptr<MemoryInstance> m_host_memory;
 
   // Vector of raw pointers to all addressable memories, owned by
   // `m_addressable_memories`. Necessary to have to be able to return it in
@@ -113,9 +115,6 @@ private:
 
   // Module builder that compiles program code.
   std::unique_ptr<ModuleBuilder> m_module_builder;
-
-  // MemoryInstance object representing host memory.
-  std::unique_ptr<MemoryInstance> m_host_memory;
 
   // System descriptor (that TTIR to TTNN backend pipeline needs).
   tt::runtime::SystemDesc m_system_descriptor;
