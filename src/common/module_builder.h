@@ -123,7 +123,9 @@ private:
   void verifyCreatedFlatbufferBinary();
 
   // Checks if the resulting outputs and their shardings are valid.
-  void checkOutputShardingShapes();
+  void checkOutputShardingShapes(
+      const std::vector<tt::runtime::TensorDesc> &output_specs,
+      size_t num_outputs);
 
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
