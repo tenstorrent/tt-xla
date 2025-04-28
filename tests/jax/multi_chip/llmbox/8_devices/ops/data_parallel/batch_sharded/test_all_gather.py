@@ -24,7 +24,11 @@ from tests.utils import failed_fe_compilation
     ],
 )
 @pytest.mark.parametrize(
-    ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (1, 8), ("batch", "model"))]
+    ("x_shape", "mesh_shape", "axis_names"),
+    [
+        ((8192, 784), (1, 8), ("batch", "model")),
+        ((8192, 784), (2, 4), ("batch", "model")),
+    ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",

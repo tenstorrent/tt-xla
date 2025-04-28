@@ -28,6 +28,7 @@ from tests.utils import failed_fe_compilation
     ("batch_shape", "mesh_shape", "axis_names"),
     [
         ((2048, 2048), (1, 8), ("batch", "model")),
+        ((2048, 2048), (2, 4), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
