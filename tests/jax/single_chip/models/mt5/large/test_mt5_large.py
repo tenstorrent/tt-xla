@@ -47,10 +47,9 @@ def training_tester() -> MT5Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
-        "ttnn::operations::binary::BinaryDeviceOperation: unsupported broadcast "
-        "(https://github.com/tenstorrent/tt-xla/issues/505)"
+        "Hangs in the runtime (https://github.com/tenstorrent/tt-xla/issues/539)"
     )
 )
 def test_mt5_large_inference(inference_tester: MT5Tester):
