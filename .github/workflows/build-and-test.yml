@@ -237,10 +237,24 @@ jobs:
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload test results to Codecov
-      if: success() || failure()
-      uses: codecov/test-results-action@v1
-      with:
-        files: ${{ steps.strings.outputs.test_report_path }}
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+  upload-codecov-results:
+    needs: build-and-run-tests
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    steps:
+      - name: Download all test reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-reports-*
+          path: test-reports
+
+      - name: List downloaded test reports
+        shell: bash
+        run: find test-reports -type f -name "*.xml"
+
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        with:
+          files: test-reports/*.xml
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}
