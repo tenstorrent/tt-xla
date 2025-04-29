@@ -37,18 +37,25 @@ device_ids = np.array(range(num_devices))
 mesh = Mesh(device_ids, mesh_shape, ("height", "features"))
 
 # Random inputs between 0 and 0.1
-t = torch.rand(8192, 784) * 0.1
-w = torch.rand(784, 8192) * 0.1
+t = torch.rand(2048, 256) * 0.1
+w = torch.rand(256, 2048) * 0.1
 
 golden = t @ w
 
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
 
-partition_spec = ("height", "features")
-xs.mark_sharding(t, mesh, partition_spec)
+xs.mark_sharding(t, mesh, (None, "features"))
 xs.mark_sharding(w, mesh, ("features", None))
 
+from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
+print("Sharding of t:")
+visualize_tensor_sharding(t, use_color=False)
+print("Sharding of w:")
+visualize_tensor_sharding(w, use_color=False)
+
 # spmd all-reduce doesnt have an easily accessible API, so we use the internal API (for now)
-y = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, t @ w, 1.0, [[0, 1]])
+y = t @ w
+y = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, y, 1.0, [[0, 1]])
 assert torch.allclose(y.to("cpu"), golden, atol=0.02)
+

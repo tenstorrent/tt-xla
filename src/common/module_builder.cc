@@ -524,12 +524,14 @@ void ModuleBuilder::collectMeshShape(
         m_mesh_shape =
             std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
                                        input_sharding.getMeshShape().end());
+        DLOG_F(LOG_DEBUG, "Mesh shape: [%d %d]", m_mesh_shape[0], m_mesh_shape[1]);
         return;
       }
     }
 
     // Assuming single device if there are no inputs sharded on device.
     m_mesh_shape = {1, 1};
+    DLOG_F(LOG_DEBUG, "Mesh shape: [%d %d]", m_mesh_shape[0], m_mesh_shape[1]);
 
     return;
   }
