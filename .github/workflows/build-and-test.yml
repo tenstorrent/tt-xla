@@ -50,7 +50,7 @@ permissions:
 jobs:
 
   build-image:
-    runs-on: n300
+    runs-on: tt-beta-ubuntu-2204-large
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
     steps:
@@ -97,7 +97,6 @@ jobs:
         build: ${{ fromJson(inputs.build_options) }}
 
     runs-on:
-      - in-service
       - ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step

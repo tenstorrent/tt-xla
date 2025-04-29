@@ -13,8 +13,8 @@ jobs:
       test_mark: 'nightly'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "tt-beta-ubuntu-2204-n150-large-stable", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "tt-beta-ubuntu-2204-n300-large-stable", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
           {"runs-on": "llmbox", "name": "run_4", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
           {"runs-on": "llmbox", "name": "run_8", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
         ]
@@ -28,7 +28,7 @@ jobs:
       test_mark: 'model_test'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "tt-beta-ubuntu-2204-n150-large-stable", "name": "run", "dir": "./tests/jax/single_chip"},
         ]
 
   fail-notify:
