@@ -6,12 +6,7 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import (
-    RoFormerTokenizer,
-    FlaxRoFormerForMaskedLM,
-    FlaxPreTrainedModel,
-)
-from jaxtyping import PyTree
+from transformers import FlaxPreTrainedModel, FlaxRoFormerForMaskedLM, RoFormerTokenizer
 
 
 class RoFormerTester(ModelTester):
@@ -35,14 +30,6 @@ class RoFormerTester(ModelTester):
         tokenizer = RoFormerTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("The capital of France is [MASK].", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):
