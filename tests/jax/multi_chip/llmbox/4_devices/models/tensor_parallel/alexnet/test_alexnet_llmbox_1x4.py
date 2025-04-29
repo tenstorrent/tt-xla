@@ -33,12 +33,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.INFERENCE)
+    return AlexNetMultichipTester(run_mode=RunMode.INFERENCE, num_devices=4)
 
 
 @pytest.fixture
 def training_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.TRAINING)
+    return AlexNetMultichipTester(run_mode=RunMode.TRAINING, num_devices=4)
 
 
 # ----- Tests -----

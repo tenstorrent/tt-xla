@@ -25,9 +25,10 @@ class AlexNetMultichipTester(MultichipModelTester):
         self,
         run_mode: RunMode,
         comparison_config: ComparisonConfig = ComparisonConfig(),
+        num_devices: int = device_connector.get_number_of_tt_devices(),
     ) -> None:
         self.main_axis_name = "X"
-        self.num_devices = device_connector.get_number_of_tt_devices()
+        self.num_devices = num_devices
 
         # Currently we support only 2D mesh with shardy enabled.
         mesh_shape = (1, self.num_devices)
@@ -58,7 +59,7 @@ class AlexNetMultichipTester(MultichipModelTester):
         return jax.random.randint(
             key=jax.random.PRNGKey(23),
             # B, H, W, C
-            shape=(4, 224, 224, 3),
+            shape=(32, 224, 224, 3),
             # In the original paper inputs are normalized with individual channel
             # values learned from training set.
             minval=-128,
