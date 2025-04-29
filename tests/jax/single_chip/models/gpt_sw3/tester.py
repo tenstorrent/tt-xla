@@ -6,8 +6,7 @@ from typing import Dict, Sequence
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import GPTSw3Tokenizer, FlaxPreTrainedModel, FlaxGPT2LMHeadModel
-from jaxtyping import PyTree
+from transformers import FlaxGPT2LMHeadModel, FlaxPreTrainedModel, GPTSw3Tokenizer
 
 
 class GPTSw3Tester(ModelTester):
@@ -33,14 +32,6 @@ class GPTSw3Tester(ModelTester):
             "Träd är fina för att", return_tensors="jax"
         )  # input is a swedish statement
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):

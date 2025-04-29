@@ -4,10 +4,8 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from enum import Enum
-from functools import reduce
 import os
+from enum import Enum
 from typing import Generator, Sequence
 
 import jax
@@ -25,11 +23,11 @@ class DeviceType(Enum):
 
 class DeviceConnector:
     """
-    Singleton class providing connections to devices on which jax commands will be
+    Singleton class providing connections to devices on which JAX commands will be
     executed.
 
     As a singleton it is instantiated only once, thus making sure that PJRT plugin is
-    registered exactly once. Registration needs to happen before any other jax commands
+    registered exactly once. Registration needs to happen before any other JAX commands
     are executed. Registering it multiple times would cause error.
 
     Do not instantiate this class directly. Use provided factory method instead.
@@ -91,25 +89,9 @@ class DeviceConnector:
 
         return jax.devices(device_type.value)[device_num]
 
-    @contextmanager
-    def simulate_cpu_mesh(self, mesh_shape: tuple) -> Generator[None, None, None]:
-        """
-        Context manager that simulates multiple CPU devices by setting a flag that tells
-        XLA to simulate a specific number of host devices.
-        This will only set CPU the devices the first time that it is used, due to the way
-        XLA uses env flags responsible for enabling CPU virtualization. It configures it
-        in the beginning, and all following uses of imported jax lib will be configured
-        that way. This is not desired behaviour since in one python run we cannot mix
-        multichip and singlechip tests.
-        """
-        num_virtual_cpus = reduce(lambda x, y: x * y, mesh_shape, 1)
-        self._simulate_multiple_cpu_devices(num_virtual_cpus)
-
-        try:
-            yield
-        finally:
-            # Teardown: reset the XLA flags after the block completes
-            self._reset_xla_flags()
+    def get_number_of_tt_devices(self) -> int:
+        """Returns the number of available TT devices."""
+        return len(jax.devices(DeviceType.TT.value))
 
     # ---------- Private methods ----------
 
@@ -122,14 +104,17 @@ class DeviceConnector:
 
         self._initialized = False
 
+        # Allocating enough CPU devices so we can create various meshes depending on
+        # which TT device tests are running. Can't be set to exact number of TT devices
+        # because after calling `jax.devices` function this config update doesn't work
+        # anymore.
+        jax.config.update("jax_num_cpu_devices", 8)
+
         plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
         if not os.path.exists(plugin_path):
-            raise FileNotFoundError(
-                f"Could not find tt_pjrt C API plugin at {plugin_path}"
-            )
+            raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
 
         self._plugin_path = plugin_path
-        self._default_xla_flags = os.environ.get("XLA_FLAGS", "")
         self._initialize_backend()
 
     def _number_of_devices(self, device_type: DeviceType) -> int:
@@ -138,7 +123,10 @@ class DeviceConnector:
 
     def _supported_devices(self) -> Sequence[DeviceType]:
         """Returns list of supported device types."""
-        # TODO support GPU
+        # The order here is important, JAX will respect that order to choose the default
+        # device. That way we don't need to use `with jax.default_device` to generate
+        # inputs on CPU etc. It also makes a difference in how JAX puts sharded tensors
+        # on device (https://github.com/tenstorrent/tt-xla/issues/542).
         return [DeviceType.CPU, DeviceType.TT]
 
     def _supported_devices_str(self) -> str:
@@ -148,32 +136,19 @@ class DeviceConnector:
 
     def _initialize_backend(self) -> None:
         """
-        Registers TT plugin which will make TTDevice available in jax.
+        Registers TT plugin which will make TTDevice available in JAX.
 
-        Needs to be called before any other jax command.
+        Needs to be called before any other JAX command.
         """
         xb.register_plugin(
             DeviceType.TT.value,
-            priority=500,
             library_path=self._plugin_path,
-            options=None,
         )
         jax.config.update("jax_platforms", self._supported_devices_str())
 
         self._initialized = True
 
-    def _simulate_multiple_cpu_devices(self, num_devices: int) -> None:
-        """Sets a flag that tells XLA to simulate multiple CPU devices."""
-        platfrom_device_count_flag = (
-            f" --xla_force_host_platform_device_count={num_devices}"
-        )
-        os.environ["XLA_FLAGS"] = self._default_xla_flags + platfrom_device_count_flag
 
-    def _reset_xla_flags(self) -> None:
-        """Resets XLA flags to default."""
-        os.environ["XLA_FLAGS"] = self._default_xla_flags
-
-
-# `DeviceConnector._initialize_backend` must be executed before anything jax related is
+# `DeviceConnector._initialize_backend` must be executed before anything JAX related is
 # called. By providing this global instance, that is secured.
 device_connector = DeviceConnector()

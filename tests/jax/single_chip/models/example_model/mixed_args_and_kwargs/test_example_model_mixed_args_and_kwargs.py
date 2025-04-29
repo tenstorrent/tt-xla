@@ -8,7 +8,7 @@ import jax
 import pytest
 from flax import nnx
 from infra import ModelTester, RunMode
-from utils import failed_fe_compilation
+from jaxtyping import PyTree
 
 from ..model import ExampleModel
 
@@ -33,6 +33,10 @@ class ExampleModelMixedArgsAndKwargsTester(ModelTester):
         act_shape = (32, 784)
         act = jax.numpy.ones(act_shape)
         return [act]
+
+    # @override
+    def _get_input_parameters(self) -> PyTree:
+        return ()
 
     # @override
     def _get_forward_method_name(self) -> str:
