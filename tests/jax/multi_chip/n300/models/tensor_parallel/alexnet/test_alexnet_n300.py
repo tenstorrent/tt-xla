@@ -73,7 +73,7 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.pooling' op expected type of operand #1 ('tensor<2x26x26x64xbf16>') to match type of corresponding result ('tensor<2x26x26x64xbf16, #tt.mesh_sharding<\"mesh\">>') "
+        "'ttir.pooling' op expected type of operand #1 ('tensor<16x26x26x64xbf16>') to match type of corresponding result ('tensor<16x26x26x64xbf16, #tt.mesh_sharding<\"mesh\">>') "
         "(https://github.com/tenstorrent/tt-xla/issues/549)"
     )
 )
