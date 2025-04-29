@@ -17,6 +17,7 @@ from tests.utils import (
     ModelTask,
     build_model_name,
     failed_runtime,
+    failed_ttmlir_compilation,
 )
 
 MODEL_NAME = build_model_name(
@@ -53,6 +54,12 @@ def training_tester() -> AlexNetMultichipTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "tt::runtime::ttnn::operations::creation::run: subMesh.num_devices() == 1 "
+        "(https://github.com/tenstorrent/tt-xla/issues/548)"
+    )
+)
 def test_alexnet_multichip_llmbox_1x4_inference(
     inference_tester: AlexNetMultichipTester,
 ):
@@ -66,6 +73,12 @@ def test_alexnet_multichip_llmbox_1x4_inference(
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "'ttir.pooling' op expected type of operand #1 ('tensor<8x26x26x64xbf16>') to match type of corresponding result ('tensor<8x26x26x64xbf16, #tt.mesh_sharding<\"mesh\">>') "
+        "(https://github.com/tenstorrent/tt-xla/issues/549)"
+    )
 )
 def test_alexnet_multichip_llmbox_1x4_inference_shardy(
     inference_tester: AlexNetMultichipTester,
