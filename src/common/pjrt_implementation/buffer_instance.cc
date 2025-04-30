@@ -417,6 +417,14 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
   return nullptr;
 }
 
+PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
+
+  args->memory = *BufferInstance::unwrap(args->buffer)->getMemory();
+
+  return nullptr;
+}
+
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
 
@@ -426,14 +434,6 @@ PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
               buffer->createDataReadyEvent(
                   reinterpret_cast<EventInstance **>(&args->event)))
               .release();
-}
-
-PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
-
-  args->memory = *BufferInstance::unwrap(args->buffer)->getMemory();
-
-  return nullptr;
 }
 
 } // namespace internal

@@ -87,15 +87,14 @@ private:
 
 namespace internal {
 
-// Implements PJRT_Memory_AddressableByDevices API function.
-PJRT_Error *
-onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args);
+// Implements PJRT_Memory_Id API function.
+PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args);
 
 // Implements PJRT_Memory_Kind API function.
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args);
 
-// Implements PJRT_Memory_Id API function.
-PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args);
+// Implements PJRT_Memory_Kind_Id API function.
+PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args);
 
 // Implements PJRT_Memory_DebugString API function.
 PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args);
@@ -103,8 +102,9 @@ PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args);
 // Implements PJRT_Memory_ToString API function.
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args);
 
-// Implements PJRT_Memory_Kind_Id API function.
-PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args);
+// Implements PJRT_Memory_AddressableByDevices API function.
+PJRT_Error *
+onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args);
 
 } // namespace internal
 

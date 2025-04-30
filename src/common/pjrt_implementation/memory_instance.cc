@@ -71,15 +71,10 @@ DeviceInstance *MemoryInstance::getDevice() {
 
 namespace internal {
 
-PJRT_Error *
-onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
-  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
-  args->num_devices =
-      MemoryInstance::unwrap(args->memory)->getAddressableByDevices().size();
-  const std::vector<DeviceInstance *> &addressable_by_devices =
-      MemoryInstance::unwrap(args->memory)->getAddressableByDevices();
-  args->devices = const_cast<PJRT_Device **>(
-      reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data()));
+PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
+  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+  args->id = memory_instance->getId();
   return nullptr;
 }
 
@@ -91,10 +86,13 @@ PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
   return nullptr;
 }
 
-PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
-  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
+PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
+  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-  args->id = memory_instance->getId();
+  args->kind_id =
+      memory_instance->getMemoryKind() == MemoryInstance::host_memory_kind_name
+          ? 0
+          : 1;
   return nullptr;
 }
 
@@ -114,13 +112,15 @@ PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
   return nullptr;
 }
 
-PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
-  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
-  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-  args->kind_id =
-      memory_instance->getMemoryKind() == MemoryInstance::host_memory_kind_name
-          ? 0
-          : 1;
+PJRT_Error *
+onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
+  DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
+  args->num_devices =
+      MemoryInstance::unwrap(args->memory)->getAddressableByDevices().size();
+  const std::vector<DeviceInstance *> &addressable_by_devices =
+      MemoryInstance::unwrap(args->memory)->getAddressableByDevices();
+  args->devices = const_cast<PJRT_Device **>(
+      reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data()));
   return nullptr;
 }
 
