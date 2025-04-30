@@ -223,11 +223,11 @@ PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args);
 // Implements PJRT_Buffer_Device API function.
 PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args);
 
-// Implements PJRT_Buffer_ReadyEvent API function.
-PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args);
-
 // Implements PJRT_Buffer_Memory API function.
 PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args);
+
+// Implements PJRT_Buffer_ReadyEvent API function.
+PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args);
 
 } // namespace internal
 
