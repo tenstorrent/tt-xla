@@ -91,7 +91,8 @@ public:
     return m_runtime_tensor;
   }
 
-  MemoryInstance *getMemory() const { return m_memory; }
+  // Returns the memory on which this buffers resides.
+  MemoryInstance *getMemory() { return m_memory; }
 
   // Returns the size of the underlying runtime tensor, in bytes.
   size_t getRuntimeTensorSize() const;
