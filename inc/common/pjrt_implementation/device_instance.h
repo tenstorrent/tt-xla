@@ -67,7 +67,7 @@ public:
   }
 
   // Gets the default memory of this device.
-  MemoryInstance *getDefaultMemory() const { return m_default_memory; }
+  MemoryInstance *getDefaultMemory() { return m_default_memory; }
 
   // Sets default memory of this device.
   void setDefaultMemory(MemoryInstance *memory) { m_default_memory = memory; }
@@ -78,7 +78,7 @@ public:
   }
 
   // Returns vector of memories that this device can access.
-  const std::vector<MemoryInstance *> &getAddressableMemories() {
+  const std::vector<MemoryInstance *> &getAddressableMemories() const {
     return m_addressable_memories;
   }
 
@@ -99,11 +99,11 @@ private:
   // Local ID of this device unique between all addressable devices.
   int m_local_device_id;
 
-  // Vector of memories that this device can access.
+  // Vector of memories that this device can address.
   std::vector<MemoryInstance *> m_addressable_memories;
 
-  // The default memory of this device, corresponding to the memory on that
-  // device.
+  // Default addressable memory where the data processed by this device should
+  // be stored.
   MemoryInstance *m_default_memory;
 };
 

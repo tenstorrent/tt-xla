@@ -92,16 +92,16 @@ private:
   std::vector<std::unique_ptr<DeviceInstance>> m_devices;
 
   // Vector of all device memories visible to the runtime.
-  // The host memory is in the m_host_memory member.
-  std::vector<std::unique_ptr<MemoryInstance>> m_addressable_memories;
+  // The host memory is in the m_addressable_host_memory member.
+  std::vector<std::unique_ptr<MemoryInstance>> m_addressable_device_memories;
 
   // MemoryInstance object representing host memory.
-  std::unique_ptr<MemoryInstance> m_host_memory;
+  std::unique_ptr<MemoryInstance> m_addressable_host_memory;
 
   // Vector of raw pointers to all addressable memories, owned by
-  // `m_addressable_memories`. Necessary to have to be able to return it in
-  // `PJRT_Client_AddressableMemories` API call. This vector also contains the
-  // host memory, which the m_addressable_memories does not.
+  // `m_addressable_device_memories` and `m_addressable_host_memory`.
+  // Necessary to have to be able to return it in
+  // `PJRT_Client_AddressableMemories` API call.
   std::vector<MemoryInstance *> m_addressable_memories_raw;
 
   // Vector of raw pointers to all devices, owned by `m_devices`. Necessary to

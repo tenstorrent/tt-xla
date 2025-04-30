@@ -130,12 +130,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
 }
 
 tt_pjrt_status ClientInstance::populateMemories() {
-  DLOG_F(LOG_DEBUG, "ClientInstance::PopulateMemories");
-
-  m_host_memory =
+  m_addressable_host_memory =
       MemoryInstance::createInstance(m_addressable_devices_raw, /*id=*/0,
                                      MemoryInstance::host_memory_kind_name);
-  m_addressable_memories_raw.push_back(m_host_memory.get());
+  m_addressable_memories_raw.push_back(m_addressable_host_memory.get());
 
   for (size_t i = 0; i < m_devices.size(); ++i) {
     m_devices[i]->addAddressableMemory(m_addressable_memories_raw[0]);
@@ -147,7 +145,7 @@ tt_pjrt_status ClientInstance::populateMemories() {
     m_addressable_memories_raw.push_back(device_memory.get());
     m_devices[i]->addAddressableMemory(device_memory.get());
     m_devices[i]->setDefaultMemory(device_memory.get());
-    m_addressable_memories.push_back(std::move(device_memory));
+    m_addressable_device_memories.push_back(std::move(device_memory));
   }
   return tt_pjrt_status::kSuccess;
 }
@@ -202,7 +200,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
                                                std::move(addressable_devices),
-                                               m_host_memory.get());
+                                               m_addressable_host_memory.get());
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.

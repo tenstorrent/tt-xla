@@ -24,7 +24,7 @@ const std::string MemoryInstance::device_memory_kind_name = "tt_device";
 
 std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
-    std::string memory_kind) {
+    const std::string &memory_kind) {
   struct make_unique_enabler : public MemoryInstance {
     make_unique_enabler(std::vector<DeviceInstance *> &addressable_by_devices,
                         size_t id, std::string memory_kind)
@@ -48,14 +48,14 @@ void MemoryInstance::bindApi(PJRT_Api *api) {
 
 MemoryInstance::MemoryInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
-    std::string memory_kind)
+    const std::string &memory_kind)
     : m_addressable_by_devices(addressable_by_devices), m_id(id),
       m_memory_kind(memory_kind) {
   m_debug_string =
       "MemoryInstance: " + std::to_string(id) + " (" + memory_kind + ")";
 }
 
-DeviceInstance *MemoryInstance::getDevice() const {
+DeviceInstance *MemoryInstance::getDevice() {
   if (m_memory_kind == host_memory_kind_name) {
     DLOG_F(WARNING,
            "MemoryInstance::getDevice: Host memory does not have a device.");

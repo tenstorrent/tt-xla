@@ -30,18 +30,18 @@ public:
   // Creates a new memory instance.
   static std::unique_ptr<MemoryInstance>
   createInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 size_t id, std::string memory_kind);
+                 size_t id, const std::string &memory_kind);
 
   // Binds PJRT API functions implementation related to PJRT_Memory structure.
   static void bindApi(PJRT_Api *api);
 
-  // Casts the PJRT_Memory pointer to MemoryInstance pointer.
-  static MemoryInstance *unwrap(PJRT_Memory *device_description) {
-    return reinterpret_cast<MemoryInstance *>(device_description);
-  }
-
   // Casts this memory instance to PJRT_Memory pointer.
   operator PJRT_Memory *() { return reinterpret_cast<PJRT_Memory *>(this); }
+
+  // Casts the PJRT_Memory pointer to MemoryInstance pointer.
+  static MemoryInstance *unwrap(PJRT_Memory *memory) {
+    return reinterpret_cast<MemoryInstance *>(memory);
+  }
 
   // Gets the list of devices that can address this memory.
   const std::vector<DeviceInstance *> &getAddressableByDevices() const {
@@ -53,13 +53,13 @@ public:
   const std::string &getMemoryKind() const { return m_memory_kind; }
 
   // Gets the id of the memory (host - 0, device - (1, 2, ...)).
-  const size_t getId() const { return m_id; }
+  size_t getId() const { return m_id; }
 
   // Gets the debug string representing the memory.
   const std::string &getDebugString() const { return m_debug_string; }
 
   // Gets the device that the memory is on.
-  DeviceInstance *getDevice() const;
+  DeviceInstance *getDevice();
 
   // String that represents the host memory kind.
   static const std::string host_memory_kind_name;
@@ -70,7 +70,7 @@ public:
 private:
   // Private constructor to prevent direct instantiation.
   MemoryInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 size_t id, std::string memory_kind);
+                 size_t id, const std::string &memory_kind);
 
   // List of devices that can access this memory.
   std::vector<DeviceInstance *> m_addressable_by_devices;
