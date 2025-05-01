@@ -106,11 +106,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
-  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
-  // workaround flag is turned off, which the line below does.
-  // https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, false);
-
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
