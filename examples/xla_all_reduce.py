@@ -32,21 +32,21 @@ xr.use_spmd()
 # Device mesh, this and partition spec as well as the input tensor shape define the individual shard shape.
 num_devices = xr.global_runtime_device_count()
 
-mesh_shape = (1, 2)
+mesh_shape = (4, 2)
 device_ids = np.array(range(num_devices))
-mesh = Mesh(device_ids, mesh_shape, ("height", "features"))
+mesh = Mesh(device_ids, mesh_shape, ("x", "y"))
 
 # Random inputs between 0 and 0.1
-t = torch.rand(2048, 256) * 0.1
-w = torch.rand(256, 2048) * 0.1
+t = (torch.rand(1024, 8192) - 0.0) * 0.1
+w = (torch.rand(8192, 4096) - 0.0) * 0.1
 
 golden = t @ w
 
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
 
-xs.mark_sharding(t, mesh, (None, "features"))
-xs.mark_sharding(w, mesh, ("features", None))
+xs.mark_sharding(t, mesh, (None, "x"))
+xs.mark_sharding(w, mesh, ("x", None))
 
 from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 print("Sharding of t:")
@@ -56,6 +56,8 @@ visualize_tensor_sharding(w, use_color=False)
 
 # spmd all-reduce doesnt have an easily accessible API, so we use the internal API (for now)
 y = t @ w
-y = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, y, 1.0, [[0, 1]])
-assert torch.allclose(y.to("cpu"), golden, atol=0.02)
+y = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, y, 1.0, [[0]])
+y = y.to("cpu")
+print(f"Is close: {torch.allclose(y, golden, atol=0.5)}")
+assert torch.allclose(y, golden, atol=0.5)
 

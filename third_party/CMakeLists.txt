@@ -4,7 +4,7 @@
 #
 
 # @wooseokTT has created a branch to parse mhlo.sharding, which is provided differently than JAX does
-set(TT_MLIR_VERSION "wooseok/allow_gspmd_deviceids")
+set(TT_MLIR_VERSION "eb448969aaaa0152b570882849c892eeadcedc16")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
