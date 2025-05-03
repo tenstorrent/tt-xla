@@ -4,4 +4,4 @@
 """
 YOLOv3 model implementation for Tenstorrent projects.
 """
-from .loader import YOLOv3Loader
+from .loader import ModelLoader

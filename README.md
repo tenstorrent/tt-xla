@@ -12,7 +12,7 @@ This repository contains model implementations that are used for testing and ben
 ├── base.py                 # Base interface for all model loaders
 ├── yolov4/                 # YOLOv4 model implementation
 │   ├── __init__.py         # Package initialization
-│   ├── loader.py           # Public interface
+│   ├── loader.py           # Public interface - ModelLoader class
 │   └── src/                # Model implementation details
 │       ├── yolov4.py       # Main model implementation
 │       ├── downsample1.py  # Model components
@@ -30,16 +30,16 @@ This repository contains model implementations that are used for testing and ben
 
 ## Usage
 
-Each model in tt-forge-models follows the same interface pattern. Import the loader for your model and use it to load both the model and sample inputs:
+Each model in tt-forge-models follows the same standardized interface pattern. All loaders use the class name `ModelLoader` for consistency, making it easy to write generic code that works with any model.
 
 ```python
-from tt_forge_models.yolov4 import YOLOv4Loader
+from third_party.tt_forge_models.yolov4 import ModelLoader
 
-# Load model
-model = YOLOv4Loader.load_model(dtype=torch.bfloat16)
+# Load model with default settings - no parameters needed
+model = ModelLoader.load_model()
 
-# Load sample inputs
-inputs = YOLOv4Loader.load_inputs(dtype=torch.bfloat16)
+# Load sample inputs with default settings
+inputs = ModelLoader.load_inputs()
 
 # Use the model
 outputs = model(inputs)
@@ -50,9 +50,9 @@ outputs = model(inputs)
 To add a new model:
 
 1. Create a new directory for your model
-2. Create a `loader.py` file that implements the ForgeModel interface
-3. Create a `src/` directory for your model implementation files
-4. Implement `load_model()` and `load_inputs()` methods in your loader
+2. Create a `loader.py` file that implements the ForgeModel interface with a class named `ModelLoader`
+3. Create a `src/` directory for your model implementation files (if needed)
+4. Implement parameter-free `load_model()` and `load_inputs()` methods
 
 Example for a new model:
 
@@ -61,59 +61,71 @@ Example for a new model:
 from tt_forge_models.base import ForgeModel
 from .src.model import MyModel
 
-class MyModelLoader(ForgeModel):
-    @classmethod
-    def load_model(cls, dtype=None, **kwargs):
-        """Load and return the model instance."""
-        model = MyModel(**kwargs)
-
-        if dtype is not None:
-            model = model.to(dtype)
-
-        return model
+class ModelLoader(ForgeModel):
+    # Shared configuration parameters as class variables
+    param1 = "default_value"
+    param2 = 42
 
     @classmethod
-    def load_inputs(cls, dtype=None, **kwargs):
-        """Load and return sample inputs for the model."""
-        # Implementation here
-        pass
+    def load_model(cls):
+        """Load and return the model instance with default settings."""
+        model = MyModel(param1=cls.param1, param2=cls.param2)
+        return model.to(torch.bfloat16)
+
+    @classmethod
+    def load_inputs(cls):
+        """Load and return sample inputs for the model with default settings."""
+        # Create inputs with reasonable defaults
+        inputs = torch.rand(1, 3, 224, 224)
+        return inputs
 ```
 
 ## Supporting HuggingFace Models
 
-For models that are available through the HuggingFace Transformers library, you can create loader classes that delegate to the HF APIs:
+For models available through the HuggingFace Transformers library, we create wrapper loader classes that delegate to the HF APIs. This approach leverages HuggingFace's infrastructure while providing a standardized interface.
+
+Example of BERT implementation:
 
 ```python
 # bert/loader.py
+import torch
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from tt_forge_models.base import ForgeModel
 
-class BertLoader(ForgeModel):
+class ModelLoader(ForgeModel):
+    # Shared configuration parameters
+    model_name = "phiyodr/bert-large-finetuned-squad2"
+    torch_dtype = torch.bfloat16
+    context = 'Johann Joachim Winckelmann was a German art historian and archaeologist...'
+    question = "What discipline did Winkelmann create?"
+
     @classmethod
-    def load_model(cls, model_name="bert-base-uncased", dtype=None, **kwargs):
+    def load_model(cls):
         """Load a BERT model from Hugging Face."""
-        from transformers import AutoModel
-
-        model = AutoModel.from_pretrained(model_name, **kwargs)
-
-        if dtype is not None:
-            model = model.to(dtype)
-
+        model = AutoModelForQuestionAnswering.from_pretrained(
+            cls.model_name, torch_dtype=cls.torch_dtype
+        )
         return model
 
     @classmethod
-    def load_inputs(cls, batch_size=1, seq_length=128, dtype=None, **kwargs):
+    def load_inputs(cls):
         """Generate sample inputs for BERT models."""
-        import torch
+        # Initialize tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(
+            cls.model_name, padding_side="left", torch_dtype=cls.torch_dtype
+        )
 
-        # Create input tensors
-        input_ids = torch.randint(0, 30000, (batch_size, seq_length))
-        attention_mask = torch.ones((batch_size, seq_length))
+        # Create tokenized inputs
+        inputs = tokenizer.encode_plus(
+            cls.question, cls.context,
+            add_special_tokens=True,
+            return_tensors="pt",
+            max_length=256,
+            padding="max_length",
+            truncation=True,
+        )
 
-        if dtype is not None:
-            input_ids = input_ids.to(dtype)
-            attention_mask = attention_mask.to(dtype)
-
-        return {"input_ids": input_ids, "attention_mask": attention_mask}
+        return inputs
 ```
 
 ## Consuming in Other Projects
@@ -121,10 +133,13 @@ class BertLoader(ForgeModel):
 When this repository is used as a git submodule or dependency in other projects, it can be imported using the project's specific import paths:
 
 ```python
-# For models
-from tt_forge_models.yolov4 import YOLOv4Loader
-from tt_forge_models.oft import OFTLoader
+# All models use the consistent ModelLoader class name
+from third_party.tt_forge_models.yolov4 import ModelLoader
+from third_party.tt_forge_models.bert import ModelLoader
+
+# To use multiple models in the same file, use aliases
+from third_party.tt_forge_models.yolov4 import ModelLoader as YOLOv4Loader
+from third_party.tt_forge_models.bert import ModelLoader as BertLoader
 
 # For base classes and utilities
-from tt_forge_models.base import ForgeModel
-```
+from third_party.tt_forge_models.base import ForgeModel
