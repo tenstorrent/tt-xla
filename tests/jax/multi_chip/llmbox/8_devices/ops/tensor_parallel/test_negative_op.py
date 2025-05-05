@@ -23,7 +23,11 @@ from tests.utils import failed_fe_compilation
     ],
 )
 @pytest.mark.parametrize(
-    ("input_shape", "mesh_shape", "axis_names"), [((256, 256), (1, 8), ("x", "y"))]
+    ("input_shape", "mesh_shape", "axis_names"),
+    [
+        ((256, 256), (2, 4), ("x", "y")),
+        ((256, 256), (1, 8), ("x", "y")),
+    ],
 )
 @pytest.mark.parametrize(
     "multichip_mode",
