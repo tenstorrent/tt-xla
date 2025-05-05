@@ -66,23 +66,22 @@ PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args) {
   return nullptr;
 }
 
-PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
-  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
-
-  args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());
-
-  return nullptr;
-};
-
 PJRT_Error *
 onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
 
   DeviceInstance *device = DeviceInstance::unwrap(args->device);
+  args->memories = reinterpret_cast<PJRT_Memory *const *>(
+      device->getAddressableMemories().data());
   args->num_memories = device->getAddressableMemories().size();
-  args->memories =
-      const_cast<PJRT_Memory **>(reinterpret_cast<PJRT_Memory *const *>(
-          device->getAddressableMemories().data()));
+
+  return nullptr;
+};
+
+PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
+
+  args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());
 
   return nullptr;
 };

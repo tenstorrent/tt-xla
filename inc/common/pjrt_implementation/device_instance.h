@@ -118,12 +118,12 @@ PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args);
 // Implements PJRT_Device_LocalHardwareId API function.
 PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args);
 
-// Implements PJRT_Device_DefaultMemory API function.
-PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args);
-
 // Implements PJRT_Device_AddressableMemories API function.
 PJRT_Error *
 onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args);
+
+// Implements PJRT_Device_DefaultMemory API function.
+PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args);
 
 } // namespace internal
 

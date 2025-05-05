@@ -41,7 +41,7 @@
   // https://github.com/tenstorrent/tt-xla/issues/467
   _STUB(PJRT_Buffer_CopyToDevice);
 
-  // PJRT_Buffer_CopyToMemory is not used in jax or torch client, but should be implemented.
+  // PJRT_Buffer_CopyToMemory is not used in JAX or PyTorch client, but should be implemented.
   // https://github.com/tenstorrent/tt-xla/issues/537
   _STUB(PJRT_Buffer_CopyToMemory);
 

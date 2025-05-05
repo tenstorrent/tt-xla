@@ -30,7 +30,7 @@ public:
   // Creates a new memory instance.
   static std::unique_ptr<MemoryInstance>
   createInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 size_t id, const std::string &memory_kind);
+                 size_t id, bool is_host_memory);
 
   // Binds PJRT API functions implementation related to PJRT_Memory structure.
   static void bindApi(PJRT_Api *api);
@@ -48,6 +48,9 @@ public:
     return m_addressable_by_devices;
   }
 
+  // Checks if the memory is host memory.
+  bool isHostMemory() const { return m_memory_kind == c_host_memory_kind_name; }
+
   // Gets the string representing the kind of memory.
   // It can be 'tt_host' or 'tt_device'.
   const std::string &getMemoryKind() const { return m_memory_kind; }
@@ -62,15 +65,15 @@ public:
   DeviceInstance *getDevice();
 
   // String that represents the host memory kind.
-  static const std::string host_memory_kind_name;
+  static const std::string c_host_memory_kind_name;
 
   // String that represents the device memory kind.
-  static const std::string device_memory_kind_name;
+  static const std::string c_device_memory_kind_name;
 
 private:
   // Private constructor to prevent direct instantiation.
   MemoryInstance(std::vector<DeviceInstance *> &addressable_by_devices,
-                 size_t id, const std::string &memory_kind);
+                 size_t id, bool is_host_memory);
 
   // List of devices that can access this memory.
   std::vector<DeviceInstance *> m_addressable_by_devices;
@@ -110,4 +113,4 @@ onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args);
 
 } // namespace tt::pjrt
 
-#endif
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MEMORY_INSTANCE_H_

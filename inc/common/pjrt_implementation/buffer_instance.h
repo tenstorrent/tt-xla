@@ -91,7 +91,7 @@ public:
     return m_runtime_tensor;
   }
 
-  // Returns the memory on which this buffers resides.
+  // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
   // Returns the size of the underlying runtime tensor, in bytes.
@@ -157,8 +157,8 @@ private:
   // Device instance on which this buffer resides.
   DeviceInstance *m_device;
 
-  // Memory on which this buffer resides, can be nullptr if there is no memory
-  // defined.
+  // Memory on which this buffer resides, Can be nullptr if buffer is created
+  // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
   MemoryInstance *m_memory;
 
   // Underlying runtime tensor created for this buffer.

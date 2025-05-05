@@ -103,11 +103,13 @@ ExecutableImage::ExecutableImage(
   m_output_memory_kinds.reserve(m_num_outputs);
   m_output_memory_kinds_sizes.reserve(m_num_outputs);
 
+  // Currently we move all output buffers to host memory at the end of
+  // PJRT_LoadedExecutable_Execute.
   for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
     m_output_memory_kinds.emplace_back(
-        MemoryInstance::host_memory_kind_name.c_str());
+        MemoryInstance::c_host_memory_kind_name.c_str());
     m_output_memory_kinds_sizes.emplace_back(
-        MemoryInstance::host_memory_kind_name.size());
+        MemoryInstance::c_host_memory_kind_name.size());
   }
 }
 

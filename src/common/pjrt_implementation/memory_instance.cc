@@ -19,24 +19,22 @@
 
 namespace tt::pjrt {
 
-const std::string MemoryInstance::host_memory_kind_name = "tt_host";
-const std::string MemoryInstance::device_memory_kind_name = "tt_device";
+const std::string MemoryInstance::c_host_memory_kind_name = "tt_host";
+const std::string MemoryInstance::c_device_memory_kind_name = "tt_device";
 
 std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
-    const std::string &memory_kind) {
+    bool is_host_memory) {
   struct make_unique_enabler : public MemoryInstance {
     make_unique_enabler(std::vector<DeviceInstance *> &addressable_by_devices,
-                        size_t id, std::string memory_kind)
-        : MemoryInstance(addressable_by_devices, id, memory_kind) {}
+                        size_t id, bool is_host_memory)
+        : MemoryInstance(addressable_by_devices, id, is_host_memory) {}
   };
   return std::make_unique<make_unique_enabler>(addressable_by_devices, id,
-                                               memory_kind);
+                                               is_host_memory);
 }
 
 void MemoryInstance::bindApi(PJRT_Api *api) {
-  DLOG_F(LOG_DEBUG, "DeviceInstance::BindApi");
-
   api->PJRT_Memory_AddressableByDevices =
       internal::onMemoryAddressableByDevices;
   api->PJRT_Memory_Kind = internal::onMemoryKind;
@@ -48,20 +46,24 @@ void MemoryInstance::bindApi(PJRT_Api *api) {
 
 MemoryInstance::MemoryInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
-    const std::string &memory_kind)
+    bool is_host_memory)
     : m_addressable_by_devices(addressable_by_devices), m_id(id),
-      m_memory_kind(memory_kind) {
+      m_memory_kind(is_host_memory ? c_host_memory_kind_name
+                                   : c_device_memory_kind_name) {
   m_debug_string =
-      "MemoryInstance: " + std::to_string(id) + " (" + memory_kind + ")";
+      "MemoryInstance: " + std::to_string(id) + " (" + m_memory_kind + ")";
 }
 
 DeviceInstance *MemoryInstance::getDevice() {
-  if (m_memory_kind == host_memory_kind_name) {
+  DLOG_F(LOG_DEBUG, "MemoryInstance::getDevice");
+
+  if (isHostMemory()) {
     DLOG_F(WARNING,
            "MemoryInstance::getDevice: Host memory does not have a device.");
 
     return nullptr;
   }
+
   assert(m_addressable_by_devices.size() == 1 &&
          "MemoryInstance::getDevice: Device memory should have exactly one "
          "device.");
@@ -73,54 +75,63 @@ namespace internal {
 
 PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
-  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-  args->id = memory_instance->getId();
+
+  args->id = MemoryInstance::unwrap(args->memory)->getId();
+
   return nullptr;
 }
 
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind");
+
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->kind = memory_instance->getMemoryKind().data();
   args->kind_size = memory_instance->getMemoryKind().size();
+
   return nullptr;
 }
 
 PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
+
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-  args->kind_id =
-      memory_instance->getMemoryKind() == MemoryInstance::host_memory_kind_name
-          ? 0
-          : 1;
+  args->kind_id = memory_instance->isHostMemory() ? 0 : 1;
+
   return nullptr;
 }
 
 PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_DebugString");
+
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->debug_string = memory_instance->getDebugString().data();
   args->debug_string_size = memory_instance->getDebugString().size();
+
   return nullptr;
 }
 
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_ToString");
+
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
   args->to_string = memory_instance->getDebugString().data();
   args->to_string_size = memory_instance->getDebugString().size();
+
   return nullptr;
 }
 
 PJRT_Error *
 onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
-  args->num_devices =
-      MemoryInstance::unwrap(args->memory)->getAddressableByDevices().size();
+
+  const MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+
+  args->num_devices = memory_instance->getAddressableByDevices().size();
   const std::vector<DeviceInstance *> &addressable_by_devices =
-      MemoryInstance::unwrap(args->memory)->getAddressableByDevices();
-  args->devices = const_cast<PJRT_Device **>(
-      reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data()));
+      memory_instance->getAddressableByDevices();
+  args->devices =
+      reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data());
+
   return nullptr;
 }
 

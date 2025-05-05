@@ -132,21 +132,25 @@ tt_pjrt_status ClientInstance::populateDevices() {
 tt_pjrt_status ClientInstance::populateMemories() {
   m_addressable_host_memory =
       MemoryInstance::createInstance(m_addressable_devices_raw, /*id=*/0,
-                                     MemoryInstance::host_memory_kind_name);
+                                     /*is_host_memory=*/true);
   m_addressable_memories_raw.push_back(m_addressable_host_memory.get());
 
   for (size_t i = 0; i < m_devices.size(); ++i) {
-    m_devices[i]->addAddressableMemory(m_addressable_memories_raw[0]);
+    // Adding host memory to device addressable memories.
+    m_devices[i]->addAddressableMemory(m_addressable_host_memory.get());
+
+    // Adding device memory to device addressable memories.
     std::vector<DeviceInstance *> single_addressable_device = {
         m_addressable_devices_raw[i]};
     std::unique_ptr<MemoryInstance> device_memory =
         MemoryInstance::createInstance(single_addressable_device, /*id=*/i + 1,
-                                       MemoryInstance::device_memory_kind_name);
+                                       /*is_host_memory=*/false);
     m_addressable_memories_raw.push_back(device_memory.get());
     m_devices[i]->addAddressableMemory(device_memory.get());
     m_devices[i]->setDefaultMemory(device_memory.get());
     m_addressable_device_memories.push_back(std::move(device_memory));
   }
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -317,12 +321,12 @@ PJRT_Error *
 onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
 
-  args->num_addressable_memories =
-      ClientInstance::unwrap(args->client)->getAddressableMemoriesRaw().size();
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
   args->addressable_memories =
-      (PJRT_Memory *const *)(ClientInstance::unwrap(args->client)
-                                 ->getAddressableMemoriesRaw()
+      (PJRT_Memory *const *)(client_instance->getAddressableMemoriesRaw()
                                  .data());
+  args->num_addressable_memories =
+      client_instance->getAddressableMemoriesRaw().size();
 
   return nullptr;
 }
@@ -378,18 +382,21 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
-  DeviceInstance *device_instance =
-      args->memory == nullptr
-          ? DeviceInstance::unwrap(args->device)
-          : MemoryInstance::unwrap(args->memory)->getDevice();
-
   MemoryInstance *memory_instance =
       args->memory == nullptr ? nullptr : MemoryInstance::unwrap(args->memory);
+
+  DeviceInstance *device_instance = args->memory == nullptr
+                                        ? DeviceInstance::unwrap(args->device)
+                                        : memory_instance->getDevice();
 
   std::unique_ptr<BufferInstance> buffer =
       BufferInstance::createInputBufferInstance(args->type, args->dims,
                                                 args->num_dims, device_instance,
                                                 memory_instance);
+  if (memory_instance->isHostMemory()) {
+    DLOG_F(ERROR, "We only support creating buffers on device memory");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
