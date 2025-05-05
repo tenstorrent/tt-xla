@@ -565,6 +565,46 @@ void ModuleBuilder::verifyCreatedFlatbufferBinary() {
     m_status = tt_pjrt_status::kInternal;
     return;
   }
+
+  checkOutputShardingShapes(output_specs);
+}
+
+void ModuleBuilder::checkOutputShardingShapes(
+    const std::vector<tt::runtime::TensorDesc> &output_specs) {
+  for (size_t output_index = 0; output_index < output_specs.size();
+       ++output_index) {
+    const mlir::tt::sharding_utils::MeshSharding &output_sharding =
+        m_output_shardings[output_index];
+    if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
+        output_sharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+      continue;
+    }
+
+    const llvm::ArrayRef<int64_t> &shard_shape =
+        output_sharding.getShardShape();
+    const std::vector<std::uint32_t> &output_shape =
+        output_specs[output_index].shape;
+
+    if (shard_shape.size() != output_shape.size()) {
+      DLOG_F(ERROR,
+             "Output sharding shape (%zu) doesn't match the output shape (%zu)",
+             shard_shape.size(), output_shape.size());
+
+      m_status = tt_pjrt_status::kInternal;
+      return;
+    }
+
+    for (size_t shard_dim = 0; shard_dim < shard_shape.size(); ++shard_dim) {
+      if (output_shape[shard_dim] % shard_shape[shard_dim] != 0) {
+        DLOG_F(ERROR,
+               "Output shape (%u) is not divisible by the sharding shape (%zu)",
+               output_shape[shard_dim], shard_shape[shard_dim]);
+
+        m_status = tt_pjrt_status::kInternal;
+        return;
+      }
+    }
+  }
 }
 
 void ModuleBuilder::printModule(

@@ -106,11 +106,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
-  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
-  // workaround flag is turned off, which the line below does.
-  // https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, false);
-
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
@@ -323,8 +318,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
-      std::vector<std::uint32_t> output_shape =
-          getOutputShape(output_index, num_devices);
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
@@ -341,35 +335,25 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
 }
 
 std::vector<std::uint32_t>
-LoadedExecutableInstance::getOutputShape(size_t output_index,
-                                         size_t num_devices) {
+LoadedExecutableInstance::getOutputShape(size_t output_index) {
   std::vector<std::uint32_t> outputShape =
       m_executable_image->getOutputShape(output_index);
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
-  mlir::FailureOr<std::unordered_map<std::string, std::string>>
-      shardingStrategy =
-          mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
-              outputSharding, num_devices);
-  if (mlir::failed(shardingStrategy)) {
-    DLOG_F(WARNING, "No valid output sharding, returning the original shape");
+  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
+      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
     return outputShape;
   }
 
-  if (shardingStrategy->at("strategy") == "shard") {
-    assert(!outputShape.empty());
-    outputShape[0] /= num_devices;
-  } else if (shardingStrategy->at("strategy") == "shard_2d") {
-    assert(!outputShape.empty());
-    assert(outputShape[0] % std::stoi(shardingStrategy->at("mesh_shape_y")) ==
-           0);
-    assert(outputShape[1] % std::stoi(shardingStrategy->at("mesh_shape_x")) ==
-           0);
-    outputShape[0] =
-        outputShape[0] / std::stoi(shardingStrategy->at("mesh_shape_y"));
-    outputShape[1] =
-        outputShape[1] / std::stoi(shardingStrategy->at("mesh_shape_x"));
+  llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
+  assert(shard_shape.size() == outputShape.size() &&
+         "Output sharding shape doesn't match the output shape");
+
+  for (size_t i = 0; i < outputShape.size(); ++i) {
+    assert(outputShape[i] % shard_shape[i] == 0 &&
+           "Output shape is not divisible by the sharding shape");
+    outputShape[i] /= shard_shape[i];
   }
 
   return outputShape;
