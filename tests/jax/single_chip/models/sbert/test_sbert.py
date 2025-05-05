@@ -58,6 +58,9 @@ class FlaxSBERTTester(ModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+
+        # The model weights used in this test were trained on Turkish sentence pairs.
+        # These sentences below match the training data distribution.
         inputs = tokenizer(
             ["Bu örnek bir cümle", "Her cümle vektöre çevriliyor"],
             padding=True,
@@ -114,7 +117,7 @@ def training_tester() -> FlaxSBERTTester:
 )
 @pytest.mark.xfail(
     reason=failed_fe_compilation(
-        "Failed to legalize operation 'stablehlo.shift_right_logical'"
+        "Failed to legalize operation 'stablehlo.shift_right_logical'. "
         "https://github.com/tenstorrent/tt-xla/issues/417"
     )
 )
