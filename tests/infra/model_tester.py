@@ -88,6 +88,17 @@ class ModelTester(BaseTester, ABC):
 
         forward_static_args = self._get_static_argnames()
 
+        dump_tensors = True
+        if dump_tensors:
+            import jax
+            import torch
+            
+            flatten_inputs, _ = jax.tree.flatten((args, kwargs, forward_static_args))
+            
+            for i, input in enumerate(flatten_inputs):
+                tensor = torch.tensor(input)
+                torch.save(tensor, f"tensors/{i}.pt")
+        
         # Store model's forward pass method and its arguments as a workload.
         self._workload = Workload(
             forward_pass_method, args, kwargs, forward_static_args
