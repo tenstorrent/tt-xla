@@ -133,7 +133,6 @@ class MultichipTester(BaseTester):
                 mesh=self.cpu_mesh,
                 in_specs=self.in_specs,
                 out_specs=self.out_specs,
-                check_rep=False,
             )
             if sharding_mode.requires_shard_map
             else executable
@@ -158,7 +157,6 @@ class MultichipTester(BaseTester):
                 mesh=self.device_mesh,
                 in_specs=self.in_specs,
                 out_specs=self.out_specs,
-                check_rep=False,
             )
             if sharding_mode.requires_shard_map
             else executable
