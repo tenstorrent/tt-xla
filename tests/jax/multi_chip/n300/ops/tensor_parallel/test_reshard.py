@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import jax.numpy as jnp
+import jax
+import pytest
+from infra import (
+    make_partition_spec,
+    ShardingMode,
+    run_multichip_test_with_random_inputs,
+)
+
+from tests.utils import failed_ttmlir_compilation, incorrect_result
+
+def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
+    """
+    Helper function which checks test input combinations and xfails if necessary.
+
+    Extracted here in order not to pollute the test function.
+    """
+    if (not use_shardy and sharding_mode == ShardingMode.INPUTS):
+         pytest.xfail(
+            failed_ttmlir_compilation(
+                "Sharding constraint not supported in tt-mlir "
+                "(https://github.com/tenstorrent/tt-xla/issues/563)"
+            )
+        )
+    if (not use_shardy and sharding_mode == ShardingMode.INPUTS_AND_MODULE):
+        pytest.xfail(
+            incorrect_result(
+                "GSPMD sharding compilation has problems with reshaping "
+                "(https://github.com/tenstorrent/tt-xla/issues/564)"
+            )
+        )
+    
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "use_shardy",
+    [
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                reason=failed_ttmlir_compilation(
+                    "Sharding constraint not supported in tt-mlir "
+                    "(https://github.com/tenstorrent/tt-xla/issues/563)"
+                )
+            ),
+        ),
+        False
+    ],
+)
+@pytest.mark.parametrize(
+    ("input_shape", "mesh_shape", "axis_names"), [((32, 32), (1, 2), ("x", "y"))]
+)
+@pytest.mark.parametrize(
+    "sharding_mode",
+    [
+        ShardingMode.INPUTS,
+        ShardingMode.INPUTS_AND_MODULE,
+    ],
+)
+def test_add_reshard(
+    use_shardy: bool,
+    input_shape: tuple,
+    mesh_shape: tuple,
+    axis_names: tuple,
+    sharding_mode: ShardingMode,
+):
+    conditionally_skip(use_shardy, sharding_mode)
+
+    def fwd(a_block):
+        b_block = jax.lax.with_sharding_constraint(a_block, make_partition_spec([None, None]))
+        return b_block
+
+    in_specs = (make_partition_spec(axis_names),)
+    out_specs = make_partition_spec([None, None])
+
+    run_multichip_test_with_random_inputs(
+        fwd,
+        [input_shape],
+        mesh_shape,
+        axis_names,
+        in_specs,
+        out_specs,
+        use_shardy,
+        sharding_mode,
+    )
