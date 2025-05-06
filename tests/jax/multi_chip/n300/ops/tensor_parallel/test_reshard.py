@@ -13,27 +13,28 @@ from infra import (
 
 from tests.utils import failed_ttmlir_compilation, incorrect_result
 
+
 def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
     """
     Helper function which checks test input combinations and xfails if necessary.
 
     Extracted here in order not to pollute the test function.
     """
-    if (not use_shardy and sharding_mode == ShardingMode.INPUTS):
-         pytest.xfail(
+    if not use_shardy and sharding_mode == ShardingMode.INPUTS:
+        pytest.xfail(
             failed_ttmlir_compilation(
                 "Sharding constraint not supported in tt-mlir "
                 "(https://github.com/tenstorrent/tt-xla/issues/563)"
             )
         )
-    if (not use_shardy and sharding_mode == ShardingMode.INPUTS_AND_MODULE):
+    if not use_shardy and sharding_mode == ShardingMode.INPUTS_AND_MODULE:
         pytest.xfail(
             incorrect_result(
                 "GSPMD sharding compilation has problems with reshaping "
                 "(https://github.com/tenstorrent/tt-xla/issues/564)"
             )
         )
-    
+
 
 @pytest.mark.nightly
 @pytest.mark.push
@@ -49,7 +50,7 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
                 )
             ),
         ),
-        False
+        False,
     ],
 )
 @pytest.mark.parametrize(
@@ -72,7 +73,9 @@ def test_add_reshard(
     conditionally_skip(use_shardy, sharding_mode)
 
     def fwd(a_block):
-        b_block = jax.lax.with_sharding_constraint(a_block, make_partition_spec([None, None]))
+        b_block = jax.lax.with_sharding_constraint(
+            a_block, make_partition_spec([None, None])
+        )
         return b_block
 
     in_specs = (make_partition_spec(axis_names),)
