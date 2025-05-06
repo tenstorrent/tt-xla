@@ -27,13 +27,6 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
                 "(https://github.com/tenstorrent/tt-xla/issues/563)"
             )
         )
-    if not use_shardy and sharding_mode == ShardingMode.INPUTS_AND_MODULE:
-        pytest.xfail(
-            incorrect_result(
-                "GSPMD sharding compilation has problems with reshaping "
-                "(https://github.com/tenstorrent/tt-xla/issues/564)"
-            )
-        )
 
 
 @pytest.mark.nightly
@@ -79,7 +72,7 @@ def test_add_reshard(
         return b_block
 
     in_specs = (make_partition_spec(axis_names),)
-    out_specs = make_partition_spec([None, None])
+    out_specs = make_partition_spec([axis_names[1], axis_names[0]])
 
     run_multichip_test_with_random_inputs(
         fwd,
