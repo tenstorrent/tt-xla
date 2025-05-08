@@ -29,16 +29,19 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    MemoryInstance *host_memory) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        MemoryInstance *host_memory)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   host_memory) {}
   };
 
-  return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+  return std::make_unique<make_unique_enabler>(
+      std::move(executable_image), std::move(addressable_devices), host_memory);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -97,7 +100,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices);
+      openDevices(args->argument_lists, args->num_args, args->num_devices,
+                  args->execute_device);
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
@@ -163,7 +167,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
 std::optional<tt::runtime::Device>
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
-                                      size_t num_args, size_t num_devices) {
+                                      size_t num_args, size_t num_devices,
+                                      PJRT_Device *pjrt_device) {
   std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
 
@@ -178,6 +183,15 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
            "Input buffers are placed on a different number of devices (%zu) "
            "than in the mesh shape estimated by the compiler (%zu)",
            device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+  if (device_instance &&
+      !(device_ids.size() == 1 &&
+        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                  "specified in the execute_device argument");
     return std::nullopt;
   }
 
@@ -323,7 +337,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
-              m_addressable_devices[device_index]);
+              m_addressable_devices[device_index], m_host_memory);
 
       output_buffer->markAsDataReady();
 
@@ -430,13 +444,8 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
-  tt_pjrt_status status;
-  if (args->execute_device) {
-    DLOG_F(ERROR, "Executing on a specific single device is not supported");
-    status = tt_pjrt_status::kUnimplemented;
-  } else {
-    status = LoadedExecutableInstance::unwrap(args->executable)->execute(args);
-  }
+  tt_pjrt_status status =
+      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
 
   return *ErrorInstance::makeError(status).release();
 }

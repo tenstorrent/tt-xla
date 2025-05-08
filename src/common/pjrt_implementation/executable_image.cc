@@ -10,7 +10,9 @@
 
 #include "common/pjrt_implementation/executable_image.h"
 
+// tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/memory_instance.h"
 
 namespace tt::pjrt {
 
@@ -96,6 +98,18 @@ ExecutableImage::ExecutableImage(
     for (std::uint32_t dim : m_output_dimensions[output_index]) {
       m_output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
     }
+  }
+
+  m_output_memory_kinds.reserve(m_num_outputs);
+  m_output_memory_kinds_sizes.reserve(m_num_outputs);
+
+  // Currently we move all output buffers to host memory at the end of
+  // PJRT_LoadedExecutable_Execute.
+  for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
+    m_output_memory_kinds.emplace_back(
+        MemoryInstance::c_host_memory_kind_name.c_str());
+    m_output_memory_kinds_sizes.emplace_back(
+        MemoryInstance::c_host_memory_kind_name.size());
   }
 }
 

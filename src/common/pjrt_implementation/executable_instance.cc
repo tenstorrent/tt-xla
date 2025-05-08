@@ -45,6 +45,8 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onExecutableOutputElementTypes;
   api->PJRT_Executable_OutputDimensions =
       internal::onExecutableOutputDimensions;
+  api->PJRT_Executable_OutputMemoryKinds =
+      internal::onExecutableOutputMemoryKinds;
 }
 
 namespace internal {
@@ -190,6 +192,23 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
 
   return nullptr;
 }
+
+PJRT_Error *
+onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
+
+  ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+  args->num_outputs =
+      executable_instance->getExecutableImage()->getNumOutputs();
+  args->memory_kinds =
+      executable_instance->getExecutableImage()->getOutputMemoryKinds().data();
+  args->memory_kind_sizes = executable_instance->getExecutableImage()
+                                ->getOutputMemoryKindsSizes()
+                                .data();
+
+  return nullptr;
+};
 
 } // namespace internal
 

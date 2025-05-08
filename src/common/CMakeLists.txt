@@ -30,6 +30,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/executable_image.cc"
     "pjrt_implementation/executable_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/memory_instance.cc"
 )
 add_dependencies(TTPJRTCommon tt-mlir loguru)
 target_include_directories(TTPJRTCommon PUBLIC

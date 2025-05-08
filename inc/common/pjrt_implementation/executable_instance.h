@@ -91,6 +91,10 @@ onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args);
 PJRT_Error *
 onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args);
 
+// Implements PJRT_Executable_OutputMemoryKinds API function.
+PJRT_Error *
+onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt

@@ -22,6 +22,8 @@
 
 namespace tt::pjrt {
 
+class MemoryInstance;
+
 // Represents PJRT_Device structure and the functionality around it.
 class DeviceInstance {
 public:
@@ -64,6 +66,22 @@ public:
     m_description.setProcessIndex(process_index);
   }
 
+  // Gets the default memory of this device.
+  MemoryInstance *getDefaultMemory() { return m_default_memory; }
+
+  // Sets default memory of this device.
+  void setDefaultMemory(MemoryInstance *memory) { m_default_memory = memory; }
+
+  // Adds addressable memory to this device.
+  void addAddressableMemory(MemoryInstance *memory) {
+    m_addressable_memories.push_back(memory);
+  }
+
+  // Returns vector of memories that this device can access.
+  const std::vector<MemoryInstance *> &getAddressableMemories() const {
+    return m_addressable_memories;
+  }
+
 private:
   // Constructor.
   DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,
@@ -80,6 +98,13 @@ private:
 
   // Local ID of this device unique between all addressable devices.
   int m_local_device_id;
+
+  // Vector of memories that this device can address.
+  std::vector<MemoryInstance *> m_addressable_memories;
+
+  // Default addressable memory where the data processed by this device should
+  // be stored.
+  MemoryInstance *m_default_memory;
 };
 
 namespace internal {
@@ -92,6 +117,13 @@ PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args);
 
 // Implements PJRT_Device_LocalHardwareId API function.
 PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args);
+
+// Implements PJRT_Device_AddressableMemories API function.
+PJRT_Error *
+onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args);
+
+// Implements PJRT_Device_DefaultMemory API function.
+PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args);
 
 } // namespace internal
 

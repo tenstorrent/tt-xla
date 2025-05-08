@@ -11,6 +11,7 @@
 #include "common/pjrt_implementation/device_instance.h"
 
 // tt-xla includes
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -33,6 +34,8 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Device_GetDescription = internal::onDeviceGetDescription;
   api->PJRT_Device_IsAddressable = internal::onDeviceIsAddressable;
   api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
+  api->PJRT_Device_AddressableMemories = internal::onDeviceAddressableMemories;
+  api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
 }
 
 namespace internal {
@@ -62,6 +65,26 @@ PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args) {
 
   return nullptr;
 }
+
+PJRT_Error *
+onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
+
+  DeviceInstance *device = DeviceInstance::unwrap(args->device);
+  args->memories = reinterpret_cast<PJRT_Memory *const *>(
+      device->getAddressableMemories().data());
+  args->num_memories = device->getAddressableMemories().size();
+
+  return nullptr;
+};
+
+PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
+
+  args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());
+
+  return nullptr;
+};
 
 } // namespace internal
 

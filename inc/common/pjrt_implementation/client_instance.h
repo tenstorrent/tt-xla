@@ -18,6 +18,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
 
@@ -65,6 +66,10 @@ public:
     return m_addressable_devices_raw;
   }
 
+  const std::vector<MemoryInstance *> &getAddressableMemoriesRaw() const {
+    return m_addressable_memories_raw;
+  }
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
                                     LoadedExecutableInstance **out_executable);
@@ -75,6 +80,7 @@ protected:
 
 private:
   tt_pjrt_status populateDevices();
+  tt_pjrt_status populateMemories();
 
   std::unique_ptr<Platform> platform_;
 
@@ -93,6 +99,19 @@ private:
   // owned by `m_devices`. Necessary to have to be able to return it in
   // `PJRT_Client_AddressableDevices` API call.
   std::vector<DeviceInstance *> m_addressable_devices_raw;
+
+  // Vector of all device memories visible to the runtime.
+  // The host memory is in the m_addressable_host_memory member.
+  std::vector<std::unique_ptr<MemoryInstance>> m_addressable_device_memories;
+
+  // MemoryInstance object representing host memory.
+  std::unique_ptr<MemoryInstance> m_addressable_host_memory;
+
+  // Vector of raw pointers to all addressable memories, owned by
+  // `m_addressable_device_memories` and `m_addressable_host_memory`.
+  // Necessary to have to be able to return it in
+  // `PJRT_Client_AddressableMemories` API call.
+  std::vector<MemoryInstance *> m_addressable_memories_raw;
 
   // Module builder that compiles program code.
   std::unique_ptr<ModuleBuilder> m_module_builder;

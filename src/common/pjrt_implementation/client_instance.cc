@@ -22,6 +22,7 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 
 namespace tt::pjrt {
 
@@ -50,8 +51,17 @@ ClientInstance::~ClientInstance() {
 
 PJRT_Error *ClientInstance::Initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
+  tt_pjrt_status device_status = populateDevices();
+  if (!tt_pjrt_status_is_ok(device_status)) {
+    return *ErrorInstance::makeError(device_status).release();
+  }
 
-  return *ErrorInstance::makeError(populateDevices()).release();
+  tt_pjrt_status memory_status = populateMemories();
+  if (!tt_pjrt_status_is_ok(memory_status)) {
+    return *ErrorInstance::makeError(memory_status).release();
+  }
+
+  return nullptr;
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
@@ -119,6 +129,31 @@ tt_pjrt_status ClientInstance::populateDevices() {
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status ClientInstance::populateMemories() {
+  m_addressable_host_memory =
+      MemoryInstance::createInstance(m_addressable_devices_raw, /*id=*/0,
+                                     /*is_host_memory=*/true);
+  m_addressable_memories_raw.push_back(m_addressable_host_memory.get());
+
+  for (size_t i = 0; i < m_devices.size(); ++i) {
+    // Adding host memory to device addressable memories.
+    m_devices[i]->addAddressableMemory(m_addressable_host_memory.get());
+
+    // Adding device memory to device addressable memories.
+    std::vector<DeviceInstance *> single_addressable_device = {
+        m_addressable_devices_raw[i]};
+    std::unique_ptr<MemoryInstance> device_memory =
+        MemoryInstance::createInstance(single_addressable_device, /*id=*/i + 1,
+                                       /*is_host_memory=*/false);
+    m_addressable_memories_raw.push_back(device_memory.get());
+    m_devices[i]->addAddressableMemory(device_memory.get());
+    m_devices[i]->setDefaultMemory(device_memory.get());
+    m_addressable_device_memories.push_back(std::move(device_memory));
+  }
+
+  return tt_pjrt_status::kSuccess;
+}
+
 tt_pjrt_status
 ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
                                    LoadedExecutableInstance **out_executable) {
@@ -168,7 +203,8 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               m_addressable_host_memory.get());
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
@@ -285,9 +321,12 @@ PJRT_Error *
 onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
 
-  // TODO(mrakita): Revisit this implementation.
-  args->num_addressable_memories = 0;
-  args->addressable_memories = nullptr;
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  args->addressable_memories =
+      (PJRT_Memory *const *)(client_instance->getAddressableMemoriesRaw()
+                                 .data());
+  args->num_addressable_memories =
+      client_instance->getAddressableMemoriesRaw().size();
 
   return nullptr;
 }
@@ -330,11 +369,6 @@ PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
 
-  if (args->memory) {
-    DLOG_F(ERROR, "Copying to custom memory is not supported");
-    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
-  }
-
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
     DLOG_F(ERROR,
@@ -348,10 +382,21 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+
+  if (memory_instance && memory_instance->isHostMemory()) {
+    DLOG_F(ERROR, "We only support creating buffers on device memory");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  DeviceInstance *device_instance = memory_instance
+                                        ? memory_instance->getDevice()
+                                        : DeviceInstance::unwrap(args->device);
+
   std::unique_ptr<BufferInstance> buffer =
-      BufferInstance::createInputBufferInstance(
-          args->type, args->dims, args->num_dims,
-          DeviceInstance::unwrap(args->device));
+      BufferInstance::createInputBufferInstance(args->type, args->dims,
+                                                args->num_dims, device_instance,
+                                                memory_instance);
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
