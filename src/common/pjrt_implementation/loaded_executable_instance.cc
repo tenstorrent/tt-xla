@@ -113,7 +113,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
   // workaround flag is turned off, which the line below does.
   // https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, true);
+  tt::runtime::workaround::Env::get(true, true, false);
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
