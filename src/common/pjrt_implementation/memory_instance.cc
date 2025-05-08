@@ -48,10 +48,9 @@ MemoryInstance::MemoryInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
     bool is_host_memory)
     : m_addressable_by_devices(addressable_by_devices), m_id(id),
-      m_memory_kind(is_host_memory ? c_host_memory_kind_name
-                                   : c_device_memory_kind_name) {
+      m_is_host_memory(is_host_memory) {
   m_debug_string =
-      "MemoryInstance: " + std::to_string(id) + " (" + m_memory_kind + ")";
+      "MemoryInstance: " + std::to_string(id) + " (" + getMemoryKind() + ")";
 }
 
 DeviceInstance *MemoryInstance::getDevice() {
@@ -125,12 +124,12 @@ onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
 
   const MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-
-  args->num_devices = memory_instance->getAddressableByDevices().size();
   const std::vector<DeviceInstance *> &addressable_by_devices =
       memory_instance->getAddressableByDevices();
+
   args->devices =
       reinterpret_cast<PJRT_Device *const *>(addressable_by_devices.data());
+  args->num_devices = addressable_by_devices.size();
 
   return nullptr;
 }

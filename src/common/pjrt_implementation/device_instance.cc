@@ -34,8 +34,8 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Device_GetDescription = internal::onDeviceGetDescription;
   api->PJRT_Device_IsAddressable = internal::onDeviceIsAddressable;
   api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
-  api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
   api->PJRT_Device_AddressableMemories = internal::onDeviceAddressableMemories;
+  api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
 }
 
 namespace internal {

@@ -49,14 +49,17 @@ public:
   }
 
   // Checks if the memory is host memory.
-  bool isHostMemory() const { return m_memory_kind == c_host_memory_kind_name; }
+  bool isHostMemory() const { return m_is_host_memory; }
 
   // Gets the string representing the kind of memory.
   // It can be 'tt_host' or 'tt_device'.
-  const std::string &getMemoryKind() const { return m_memory_kind; }
+  const std::string &getMemoryKind() const {
+    return m_is_host_memory ? MemoryInstance::c_host_memory_kind_name
+                            : MemoryInstance::c_device_memory_kind_name;
+  }
 
   // Gets the id of the memory (host - 0, device - (1, 2, ...)).
-  size_t getId() const { return m_id; }
+  int getId() const { return m_id; }
 
   // Gets the debug string representing the memory.
   const std::string &getDebugString() const { return m_debug_string; }
@@ -78,11 +81,11 @@ private:
   // List of devices that can access this memory.
   std::vector<DeviceInstance *> m_addressable_by_devices;
 
-  // String representing the kind of memory, can be 'tt_host' or 'tt_device'.
-  std::string m_memory_kind;
+  // Denotes if the memory is host memory.
+  bool m_is_host_memory;
 
   // Id of the memory.
-  size_t m_id;
+  int m_id;
 
   // Debug string of the memory.
   std::string m_debug_string;

@@ -100,7 +100,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices);
+      openDevices(args->argument_lists, args->num_args, args->num_devices,
+                  args->execute_device);
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
@@ -112,7 +113,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
   // workaround flag is turned off, which the line below does.
   // https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, false);
+  tt::runtime::workaround::Env::get(true, true, true);
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
@@ -171,7 +172,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
 std::optional<tt::runtime::Device>
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
-                                      size_t num_args, size_t num_devices) {
+                                      size_t num_args, size_t num_devices,
+                                      PJRT_Device *pjrt_device) {
   std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
 
@@ -186,6 +188,15 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
            "Input buffers are placed on a different number of devices (%zu) "
            "than in the mesh shape estimated by the compiler (%zu)",
            device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+  if (device_instance &&
+      !(device_ids.size() == 1 &&
+        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                  "specified in the execute_device argument");
     return std::nullopt;
   }
 

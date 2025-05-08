@@ -94,7 +94,7 @@ private:
   // corresponding devices count in the mesh shape estimated by the compiler.
   std::optional<tt::runtime::Device>
   openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-              size_t num_devices);
+              size_t num_devices, PJRT_Device *pjrt_device);
 
   // Collects device ids from the addressable devices.
   std::unordered_set<int>

@@ -382,21 +382,21 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
-  MemoryInstance *memory_instance =
-      args->memory == nullptr ? nullptr : MemoryInstance::unwrap(args->memory);
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
 
-  DeviceInstance *device_instance = args->memory == nullptr
-                                        ? DeviceInstance::unwrap(args->device)
-                                        : memory_instance->getDevice();
+  if (memory_instance && memory_instance->isHostMemory()) {
+    DLOG_F(ERROR, "We only support creating buffers on device memory");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  DeviceInstance *device_instance = memory_instance
+                                        ? memory_instance->getDevice()
+                                        : DeviceInstance::unwrap(args->device);
 
   std::unique_ptr<BufferInstance> buffer =
       BufferInstance::createInputBufferInstance(args->type, args->dims,
                                                 args->num_dims, device_instance,
                                                 memory_instance);
-  if (memory_instance->isHostMemory()) {
-    DLOG_F(ERROR, "We only support creating buffers on device memory");
-    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
-  }
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
