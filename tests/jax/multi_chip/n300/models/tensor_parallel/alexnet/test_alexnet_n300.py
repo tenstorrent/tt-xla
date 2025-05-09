@@ -71,7 +71,7 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Assertion `meshShape.size() == 2' failed "
         "(https://github.com/tenstorrent/tt-mlir/issues/3130)"
