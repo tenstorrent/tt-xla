@@ -7,7 +7,7 @@ from typing import Dict, Sequence
 import jax
 import jax.numpy as jnp
 import jax.random as random
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, ModelTester, RunMode, create_random_input_image
 from transformers import (
     FlaxPreTrainedModel,
     FlaxViTForImageClassification,
@@ -40,10 +40,7 @@ class ViTTester(ModelTester):
     def _get_input_activations(self) -> jax.Array:
         model_config = ViTConfig.from_pretrained(self._model_path)
         image_size = model_config.image_size
-        key = random.PRNGKey(0)
-        random_image = random.randint(
-            key, (image_size, image_size, 3), 0, 256, dtype=jnp.uint8
-        )
+        random_image = create_random_input_image(image_size)
 
         processor = ViTImageProcessor.from_pretrained(self._model_path)
         inputs = processor(images=random_image, return_tensors="jax")
