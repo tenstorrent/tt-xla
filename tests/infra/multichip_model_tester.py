@@ -7,9 +7,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Mapping, Sequence, Union
 
+import jax
 from flax import linen
 from jax.experimental.shard_map import shard_map
-from jax.sharding import Mesh, PartitionSpec
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from jaxtyping import PyTree
 
 from .comparison import ComparisonConfig
@@ -131,15 +132,17 @@ class MultichipModelTester(ModelTester, ABC):
     ) -> Callable:
         """JIT-compiles model's forward pass into optimized kernels for the given device
         mesh."""
-        return super()._compile(
+        # Assuming replicated outputs for now.
+        out_spec = PartitionSpec()
+        return jax.jit(
             shard_map(
                 self._workload.executable,
                 device_mesh,
                 in_specs=forward_method_arg_specs,
-                # Assuming replicated outputs for now.
-                out_specs=PartitionSpec(),
+                out_specs=out_spec,
                 # For some reason this check doesn't like replicated outputs.
                 check_rep=False,
             ),
-            self._workload.static_argnames,
+            out_shardings=NamedSharding(device_mesh, out_spec),
+            static_argnames=self._workload.static_argnames,
         )

@@ -30,9 +30,8 @@ class AlexNetMultichipTester(MultichipModelTester):
         self.main_axis_name = "X"
         self.num_devices = num_devices
 
-        # Currently we support only 2D mesh with shardy enabled.
-        mesh_shape = (1, self.num_devices)
-        axis_names = ("Y", self.main_axis_name)
+        mesh_shape = (self.num_devices,)
+        axis_names = (self.main_axis_name,)
 
         super().__init__(mesh_shape, axis_names, comparison_config, run_mode)
 
