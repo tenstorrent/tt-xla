@@ -14,7 +14,7 @@ from tests.utils import (
     ModelTask,
     build_model_name,
     failed_runtime,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from .tester import AlexNetMultichipTester
@@ -54,9 +54,9 @@ def training_tester() -> AlexNetMultichipTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "tt::runtime::ttnn::operations::creation::run: subMesh.num_devices() == 1 "
-        "(https://github.com/tenstorrent/tt-xla/issues/548)"
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
@@ -72,9 +72,9 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     run_mode=RunMode.INFERENCE,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "'ttir.pooling' op expected type of operand #1 ('tensor<16x26x26x64xbf16>') to match type of corresponding result ('tensor<16x26x26x64xbf16, #tt.mesh_sharding<\"mesh\">>') "
-        "(https://github.com/tenstorrent/tt-xla/issues/549)"
+    reason=failed_runtime(
+        "Assertion `meshShape.size() == 2' failed "
+        "(https://github.com/tenstorrent/tt-mlir/issues/3130)"
     )
 )
 def test_alexnet_multichip_n300_inference_shardy(
