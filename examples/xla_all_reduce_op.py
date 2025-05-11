@@ -39,11 +39,32 @@ mesh_shape = (4, 2)
 device_ids = np.array(range(num_devices))
 mesh = Mesh(device_ids, mesh_shape, ("x", "y"))
 
-# Random inputs between 0 and 0.1
-t = (torch.rand(1024, 8192) - 0.0) * 0.1
-w = (torch.rand(8192, 4096) - 0.0) * 0.1
+# Hangs (board needs reset after running these inputs)
+# t = torch.full((800, 800), 1, dtype=torch.bfloat16)
+# w = torch.full((800, 800), 2, dtype=torch.bfloat16)
+
+# Floating point exception (segfault)
+# t = torch.full((32, 32), 0.1)
+# w = torch.full((32, 32), 0.1)
+
+# Gives wrong matmul result
+# t = torch.full((320, 320), 0.1)
+# w = torch.full((320, 320), 0.2)
+
+# Works
+t = torch.full((3200, 3200), 0.1)
+w = torch.full((3200, 3200), 0.2)
+
+# Seg faults
+# t = torch.full((3200, 3200), 1)
+# w = torch.full((3200, 3200), 2)
+
+# Original (works)
+# t = (torch.rand(1024, 8192) - 0.0) * 0.1
+# w = (torch.rand(8192, 4096) - 0.0) * 0.1
 
 golden = t @ w
+# golden = t + w
 
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
@@ -60,6 +81,7 @@ visualize_tensor_sharding(w, use_color=False)
 
 # spmd all-reduce doesnt have an easily accessible API, so we use the internal API (for now)
 y = t @ w
+# y = t + w
 y = torch_xla._XLAC._xla_spmd_all_reduce(xm.REDUCE_SUM, y, 1.0, [[0]])
 # y = xm.all_reduce(xm.REDUCE_SUM, y)
 y = y.to("cpu")
