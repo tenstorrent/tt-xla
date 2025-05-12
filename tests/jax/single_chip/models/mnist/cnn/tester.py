@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Type
 
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
+from utilities.types import Model
 
 
 class MNISTCNNTester(ModelTester):
@@ -15,7 +16,7 @@ class MNISTCNNTester(ModelTester):
 
     def __init__(
         self,
-        model_class,
+        model_class: Type[Model],
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
@@ -32,9 +33,8 @@ class MNISTCNNTester(ModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        img = jnp.ones((4, 28, 28, 1))  # B, H, W, C
         # Channels is 1 as MNIST is in grayscale.
-        return img
+        return jnp.ones((4, 28, 28, 1))  # B, H, W, C
 
     # @override
     def _get_forward_method_args(self):

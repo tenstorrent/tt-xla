@@ -6,34 +6,34 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
+from comparators import ComparisonConfig
+from utilities.types import Framework, Tensor
+from utilities.utils import random_tensor
+from utilities.workloads import Workload, WorkloadFactory
+
 from .base_tester import BaseTester
-from .comparison import ComparisonConfig
-from .device_runner import DeviceRunner
-from .types import Tensor
-from .utils import random_tensor
-from .workload import Workload
 
 
 class OpTester(BaseTester):
     """Specific tester for ops."""
 
+    # -------------------- Public methods --------------------
+
     def __init__(
-        self, comparison_config: ComparisonConfig = ComparisonConfig()
+        self,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        framework: Framework = Framework.JAX,
     ) -> None:
-        super().__init__(comparison_config)
+        super().__init__(comparison_config, framework)
 
     def test(self, workload: Workload) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        compiled_executable = self._compile(workload.executable)
+        compiled_workload = self._compile(workload)
 
-        compiled_workload = Workload(
-            compiled_executable, workload.args, workload.kwargs
-        )
-
-        tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
-        cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
+        tt_res = self._run_on_tt_device(compiled_workload)
+        cpu_res = self._run_on_cpu(compiled_workload)
 
         self._compare(tt_res, cpu_res)
 
@@ -49,23 +49,38 @@ class OpTester(BaseTester):
         TT device and CPU and comparing the results.
         """
         inputs = [
-            random_tensor(shape, minval=minval, maxval=maxval) for shape in input_shapes
+            random_tensor(
+                shape,
+                minval=minval,
+                maxval=maxval,
+                framework=self._framework,
+            )
+            for shape in input_shapes
         ]
-        workload = Workload(f, inputs)
+        workload = WorkloadFactory(self._framework).create_workload(
+            executable=f, args=inputs
+        )
         self.test(workload)
+
+    # -------------------- Private methods --------------------
+
+    # @override
+    def _initialize_all_components(self) -> None:
+        self._initialize_framework_specific_helpers()
 
 
 def run_op_test(
     op: Callable,
     inputs: Sequence[Tensor],
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
     results based on `comparison_config`.
     """
-    tester = OpTester(comparison_config)
-    workload = Workload(op, inputs)
+    tester = OpTester(comparison_config, framework)
+    workload = WorkloadFactory(framework).create_workload(executable=op, args=inputs)
     tester.test(workload)
 
 
@@ -75,10 +90,11 @@ def run_op_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
     TT device and CPU and comparing the results based on `comparison_config`.
     """
-    tester = OpTester(comparison_config)
+    tester = OpTester(comparison_config, framework)
     tester.test_with_random_inputs(op, input_shapes, minval, maxval)
