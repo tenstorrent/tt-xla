@@ -6,12 +6,7 @@ from typing import Dict
 
 import jax
 from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import (
-    AutoTokenizer,
-    FlaxPreTrainedModel,
-    FlaxGPTJForCausalLM,
-)
-from jaxtyping import PyTree
+from transformers import AutoTokenizer, FlaxGPTJForCausalLM, FlaxPreTrainedModel
 
 
 class GPTJTester(ModelTester):
@@ -35,14 +30,6 @@ class GPTJTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello, my dog is cute", return_tensors="jax")
         return inputs
-
-    # @overridde
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):

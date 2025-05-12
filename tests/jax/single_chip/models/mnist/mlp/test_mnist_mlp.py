@@ -8,6 +8,7 @@ import jax
 import pytest
 from flax import linen as nn
 from infra import ComparisonConfig, Framework, ModelTester, RunMode
+from jaxtyping import PyTree
 
 from tests.utils import (
     BringupStatus,
@@ -55,17 +56,14 @@ class MNISTMLPTester(ModelTester):
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
         key = jax.random.PRNGKey(37)
-        img = jax.random.normal(key, (4, 28, 28, 1))  # B, H, W, C
+        # B, H, W, C
         # Channels is 1 as MNIST is in grayscale.
+        img = jax.random.normal(key, (4, 28, 28, 1))
         return img
 
     # @override
-    def _get_forward_method_args(self):
-        inp = self._get_input_activations()
-
-        parameters = self._model.init(jax.random.PRNGKey(42), inp)
-
-        return [parameters, inp]
+    def _get_input_parameters(self) -> PyTree:
+        return self._model.init(jax.random.PRNGKey(42), self._input_activations)
 
 
 # ----- Fixtures -----

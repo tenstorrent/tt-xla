@@ -7,12 +7,12 @@ from typing import Dict
 import jax
 import jax.numpy as jnp
 from infra import ComparisonConfig, ModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
-    FlaxPreTrainedModel,
     FlaxMT5ForConditionalGeneration,
+    FlaxPreTrainedModel,
 )
-from jaxtyping import PyTree
 
 
 class MT5Tester(ModelTester):
@@ -46,15 +46,14 @@ class MT5Tester(ModelTester):
 
     # @overridde
     def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         decoder_input_ids = tokenizer(
             text_target="Weiter Verhandlung in Syrien.", return_tensors="jax"
         ).input_ids
         return {
-            "params": self._model.params,
+            "params": self._input_parameters,
             "decoder_input_ids": decoder_input_ids,
-            **self._get_input_activations(),
+            **self._input_activations,
         }
 
     # @override

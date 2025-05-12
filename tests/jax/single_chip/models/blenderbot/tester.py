@@ -8,10 +8,9 @@ import jax
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import (
     AutoTokenizer,
-    FlaxPreTrainedModel,
     FlaxBlenderbotForConditionalGeneration,
+    FlaxPreTrainedModel,
 )
-from jaxtyping import PyTree
 
 
 class BlenderBotTester(ModelTester):
@@ -42,14 +41,6 @@ class BlenderBotTester(ModelTester):
             truncation=True,
             return_tensors="jax",
         )
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):
