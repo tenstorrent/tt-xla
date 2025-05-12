@@ -23,6 +23,13 @@ def _str_to_dtype(dtype_str: str, framework: Framework = Framework.JAX):
         raise ValueError(f"Unsupported framework: {framework.value}.")
 
 
+def create_random_input_image(image_size: int) -> jax.Array:
+    """Create a random input image with the given image size."""
+    return random_tensor(
+        (image_size, image_size, 3), dtype=jnp.uint8, minval=0, maxval=256
+    )
+
+
 @run_on_cpu
 def random_tensor(
     shape: tuple,
