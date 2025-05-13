@@ -32,7 +32,7 @@ xr.use_spmd()
 # Device mesh, this and partition spec as well as the input tensor shape define the individual shard shape.
 num_devices = xr.global_runtime_device_count()
 
-mesh_shape = (4, 2)
+mesh_shape = (2, 4)
 device_ids = np.array(range(num_devices))
 mesh = Mesh(device_ids, mesh_shape, ("x", "y"))
 
