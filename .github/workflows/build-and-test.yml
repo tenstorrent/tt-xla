@@ -50,7 +50,7 @@ permissions:
 jobs:
 
   build-image:
-    runs-on: n300
+    runs-on: tt-beta-ubuntu-2204-large
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
     steps:
@@ -97,7 +97,6 @@ jobs:
         build: ${{ fromJson(inputs.build_options) }}
 
     runs-on:
-      - in-service
       - ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step
@@ -238,10 +237,24 @@ jobs:
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload test results to Codecov
-      if: success() || failure()
-      uses: codecov/test-results-action@v1
-      with:
-        files: ${{ steps.strings.outputs.test_report_path }}
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+  upload-codecov-results:
+    needs: build-and-run-tests
+    runs-on: ubuntu-latest
+    if: success() || failure()
+    steps:
+      - name: Download all test reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-reports-*
+          path: test-reports
+
+      - name: List downloaded test reports
+        shell: bash
+        run: find test-reports -type f -name "*.xml"
+
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        with:
+          files: test-reports/*.xml
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}
