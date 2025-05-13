@@ -502,6 +502,12 @@ void ModuleBuilder::collectNumDevicesToUtilize(
     // the mesh shape.
     DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
                     "the number of devices from mesh shape");
+    std::string mesh_shape_str = "Mesh shape: { ";
+    for (const auto &dim : m_devices_mesh_shape) {
+      mesh_shape_str += std::to_string(dim) + ", ";
+    }
+    mesh_shape_str += "}";
+    DLOG_F(WARNING, "%s", mesh_shape_str.c_str());
     m_num_devices_to_utilize =
         std::accumulate(m_devices_mesh_shape.begin(),
                         m_devices_mesh_shape.end(), 1, std::multiplies<>());
