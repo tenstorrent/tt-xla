@@ -52,7 +52,7 @@ xs.mark_sharding(t, mesh, ("x", "y"))
 # xs.mark_sharding(w, mesh, ("x", "y"))
 
 # But using ("y", "x") instead, module_builder.cc sees a device mesh of shape (2, 4)
-xs.mark_sharding(w, mesh, ("y", None))
+xs.mark_sharding(w, mesh, ("y", "x"))
 
 from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 
@@ -63,7 +63,7 @@ visualize_tensor_sharding(w, use_color=False)
 # spmd all-reduce doesnt have an easily accessible API, so we use the internal API (for now)
 y = t @ w
 
-y = torch_xla._XLAC._xla_all_gather(y, 0, 4, [[0, 1, 2, 3], [4, 5, 6, 7]], False)
+y = torch_xla._XLAC._xla_all_gather(y, 0, 4, [[0, 2, 4, 6], [1, 3, 5, 7]], False)
 xm.mark_step()
 
 y = y.to("cpu")
