@@ -42,8 +42,9 @@ Each model in tt-forge-models follows the same standardized interface pattern. A
 ```python
 # Import specifically from the PyTorch implementation
 from third_party.tt_forge_models.yolov4.pytorch import ModelLoader
+import torch
 
-# Load model with default settings - no parameters needed
+# Load model with default settings (uses PyTorch default dtype, typically float32)
 model = ModelLoader.load_model()
 
 # Load sample inputs with default settings
@@ -51,6 +52,11 @@ inputs = ModelLoader.load_inputs()
 
 # Use the model
 outputs = model(inputs)
+
+# For TT hardware, you can explicitly override to bfloat16 for model and inputs
+bfp16_model = ModelLoader.load_model(dtype_override=torch.bfloat16)
+bfp16_inputs = ModelLoader.load_inputs(dtype_override=torch.bfloat16)
+outputs = bfp16_model(bfp16_inputs)
 ```
 
 ## Adding New Models
@@ -68,6 +74,7 @@ Example for a new model:
 
 ```python
 # mymodel/pytorch/loader.py
+import torch
 from ...base import ForgeModel
 from .src.model import MyModel
 
@@ -77,16 +84,32 @@ class ModelLoader(ForgeModel):
     param2 = 42
 
     @classmethod
-    def load_model(cls):
-        """Load and return the model instance with default settings."""
+    def load_model(cls, dtype_override=None):
+        """Load and return the model instance with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+        """
         model = MyModel(param1=cls.param1, param2=cls.param2)
-        return model.to(torch.bfloat16)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+        return model
 
     @classmethod
-    def load_inputs(cls):
-        """Load and return sample inputs for the model with default settings."""
-        # Create inputs with reasonable defaults
+    def load_inputs(cls, dtype_override=None):
+        """Load and return sample inputs for the model with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the inputs' default dtype.
+                           If not provided, inputs will use the default dtype (typically float32).
+        """
+        # Create inputs with default dtype
         inputs = torch.rand(1, 3, 224, 224)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            inputs = inputs.to(dtype_override)
         return inputs
 ```
 

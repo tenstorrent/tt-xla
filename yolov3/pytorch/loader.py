@@ -21,8 +21,12 @@ class ModelLoader(ForgeModel):
     """YOLOv3 model loader implementation."""
 
     @classmethod
-    def load_model(cls):
+    def load_model(cls, dtype_override=None):
         """Load and return the YOLOv3 model instance with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The YOLOv3 model instance.
@@ -57,11 +61,19 @@ class ModelLoader(ForgeModel):
             )
         )
 
-        return model.to(torch.bfloat16)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+
+        return model
 
     @classmethod
-    def load_inputs(cls):
+    def load_inputs(cls, dtype_override=None):
         """Load and return sample inputs for the YOLOv3 model with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the inputs' default dtype.
+                           If not provided, inputs will use the default dtype (typically float32).
 
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
@@ -85,4 +97,8 @@ class ModelLoader(ForgeModel):
         img_tensor = [transform(image).unsqueeze(0)]
         batch_tensor = torch.cat(img_tensor, dim=0)
 
-        return batch_tensor.to(torch.bfloat16)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            batch_tensor = batch_tensor.to(dtype_override)
+
+        return batch_tensor
