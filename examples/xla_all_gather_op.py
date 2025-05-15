@@ -45,14 +45,8 @@ golden = t @ w
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
 
-xs.mark_sharding(t, mesh, ("x", "y"))
-
-# Using ("x", "y") or (None, None) as the partition spec, module_builder.cc sees a device
-# mesh of shape (4, 2)
-# xs.mark_sharding(w, mesh, ("x", "y"))
-
-# But using ("y", "x") instead, module_builder.cc sees a device mesh of shape (2, 4)
-xs.mark_sharding(w, mesh, ("y", "x"))
+xs.mark_sharding(t, mesh, ("x", None))
+xs.mark_sharding(w, mesh, (None, None))
 
 from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 
@@ -60,14 +54,16 @@ print("Sharding of t:")
 visualize_tensor_sharding(t, use_color=False)
 print("Sharding of w:")
 visualize_tensor_sharding(w, use_color=False)
-# spmd all-reduce doesnt have an easily accessible API, so we use the internal API (for now)
+# spmd all-gather doesnt have an easily accessible API, so we use the internal API (for now)
 y = t @ w
 
-y = torch_xla._XLAC._xla_all_gather(y, 0, 4, [[0, 2, 4, 6], [1, 3, 5, 7]], False)
+y = torch_xla._XLAC._xla_all_gather(y, 0, 1, [[0]], True)
 xm.mark_step()
 
 y = y.to("cpu")
 print(f"Y Shape: {y.shape}")
 print(f"Golden Shape: {golden.shape}")
+print(f"Y: {y}")
+print(f"Golden: {golden}")
 print(f"Is close: {torch.allclose(y, golden, atol=0.5)}")
 assert torch.allclose(y, golden, atol=0.5)
