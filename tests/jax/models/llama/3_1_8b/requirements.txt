@@ -1,0 +1,15 @@
+transformers
+torch
+torchvision
+accelerate
+pillow
+qai-hub
+flax
+sentencepiece
+equinox
+tiktoken
+fairscale
+fire
+jax
+blobfile
+scikit-learn
