@@ -93,9 +93,10 @@ class ModelTester(BaseTester, ABC):
             import jax
             import torch
             
-            flatten_inputs, _ = jax.tree.flatten((args, kwargs, forward_static_args))
+            flatten_inputs, _ = jax.tree.flatten((args, kwargs))
             
             for i, input in enumerate(flatten_inputs):
+                print(f"input {i}: {input}")
                 tensor = torch.tensor(input)
                 torch.save(tensor, f"tensors/{i}.pt")
         

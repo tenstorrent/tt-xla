@@ -59,7 +59,7 @@ class AlexNetTester(ModelTester):
         img = jax.random.randint(
             key=prng_key,
             # B, H, W, C
-            shape=(4, 224, 224, 3),
+            shape=(32, 224, 224, 3),
             # In the original paper inputs are normalized with individual channel
             # values learned from training set.
             minval=-128,
@@ -111,12 +111,6 @@ def training_tester() -> AlexNetTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
-    )
 )
 def test_alexnet_inference(inference_tester: AlexNetTester):
     inference_tester.test()

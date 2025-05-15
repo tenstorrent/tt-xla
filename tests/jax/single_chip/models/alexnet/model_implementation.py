@@ -32,7 +32,6 @@ class AlexNetModel(nn.Module):
             param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Second feature extraction layer
@@ -44,7 +43,6 @@ class AlexNetModel(nn.Module):
             param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Third feature extraction layer
@@ -77,6 +75,9 @@ class AlexNetModel(nn.Module):
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
+
+        # Flatten
+        x = x.reshape((x.shape[0], -1))
 
         # First classifier layer
         x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)
