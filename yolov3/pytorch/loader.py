@@ -13,7 +13,7 @@ from PIL import Image
 from torchvision import transforms
 from pathlib import Path
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 from .src.yolov3 import Yolov3
 
 

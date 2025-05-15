@@ -6,7 +6,7 @@ VGG19-UNet model loader implementation
 """
 import torch
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 from .src.vgg19_unet import VGG19UNet
 
 

@@ -7,7 +7,7 @@ BERT model loader implementation for question answering
 import torch
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 
 
 class ModelLoader(ForgeModel):

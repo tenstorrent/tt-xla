@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import urllib.request
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 from .src.yolov4 import Yolov4
 
 
