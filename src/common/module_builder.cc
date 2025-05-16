@@ -165,9 +165,10 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   if (isUsingShardy(mlir_module)) {
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
     mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
-    // If we are not using SHardy manual computation, we run the following
+    // If we are not using Shardy manual computation, we run the following
     // Shardy passes to propagate the shardings.
     if (!isUsingShardyManualComputation(mlir_module)) {
+      shardy_pm.addPass(mlir::createInlinerPass());
       shardy_pm.addPass(mlir::sdy::createBasicPropagationPass());
       shardy_pm.addPass(mlir::sdy::createCloseShardingsPass());
     }
