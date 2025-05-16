@@ -148,8 +148,13 @@ private:
   void
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Checks if the jax is using the Shardy mlir dialect.
+  // Checks if the StableHLO code is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Checks if the StableHLO code is using manual compution of the Shardy mlir
+  // dialect.
+  bool isUsingShardyManualComputation(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
