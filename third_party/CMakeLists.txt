@@ -5,6 +5,7 @@
 
 set(TT_MLIR_VERSION "f8da086a686e2d334e977ae613146364196923bf")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
+set(GEMMA_VERSION "14f2141ab364eea16b754560aba89cde626717da")
 
 if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)
@@ -80,6 +81,16 @@ else()
         GIT_REPOSITORY https://github.com/emilk/loguru.git
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
+    )
+    ExternalProject_Add(
+        gemma
+        PREFIX ${TTPJRT_SOURCE_DIR}/third_party/gemma
+        GIT_REPOSITORY https://github.com/google-deepmind/gemma.git
+        GIT_TAG ${GEMMA_VERSION}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        PATCH_COMMAND ""
     )
 
 endif()
