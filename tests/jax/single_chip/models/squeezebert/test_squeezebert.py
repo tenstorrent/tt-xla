@@ -21,7 +21,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
@@ -98,12 +98,12 @@ def training_tester() -> SqueezeBertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=11.5. Required: atol=0.1 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):

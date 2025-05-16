@@ -20,7 +20,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from .model_implementation import MlpMixer
@@ -112,13 +112,12 @@ def training_tester() -> MlpMixerTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 12500992 B L1 buffer "
-        "across 7 banks, where each bank needs to store 1785856 B"
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=15.194854736328125. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_mlpmixer_inference(inference_tester: MlpMixerTester):
