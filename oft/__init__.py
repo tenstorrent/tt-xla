@@ -4,4 +4,5 @@
 """
 OFT (Orthographic Feature Transform) model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader
+# Import from the PyTorch implementation by default
+from .pytorch import ModelLoader

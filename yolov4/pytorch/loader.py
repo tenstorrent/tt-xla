@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import urllib.request
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 from .src.yolov4 import Yolov4
 
 
@@ -17,18 +17,31 @@ class ModelLoader(ForgeModel):
     """YOLOv4 model loader implementation."""
 
     @classmethod
-    def load_model(cls):
+    def load_model(cls, dtype_override=None):
         """Load and return the YOLOv4 model instance with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The YOLOv4 model instance.
         """
         model = Yolov4()
-        return model.to(torch.bfloat16)
+
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+
+        return model
 
     @classmethod
-    def load_inputs(cls):
+    def load_inputs(cls, dtype_override=None):
         """Load and return sample inputs for the YOLOv4 model with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the inputs' default dtype.
+                           If not provided, inputs will use the default dtype (typically float32).
 
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
@@ -48,4 +61,8 @@ class ModelLoader(ForgeModel):
         img = [torch.from_numpy(img).float().unsqueeze(0)]  # Add batch dimension
         batch_tensor = torch.cat(img, dim=0)
 
-        return batch_tensor.to(torch.bfloat16)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            batch_tensor = batch_tensor.to(dtype_override)
+
+        return batch_tensor

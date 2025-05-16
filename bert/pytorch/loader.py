@@ -7,7 +7,7 @@ BERT model loader implementation for question answering
 import torch
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 
-from ..base import ForgeModel
+from ...base import ForgeModel
 
 
 class ModelLoader(ForgeModel):
@@ -15,26 +15,37 @@ class ModelLoader(ForgeModel):
 
     # Shared configuration parameters
     model_name = "phiyodr/bert-large-finetuned-squad2"
-    torch_dtype = torch.bfloat16
     context = 'Johann Joachim Winckelmann was a German art historian and archaeologist. He was a pioneering Hellenist who first articulated the difference between Greek, Greco-Roman and Roman art. "The prophet and founding hero of modern archaeology", Winckelmann was one of the founders of scientific archaeology and first applied the categories of style on a large, systematic basis to the history of art. '
     question = "What discipline did Winkelmann create?"
     max_length = 256
 
     @classmethod
-    def load_model(cls):
+    def load_model(cls, dtype_override=None):
         """Load and return the BERT model instance with default settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The BERT model instance for question answering.
         """
-        # Initialize tokenizer first
+        # Initialize tokenizer first with default or overridden dtype
+        tokenizer_kwargs = {"padding_side": "left"}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
         cls.tokenizer = AutoTokenizer.from_pretrained(
-            cls.model_name, padding_side="left", torch_dtype=cls.torch_dtype
+            cls.model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+
         model = AutoModelForQuestionAnswering.from_pretrained(
-            cls.model_name, torch_dtype=cls.torch_dtype
+            cls.model_name, **model_kwargs
         )
         return model
 
