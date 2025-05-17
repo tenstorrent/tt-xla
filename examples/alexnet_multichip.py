@@ -23,7 +23,7 @@ from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.model_implementati
 jax.config.update("jax_num_cpu_devices", 8)
 
 # Change if you want to use shardy.
-jax.config.update("jax_use_shardy_partitioner", False)
+jax.config.update("jax_use_shardy_partitioner", True)
 
 
 def register_pjrt_plugin():
@@ -82,14 +82,14 @@ def initialize_parameters(
 
 register_pjrt_plugin()
 
+tt_devices = jax.devices("tt")
+num_tt_devices = len(jax.devices("tt"))
+
 axis_name = "X"
-# Currently we support only 2D mesh with shardy enabled.
-device_mesh = jax.make_mesh(
-    (1, len(jax.devices("tt"))), ("Y", axis_name), devices=jax.devices("tt")
-)
+device_mesh = jax.make_mesh((num_tt_devices,), (axis_name), devices=tt_devices)
 
 model = AlexNetMultichipModel(
-    axis_name=axis_name, num_devices=len(jax.devices("tt")), train_mode=False
+    axis_name=axis_name, num_devices=num_tt_devices, train_mode=False
 )
 
 prng_key = jax.random.PRNGKey(23)
@@ -116,14 +116,18 @@ params = initialize_parameters(
 # Now we can move inputs to device, needed them on CPU to initialize the parameters.
 device_inputs = jax.device_put(cpu_inputs, NamedSharding(device_mesh, inputs_specs))
 
+# Outputs will be replicated on each device.
+out_spec = P()
+
 compiled_apply = jax.jit(
     shard_map(
         model.apply,
         device_mesh,
         in_specs=(params_specs, inputs_specs),
-        out_specs=P(),
+        out_specs=out_spec,
         check_rep=False,
-    )
+    ),
+    out_shardings=NamedSharding(device_mesh, out_spec),
 )
 results = compiled_apply(params, device_inputs)
 

@@ -16,7 +16,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
     incorrect_result,
 )
 
@@ -74,10 +73,10 @@ def test_alexnet_multichip_llmbox_1x8_inference(
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
 )
-@pytest.mark.skip(
-    reason=failed_runtime(
-        "Assertion `meshShape.size() == 2' failed "
-        "(https://github.com/tenstorrent/tt-mlir/issues/3130)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
+        "https://github.com/tenstorrent/tt-xla/issues/604"
     )
 )
 def test_alexnet_multichip_llmbox_1x8_inference_shardy(

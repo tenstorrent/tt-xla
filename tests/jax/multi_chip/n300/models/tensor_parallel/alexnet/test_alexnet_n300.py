@@ -13,7 +13,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
     incorrect_result,
 )
 
@@ -56,7 +55,7 @@ def training_tester() -> AlexNetMultichipTester:
 @pytest.mark.xfail(
     reason=incorrect_result(
         "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+        "https://github.com/tenstorrent/tt-xla/issues/604"
     )
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
@@ -71,10 +70,10 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
 )
-@pytest.mark.skip(
-    reason=failed_runtime(
-        "Assertion `meshShape.size() == 2' failed "
-        "(https://github.com/tenstorrent/tt-mlir/issues/3130)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
+        "https://github.com/tenstorrent/tt-xla/issues/604"
     )
 )
 def test_alexnet_multichip_n300_inference_shardy(
