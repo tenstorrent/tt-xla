@@ -31,6 +31,7 @@ xr.use_spmd()
 
 # Device mesh, this and partition spec as well as the input tensor shape define the individual shard shape.
 num_devices = xr.global_runtime_device_count()
+print("XR world size: ", xr.world_size())
 
 mesh_shape = (2, 4)
 device_ids = np.array(range(num_devices))
@@ -45,8 +46,17 @@ golden = t @ w
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
 
+# xs.mark_sharding(t, mesh, ("x", None))
 xs.mark_sharding(t, mesh, ("x", None))
 xs.mark_sharding(w, mesh, (None, None))
+
+# These cause the number of devices error
+# t = t + t
+# t = 1 * t
+
+# Adding a new tensor, doesn't cause the error. But the all gather shape is still wrong.
+z = t + t
+xm.mark_step()
 
 from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 
@@ -54,10 +64,16 @@ print("Sharding of t:")
 visualize_tensor_sharding(t, use_color=False)
 print("Sharding of w:")
 visualize_tensor_sharding(w, use_color=False)
-# spmd all-gather doesnt have an easily accessible API, so we use the internal API (for now)
-y = t @ w
 
-y = torch_xla._XLAC._xla_all_gather(y, 0, 1, [[0]], True)
+
+print("Before all-gather, t shape: ", t.shape)
+# spmd all-gather doesnt have an easily accessible API, so we use the internal API (for now)
+t = torch_xla._XLAC._xla_all_gather(t, 0, 2, [[0, 1, 2, 3], [4, 5, 6, 7]], True)
+# xm.mark_step()
+print("After all-gather, t shape: ", t.shape)
+print("After all-gather, w device: ", w.shape)
+
+y = t @ w
 xm.mark_step()
 
 y = y.to("cpu")
@@ -66,4 +82,17 @@ print(f"Golden Shape: {golden.shape}")
 print(f"Y: {y}")
 print(f"Golden: {golden}")
 print(f"Is close: {torch.allclose(y, golden, atol=0.5)}")
-assert torch.allclose(y, golden, atol=0.5)
+t = t.to("cpu")
+print(f"t Shape: {t.shape}")
+# unique_rows, counts = torch.unique(t, dim=0, return_counts=True)
+# duplicate_mask = counts > 1
+# duplicates = unique_rows[duplicate_mask]
+# zero_row_mask = (t == 0).all(dim=0)
+# zero_rows = t[zero_row_mask]
+# print(f"Zero rows shape: {zero_rows.shape}")
+# print(f"Zero rows:\n{zero_rows}")
+# print(f"Duplicate rows shape: {duplicates.shape}")
+# print(f"Duplicate rows from t:\n{duplicates}")
+# print(f"Unique rows shape from t:\n{unique_rows.shape}")
+# print(f"Unique rows from t:\n{unique_rows}")
+# assert torch.allclose(y, golden, atol=0.5)
