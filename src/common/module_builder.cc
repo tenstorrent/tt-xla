@@ -212,7 +212,7 @@ void ModuleBuilder::collectInputShardingsShardy(
     return;
   }
 
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  mlir::sdy::MeshAttr shardy_mesh = getAdjustedShardyMeshAttribute(*mesh_op);
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
 
@@ -269,7 +269,7 @@ void ModuleBuilder::collectOutputShardingsShardy(
     return;
   }
 
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  mlir::sdy::MeshAttr shardy_mesh = getAdjustedShardyMeshAttribute(*mesh_op);
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
@@ -286,6 +286,12 @@ void ModuleBuilder::collectOutputShardingsShardy(
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
   }
+}
+
+mlir::sdy::MeshAttr
+ModuleBuilder::getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op) {
+  mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
+  return mlir::tt::sharding_utils::adjustSdyMeshAttr(mesh_op, shardy_mesh);
 }
 
 void ModuleBuilder::collectOutputTypes(

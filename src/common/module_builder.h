@@ -94,6 +94,10 @@ private:
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Gets shardy mesh attribute from the mesh op and adjusts it to 2D mesh in
+  // case of 1D mesh so that the rest of our compiler logic can assume 2D mesh.
+  mlir::sdy::MeshAttr getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op);
+
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 

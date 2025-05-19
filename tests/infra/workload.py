@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
-from jax.sharding import Mesh, PartitionSpec
 from typing import Any, Callable, Mapping, Optional, Sequence
+
+from jax.sharding import Mesh, PartitionSpec
+from jaxtyping import PyTree
 
 
 @dataclass
@@ -37,4 +39,4 @@ class MultichipWorkload(Workload):
     """
 
     device_mesh: Mesh = None
-    in_specs: Sequence[PartitionSpec] = None
+    in_specs: Sequence[PartitionSpec | PyTree] = None

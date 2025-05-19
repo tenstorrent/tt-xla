@@ -2,17 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Any, Dict, Mapping
 
 import jax
-import jax.numpy as jnp
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import (
     AutoTokenizer,
     FlaxLongT5ForConditionalGeneration,
     FlaxPreTrainedModel,
 )
-from jaxtyping import PyTree
 
 
 class LongT5Tester(ModelTester):
@@ -40,16 +38,15 @@ class LongT5Tester(ModelTester):
         return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
+    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         decoder_input_ids = tokenizer(
             text_target="I eat less carbs.", return_tensors="jax"
         ).input_ids
         return {
-            "params": self._model.params,
+            "params": self._input_parameters,
             "decoder_input_ids": decoder_input_ids,
-            **self._get_input_activations(),
+            **self._input_activations,
         }
 
     # @override

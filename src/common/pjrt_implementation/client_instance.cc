@@ -383,15 +383,38 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+  DeviceInstance *device_instance = DeviceInstance::unwrap(args->device);
 
-  if (memory_instance && memory_instance->isHostMemory()) {
+  // From PJRT specification: "If nullptr, host data will be copied to `device`,
+  // otherwise we copy data to `memory`."
+  if (memory_instance) {
+    if (device_instance && device_instance != memory_instance->getDevice()) {
+      DLOG_F(ERROR, "Device set in `device` arg is different from the memory "
+                    "space device set in `memory` arg");
+      return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                  .release();
+    }
+    device_instance = memory_instance->getDevice();
+  } else {
+    memory_instance = device_instance->getDefaultMemory();
+  }
+
+  if (!memory_instance) {
+    DLOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
+                  "device from `device` arg");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+  if (memory_instance->isHostMemory()) {
     DLOG_F(ERROR, "We only support creating buffers on device memory");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
-
-  DeviceInstance *device_instance = memory_instance
-                                        ? memory_instance->getDevice()
-                                        : DeviceInstance::unwrap(args->device);
+  if (!device_instance) {
+    DLOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
+                  "`memory` arg");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
 
   std::unique_ptr<BufferInstance> buffer =
       BufferInstance::createInputBufferInstance(args->type, args->dims,

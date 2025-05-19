@@ -1,31 +1,46 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict, Sequence
 
 import jax
-import jax.numpy as jnp
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
 from jaxtyping import PyTree
 
+from .model_implementation import AlexNetModel
 
-class MNISTCNNTester(ModelTester):
-    """Tester for MNIST CNN model."""
+ALEXNET_PARAMS_INIT_SEED = 42
+
+
+def create_alexnet_random_input_image() -> jax.Array:
+    prng_key = jax.random.PRNGKey(23)
+    img = jax.random.randint(
+        key=prng_key,
+        # B, H, W, C
+        shape=(4, 224, 224, 3),
+        # In the original paper inputs are normalized with individual channel
+        # values learned from training set.
+        minval=-128,
+        maxval=128,
+    )
+    return img
+
+
+class AlexNetTester(ModelTester):
+    """Tester for AlexNet CNN model."""
 
     def __init__(
         self,
-        model_class,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_class = model_class
         super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> nn.Module:
-        return self._model_class()
+        return AlexNetModel()
 
     # @override
     def _get_forward_method_name(self) -> str:
@@ -33,9 +48,7 @@ class MNISTCNNTester(ModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        img = jnp.ones((4, 28, 28, 1))  # B, H, W, C
-        # Channels is 1 as MNIST is in grayscale.
-        return img
+        return create_alexnet_random_input_image()
 
     # @override
     def _get_input_parameters(self) -> PyTree:
@@ -44,7 +57,9 @@ class MNISTCNNTester(ModelTester):
         # and maybe some extra state). Parameters are not stored with the models
         # themselves, they are provided together with inputs to the forward method.
         return self._model.init(
-            jax.random.PRNGKey(42), self._input_activations, train=False
+            jax.random.PRNGKey(ALEXNET_PARAMS_INIT_SEED),
+            self._input_activations,
+            train=False,
         )
 
     # @override

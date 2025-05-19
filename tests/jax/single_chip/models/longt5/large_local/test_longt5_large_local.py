@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_runtime,
 )
 
 from ..tester import LongT5Tester
@@ -48,12 +48,11 @@ def training_tester() -> LongT5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/580"
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Hangs in runtime (https://github.com/tenstorrent/tt-xla/issues/611)"
     )
 )
 def test_longt5_large_local_inference(inference_tester: LongT5Tester):

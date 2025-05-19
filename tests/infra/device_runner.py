@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 import jax
-from jax.sharding import NamedSharding
+from flax import linen
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
+from jaxtyping import PyTree
 
 from .device_connector import DeviceType, device_connector
 from .multichip_utils import ShardingMode
@@ -97,16 +99,6 @@ class DeviceRunner:
             return device_workload.execute()
 
     @staticmethod
-    def _put_sharded_tensor_on_multichip_device(
-        tensor: Tensor, mesh: jax.sharding.Mesh, in_spec: jax.sharding.PartitionSpec
-    ) -> Tensor:
-        """
-        Needed for multichip: Uses put_device to give inputs shardings corresponding to the ones in
-        shard_map() function.
-        """
-        return jax.device_put(tensor, NamedSharding(mesh, in_spec), may_alias=True)
-
-    @staticmethod
     def _put_on_device(
         workload: Workload, device_type: DeviceType, device_num: int = 0
     ) -> Workload:
@@ -121,34 +113,28 @@ class DeviceRunner:
         """Gives the workload inputs shardings, necessary for multichip workloads"""
         args_on_device = []
         spec_index = 0
-        # TODO: It might necessary to put a try-except block here, but holding that off until we
-        # come across a case where it's needed.
         for arg in multichip_workload.args:
-            if not isinstance(arg, Tensor):
-                args_on_device.append(arg)
-            else:
-                args_on_device.append(
-                    DeviceRunner._put_sharded_tensor_on_multichip_device(
-                        arg,
-                        multichip_workload.device_mesh,
-                        multichip_workload.in_specs[spec_index],
-                    )
-                )
+            device_arg = DeviceRunner._put_sharded_arg_on_multichip_device(
+                arg,
+                multichip_workload.device_mesh,
+                multichip_workload.in_specs[spec_index],
+            )
+            # Increment the spec index if the argument was put on device.
+            if device_arg is not arg:
                 spec_index += 1
+            args_on_device.append(device_arg)
 
         kwargs_on_device = {}
-        for key, value in multichip_workload.kwargs.items():
-            if not isinstance(value, Tensor):
-                kwargs_on_device[key] = value
-            else:
-                kwargs_on_device[
-                    key
-                ] = DeviceRunner._put_sharded_tensor_on_multichip_device(
-                    value,
-                    multichip_workload.device_mesh,
-                    multichip_workload.in_specs[spec_index],
-                )
+        for key, arg in multichip_workload.kwargs.items():
+            device_arg = DeviceRunner._put_sharded_arg_on_multichip_device(
+                arg,
+                multichip_workload.device_mesh,
+                multichip_workload.in_specs[spec_index],
+            )
+            # Increment the spec index if the argument was put on device.
+            if device_arg is not arg:
                 spec_index += 1
+            kwargs_on_device[key] = device_arg
 
         return MultichipWorkload(
             multichip_workload.executable,
@@ -157,6 +143,30 @@ class DeviceRunner:
             device_mesh=multichip_workload.device_mesh,
             in_specs=multichip_workload.in_specs,
         )
+
+    @staticmethod
+    def _put_sharded_arg_on_multichip_device(
+        arg: Any, device_mesh: Mesh, partition_spec: PartitionSpec | PyTree
+    ) -> Any:
+        """
+        Puts workload argument on multichip device with proper sharding, depending on its type.
+        """
+        if isinstance(arg, Tensor):
+            return jax.device_put(arg, NamedSharding(device_mesh, partition_spec))
+        if isinstance(arg, PyTree):
+            # TODO Assuming that only parameters are passed as PyTree for now. This will
+            # work only for Flax linen parameters, revisit for other APIs.
+            return jax.tree.map(
+                lambda spec, param: jax.device_put(
+                    param, NamedSharding(device_mesh, spec)
+                ),
+                partition_spec,
+                arg,
+                is_leaf=lambda x: (
+                    isinstance(x, linen.Partitioned) or isinstance(x, PartitionSpec)
+                ),
+            )
+        return arg
 
     @staticmethod
     def _put_tensors_on_device(
