@@ -130,8 +130,10 @@ class MultichipModelTester(ModelTester, ABC):
     def _compile_for_device(
         self, device_mesh: Mesh, forward_method_arg_specs: tuple[PartitionSpec | PyTree]
     ) -> Callable:
-        """JIT-compiles model's forward pass into optimized kernels for the given device
-        mesh."""
+        """
+        JIT-compiles model's forward pass into optimized kernels for the given device
+        mesh.
+        """
         # Assuming replicated outputs for now.
         out_spec = PartitionSpec()
         return jax.jit(

@@ -91,7 +91,7 @@ class DeviceConnector:
 
     def get_number_of_tt_devices(self) -> int:
         """Returns the number of available TT devices."""
-        return len(jax.devices(DeviceType.TT.value))
+        return self._number_of_devices(DeviceType.TT)
 
     # ---------- Private methods ----------
 

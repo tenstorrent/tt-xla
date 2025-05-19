@@ -5,15 +5,13 @@
 from typing import Dict, Sequence
 
 import jax
-import jax.numpy as jnp
-import jax.random as random
 from infra import ComparisonConfig, ModelTester, RunMode, create_random_input_image
 from transformers import (
+    AutoImageProcessor,
+    AutoTokenizer,
     FlaxPreTrainedModel,
     FlaxVisionTextDualEncoderModel,
     VisionTextDualEncoderProcessor,
-    AutoImageProcessor,
-    AutoTokenizer,
     ViTConfig,
 )
 
@@ -52,14 +50,6 @@ class VisionTextDualEncoderTester(ModelTester):
             text="Some random image", images=random_image, return_tensors="jax"
         )
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        assert hasattr(self._get_model(), "params")
-        return {
-            "params": self._get_model().params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self) -> Sequence[str]:

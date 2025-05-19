@@ -10,10 +10,15 @@ from infra import ComparisonConfig, MultichipModelTester, RunMode
 from infra.device_connector import device_connector
 from infra.multichip_utils import (
     initialize_flax_linen_parameters_on_cpu,
-    make_flax_linen_parameters_partition_specs,
+    make_flax_linen_parameters_partition_specs_on_cpu,
 )
 from jax.sharding import PartitionSpec
 from jaxtyping import PyTree
+
+from tests.jax.single_chip.models.alexnet.tester import (
+    ALEXNET_PARAMS_INIT_SEED,
+    create_alexnet_random_input_image,
+)
 
 from .model_implementation import AlexNetMultichipModel
 
@@ -55,19 +60,11 @@ class AlexNetMultichipTester(MultichipModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        return jax.random.randint(
-            key=jax.random.PRNGKey(23),
-            # B, H, W, C
-            shape=(32, 224, 224, 3),
-            # In the original paper inputs are normalized with individual channel
-            # values learned from training set.
-            minval=-128,
-            maxval=128,
-        )
+        return create_alexnet_random_input_image()
 
     # @override
     def _get_input_parameters_partition_specs(self) -> PyTree:
-        return make_flax_linen_parameters_partition_specs(
+        return make_flax_linen_parameters_partition_specs_on_cpu(
             self._model,
             self.cpu_mesh,
             self._input_activations_partition_specs,
@@ -82,4 +79,5 @@ class AlexNetMultichipTester(MultichipModelTester):
             self._input_activations,
             self._input_parameters_partition_specs,
             self.cpu_mesh,
+            ALEXNET_PARAMS_INIT_SEED,
         )

@@ -23,7 +23,7 @@ from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.model_implementati
 jax.config.update("jax_num_cpu_devices", 8)
 
 # Change if you want to use shardy.
-jax.config.update("jax_use_shardy_partitioner", True)
+jax.config.update("jax_use_shardy_partitioner", False)
 
 
 def register_pjrt_plugin():
@@ -80,55 +80,60 @@ def initialize_parameters(
     return params
 
 
-register_pjrt_plugin()
+def run_alexnet():
+    register_pjrt_plugin()
 
-tt_devices = jax.devices("tt")
-num_tt_devices = len(jax.devices("tt"))
+    tt_devices = jax.devices("tt")
+    num_tt_devices = len(jax.devices("tt"))
 
-axis_name = "X"
-device_mesh = jax.make_mesh((num_tt_devices,), (axis_name), devices=tt_devices)
+    axis_name = "X"
+    device_mesh = jax.make_mesh((num_tt_devices,), (axis_name), devices=tt_devices)
 
-model = AlexNetMultichipModel(
-    axis_name=axis_name, num_devices=num_tt_devices, train_mode=False
-)
-
-prng_key = jax.random.PRNGKey(23)
-
-# Sharding data on batch axis since data parallelism is utilized for the convolutional
-# layers.
-inputs_specs = P(axis_name)
-cpu_inputs = generate_inputs_on_cpu(prng_key)
-
-# Have to use shard_map because CCL ops need a mapped axis for tracing to work.
-params_specs = nn.get_partition_spec(
-    jax.eval_shape(
-        shard_map(
-            model.init, device_mesh, in_specs=(None, inputs_specs), out_specs=P()
-        ),
-        prng_key,
-        cpu_inputs,
+    model = AlexNetMultichipModel(
+        axis_name=axis_name, num_devices=num_tt_devices, train_mode=False
     )
-)
-params = initialize_parameters(
-    model, inputs_specs, cpu_inputs, params_specs, device_mesh, prng_key
-)
 
-# Now we can move inputs to device, needed them on CPU to initialize the parameters.
-device_inputs = jax.device_put(cpu_inputs, NamedSharding(device_mesh, inputs_specs))
+    prng_key = jax.random.PRNGKey(23)
 
-# Outputs will be replicated on each device.
-out_spec = P()
+    # Sharding data on batch axis since data parallelism is utilized for the convolutional
+    # layers.
+    inputs_specs = P(axis_name)
+    cpu_inputs = generate_inputs_on_cpu(prng_key)
 
-compiled_apply = jax.jit(
-    shard_map(
-        model.apply,
-        device_mesh,
-        in_specs=(params_specs, inputs_specs),
-        out_specs=out_spec,
-        check_rep=False,
-    ),
-    out_shardings=NamedSharding(device_mesh, out_spec),
-)
-results = compiled_apply(params, device_inputs)
+    # Have to use shard_map because CCL ops need a mapped axis for tracing to work.
+    params_specs = nn.get_partition_spec(
+        jax.eval_shape(
+            shard_map(
+                model.init, device_mesh, in_specs=(None, inputs_specs), out_specs=P()
+            ),
+            prng_key,
+            cpu_inputs,
+        )
+    )
+    params = initialize_parameters(
+        model, inputs_specs, cpu_inputs, params_specs, device_mesh, prng_key
+    )
 
-print(results)
+    # Now we can move inputs to device, needed them on CPU to initialize the parameters.
+    device_inputs = jax.device_put(cpu_inputs, NamedSharding(device_mesh, inputs_specs))
+
+    # Outputs will be replicated on each device.
+    out_spec = P()
+
+    compiled_apply = jax.jit(
+        shard_map(
+            model.apply,
+            device_mesh,
+            in_specs=(params_specs, inputs_specs),
+            out_specs=out_spec,
+            check_rep=False,
+        ),
+        out_shardings=NamedSharding(device_mesh, out_spec),
+    )
+    results = compiled_apply(params, device_inputs)
+
+    print(results)
+
+
+if __name__ == "__main__":
+    run_alexnet()

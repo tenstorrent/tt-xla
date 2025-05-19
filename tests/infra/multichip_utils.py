@@ -54,10 +54,10 @@ def make_partition_spec(axis_names: tuple) -> PartitionSpec:
     return PartitionSpec(*axis_names)
 
 
-def make_flax_linen_parameters_partition_specs(
+def make_flax_linen_parameters_partition_specs_on_cpu(
     model: linen.Module, cpu_mesh: Mesh, inputs_specs: PartitionSpec, cpu_inputs: Tensor
 ):
-    """Makes partition specs for Flax linen model parameters."""
+    """Makes partition specs for Flax linen model parameters on CPU."""
     # Have to use shard_map because CCL ops need a mapped axis for tracing to work.
     return linen.get_partition_spec(
         jax.eval_shape(
@@ -79,9 +79,10 @@ def initialize_flax_linen_parameters_on_cpu(
     cpu_inputs: Tensor,
     params_specs: PyTree,
     cpu_mesh: Mesh,
+    rng_seed: int,
 ):
     """Initializes Flax linen model parameters on CPU."""
     init_fn = shard_map(
         model.init, cpu_mesh, in_specs=(None, inputs_specs), out_specs=params_specs
     )
-    return init_fn(jax.random.PRNGKey(27), cpu_inputs)
+    return init_fn(jax.random.PRNGKey(rng_seed), cpu_inputs)

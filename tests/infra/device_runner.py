@@ -119,6 +119,7 @@ class DeviceRunner:
                 multichip_workload.device_mesh,
                 multichip_workload.in_specs[spec_index],
             )
+            # Increment the spec index if the argument was put on device.
             if device_arg is not arg:
                 spec_index += 1
             args_on_device.append(device_arg)
@@ -130,6 +131,7 @@ class DeviceRunner:
                 multichip_workload.device_mesh,
                 multichip_workload.in_specs[spec_index],
             )
+            # Increment the spec index if the argument was put on device.
             if device_arg is not arg:
                 spec_index += 1
             kwargs_on_device[key] = device_arg
@@ -151,7 +153,7 @@ class DeviceRunner:
         """
         if isinstance(arg, Tensor):
             return jax.device_put(arg, NamedSharding(device_mesh, partition_spec))
-        elif isinstance(arg, PyTree):
+        if isinstance(arg, PyTree):
             # TODO Assuming that only parameters are passed as PyTree for now. This will
             # work only for Flax linen parameters, revisit for other APIs.
             return jax.tree.map(

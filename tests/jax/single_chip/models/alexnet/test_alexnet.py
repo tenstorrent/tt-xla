@@ -2,13 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
-
-import jax
 import pytest
-from flax import linen as nn
-from infra import ComparisonConfig, Framework, ModelTester, RunMode
-from jaxtyping import PyTree
+from infra import Framework, RunMode
 
 from tests.utils import (
     BringupStatus,
@@ -20,7 +15,7 @@ from tests.utils import (
     failed_ttmlir_compilation,
 )
 
-from .model_implementation import AlexNetModel
+from .tester import AlexNetTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,73 +26,17 @@ MODEL_NAME = build_model_name(
 )
 
 
-# ----- Tester -----
-
-
-class AlexNetTester(ModelTester):
-    """Tester for AlexNet CNN model."""
-
-    def __init__(
-        self,
-        model_class,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        run_mode: RunMode = RunMode.INFERENCE,
-    ) -> None:
-        self._model_class = model_class
-        super().__init__(comparison_config, run_mode)
-
-    # @override
-    def _get_model(self) -> nn.Module:
-        return self._model_class()
-
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
-        prng_key = jax.random.PRNGKey(23)
-        img = jax.random.randint(
-            key=prng_key,
-            # B, H, W, C
-            shape=(4, 224, 224, 3),
-            # In the original paper inputs are normalized with individual channel
-            # values learned from training set.
-            minval=-128,
-            maxval=128,
-        )
-        return img
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set of initial tensors (parameters
-        # and maybe some extra state). Parameters are not stored with the models
-        # themselves, they are provided together with inputs to the forward method.
-        return self._model.init(
-            jax.random.PRNGKey(42), self._input_activations, train=False
-        )
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        return {"train": False}
-
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]
-
-
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> AlexNetTester:
-    return AlexNetTester(AlexNetModel)
+    return AlexNetTester()
 
 
 @pytest.fixture
 def training_tester() -> AlexNetTester:
-    return AlexNetTester(AlexNetModel, run_mode=RunMode.TRAINING)
+    return AlexNetTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
