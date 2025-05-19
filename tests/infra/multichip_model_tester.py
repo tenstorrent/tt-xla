@@ -103,6 +103,10 @@ class MultichipModelTester(ModelTester, ABC):
 
         forward_method_arg_specs = self._get_forward_method_arg_specs()
 
+        # TODO(mrakita): This should be a parameter of model tester, currently only this
+        # mode is supported in compiler.
+        sharding_mode = ShardingMode.INPUTS_AND_MODULE
+
         compiled_tt_workload = MultichipWorkload(
             self._compile_for_device(self.tt_mesh, forward_method_arg_specs),
             self._workload.args,
@@ -111,7 +115,7 @@ class MultichipModelTester(ModelTester, ABC):
             in_specs=forward_method_arg_specs,
         )
         tt_res = DeviceRunner.run_on_multichip_device(
-            compiled_tt_workload, ShardingMode.INPUTS_AND_MODULE
+            compiled_tt_workload, sharding_mode
         )
 
         compiled_cpu_workload = MultichipWorkload(
@@ -122,7 +126,7 @@ class MultichipModelTester(ModelTester, ABC):
             in_specs=forward_method_arg_specs,
         )
         cpu_res = DeviceRunner.run_on_multichip_device(
-            compiled_cpu_workload, ShardingMode.INPUTS_AND_MODULE
+            compiled_cpu_workload, sharding_mode
         )
 
         self._compare(tt_res, cpu_res)
