@@ -7,6 +7,11 @@ from typing import Any, Optional, Union
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+import torch
+import numpy
+import ml_dtypes
+from jax import default_device
+import jax
 
 
 class AlexNetModel(nn.Module):
@@ -22,59 +27,120 @@ class AlexNetModel(nn.Module):
     ] = jnp.bfloat16
 
     @nn.compact
-    def __call__(self, x: jax.Array, *, train: bool) -> jax.Array:
+    def __call__(self, x: jnp.array, *, train: bool) -> jnp.array:
         # First feature extraction layer
-        x = nn.Conv(
+        x = x.astype(jnp.bfloat16)
+        conv1 = nn.Conv(
             features=64,
             kernel_size=(11, 11),
             strides=(4, 4),
             padding=0,
             param_dtype=self.param_dtype,
-        )(x)
+            name="conv1",
+        )
+        dummy_x = conv1(x)
+        conv_param = self.get_variable('params', 'conv1')
+
+        # Move input and parameters to CPU
+        x_cpu = jax.device_put(x, jax.devices("cpu")[0])
+        kernel_cpu = jax.device_put(conv_param['kernel'], jax.devices("cpu")[0])
+        bias_cpu = jax.device_put(conv_param['bias'], jax.devices("cpu")[0])
+
+        with default_device(jax.devices("cpu")[0]):
+            x = conv1.apply({'params': {'kernel': kernel_cpu, 'bias': bias_cpu}}, x_cpu)
+        x = jax.device_put(x, dummy_x.device)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
+
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Second feature extraction layer
-        x = nn.Conv(
+        conv2 = nn.Conv(
             features=192,
             kernel_size=(5, 5),
             strides=(1, 1),
             padding=2,
             param_dtype=self.param_dtype,
-        )(x)
+            name="conv2",
+        )
+        dummy_x = conv2(x)
+        conv_param = self.get_variable('params', 'conv2')
+
+        # Move input and parameters to CPU
+        x_cpu = jax.device_put(x, jax.devices("cpu")[0])
+        kernel_cpu = jax.device_put(conv_param['kernel'], jax.devices("cpu")[0])
+        bias_cpu = jax.device_put(conv_param['bias'], jax.devices("cpu")[0])
+
+        with default_device(jax.devices("cpu")[0]):
+            x = conv2.apply({'params': {'kernel': kernel_cpu, 'bias': bias_cpu}}, x_cpu)
+        x = jax.device_put(x, dummy_x.device)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
+
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Third feature extraction layer
-        x = nn.Conv(
+        conv3 = nn.Conv(
             features=384,
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
-        )(x)
+            name="conv3",
+        )
+        dummy_x = conv3(x)
+        conv_param = self.get_variable('params', 'conv3')
+
+        # Move input and parameters to CPU
+        x_cpu = jax.device_put(x, jax.devices("cpu")[0])
+        kernel_cpu = jax.device_put(conv_param['kernel'], jax.devices("cpu")[0])
+        bias_cpu = jax.device_put(conv_param['bias'], jax.devices("cpu")[0])
+
+        with default_device(jax.devices("cpu")[0]):
+            x = conv3.apply({'params': {'kernel': kernel_cpu, 'bias': bias_cpu}}, x_cpu)
+        x = jax.device_put(x, dummy_x.device)
         x = nn.relu(x)
 
         # Fourth feature extraction layer
-        x = nn.Conv(
+        conv4 = nn.Conv(
             features=256,
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
-        )(x)
+            name="conv4",
+        )
+        dummy_x = conv4(x)
+        conv_param = self.get_variable('params', 'conv4')
+
+        # Move input and parameters to CPU
+        x_cpu = jax.device_put(x, jax.devices("cpu")[0])
+        kernel_cpu = jax.device_put(conv_param['kernel'], jax.devices("cpu")[0])
+        bias_cpu = jax.device_put(conv_param['bias'], jax.devices("cpu")[0])
+
+        with default_device(jax.devices("cpu")[0]):
+            x = conv4.apply({'params': {'kernel': kernel_cpu, 'bias': bias_cpu}}, x_cpu)
+        x = jax.device_put(x, dummy_x.device)
         x = nn.relu(x)
 
         # Fifth feature extraction layer
-        x = nn.Conv(
+        conv5 = nn.Conv(
             features=256,
             kernel_size=(3, 3),
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
-        )(x)
+            name="conv5",
+        )
+        dummy_x = conv5(x)
+        conv_param = self.get_variable('params', 'conv5')
+
+        # Move input and parameters to CPU
+        x_cpu = jax.device_put(x, jax.devices("cpu")[0])
+        kernel_cpu = jax.device_put(conv_param['kernel'], jax.devices("cpu")[0])
+        bias_cpu = jax.device_put(conv_param['bias'], jax.devices("cpu")[0])
+
+        with default_device(jax.devices("cpu")[0]):
+            x = conv5.apply({'params': {'kernel': kernel_cpu, 'bias': bias_cpu}}, x_cpu)
+        x = jax.device_put(x, dummy_x.device)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
@@ -104,7 +170,7 @@ class LocalResponseNormalization(nn.Module):
     beta: float = 0.75
 
     @nn.compact
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: jnp.array) -> jnp.array:
         # Input is expected in (B, H, W, C) format
         num_channels = x.shape[-1]
         padded_x = jnp.pad(

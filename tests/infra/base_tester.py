@@ -37,7 +37,7 @@ class BaseTester(ABC):
         self, executable: Callable, static_argnames: Sequence[str] = None
     ) -> Callable:
         """Sets up `executable` for just-in-time compile."""
-        return jax.jit(executable, static_argnames=static_argnames)
+        return executable
 
     def _compare(
         self,

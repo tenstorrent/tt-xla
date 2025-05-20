@@ -89,6 +89,7 @@ def compare_atol(
         golden_output,
     )
     atol = jax.tree.reduce(lambda x, y: jnp.maximum(x, y), leaf_atols)
+    print(f"Calculated atol: {atol}")
     assert atol <= atol_config.required_atol, (
         f"Atol comparison failed. "
         f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
@@ -111,6 +112,7 @@ def compare_pcc(
             golden_output,
         )
         pcc = jax.tree.reduce(lambda x, y: jnp.minimum(x, y), leaf_pccs)
+        print(f"Calculated pcc: {pcc}")
         assert pcc >= pcc_config.required_pcc, (
             f"PCC comparison failed. "
             f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
