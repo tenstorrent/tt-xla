@@ -1,13 +1,14 @@
-from mymodel.flaxmixtral import FlaxMixtralForCausalLM
-from mymodel.flaxconfigmixtral import MixtralConfig
+from singlechip.flaxmixtral import FlaxMixtralForCausalLM
+from singlechip.flaxconfigmixtral import MixtralConfig
 import jax
 import jax.numpy as jnp
+
 def make_model(configTorch, modelTorch):
     embeddings = modelTorch.model.embed_tokens.weight.detach().cpu().numpy()
     # Save LM head
     lm_head = modelTorch.lm_head.weight.detach().cpu().numpy()
 
-    configJax = MixtralConfig(num_hidden_layers=1)
+    configJax = MixtralConfig(num_hidden_layers=2)
     newmodel = FlaxMixtralForCausalLM(configJax)
     newmodel.model.embed_tokens.embedding.value = jnp.array(embeddings)
     newmodel.lm_head.kernel.value = jnp.array(lm_head.T)

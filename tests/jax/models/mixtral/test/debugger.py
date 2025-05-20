@@ -10,7 +10,7 @@ from flax import nnx
 import torch.nn.functional as F
 from torch import nn
 from typing import Callable, List, Optional, Tuple, Union
-from mymodel.convert_weights import make_model
+from singlechip.convert_weights import make_model
 
 def pcc(x, y):
     if hasattr(x, 'numpy'):
@@ -33,6 +33,9 @@ def pcc(x, y):
     
     return correlation
 
+np_dir = "mixtral_numpy_weights"
+os.makedirs(np_dir, exist_ok=True)
+#removed the token
 # with open('tokens.txt') as f:
 #     hf_token = f.read()
 
