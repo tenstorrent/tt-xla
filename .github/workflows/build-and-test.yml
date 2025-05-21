@@ -129,7 +129,7 @@ jobs:
 
     # Build project
     - name: Run tt-xla build
-      uses: /.github/actions/build-tt-xla-action
+      uses: ./.github/actions/build-tt-xla-action
       with:
         build-output-dir: ${{ steps.strings.outputs.build-output-dir }}
         install-output-dir: ${{ steps.strings.outputs.install-output-dir }}
