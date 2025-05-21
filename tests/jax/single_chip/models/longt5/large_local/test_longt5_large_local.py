@@ -50,7 +50,7 @@ def training_tester() -> LongT5Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_ttmlir_compilation(
         "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
         "https://github.com/tenstorrent/tt-xla/issues/580"

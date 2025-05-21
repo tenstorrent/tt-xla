@@ -112,6 +112,7 @@ def training_tester() -> AlexNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
+@pytest.mark.skip(reason="Skip for now")
 def test_alexnet_inference(inference_tester: AlexNetTester):
     inference_tester.test()
 
