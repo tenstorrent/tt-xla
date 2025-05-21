@@ -88,7 +88,7 @@ jobs:
     timeout-minutes: 120
     runs-on: ubuntu-latest
     name: "Build tt-xla"
-    container: 
+    container:
       image: ${{ needs.build-image.outputs.docker-image }}
 
     steps:
@@ -155,7 +155,7 @@ jobs:
 
   run-tests:
     timeout-minutes: 120
-    needs: 
+    needs:
       - build-image
       - build-ttxla
     strategy:
