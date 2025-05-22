@@ -203,8 +203,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices),
-                                               m_addressable_host_memory.get());
+                                               std::move(addressable_devices));
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
