@@ -107,9 +107,9 @@ ExecutableImage::ExecutableImage(
   // PJRT_LoadedExecutable_Execute.
   for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
     m_output_memory_kinds.emplace_back(
-        MemoryInstance::c_host_memory_kind_name.c_str());
+        MemoryInstance::c_device_memory_kind_name.c_str());
     m_output_memory_kinds_sizes.emplace_back(
-        MemoryInstance::c_host_memory_kind_name.size());
+        MemoryInstance::c_device_memory_kind_name.size());
   }
 }
 

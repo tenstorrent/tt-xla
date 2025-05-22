@@ -337,7 +337,8 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
-              m_addressable_devices[device_index], m_host_memory);
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory());
 
       output_buffer->markAsDataReady();
 
