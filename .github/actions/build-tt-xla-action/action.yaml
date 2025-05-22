@@ -1,5 +1,5 @@
 name: "Build tt-xla"
-description: "Composite action for building, testing, and uploading artifacts for tt-mlir."
+description: "Composite action for building, testing, and uploading artifacts for tt-xla."
 inputs:
   build-output-dir:
     description: "Build folder location"
@@ -8,7 +8,7 @@ inputs:
     description: "Install folder location"
     required: true
   work-dir:
-    description: "tt-mlir root"
+    description: "tt-xla root"
     required: true
   test_report_path:
     description: "Path to test report"
@@ -24,15 +24,15 @@ runs:
         cmake -G Ninja \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DCODE_COVERAGE=ON \
-        -B ${{ steps.strings.outputs.build-output-dir }} \
-        -S ${{ steps.strings.outputs.work-dir }}
+        -B ${{ inputs.build-output-dir }} \
+        -S ${{ inputs.work-dir }}
 
     - name: Build
       shell: bash
       run: |
         source venv/activate
-        cmake --build ${{ steps.strings.outputs.build-output-dir }}
-        cmake --install ${{ steps.strings.outputs.build-output-dir }}
+        cmake --build ${{ inputs.build-output-dir }}
+        cmake --install ${{ inputs.build-output-dir }}
 
     - name: Archive Install Directory
       shell: bash
