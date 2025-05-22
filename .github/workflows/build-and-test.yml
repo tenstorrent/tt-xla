@@ -222,7 +222,7 @@ jobs:
         path: install
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Download build Artifacts
+    - name: Download build artifacts
       uses: ./.github/actions/download-artifact
       with:
         name: build-artifacts
@@ -234,6 +234,9 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
+        ls ./build
+        ls ./install
+        ls ./build/src/tt
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
         pytest ${{ matrix.build.dir }}  \

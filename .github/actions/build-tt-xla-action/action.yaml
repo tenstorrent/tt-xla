@@ -34,18 +34,18 @@ runs:
         cmake --build ${{ inputs.build-output-dir }}
         cmake --install ${{ inputs.build-output-dir }}
 
-    - name: Build the wheel
-      shell: bash
-      run: |
-        source venv/activate
-        cd ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt
-        python setup.py bdist_wheel
+    # - name: Build the wheel
+    #   shell: bash
+    #   run: |
+    #     source venv/activate
+    #     cd ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt
+    #     python setup.py bdist_wheel
 
-    - name: Upload tt xla wheel
-      uses: actions/upload-artifact@v4
-      with:
-        name: xla-wheel
-        path: ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl
+    # - name: Upload tt xla wheel
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: xla-wheel
+    #     path: ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl
 
     - name: Archive Install Directory
       shell: bash
