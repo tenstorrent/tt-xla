@@ -84,8 +84,7 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-
+  auto system_desc = tt::runtime::getCurrentSystemDesc();
   m_system_descriptor = system_desc;
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
@@ -95,10 +94,12 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  size_t devices_count = chip_ids.size();
+  size_t devices_count = tt::runtime::getNumAvailableDevices();
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
+  std::vector<int> chip_ids(devices_count);
+  std::iota(chip_ids.begin(), chip_ids.end(), 0);
 
   for (size_t i = 0; i < devices_count; ++i) {
     int global_device_id = chip_ids[i];
