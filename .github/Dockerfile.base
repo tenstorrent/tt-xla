@@ -31,7 +31,8 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     jq \
     curl \
-    lcov
+    lcov \
+    unzip
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
