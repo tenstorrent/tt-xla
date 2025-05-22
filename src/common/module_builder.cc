@@ -651,6 +651,7 @@ bool ModuleBuilder::isUsingShardyManualComputation(
   if (!isUsingShardy(module)) {
     return false;
   }
+
   bool is_using_shardy_manual_computation = false;
   module.get().walk([&](mlir::sdy::ManualComputationOp op) {
     is_using_shardy_manual_computation = true;
