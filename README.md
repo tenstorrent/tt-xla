@@ -21,20 +21,20 @@ tt-xla leverages a PJRT interface to integrate JAX (and in the future other fram
 # Quick Links
 - [Getting Started / How to Run a Model](docs/src/getting_started.md)
 ### Wheel build
-To build a wheel run
+To build a wheel run:
 
 ```bash
->> cd python_packages/pjrt_plugin_tt
->> python setup.py bdist_wheel
+cd python_packages
+python setup.py bdist_wheel
 ```
 
-this will output `python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using
+this will output `python_packages/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using:
 
 ```bash
 pip install pjrt_plugin_tt*.whl
 ```
 
-Wheel has the following structure
+Wheel has the following structure:
 
 ```bash
 jax_plugins
@@ -58,18 +58,20 @@ jax_plugins
                     `-- ...
 ```
 
-It contains custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds recipe (a python function) to register PJRT plugin with `JAX` and `tt-mlir` installation dir, which is needed to
-be able to dynamically link tt-mlir libs in runtime and to resolve various `tt-metal` dependencies
-without which plugin won't work.
+It contains custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds recipe (a python function) to register PJRT plugin with JAX, and `tt-mlir` installation
+dir which is needed to be able to dynamically link tt-mlir libs in runtime and to resolve various `tt-metal` dependencies without which plugin won't work.
 
-Structuring wheel/folders this way allows jax to automatically register plugin upon usage. User just needs to do
+Structuring wheel/folders this way allows JAX to automatically discover and register the plugin. User just needs to install the wheel and they will be able to see Tenstorrent devices from their program, for example:
 
 ```bash
->> pip install pjrt_plugin_tt*.whl
->> python
-# Python console
->>>> import jax
->>>> tt_device = jax.devices("tt") # this will trigger plugin registration.
+pip install pjrt_plugin_tt*.whl
+```
+
+and then in python:
+
+```python
+import jax
+tt_device = jax.devices("tt") # this will trigger plugin registration.
 ```
 
 ## Testing
