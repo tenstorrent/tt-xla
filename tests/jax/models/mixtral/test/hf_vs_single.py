@@ -95,7 +95,6 @@ def main(model_id = 'mistralai/Mixtral-8x7B-v0.1',
     if result.startswith(prompt):
         resultJax = resultJax[len(prompt):].lstrip()
     print("OutputJax:", resultJax)
-
     print("\n🧠 OutputHF:\n", result) 
     print(np.array(resultJax) == np.array(result))
     

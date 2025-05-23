@@ -1,5 +1,4 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from transformers.activations import ACT2FN
 from huggingface_hub import login
 import numpy as np
@@ -7,10 +6,11 @@ import jax
 import jax.numpy as jnp
 import os
 from flax import nnx
-import torch.nn.functional as F
-from torch import nn
-from typing import Callable, List, Optional, Tuple, Union
-from singlechip.convert_weights import make_model
+from singlechip.flaxconfigmixtral import MixtralConfig
+from jax.experimental.shard_map import shard_map
+from jax_config import cpu_devices, axis_name, num_devices, device_mesh
+from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
+from jax import lax
 
 def pcc(x, y):
     if hasattr(x, 'numpy'):
@@ -33,296 +33,218 @@ def pcc(x, y):
     
     return correlation
 
-np_dir = "mixtral_numpy_weights"
-os.makedirs(np_dir, exist_ok=True)
-#removed the token
-# with open('tokens.txt') as f:
-#     hf_token = f.read()
-
-# Log in to Hugging Face Hub with your token
-login(token=hf_token)  # Replace with your actual token
 
 
-# Print status
-print("Loading model - this may take several minutes...")
-model_id = "mistralai/Mixtral-8x7B-v0.1"
-config = AutoConfig.from_pretrained(model_id)
-config.num_hidden_layers = 1
-# Load the model with quantization
+config = MixtralConfig(num_hidden_layers=1, intermediate_size=4096)
+prng_key = jax.random.PRNGKey(0)
+rngs = nnx.Rngs(0)
+batch_size = 8
+seq_len = 10
+tokens = 5
+hidden_size = 4096
+max_len = seq_len + tokens
+input_data = jax.random.normal(key = prng_key, shape = (batch_size, seq_len, hidden_size))
+attention_mask = jnp.ones((batch_size, seq_len), dtype = jnp.int32)
+model = MixtralSparseMoeBlock(config, dtype = jnp.float32, rngs = rngs)
 
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    config=config,
-    device_map="auto",
-    torch_dtype=torch.float32
-)
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-# config_dict = config.to_dict()
-# with open(f"{np_dir}/config.json", "w") as f:
-#     import json
-#     json.dump(config_dict, f, indent=2)
-# print(f"Saved configuration to {np_dir}/config.json")
-
-# # 4. First, let's examine the model structure to verify the component names
-# layer0 = model.model.layers[0]
-
-# # Print the keys of the first layer's state dict to understand the structure
-# # layer0_keys = layer0.state_dict().keys()
-
-# # Save embeddings
-# embeddings = model.model.embed_tokens.weight.detach().cpu().numpy()
-# np.save(f"{np_dir}/embeddings.npy", embeddings)
-
-# # Save LM head
-# lm_head = model.lm_head.weight.detach().cpu().numpy()
-# np.save(f"{np_dir}/lm_head.npy", lm_head)
-
-# # Save attention components
-# attn_q = layer0.self_attn.q_proj.weight.detach().cpu().numpy()
-# attn_k = layer0.self_attn.k_proj.weight.detach().cpu().numpy()
-# attn_v = layer0.self_attn.v_proj.weight.detach().cpu().numpy()
-# attn_o = layer0.self_attn.o_proj.weight.detach().cpu().numpy()
-
-# np.save(f"{np_dir}/attn_q_proj.npy", attn_q)
-# np.save(f"{np_dir}/attn_k_proj.npy", attn_k)
-# np.save(f"{np_dir}/attn_v_proj.npy", attn_v)
-# np.save(f"{np_dir}/attn_o_proj.npy", attn_o)
-
-# # Save MoE experts correctly - inspect the structure first
-# moe = layer0.block_sparse_moe
-# num_experts = config.num_local_experts
-
-# # Get all experts' weights
-# for i in range(num_experts):
-#     # Correct structure for Mixtral's experts
-#     w1 = moe.experts[i].w1.weight.detach().cpu().numpy()
-#     w2 = moe.experts[i].w2.weight.detach().cpu().numpy()
-#     w3 = moe.experts[i].w3.weight.detach().cpu().numpy()
+def runner(input_data, attention_mask, max_len):
+    print("Creating sharded model...")
+    print("Sharded Model created")
+    batch_size, seq_len, hidden_size = input_data.shape
     
-#     np.save(f"{np_dir}/expert_{i}_w1.npy", w1)
-#     np.save(f"{np_dir}/expert_{i}_w2.npy", w2)
-#     np.save(f"{np_dir}/expert_{i}_w3.npy", w3)
+    # Handle padding - this is fine during compilation since it's based on shape
+    inputs_spec = P("X")  
+    pad_size = 0
+    if batch_size % num_devices != 0:
+        pad_size = num_devices - (batch_size % num_devices)
+        padding = jnp.zeros((pad_size, seq_len), dtype=input_data.dtype)
+        input_data = jnp.concatenate([input_data, padding], axis=0)
+        
+        mask_padding = jnp.zeros((pad_size, seq_len), dtype=attention_mask.dtype)
+        attention_mask = jnp.concatenate([attention_mask, mask_padding], axis=0)
+        
+        batch_size += pad_size
 
-# # Save router/gate weights
-# gate = moe.gate.weight.detach().cpu().numpy()
-# np.save(f"{np_dir}/moe_gate.npy", gate)
-
-# # Save layer norms
-# input_layernorm = layer0.input_layernorm.weight.detach().cpu().numpy()
-# post_attention_layernorm = layer0.post_attention_layernorm.weight.detach().cpu().numpy()
-# final_norm = model.model.norm.weight.detach().cpu().numpy()
-
-# np.save(f"{np_dir}/input_layernorm.npy", input_layernorm)
-# np.save(f"{np_dir}/post_attention_layernorm.npy", post_attention_layernorm)
-# np.save(f"{np_dir}/final_norm.npy", final_norm)
-
-# # Create a metadata file
-# metadata = {
-#     "model": model_id,
-#     "version": "single-layer",
-#     "vocab_size": config.vocab_size,
-#     "hidden_size": config.hidden_size,
-#     "intermediate_size": config.intermediate_size,
-#     "num_attention_heads": config.num_attention_heads,
-#     "num_key_value_heads": config.num_key_value_heads,
-#     "num_experts": config.num_local_experts,
-#     "num_experts_per_tok": config.num_experts_per_tok,
-#     "files": [f for f in os.listdir(np_dir) if f.endswith('.npy')],
-#     "parameter_count": sum(p.numel() for p in model.parameters()),
-#     "component_shapes": {
-#         "embeddings": embeddings.shape,
-#         "lm_head": lm_head.shape,
-#         "attn_q_proj": attn_q.shape,
-#         "attn_k_proj": attn_k.shape,
-#         "attn_v_proj": attn_v.shape,
-#         "attn_o_proj": attn_o.shape,
-#         "expert_w1": w1.shape,  # Same for all experts
-#         "expert_w2": w2.shape,
-#         "expert_w3": w3.shape,
-#         "moe_gate": gate.shape,
-#         "input_layernorm": input_layernorm.shape,
-#         "post_attention_layernorm": post_attention_layernorm.shape,
-#         "final_norm": final_norm.shape,
-#     }
-# }
-
-# with open(f"{np_dir}/metadata.json", "w") as f:
-#     import json
-#     json.dump(metadata, f, indent=2)
-
-# print(f"\nSuccessfully saved all weights as NumPy files to {np_dir}/")
-# print(f"Total parameter count: {metadata['parameter_count']:,}")
-
-# # Example prompt
-prompt = "The capital city of USA is "
-inputs = tokenizer(prompt, return_tensors="pt")
-print("Model created successfully!")
-input_ids = inputs["input_ids"]
-attention_mask = inputs["attention_mask"]
-np.save("hf_input_ids.npy", input_ids.numpy())
-np.save("hf_attention_mask.npy", attention_mask.numpy())
-
-# # Function to convert PyTorch tensor to JAX array
-# for name, param in model.named_parameters():
-#     # Convert to numpy array
-#     param_numpy = param.detach().cpu().numpy()
+    # Same sharding setup
+    sharded_input = jax.device_put(input_data, NamedSharding(device_mesh, inputs_spec))
+    out_spec = P()
     
-#     # Create directory structure if needed
-#     parts = name.split('.')
-#     directory = os.path.join("mixtral_numpy_params", *parts[:-1])
-#     os.makedirs(directory, exist_ok=True)
-    
-#     # Save as .npy file (efficient binary NumPy format)
-#     filename = os.path.join("mixtral_numpy_params", *parts) + ".npy"
-#     np.save(filename, param_numpy)
-    
-    # print(f"Saved {name} with shape {param_numpy.shape} to {filename}")
+    # Set up attention mask
+    extended_attention_mask = jnp.ones((batch_size, max_len), dtype="i4")
+    extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
+    sharded_mask = jax.device_put(extended_attention_mask, NamedSharding(device_mesh, P("X", None)))
 
-# with open("mixtral_numpy_params/manifest.txt", "w") as f:
-#     for name, param in model.named_parameters():
-#         f.write(f"{name},{','.join(str(dim) for dim in param.shape)}\n")
-
-# print("All parameters saved!")
-print("Generating respose...")
-
-def compare_attention_with_manual_input():
-    """Compare attention using manually created inputs"""
-    print("Testing attention with manual inputs...")
+    # KV Cache setup - same as before
+    past_key_values = {}
+    for i in range(config.num_hidden_layers):
+        layer_key = f'layer_{i}'
+        past_key_values[layer_key] = {
+            'cached_key': jnp.zeros((batch_size, max_len, 8, 128), dtype=jnp.float32),
+            'cached_value': jnp.zeros((batch_size, max_len, 8, 128), dtype=jnp.float32),
+            'cache_index': jnp.array(0, dtype=jnp.int32)
+        }
+        
+    sharded_cache = {}
+    cache_specs = {}
     
-    # --- Create manual inputs ---
-    # Set dimensions based on Mixtral's configuration
-    batch_size = 2
-    seq_len = 10
-    hidden_size = 4096  # Mixtral's hidden size
-    
-    # Create a simple random input tensor that will be identical for both models
-    np.random.seed(42)  # Set seed for reproducibility
-    manual_input_np = np.random.randn(batch_size, seq_len, hidden_size)
-    # Create attention mask (all 1's for simplicity)
-    attention_mask_np = np.ones((batch_size, seq_len))
-    
-    print(f"Created manual input with shape: {manual_input_np.shape}")
-    
-    # --- Load Flax model ---
-    print("Loading Flax model...")
-    
-    flax_model = make_model(config, model)  # Your loading function
-    
-    # --- Convert inputs to appropriate formats ---
-    # For PyTorch
-    manual_input_torch = torch.tensor(manual_input_np, dtype=torch.long).to(model.device)
-    attention_mask_torch = torch.tensor(attention_mask_np).to(model.device)
-    
-    # For JAX
-    manual_input_jax = jnp.array(manual_input_np).astype(jnp.int32)
-    attention_mask_jax = jnp.array(attention_mask_np)
-
-    # --- Compare Q, K, V projections ---
-    print("\nComparing Q, K, V projections...")
-    
-    hf_layer = model.model.layers[0]
-    flax_layer = flax_model.model.layers[0]
-
-        # print(f"Q projection correlation: {q_corr}")
-        # print(f"K projection correlation: {k_corr}")
-        # print(f"V projection correlation: {v_corr}")
-    
-        # print("\nProjection shapes:")
-        # print(f"HF Q: {hf_w1.shape}, Flax Q: {flax_w1.shape}")
-        # print(f"HF K: {hf_w2.shape}, Flax K: {flax_w2.shape}")
-        # print(f"HF V: {hf_w3.shape}, Flax V: {flax_w3.shape}")
-    
-    
-    try:
-        print(manual_input_torch.shape, manual_input_jax.shape)
-
-        with torch.no_grad():
-            hf_attn_output = hf_layer(
-                hidden_states = manual_input_torch,
-                # position_ids = position_ids_torch
-                attention_mask=attention_mask_torch,
-                #position_embeddings = hf_position_embeddings,
-                # output_attentions=True
-            )
-        print(hf_attn_output.shape)
-    #     # Flax attention output
-    #     # attention_mask_jax = attention_mask_jax.reshape(1, 1, batch_size, seq_len)
-
-        flax_attn_output =flax_layer(
-            hidden_states = manual_input_jax,
-            attention_mask = attention_mask_jax
+    for layer_key, layer_cache in past_key_values.items():
+        sharded_cache[layer_key] = {}
+        sharded_cache[layer_key]['cached_key'] = jax.device_put(
+            layer_cache['cached_key'],
+            NamedSharding(device_mesh, P("X", None, None, None))
         )
-        print(hf_attn_output)
-        print(flax_attn_output.shape)
-        # sga.experts[0].w1.weight.data = hf_w1
-        print(flax_attn_output)
-        hf_attn_output = hf_attn_output.detach()
-        print(pcc(flax_attn_output, hf_attn_output))
-            # expert.gate_proj.kernel.value = match_shape(
-            #     expert.gate_proj.kernel.value, 
-            #     np_weights["experts"][e]["w3"]
-            # )
-            # expert.up_proj.kernel.value = match_shape(
-            #     expert.up_proj.kernel.value, 
-            #     np_weights["experts"][e]["w1"]
-            # )
-            # expert.down_proj.kernel.value = match_shape(
-            #     expert.down_proj.kernel.value, 
-            #     np_weights["experts"][e]["w2"]
-            # )
-    #     attn = MixtralAttention(config, 0)
-    #     
-    #     attn.o_proj.weight.data = torch.tensor(attn_o)
-    #     with torch.no_grad():
-    #         outattn = attn(hidden_states=manual_input_torch,
-    #                 attention_mask=attention_mask,
-    #                 position_embeddings = hf_position_embeddings,
-    #                 gas = flax_attn_output,
-    #         )
+        sharded_cache[layer_key]['cached_value'] = jax.device_put(
+            layer_cache['cached_value'],
+            NamedSharding(device_mesh, P("X", None, None, None))
+        )
+        sharded_cache[layer_key]['cache_index'] = jax.device_put(
+            layer_cache['cache_index'],
+            NamedSharding(device_mesh, P())
+        )
+        
+    for i in range(config.num_hidden_layers):
+        layer_key = f'layer_{i}'
+        cache_specs[layer_key] = {
+            'cached_key': P("X", None, None, None),
+            'cached_value': P("X", None, None, None),
+            'cache_index': P()
+        }
+        
+    position_ids = jnp.cumsum(extended_attention_mask, axis=-1) - 1
+    sharded_position_ids = jax.device_put(position_ids, NamedSharding(device_mesh, P("X", None)))
 
-    #     print(outattn[0].shape)
-    #     print(hf_attn_output.shape)
-    #     print(flax_attn_output.shape)
-    #     # Compare with PCC
-    #     attn_corr = pcc(hf_attn_output, outattn[0])
-    #     print(f"Full attention output correlation: {attn_corr}")
-    #     print("AATn2: ", pcc(flax_attn_output, outattn[0]))
-    #     # Calculate differences
+    def forward_pass(x):
+        # Single forward pass through the model
+        outputs = model(
+            hidden_states=x,
+            # attention_mask=mask,
+            # past_key_values=cache,
+            # position_ids=pos,
+            # init_cache=True,
+        )
+        return outputs
     
-        
-    #     # Sample values
-    #     print("\nSample attention output values (first token, first 5 values):")
-    #     print(f"HF:   {hf_attn_output[0, 0, :5]}")
-    #     print(f"Flax: {flax_attn_output[0, 0, :5]}")
-        
-    except Exception as e:
-        print(f"Error running attention comparison: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Try running with different signatures or without attention mask
-        print("\nTrying alternative attention call patterns...")
+    # Create sharded and JIT-compiled forward function
+    sharded_forward = shard_map(
+        forward_pass,
+        device_mesh,
+        in_specs=(inputs_spec), 
+        out_specs=(P("X", None, None)),  # logits and updated cache
+        check_rep=False,
+    )
     
-    # return {
-    #     "q_corr": q_corr,
-    #     "k_corr": k_corr,
-    #     "v_corr": v_corr,
-    #     "hf_q": hf_q,
-    #     "flax_q": flax_q,
-    #     "hf_k": hf_k,
-    #     "flax_k": flax_k,
-    #     "hf_v": hf_v,
-    #     "flax_v": flax_v
-    # }
-results = compare_attention_with_manual_input()
+    # JIT compile the sharded forward pass
+    jit_forward = jax.jit(sharded_forward)
+    
+    # Manual generation loop (outside JIT)
+    # all_token_ids = jnp.zeros((batch_size, max_len), dtype=input_data.dtype)
+    # all_token_ids = all_token_ids.at[:, :seq_len].set(sharded_input)
+    
+    # Process initial prompt
+    logits = jit_forward(
+        sharded_input, 
+        # sharded_mask, 
+        # sharded_cache, 
+        # sharded_position_ids
+    )
+    return logits
 
-# print('Token ids:')
-# print(output[0])
-# # # Decode the output
-# generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+res = runner(input_data, attention_mask, max_len)
+print(res.shape)
+print(res)
 
-# print("\nRESPONSE:")
-# print(generated_text)
-# np.save("output.npy", output[0].numpy())
+class MixtralBlockSparseTop2MLP2(nnx.Module):
+    """MLP module with sparse routing for Mixtral architecture."""
+    
+    def __init__(self, config: MixtralConfig, rngs : nnx.Rngs):
+        super().__init__()
+        embed_dim = config.hidden_size
+        inner_dim = config.intermediate_size if config.intermediate_size is not None else 4 * embed_dim
+        self.up_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs = rngs)
+        self.gate_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs = rngs)
+        self.down_proj = nnx.Linear(inner_dim, embed_dim, use_bias=False, rngs = rngs)
+        self.act_fn = jax.nn.silu
+
+    def __call__(self, hidden_states):
+        gate_states = self.act_fn(self.up_proj(hidden_states)) * self.gate_proj(hidden_states)
+        hidden_states = self.down_proj(gate_states)
+        return hidden_states
+
+class MixtralSparseMoeBlock2(nnx.Module):
+    """Sparse Mixture of Experts block for Mixtral."""
+    
+    def __init__(self, config: MixtralConfig, dtype, rngs : nnx.Rngs):
+        super().__init__()
+        self.hidden_dim = config.hidden_size
+        self.ffn_dim = config.intermediate_size
+        self.num_experts = config.num_local_experts
+        self.top_k = config.num_experts_per_tok
+        self.dtype = dtype
+        self.gate = nnx.Linear(
+            config.hidden_size, 
+            config.num_local_experts, 
+            use_bias=False, 
+            dtype=self.dtype, 
+            rngs = rngs
+        )
+
+        for i in range(self.num_experts):
+            setattr(self, f"experts_{i}", MixtralBlockSparseTop2MLP(config, rngs = rngs))
+        self.jitter_noise = config.router_jitter_noise
+
+    def _get_expert(self, idx):
+        """Helper to get expert by index"""
+        return getattr(self, f"experts_{idx}")
+
+    def __call__(self, hidden_states):
+        batch_size, seq_len, hid_dim = hidden_states.shape
+        hidden_states = hidden_states.reshape(-1, hid_dim)
+        router_logits = self.gate(hidden_states)
+        routing_weights = jax.nn.softmax(router_logits, axis = 1)
+        routing_weights, selected_experts = lax.top_k(routing_weights, self.top_k)
+        routing_weights /= jnp.sum(routing_weights, axis = -1, keepdims = True)
+        # print(routing_weights, selected_experts)
+        routing_weights = routing_weights.astype(hidden_states.dtype)
+
+        final_hidden_states = jnp.zeros(
+            (batch_size * seq_len, hid_dim), dtype=hidden_states.dtype)
+
+        # Create one-hot representation of selected experts
+        expert_mask = jax.nn.one_hot(selected_experts, num_classes = self.num_experts, dtype = jnp.int8).transpose(2, 1, 0)
+        for expert_idx in range(self.num_experts):
+            expert_layer = self._get_expert(expert_idx)
+            idx, top_x = jnp.where(expert_mask[expert_idx])
+            current_state = hidden_states[None, top_x].reshape(-1, hid_dim)
+            current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
+            final_hidden_states = final_hidden_states.at[top_x].add(current_hidden_states)
+
+        final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hid_dim)
+        # print(final_hidden_states)
+        return final_hidden_states, router_logits
+
+model2 = MixtralSparseMoeBlock2(config, dtype = jnp.float32, rngs = rngs)
+def run_single_chip(input_data, attention_mask, max_len):
+    print("Creating Regular model...")
+    model2.gate.kernel.value = model.gate.kernel.value
+    for i in range(8):
+        expert2 = getattr(model2, f"experts_{i}")
+        expert = getattr(model, f"experts_{i}")
+        expert2.up_proj.kernel.value = expert.up_proj.kernel.value
+        expert2.down_proj.kernel.value = expert.down_proj.kernel.value
+        expert2.gate_proj.kernel.value = expert.gate_proj.kernel.value
+    print("Regular model created")
+    batch_size, seq_len, hidden_size = input_data.shape
+    extended_attention_mask = jnp.ones((batch_size, max_len), dtype = "i4")
+    extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
+
+    out1, out2 = model2(
+        hidden_states = input_data
+    )
+    return out1
+
+res2 = run_single_chip(input_data, attention_mask, max_len)
+print(res2.shape)
+print(res2)
+
+print(pcc(res, res2))
+print(pcc(model2.gate.kernel.value, model.gate.kernel.value))
