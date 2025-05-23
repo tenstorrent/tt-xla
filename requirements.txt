@@ -17,8 +17,8 @@ pre-commit
 pybind11
 pytest
 sentencepiece
+setuptools
 soundfile
 torch
 transformers
 wheel
-setuptools

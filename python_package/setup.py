@@ -9,14 +9,13 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import List
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
 THIS_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
-REPO_DIR = Path(os.path.join(THIS_DIR, "..", "..")).resolve()
+REPO_DIR = Path(os.path.join(THIS_DIR, "..")).resolve()
 
 
 @dataclass
@@ -28,7 +27,8 @@ class SetupConfig:
     ```
     jax_plugins
     `-- <custom-plugin-name>
-        `-- __init__.py     # contains plugin registration function
+        |-- __init__.py         # Contains plugin registration function
+        `-- <custom-plugin-name>.so   # Plugin itself
     ```
     to be automatically detected by `jax` lib. Upon installation, it will be unpacked
     from wheel into user's python `env/lib` dir.
@@ -94,15 +94,20 @@ class SetupConfig:
         """
         List of requirements needed for plugin to actually work.
 
-        requirements.txt is parsed and only jax or flax related stuff is pulled from it.
+        requirements.txt is parsed and only JAX requirements are pulled from it.
         """
         reqs = []
         requirements_path = REPO_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
-            for line in f.read().splitlines():
-                if "jax" in line or "flax" in line:
-                    reqs.append(line)
+            # Filter for just pinned versions.
+            pin_pairs = [line.strip().split("==") for line in f if "==" in line]
+            pin_versions = dict(pin_pairs)
+
+            # Convert pinned versions to >= for install_requires.
+            for pin_name in ("jax", "jaxlib"):
+                pin_version = pin_versions[pin_name]
+                reqs.append(f"{pin_name}>={pin_version}")
 
         return reqs
 
@@ -141,6 +146,16 @@ class SetupConfig:
         return self.pjrt_plugin_path.exists() and self.tt_mlir_install_dir.exists()
 
     # --- Properties of wheel bundle ---
+
+    @property
+    def jax_plugin_init(self) -> Path:
+        """Path to __init__.py which initializes jax plugin."""
+        return THIS_DIR / "__init__.py"
+
+    @property
+    def jax_plugin_init_copied(self) -> bool:
+        """Returns True if __init__.py is already copied to destination."""
+        return (self.jax_plugin_target_dir / "__init__.py").exists()
 
     @property
     def jax_plugin_target_dir_relpath(self) -> Path:
@@ -261,6 +276,16 @@ class CMakeBuildPy(build_py):
             self.build_cmake_project()
         else:
             print("Project already built.")
+
+        # Create temp dir.
+        config.jax_plugin_target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy __init__.py file into the python jax_plugins package directory.
+        if not config.jax_plugin_init_copied:
+            print("Copying __init__.py...")
+            shutil.copy2(config.jax_plugin_init, config.jax_plugin_target_dir)
+        else:
+            print("__init__.py already copied.")
 
         # Copy the .so file into the python jax_plugins package directory.
         if not config.pjrt_plugin_copied:
