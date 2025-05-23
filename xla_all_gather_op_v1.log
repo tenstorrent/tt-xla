@@ -1,0 +1,260 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+2025-05-23 18:08:38.430 (   0.000s) [        35BC51C0]      dylib_platform.cc:47       1| DylibPlatform::SubclassInitialize
+2025-05-23 18:08:38.432 (   0.001s) [        35BC51C0]     client_instance.cc:32       1| ClientInstance::ClientInstance
+2025-05-23 18:08:38.432 (   0.001s) [        35BC51C0]              client.cc:18       1| TTClientInstance::TTClientInstance
+2025-05-23 18:08:38.432 (   0.001s) [        35BC51C0]     client_instance.cc:53       1| ClientInstance::Initialize
+[32m2025-05-23 18:08:38.432[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 0; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.433[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 1; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.434[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 2; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.436[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 3; KMD version: 1.31.0, IOMMU: disabled
+New chip! We now have 1 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 2 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 3 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 4 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 5 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 4 chips
+New chip! We now have 5 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 6 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 6 chips
+New chip! We now have 7 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 8 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+New chip! We now have 9 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 8 chips
+New chip! We now have 9 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 8 chips
+New chip! We now have 9 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 8 chips
+New chip! We now have 9 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 8 chips
+New chip! We now have 9 chips
+Chip initialization complete (found )
+Chip initializing complete...
+ ARC
+
+ [4/4] DRAM
+
+ [16/16] ETH
+
+ CPU
+
+Ok I was wrong we actually have 8 chips
+Chip detection complete (found )
+
+                 Device | INFO     | Opening user mode device driver
+[32m2025-05-23 18:08:38.756[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 0; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.757[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 1; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.758[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 2; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.759[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 3; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.766[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 0; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.767[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 1; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.768[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 2; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.769[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Opened PCI device 3; KMD version: 1.31.0, IOMMU: disabled
+[32m2025-05-23 18:08:38.776[0m | [1m[38;2;100;149;237mINFO    [0m | [36mSiliconDriver  [0m - Harvesting mask for chip 3 is 0x202 (physical layout: 0x9, logical: 0x202, simulated harvesting mask: 0x0).
+2025-05-23 18:08:38.776 (   0.345s) [        35BC51C0]     client_instance.cc:47       1| ClientInstance::~ClientInstance
+Traceback (most recent call last):
+  File "/localdev/hshah/tt-xla/examples/xla_all_gather_op_v1.py", line 33, in <module>
+    num_devices = xr.global_runtime_device_count()
+  File "/localdev/hshah/tt-xla/venv/lib/python3.10/site-packages/torch_xla/runtime.py", line 218, in global_runtime_device_count
+    return len(torch_xla._XLAC._xla_get_all_runtime_devices())
+RuntimeError: Error: device descriptor file ./tt_metal/soc_descriptors/wormhole_b0_80_arch.yaml does not exist!
