@@ -20,3 +20,4 @@ sentencepiece
 soundfile
 torch
 transformers
+torch-xla
