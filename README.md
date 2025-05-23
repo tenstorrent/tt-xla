@@ -1,13 +1,17 @@
 
+
+[![Tests][tests badge]][tests]
+[![Codecov][codecov badge]][codecov]
+
 <div align="center">
 
 <h1>
 
-[Buy](https://tenstorrent.com/cards/) |[Discord](https://discord.gg/tenstorrent) | [Join Us](https://boards.greenhouse.io/tenstorrent/jobs/4155609007)
+[Buy](https://tenstorrent.com/cards/) | [Discord](https://discord.gg/tenstorrent)
 
 </h1>
 <picture>
-  <img alt="Logo" src="docs/public/images/tt_refresh_forge_w_icon-01.png" height="250">
+  <img alt="Logo" src="docs/public/images/tt_xla_logo.png" height="250">
 </picture>
 
 </div>
@@ -17,12 +21,6 @@ tt-xla leverages a PJRT interface to integrate JAX (and in the future other fram
 
 # Quick Links
 - [Getting Started / How to Run a Model](docs/src/getting_started.md)
-- [tt-forge](https://github.com/tenstorrent/tt-forge)
-- [tt-forge-fe](https://github.com/tenstorrent/tt-forge-fe)
-- [tt-torch](https://github.com/tenstorrent/tt-torch)
-- [tt-mlir](https://github.com/tenstorrent/tt-mlir)
-- [tt-metal](https://github.com/tenstorrent/tt-metal)
-- [tt-tvm](https://github.com/tenstorrent/tt-tvm)
 
 # What is this Repo?
 The tt-xla repository is primarily used to enable running JAX models on Tenstorrent's AI hardware. It's a backend integration between the JAX ecosystem and Tenstorrent's ML accelerators using the PJRT (Portable JAX Runtime) interface.
@@ -39,7 +37,7 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
 
 - [tt-xla](https://github.com/tenstorrent/tt-xla)
   - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), `tt-mlir` and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to `tt-mlir` compiler
-  - See [README](https://github.com/tenstorrent/tt-xla/blob/main/README.md) for an overview and getting started guide.
+  - See [getting_started.md](docs/src/getting_started.md) for an overview and getting started guide.
 
 # Related Tenstorrent Projects
 - [tt-forge](https://github.com/tenstorrent/tt-forge)
