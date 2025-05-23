@@ -9,10 +9,9 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
-#include "common/status.h"
 
-#include <string>
-#include <unordered_map>
+// c++ standard library includes
+#include <numeric>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -21,146 +20,251 @@
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
+// tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
-#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
-#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 
-LoadedExecutableInstance::~LoadedExecutableInstance() { image_->DecRef(); }
+std::unique_ptr<LoadedExecutableInstance>
+LoadedExecutableInstance::createInstance(
+    std::shared_ptr<ExecutableImage> executable_image,
+    std::vector<DeviceInstance *> &&addressable_devices,
+    MemoryInstance *host_memory) {
+  struct make_unique_enabler : public LoadedExecutableInstance {
+    make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        MemoryInstance *host_memory)
+        : LoadedExecutableInstance(std::move(executable_image),
+                                   std::move(addressable_devices),
+                                   host_memory) {}
+  };
 
-void LoadedExecutableInstance::BindApi(PJRT_Api *api) {
-  api->PJRT_LoadedExecutable_Destroy =
-      +[](PJRT_LoadedExecutable_Destroy_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
-    delete LoadedExecutableInstance::Unwrap(args->executable);
-    return nullptr;
-  };
-  api->PJRT_LoadedExecutable_AddressableDevices =
-      +[](PJRT_LoadedExecutable_AddressableDevices_Args *args) -> PJRT_Error * {
-    DLOG_F(
-        LOG_DEBUG,
-        "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
-    LoadedExecutableInstance *loaded_executable =
-        LoadedExecutableInstance::Unwrap(args->executable);
-    // TODO: Set addressable devices in the loaded executable class to only the
-    // devices being utilized, rather than all addressable devices. This way,
-    // the number of devices will be determined by the list length instead of a
-    // separate field in the class.
-    const std::vector<DeviceInstance *> &addressable_devices =
-        loaded_executable->addressable_devices();
-    int num_addressable_devices =
-        loaded_executable->get_num_devices_to_utilize();
-    args->addressable_devices = const_cast<PJRT_Device **>(
-        reinterpret_cast<PJRT_Device *const *>(addressable_devices.data()));
-    args->num_addressable_devices = num_addressable_devices;
-    return nullptr;
-  };
-  api->PJRT_LoadedExecutable_Execute =
-      +[](PJRT_LoadedExecutable_Execute_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
-    return ErrorInstance::MakeError(
-        LoadedExecutableInstance::Unwrap(args->executable)->Execute(args));
-  };
-  api->PJRT_LoadedExecutable_GetExecutable =
-      +[](PJRT_LoadedExecutable_GetExecutable_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG,
-           "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
-    LoadedExecutableInstance *loaded_exe =
-        LoadedExecutableInstance::Unwrap(args->loaded_executable);
-    ExecutableImage *image = loaded_exe->image_;
-
-    image->AddRef();
-    args->executable = *image;
-    return nullptr;
-  };
+  return std::make_unique<make_unique_enabler>(
+      std::move(executable_image), std::move(addressable_devices), host_memory);
 }
 
+void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
+  api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
+  api->PJRT_LoadedExecutable_GetExecutable =
+      internal::onLoadedExecutableGetExecutable;
+  api->PJRT_LoadedExecutable_AddressableDevices =
+      internal::onLoadedExecutableAddressableDevices;
+  api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
+  api->PJRT_LoadedExecutable_IsDeleted = internal::onLoadedExecutableIsDeleted;
+  api->PJRT_LoadedExecutable_Execute = internal::onLoadedExecutableExecute;
+}
+
+bool LoadedExecutableInstance::isDeleted() {
+  std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
+  return m_deleted;
+}
+
+void LoadedExecutableInstance::releaseResources() {
+  if (m_deleted) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
+  if (m_deleted) {
+    return;
+  }
+
+  // Here we should drop executable's reference to the internal runtime object
+  // and associated resources, but we currently store no runtime objects so
+  // releasing only resources.
+  m_executable_image.reset();
+
+  m_deleted = true;
+}
+
+// TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status
-LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
+LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
-  // Check that the number of devices matches the number of devices counted
-  // from the VHLO module.
-  size_t num_devices = args->num_devices;
-  if (num_devices != num_devices_to_utilize_) {
-    DLOG_F(ERROR, "Number of devices in the executable does not match the "
-                  "number of devices to utilize.");
+  if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
+    DLOG_F(ERROR,
+           "Requested number of devices to run the executable on (%zu) doesn't "
+           "match the compiler estimated number of devices (%zu)",
+           args->num_devices, m_executable_image->getNumDevicesToUtilize());
     return tt_pjrt_status::kInternal;
   }
 
-  const tt::runtime::Binary &binary = image_->get_binary();
+  if (args->num_args != m_executable_image->getNumInputs()) {
+    DLOG_F(ERROR,
+           "Requested number of arguments to provide to the executable (%zu) "
+           "doesn't match the compiler estimated number of inputs (%zu)",
+           args->num_args, m_executable_image->getNumInputs());
+    return tt_pjrt_status::kInternal;
+  }
 
-  std::vector<tt::runtime::Tensor> rt_inputs;
-  for (size_t arg_num = 0; arg_num < args->num_args; ++arg_num) {
-    std::vector<std::shared_ptr<void>> data;
-    BufferInstance *buffer;
-    for (size_t device_index = 0; device_index < num_devices; ++device_index) {
-      buffer =
-          BufferInstance::Unwrap(args->argument_lists[device_index][arg_num]);
-      data.push_back(buffer->get_host_buffer_ptr());
+  std::optional<tt::runtime::Device> runtime_device =
+      openDevices(args->argument_lists, args->num_args, args->num_devices,
+                  args->execute_device);
+  if (!runtime_device) {
+    // Logging is done inside `openDevices`.
+    return tt_pjrt_status::kInternal;
+  }
+
+  // Assuming only one program per flatbuffer for now.
+  std::uint32_t program_index = 0;
+
+  std::vector<tt::runtime::Tensor> input_tensors;
+  input_tensors.reserve(args->num_args);
+  tt_pjrt_status status = getInputRuntimeTensors(
+      args->argument_lists, args->num_args, args->num_devices, *runtime_device,
+      program_index, input_tensors);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
+
+  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
+      *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
+      input_tensors);
+
+  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+    DLOG_F(ERROR,
+           "Runtime produced different number of output tensors (%zu) than the "
+           "compiler estimated number of outputs (%zu)",
+           output_tensors.size(), m_executable_image->getNumOutputs());
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
+  untilized_output_tensors.reserve(output_tensors.size());
+  status = untilizeToHost(output_tensors, args->num_devices,
+                          untilized_output_tensors);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
+
+  fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
+                      args->output_lists);
+
+  for (size_t output_index = 0; output_index < output_tensors.size();
+       ++output_index) {
+    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
+  }
+
+  if (args->device_complete_events) {
+    for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+      std::unique_ptr<EventInstance> device_complete_event =
+          EventInstance::createInstance();
+      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Event_Destroy` on the event.
+      args->device_complete_events[device_num] =
+          *device_complete_event.release();
     }
+  }
+
+  tt::runtime::closeMeshDevice(*runtime_device);
+
+  return tt_pjrt_status::kSuccess;
+}
+
+std::optional<tt::runtime::Device>
+LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
+                                      size_t num_args, size_t num_devices,
+                                      PJRT_Device *pjrt_device) {
+  std::unordered_set<int> device_ids =
+      getDeviceIds(argument_lists, num_args, num_devices);
+
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
+  size_t mesh_shape_num_devices = static_cast<size_t>(
+      std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
+                      std::multiplies<std::uint32_t>{}));
+
+  if (device_ids.size() != mesh_shape_num_devices) {
+    DLOG_F(ERROR,
+           "Input buffers are placed on a different number of devices (%zu) "
+           "than in the mesh shape estimated by the compiler (%zu)",
+           device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+  if (device_instance &&
+      !(device_ids.size() == 1 &&
+        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                  "specified in the execute_device argument");
+    return std::nullopt;
+  }
+
+  // TODO(mrakita): Currently runtime doesn't allow us to open specific devices
+  // subset, we can only open contiguous subset of devices starting from some
+  // offset. We need to keep track of opened devices in Client and map the
+  // buffers devices to these devices.
+  // https://github.com/tenstorrent/tt-xla/issues/502
+
+  return tt::runtime::openMeshDevice(devices_mesh_shape);
+}
+
+std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
+    PJRT_Buffer *const *const *argument_lists, size_t num_args,
+    size_t num_devices) {
+  std::unordered_set<int> device_ids;
+
+  for (size_t device_index = 0; num_args && device_index < num_devices;
+       device_index++) {
+    const BufferInstance *buffer =
+        BufferInstance::unwrap(argument_lists[device_index][0]);
+    int64_t buffer_device_id = buffer->getDevice()->getGlobalDeviceId();
+    device_ids.emplace(buffer_device_id);
+  }
+
+  // If there are no input buffers, we still want to run on a device.
+  // TODO: Now we will run only on the first one, but this should be somehow
+  // explicit. Maybe use `execute_device` from the args?
+  if (device_ids.size() == 0) {
+    assert(!m_addressable_devices.empty());
+    device_ids.emplace(m_addressable_devices.front()->getGlobalDeviceId());
+  }
+
+  return device_ids;
+}
+
+tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
+    PJRT_Buffer *const *const *argument_lists, size_t num_args,
+    size_t num_devices, const tt::runtime::Device &runtime_device,
+    std::uint32_t program_index,
+    std::vector<tt::runtime::Tensor> &input_tensors) {
+  for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
+    std::vector<tt::runtime::Tensor> arg_tensors;
+    arg_tensors.reserve(num_devices);
+
+    for (size_t device_index = 0; device_index < num_devices; ++device_index) {
+      BufferInstance *buffer =
+          BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+      arg_tensors.push_back(buffer->getRuntimeTensor());
+    }
+
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
-            image_->getInputSharding(arg_num), num_devices);
+            m_executable_image->getInputSharding(arg_index), num_devices);
     if (mlir::failed(strategy)) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
       return tt_pjrt_status::kInternal;
     }
-    // As all the buffers that correspond to the same argument have the same
-    // tensor descriptors (shape, stride, etc), we can just use the last one to
-    // get the needed information.
-    rt_inputs.push_back(getTensorFromStrategy(*strategy, buffer, data));
-  }
 
-  std::vector<int> device_ids = getDeviceIds(
-      args->argument_lists, addressable_devices_, args->num_args, num_devices);
+    tt::runtime::Tensor input_tensor =
+        getTensorFromStrategy(arg_tensors, *strategy);
 
-  tt::runtime::MeshDeviceOptions options;
-  options.deviceIds = device_ids;
-  const std::vector<std::uint32_t> &mesh_shape = image_->get_mesh_shape();
-  tt::runtime::Device device = tt::runtime::openMeshDevice(mesh_shape, options);
-  std::vector<tt::runtime::Tensor> input_tensors;
-  int size_inputs = rt_inputs.size();
+    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
+        input_tensor, program_index, arg_index, runtime_device);
 
-  // Multichip support is only enabled if the toLayoutAPIAssumeSingleChip
-  // workaround flag is turned off, which the line below does.
-  // See issue: https://github.com/tenstorrent/tt-xla/issues/373
-  tt::runtime::workaround::Env::get(true, true, false, true);
-
-  std::vector<tt::runtime::Tensor> rt_outputs =
-      tt::runtime::submit(device, binary, 0 /* program_index */, rt_inputs);
-  std::vector<tt::runtime::TensorDesc> output_specs =
-      binary.getProgramOutputs(0 /* program_index */);
-  std::vector<std::vector<tt::runtime::Tensor>> rt_outputs_list(num_devices);
-
-  for (size_t output_index = 0; output_index < output_specs.size();
-       ++output_index) {
-    std::vector<tt::runtime::Tensor> untilized_output =
-        tt::runtime::toHost(rt_outputs[output_index], /* untilize */ true);
-    for (size_t shard_index = 0; shard_index < untilized_output.size();
-         shard_index++) {
-      rt_outputs_list[shard_index].push_back(untilized_output[shard_index]);
+    // In case when new tensor was created, we want it to be automatically
+    // deallocated during runtime.
+    if (laid_out_tensor.data != input_tensor.data) {
+      tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
     }
+
+    input_tensors.push_back(laid_out_tensor);
   }
-
-  fillPJRTOutputLists(rt_outputs_list, output_specs, num_devices,
-                      args->output_lists);
-
-  for (size_t output_num = 0; output_num < rt_outputs.size(); ++output_num) {
-    tt::runtime::deallocateTensor(rt_outputs[output_num], /*force=*/true);
-  }
-
-  if (args->device_complete_events) {
-    for (int device_num = 0; device_num < num_devices; device_num++) {
-      args->device_complete_events[device_num] = *(new EventInstance());
-    }
-  }
-
-  tt::runtime::closeMeshDevice(device);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -169,125 +273,183 @@ LoadedExecutableInstance::Execute(PJRT_LoadedExecutable_Execute_Args *args) {
 // the tt::runtime, instead of a more structured approach with structs and/or
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
-    const std::unordered_map<std::string, std::string> &strategy,
-    BufferInstance *buffer, std::vector<std::shared_ptr<void>> &data) {
+    const std::vector<tt::runtime::Tensor> &arg_tensors,
+    const std::unordered_map<std::string, std::string> &strategy) {
   if (strategy.at("strategy") == "identity") {
-    return buffer->getTensor();
+    return arg_tensors.front();
   }
-  std::pair<tt::target::DataType, size_t> tt_buffer_type =
-      buffer->get_tt_buffer_type();
-  tt::runtime::TensorDesc tensor_desc = {
-      buffer->getDimensions(), buffer->get_stride(),
-      static_cast<std::uint32_t>(tt_buffer_type.second), tt_buffer_type.first};
-  return tt::runtime::createTensor(data, tensor_desc, strategy);
+
+  tt::runtime::Tensor tensor =
+      tt::runtime::createMultiDeviceHostTensor(arg_tensors, strategy);
+  tt::runtime::setTensorRetain(tensor, /*retain=*/false);
+
+  return tensor;
 }
 
-std::vector<std::uint32_t>
-LoadedExecutableInstance::getOuputShape(size_t index, size_t num_devices) {
-  std::vector<std::uint32_t> outputShape = image_->get_output_shape(index);
-  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      image_->getOutputSharding(index);
-  mlir::FailureOr<std::unordered_map<std::string, std::string>>
-      shardingStrategy =
-          mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
-              outputSharding, num_devices);
-  if (mlir::failed(shardingStrategy)) {
-    DLOG_F(WARNING, "No valid output sharding, returning the original shape");
-    return outputShape;
-  }
-  if (shardingStrategy->at("strategy") == "shard") {
-    outputShape[0] /= num_devices;
-  } else if (shardingStrategy->at("strategy") == "shard_2d") {
-    assert(outputShape[0] % std::stoi(shardingStrategy->at("mesh_shape_y")) ==
-           0);
-    assert(outputShape[1] % std::stoi(shardingStrategy->at("mesh_shape_x")) ==
-           0);
-    outputShape[0] =
-        outputShape[0] / std::stoi(shardingStrategy->at("mesh_shape_y"));
-    outputShape[1] =
-        outputShape[1] / std::stoi(shardingStrategy->at("mesh_shape_x"));
-  }
-  return outputShape;
+tt::runtime::Tensor LoadedExecutableInstance::convertTensorLayout(
+    tt::runtime::Tensor input_tensor, std::uint32_t program_index,
+    size_t arg_index, const tt::runtime::Device &runtime_device) {
+  tt::runtime::Layout layout = tt::runtime::getLayout(
+      m_executable_image->getFlatbufferBinary(), program_index, arg_index);
+
+  return tt::runtime::toLayout(input_tensor, runtime_device, layout,
+                               tt::runtime::getTensorRetain(input_tensor));
 }
 
-bool LoadedExecutableInstance::isOutputReplicated(size_t index) const {
-  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      image_->getOutputSharding(index);
-  return outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate;
+tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
+  for (size_t output_index = 0; output_index < output_tensors.size();
+       ++output_index) {
+    std::vector<tt::runtime::Tensor> untilized_output =
+        tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
+
+    // TODO(mrakita): This will not be the case if runtime output tensor does
+    // not have multi-device storage, but I haven't yet encountered situation
+    // where executable is run on multiple devices and we produce a single
+    // device tensor. Leaving this check to help us find those situations.
+    if (untilized_output.size() != num_devices) {
+      DLOG_F(ERROR,
+             "Untilize to host produced invalid number of output tensors: "
+             "expected %zu, got %zu",
+             num_devices, untilized_output.size());
+      return tt_pjrt_status::kInternal;
+    }
+
+    untilized_output_tensors.emplace_back(std::move(untilized_output));
+  }
+
+  return tt_pjrt_status::kSuccess;
 }
 
 void LoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list,
-    const std::vector<tt::runtime::TensorDesc> &output_specs,
+    const std::vector<std::vector<tt::runtime::Tensor>>
+        &untilized_output_tensors,
     size_t num_devices, PJRT_Buffer **const *output_lists) {
-  size_t num_outputs = getNumberOfOutputs(rt_outputs_list);
+  size_t num_outputs = untilized_output_tensors.size();
 
-  assert(num_outputs == output_specs.size());
-
-  for (int device_index = 0; device_index < num_devices; device_index++) {
+  for (int device_index = 0; device_index < num_devices; ++device_index) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       tt::runtime::Tensor output_tensor =
-          getOuputTensor(device_index, output_index, rt_outputs_list);
-      std::vector<std::uint32_t> output_shape =
-          getOuputShape(output_index, num_devices);
-      std::pair<tt::target::DataType, size_t> type_pair = {
-          output_specs[output_index].dataType,
-          output_specs[output_index].itemsize};
-      auto result_buffer = std::make_unique<BufferInstance>(
-          *this->addressable_devices_[device_index], output_tensor,
-          output_shape, output_specs[output_index].stride, type_pair);
-      result_buffer->setType(tt::pjrt::utils::convertElementTypeToBufferType(
-          output_specs[output_index].dataType));
-      output_lists[device_index][output_index] = *(result_buffer.release());
+          untilized_output_tensors[output_index][device_index];
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              output_tensor, std::move(output_shape),
+              m_addressable_devices[device_index], m_host_memory);
+
+      output_buffer->markAsDataReady();
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+      output_lists[device_index][output_index] = *output_buffer.release();
     }
   }
 }
 
-std::vector<int> LoadedExecutableInstance::getDeviceIds(
-    PJRT_Buffer *const *const *argument_lists,
-    const std::vector<DeviceInstance *> &addressable_devices, size_t num_args,
-    size_t num_devices) {
-  std::vector<int> device_ids;
+std::vector<std::uint32_t>
+LoadedExecutableInstance::getOutputShape(size_t output_index) {
+  std::vector<std::uint32_t> outputShape =
+      m_executable_image->getOutputShape(output_index);
+  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
+      m_executable_image->getOutputSharding(output_index);
 
-  for (size_t device_index = 0; num_args && device_index < num_devices;
-       device_index++) {
-    const BufferInstance *buffer =
-        BufferInstance::Unwrap(argument_lists[device_index][0]);
-    int64_t buffer_device_id =
-        buffer->device().device_description()->getDeviceId();
-    device_ids.push_back(buffer_device_id);
+  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
+      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+    return outputShape;
   }
 
-  // If there are no input buffers, we still want to run on a device.
-  // TODO: Now we will run only on the first one, but this should be somehow
-  // explicit.
-  if (device_ids.size() == 0) {
-    device_ids.push_back(
-        addressable_devices_[0]->device_description()->getDeviceId());
+  llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
+  assert(shard_shape.size() == outputShape.size() &&
+         "Output sharding shape doesn't match the output shape");
+
+  for (size_t i = 0; i < outputShape.size(); ++i) {
+    assert(outputShape[i] % shard_shape[i] == 0 &&
+           "Output shape is not divisible by the sharding shape");
+    outputShape[i] /= shard_shape[i];
   }
 
-  return device_ids;
+  return outputShape;
 }
 
-size_t LoadedExecutableInstance::getNumberOfOutputs(
-    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list)
-    const {
-  size_t num_outputs = rt_outputs_list[0].size();
-  for (size_t i = 0; i < rt_outputs_list.size(); i++) {
-    num_outputs = std::max(num_outputs, rt_outputs_list[i].size());
-  }
-  return num_outputs;
+namespace internal {
+
+PJRT_Error *
+onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
+
+  delete LoadedExecutableInstance::unwrap(args->executable);
+
+  return nullptr;
 }
 
-tt::runtime::Tensor LoadedExecutableInstance::getOuputTensor(
-    size_t device_index, size_t output_index,
-    const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs_list)
-    const {
-  // If the output is replicated, we just return the output tensor in the first
-  // device devices, as this is what PJRT expects.
-  return isOutputReplicated(output_index)
-             ? rt_outputs_list[0][output_index]
-             : rt_outputs_list[device_index][output_index];
+PJRT_Error *onLoadedExecutableGetExecutable(
+    PJRT_LoadedExecutable_GetExecutable_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
+
+  LoadedExecutableInstance *loaded_executable =
+      LoadedExecutableInstance::unwrap(args->loaded_executable);
+
+  std::unique_ptr<ExecutableInstance> executable_instance =
+      ExecutableInstance::createInstance(
+          loaded_executable->getSharedExecutableImage());
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling `PJRT_Executable_Destroy` on the executable.
+  args->executable = *executable_instance.release();
+
+  return nullptr;
 }
+
+PJRT_Error *onLoadedExecutableAddressableDevices(
+    PJRT_LoadedExecutable_AddressableDevices_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
+
+  LoadedExecutableInstance *loaded_executable =
+      LoadedExecutableInstance::unwrap(args->executable);
+
+  const std::vector<DeviceInstance *> &addressable_devices =
+      loaded_executable->getAddressableDevices();
+
+  args->addressable_devices =
+      reinterpret_cast<PJRT_Device *const *>(addressable_devices.data());
+  args->num_addressable_devices = addressable_devices.size();
+
+  return nullptr;
+}
+
+PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
+
+  LoadedExecutableInstance::unwrap(args->executable)->releaseResources();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args) {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted");
+
+  args->is_deleted =
+      LoadedExecutableInstance::unwrap(args->executable)->isDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+
+  tt_pjrt_status status =
+      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
+
+  return *ErrorInstance::makeError(status).release();
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt

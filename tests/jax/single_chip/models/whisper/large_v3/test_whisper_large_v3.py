@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import WhisperTester
@@ -50,12 +50,11 @@ def training_tester() -> WhisperTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.skip(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+    reason=failed_fe_compilation(
+        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_whisper_large_v3_inference(inference_tester: WhisperTester):

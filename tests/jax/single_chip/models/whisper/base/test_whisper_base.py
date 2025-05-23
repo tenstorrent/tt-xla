@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import WhisperTester
@@ -52,9 +52,8 @@ def training_tester() -> WhisperTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.skip(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+    reason=failed_fe_compilation(
+        "Segfault (https://github.com/tenstorrent/tt-xla/issues/546)"
     )
 )
 def test_whisper_base_inference(inference_tester: WhisperTester):

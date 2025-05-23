@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Dict, Mapping, Sequence, Union
+from typing import Any, Callable, Dict, Mapping, Sequence
 
 from flax import linen, nnx
+from jaxtyping import PyTree
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from .base_tester import BaseTester
@@ -32,12 +33,13 @@ class ModelTester(BaseTester, ABC):
 
     Derived classes must provide implementations of:
     ```
-    _get_model(self) -> Model
-    _get_input_activations(self) -> Sequence[Any]
-    _get_forward_method_name(self) -> str # Optional, has default behaviour.
+    _get_model
+    _get_input_activations
+    _get_input_parameters # Optional, has default behaviour.
+    _get_forward_method_name # Optional, has default behaviour.
     # One of or both:
-    _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
-    _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
+    _get_forward_method_args # Optional, has default behaviour.
+    _get_forward_method_kwargs # Optional, has default behaviour.
     ```
     """
 
@@ -59,17 +61,19 @@ class ModelTester(BaseTester, ABC):
 
         self._run_mode = run_mode
 
-        self._init_model_hooks()
+        self._prepare_workload()
 
     # ---------- Private methods ----------
 
-    def _init_model_hooks(self) -> None:
+    def _prepare_workload(self) -> None:
         """
-        Extracted init method which handles validation of provided interface methods
-        subclasses must implement and storing of some useful return values.
+        Prepares model test workload and caches necessary model parameters.
         """
         # Store model instance.
         self._model = self._get_model()
+
+        # Cache model inputs.
+        self._cache_model_inputs()
 
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
@@ -93,14 +97,30 @@ class ModelTester(BaseTester, ABC):
             forward_pass_method, args, kwargs, forward_static_args
         )
 
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        self._input_activations = self._get_input_activations()
+        self._input_parameters = self._get_input_parameters()
+
     @abstractmethod
     def _get_model(self) -> Model:
         """Returns model instance."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _get_input_activations(self) -> Union[Dict, Sequence[Any]]:
+    def _get_input_activations(self) -> Dict | Sequence[Any]:
         """Returns input activations."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def _get_input_parameters(self) -> PyTree:
+        """
+        Returns input parameters.
+
+        By default returns existing model parameters for the HF FlaxPreTrainedModel.
+        """
+        if isinstance(self._model, FlaxPreTrainedModel):
+            assert hasattr(self._model, "params")
+            return self._model.params
         raise NotImplementedError("Subclasses must implement this method.")
 
     def _get_forward_method_name(self) -> str:
@@ -116,22 +136,25 @@ class ModelTester(BaseTester, ABC):
         """
         Returns positional arguments for model's forward pass.
 
-        By default returns empty list.
-
-        `self` is provided for convenience, for example if some model attribute needs
-        to be fetched.
+        By default returns input parameters and activations for the Flax linen models,
+        and empty list for other type of models.
         """
+        if isinstance(self._model, linen.Module):
+            return [self._input_parameters, self._input_activations]
         return []
 
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
         """
         Returns keyword arguments for model's forward pass.
 
-        By default returns empty dict.
-
-        `self` is provided for convenience, for example if some model attribute needs
-        to be fetched.
+        By default returns input parameters and activations for the HF
+        FlaxPreTrainedModel, and empty dict for other type of models.
         """
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return {
+                "params": self._input_parameters,
+                **self._input_activations,
+            }
         return {}
 
     def _get_static_argnames(self) -> Sequence[str]:

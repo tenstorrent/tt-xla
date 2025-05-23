@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_runtime,
 )
 
 from ..tester import FlaxCLIPTester
@@ -49,10 +49,14 @@ def training_tester() -> FlaxCLIPTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2287616 B L1 buffer "
+        "across 2 banks, where each bank needs to store 1143808 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    )
 )
 def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()

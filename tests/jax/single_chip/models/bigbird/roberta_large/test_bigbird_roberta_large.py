@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 from typing import Dict
 
 import jax
+import pytest
 from infra import ComparisonConfig, Framework, RunMode
 from transformers import AutoTokenizer, FlaxBigBirdForCausalLM, FlaxPreTrainedModel
 
@@ -84,7 +84,7 @@ def training_tester() -> BigBirdLargeTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "failed to legalize operation 'stablehlo.dynamic_slice' "
         "https://github.com/tenstorrent/tt-xla/issues/404"

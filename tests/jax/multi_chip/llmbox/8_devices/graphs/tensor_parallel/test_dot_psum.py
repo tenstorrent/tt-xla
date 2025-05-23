@@ -12,7 +12,7 @@ from infra import (
     run_multichip_test_with_random_inputs,
 )
 
-from tests.utils import failed_ttmlir_compilation
+from tests.utils import failed_fe_compilation
 
 
 @pytest.mark.nightly
@@ -28,21 +28,23 @@ from tests.utils import failed_ttmlir_compilation
     ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
     [
         ((8192, 784), (784, 2048), (2048), (1, 8), ("batch", "model")),
+        ((8192, 784), (784, 2048), (2048), (2, 4), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
-        ShardingMode.MODULE,
-        ShardingMode.INPUTS,
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "Cannot get sharding information through the protobuf "
+                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
+                )
+            ),
+        ),
     ],
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Coordinate MeshCoordinate([1, 0]) is out of bounds for shape MeshShape([1, 2]) "
-        "(https://github.com/tenstorrent/tt-xla/issues/381)"
-    )
 )
 def test_dot_psum(
     use_shardy: bool,

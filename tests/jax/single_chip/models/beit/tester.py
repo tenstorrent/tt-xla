@@ -5,7 +5,6 @@
 from typing import Dict
 
 import jax
-from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
 from transformers import (
     BeitImageProcessor,
@@ -38,11 +37,3 @@ class FlaxBeitForImageClassificationTester(ModelTester):
         )
         inputs = preprocessor(image, return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
