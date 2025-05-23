@@ -53,8 +53,7 @@ def training_tester() -> Dinov2Tester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        'AttributeError: "FlaxDinov2SwiGLUFFN" object has no attribute "hidden_features" '
-        "(https://github.com/tenstorrent/tt-xla/issues/567)"
+        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
     )
 )
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
