@@ -84,9 +84,7 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-  auto [system_desc, chip_ids] = tt::runtime::getCurrentSystemDesc();
-
-  m_system_descriptor = system_desc;
+  m_system_descriptor = tt::runtime::getCurrentSystemDesc();
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,
@@ -95,13 +93,13 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  size_t devices_count = chip_ids.size();
+  size_t devices_count = tt::runtime::getNumAvailableDevices();
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
 
   for (size_t i = 0; i < devices_count; ++i) {
-    int global_device_id = chip_ids[i];
+    int global_device_id = m_system_descriptor->chip_desc_indices()->Get(i);
     int local_device_id = i;
 
     // For now, just make all devices addressable.
@@ -110,7 +108,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     std::unique_ptr<DeviceInstance> device_instance =
         DeviceInstance::createInstance(
             global_device_id, is_addressable, local_device_id,
-            system_desc->chip_descs()->Get(i)->arch());
+            m_system_descriptor->chip_descs()->Get(i)->arch());
 
     m_devices_raw.push_back(device_instance.get());
     if (is_addressable) {
