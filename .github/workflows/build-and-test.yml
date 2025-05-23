@@ -267,8 +267,6 @@ jobs:
         group_suite: true
         token: ${{ github.token }}
 
-    # TODO(vvukoman): cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
-
     - name: Prepare code coverage report
       if: matrix.build.runs-on == 'n300' && (success() || failure())
       run: |
