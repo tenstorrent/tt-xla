@@ -26,3 +26,4 @@ torch_xla==2.7.0
 torchvision
 transformers
 wheel
+torch-xla
