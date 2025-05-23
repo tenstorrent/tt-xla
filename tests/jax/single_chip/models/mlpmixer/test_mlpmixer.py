@@ -12,6 +12,7 @@ import numpy
 import pytest
 from flax import linen as nn
 from infra import Framework, ModelTester, RunMode
+from jaxtyping import PyTree
 
 from tests.utils import (
     BringupStatus,
@@ -20,7 +21,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from .model_implementation import MlpMixer
@@ -57,16 +58,6 @@ class MlpMixerTester(ModelTester):
             channels_mlp_dim=channel_mlp_dim,
         )
 
-    @staticmethod
-    def _retrieve_pretrained_weights() -> Dict:
-        # TODO(stefan): Discuss how weights should be handled org wide
-        link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
-        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
-            weights = numpy.load(f, encoding="bytes")
-            state_dict = {k: v for k, v in weights.items()}
-            pytree = flax.traverse_util.unflatten_dict(state_dict, sep="/")
-        return {"params": pytree}
-
     # @override
     def _get_forward_method_name(self) -> str:
         return "apply"
@@ -78,15 +69,13 @@ class MlpMixerTester(ModelTester):
         return random_image
 
     # @override
-    def _get_forward_method_args(self) -> Sequence[Any]:
-        ins = self._get_input_activations()
-        weights = self._retrieve_pretrained_weights()
-
-        # Alternatively, weights could be randomly initialized like this:
-        # weights = self._model.init(jax.random.PRNGKey(42), ins)
-
-        # JAX frameworks have a convention of passing weights as the first argument
-        return [weights, ins]
+    def _get_input_parameters(self) -> PyTree:
+        # TODO(stefan): Discuss how weights should be handled org wide
+        link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
+        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
+            weights = numpy.load(f, encoding="bytes")
+            state_dict = {k: v for k, v in weights.items()}
+            return {"params": flax.traverse_util.unflatten_dict(state_dict, sep="/")}
 
 
 # ----- Fixtures -----
@@ -112,13 +101,12 @@ def training_tester() -> MlpMixerTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 12500992 B L1 buffer "
-        "across 7 banks, where each bank needs to store 1785856 B"
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=15.194854736328125. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_mlpmixer_inference(inference_tester: MlpMixerTester):

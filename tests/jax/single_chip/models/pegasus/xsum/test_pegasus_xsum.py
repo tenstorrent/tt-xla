@@ -53,7 +53,7 @@ def training_tester() -> PegasusTester:
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386 "
+        "https://github.com/tenstorrent/tt-xla/issues/386"
     )
 )
 def test_pegasus_xsum_inference(inference_tester: PegasusTester):

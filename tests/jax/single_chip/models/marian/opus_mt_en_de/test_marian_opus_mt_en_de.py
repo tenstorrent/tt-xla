@@ -51,7 +51,7 @@ def training_tester() -> MarianTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "'ttir.scatter' op Dimension size to slice into must be 1 "
         "https://github.com/tenstorrent/tt-xla/issues/386"

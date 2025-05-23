@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_runtime,
 )
 
 from ..tester import FlaxCLIPTester
@@ -50,10 +50,13 @@ def training_tester() -> FlaxCLIPTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+    reason=failed_runtime(
+        "BinaryOpType cannot be mapped to BcastOpMath "
+        "https://github.com/tenstorrent/tt-xla/issues/288"
+    )
 )
 def test_clip_base_patch16_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()

@@ -5,20 +5,21 @@
 from __future__ import annotations
 
 from enum import Enum
-import jax
-from jax.sharding import NamedSharding
-from jax.experimental.shard_map import shard_map
 from typing import Callable, Sequence
+
+import jax
+from jax.experimental.shard_map import shard_map
+from jax.sharding import NamedSharding
 
 from .base_tester import BaseTester
 from .comparison import ComparisonConfig
-from .device_runner import DeviceRunner, device_connector
-from .multichip_utils import enable_shardy, ShardingMode
-from .workload import MultichipWorkload
-from .workload import Workload
+from .device_connector import device_connector
+from .device_runner import DeviceRunner
+from .multichip_utils import ShardingMode, enable_shardy
+from .workload import MultichipWorkload, Workload
 
 
-class MultichipTester(BaseTester):
+class MultichipOpTester(BaseTester):
     """
     A tester for evaluating operations in a multichip JAX execution environment.
 
@@ -187,8 +188,8 @@ def run_multichip_test_with_random_inputs(
     mesh of TT devices and comparing it to output of the cpu executable ran with the same input.
     The xla backend used the shardy dialect if `use_shardy` is True, otherwise it uses GSPMD.
     """
-    with enable_shardy(use_shardy), device_connector.simulate_cpu_mesh(mesh_shape):
-        tester = MultichipTester(
+    with enable_shardy(use_shardy):
+        tester = MultichipOpTester(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(

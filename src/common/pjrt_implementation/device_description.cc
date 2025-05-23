@@ -10,69 +10,103 @@
 
 #include "common/pjrt_implementation/device_description.h"
 
+// c++ standard library includes
+#include <sstream>
+
+// tt-xla includes
 #include "common/status.h"
 
 namespace tt::pjrt {
 
 DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
-    : m_device_id(device_id), m_device_kind(tt::target::EnumNameArch(arch)) {
+    : m_device_id(device_id), m_process_index(0),
+      m_device_kind(tt::target::EnumNameArch(arch)) {
   std::stringstream ss;
-  ss << "TTDevice(id=" << getDeviceId() << ", arch=" << m_device_kind << ")";
+  ss << "TTDevice(id=" << m_device_id << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
 }
 
-DeviceDescription::~DeviceDescription() = default;
-
-void DeviceDescription::BindApi(PJRT_Api *api) {
-  DLOG_F(LOG_DEBUG, "DeviceDescription::BindApi");
-  api->PJRT_DeviceDescription_Id =
-      +[](PJRT_DeviceDescription_Id_Args *args) -> PJRT_Error * {
-    args->id =
-        DeviceDescription::Unwrap(args->device_description)->getDeviceId();
-    return nullptr;
-  };
+void DeviceDescription::bindApi(PJRT_Api *api) {
+  api->PJRT_DeviceDescription_Id = internal::onDeviceDescriptionId;
   api->PJRT_DeviceDescription_ProcessIndex =
-      +[](PJRT_DeviceDescription_ProcessIndex_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
-    args->process_index =
-        DeviceDescription::Unwrap(args->device_description)->getProcessIndex();
-    return nullptr;
-  };
+      internal::onDeviceDescriptionProcessIndex;
   api->PJRT_DeviceDescription_Attributes =
-      +[](PJRT_DeviceDescription_Attributes_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
-    // TODO: Implement something.
-    args->num_attributes = 0;
-    args->attributes = nullptr;
-    return nullptr;
-  };
-  api->PJRT_DeviceDescription_Kind =
-      +[](PJRT_DeviceDescription_Kind_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
-    std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->getDeviceKind();
-    args->device_kind = sv.data();
-    args->device_kind_size = sv.size();
-    return nullptr;
-  };
+      internal::onDeviceDescriptionAttributes;
+  api->PJRT_DeviceDescription_Kind = internal::onDeviceDescriptionKind;
   api->PJRT_DeviceDescription_DebugString =
-      +[](PJRT_DeviceDescription_DebugString_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
-    std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->toDebugString();
-    args->debug_string = sv.data();
-    args->debug_string_size = sv.size();
-    return nullptr;
-  };
-  api->PJRT_DeviceDescription_ToString =
-      +[](PJRT_DeviceDescription_ToString_Args *args) -> PJRT_Error * {
-    DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
-    std::string_view sv =
-        DeviceDescription::Unwrap(args->device_description)->toString();
-    args->to_string = sv.data();
-    args->to_string_size = sv.size();
-    return nullptr;
-  };
+      internal::onDeviceDescriptionDebugString;
+  api->PJRT_DeviceDescription_ToString = internal::onDeviceDescriptionToString;
 }
+
+namespace internal {
+
+PJRT_Error *onDeviceDescriptionId(PJRT_DeviceDescription_Id_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Id");
+
+  args->id = DeviceDescription::unwrap(args->device_description)->getDeviceId();
+
+  return nullptr;
+}
+
+PJRT_Error *onDeviceDescriptionProcessIndex(
+    PJRT_DeviceDescription_ProcessIndex_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
+
+  args->process_index =
+      DeviceDescription::unwrap(args->device_description)->getProcessIndex();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
+
+  // We don't set any device attributes currently.
+  args->num_attributes = 0;
+  args->attributes = nullptr;
+
+  return nullptr;
+}
+
+PJRT_Error *onDeviceDescriptionKind(PJRT_DeviceDescription_Kind_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
+
+  const std::string &device_kind =
+      DeviceDescription::unwrap(args->device_description)->getDeviceKind();
+
+  args->device_kind = device_kind.data();
+  args->device_kind_size = device_kind.size();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onDeviceDescriptionDebugString(PJRT_DeviceDescription_DebugString_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
+
+  const std::string &debug_str =
+      DeviceDescription::unwrap(args->device_description)->toDebugString();
+
+  args->debug_string = debug_str.data();
+  args->debug_string_size = debug_str.size();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onDeviceDescriptionToString(PJRT_DeviceDescription_ToString_Args *args) {
+  DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
+
+  const std::string &description_str =
+      DeviceDescription::unwrap(args->device_description)->toString();
+
+  args->to_string = description_str.data();
+  args->to_string_size = description_str.size();
+
+  return nullptr;
+}
+
+} // namespace internal
 
 } // namespace tt::pjrt

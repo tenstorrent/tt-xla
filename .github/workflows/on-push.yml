@@ -23,6 +23,7 @@ jobs:
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:
+      test_mark: 'push'
       build_options: |
         [
           {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},

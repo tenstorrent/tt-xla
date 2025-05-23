@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_fe_compilation,
 )
 
 from ..tester import ResNetTester, ResNetVariant
@@ -49,11 +49,11 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'stablehlo.reduce_window'"
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "Crashes in CI https://github.com/tenstorrent/tt-xla/issues/560"
     )
 )
 def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):

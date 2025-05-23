@@ -8,7 +8,6 @@ import jax
 import pytest
 from infra import Framework, ModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
-from jaxtyping import PyTree
 
 from tests.utils import (
     BringupStatus,
@@ -44,14 +43,6 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         inputs = tokenizer("Hello [MASK].", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
 
 # ----- Fixtures -----

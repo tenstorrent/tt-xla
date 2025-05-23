@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from ..tester import FlaxBeitForImageClassificationTester
@@ -49,10 +49,13 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.gather'")
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=4.011739730834961. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_flax_beit_large_inference(
     inference_tester: FlaxBeitForImageClassificationTester,

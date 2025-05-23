@@ -10,8 +10,8 @@
 #include <stdio.h>
 
 #include <cstring>
+#include <type_traits>
 
-#include "common/pjrt_implementation/utils.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 #if (defined(_WIN32) || defined(__CYGWIN__)) && \

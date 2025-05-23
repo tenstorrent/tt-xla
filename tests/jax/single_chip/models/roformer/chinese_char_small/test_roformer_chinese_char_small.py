@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from ..tester import RoFormerTester
@@ -48,12 +48,12 @@ def training_tester() -> RoFormerTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Atol comparison failed. Calculated: atol=131026.6484375. Required: atol=0.16 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_roformer_chinese_char_small_inference(inference_tester: RoFormerTester):
