@@ -7,7 +7,7 @@
 
 <h1>
 
-[Buy](https://tenstorrent.com/cards/) | [Discord](https://discord.gg/tenstorrent)
+[Hardware](https://tenstorrent.com/cards/) | [Discord](https://discord.gg/tenstorrent) | [Join Us](https://job-boards.greenhouse.io/tenstorrent?gh_src=22e462047us)
 
 </h1>
 <picture>
