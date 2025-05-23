@@ -138,15 +138,10 @@ class DeviceConnector:
         For wheel installs, imports the prebuilt plugin which self-registers.
         """
         try:
-            # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
-            jax_plugins_spec = importlib.util.find_spec("jax_plugins")
-            plugin_spec = None
+            # Check if the wheel-installed jax plugin exists.
+            spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
 
-            if jax_plugins_spec is not None:
-                # Check if the wheel-installed jax plugin exists.
-                plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
-
-            if plugin_spec is not None:
+            if spec is not None:
                 # Wheel-installed plugin is present, it will self-register on demand.
                 pass
             else:

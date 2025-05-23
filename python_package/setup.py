@@ -96,10 +96,13 @@ class SetupConfig:
 
             # Convert pinned versions to >= for install_requires.
             for pin_name in ("jax", "jaxlib"):
+<<<<<<< HEAD
                 assert (
                     pin_name in pin_versions.keys()
                 ), f"Requirement {pin_name} not found in {requirements_path}"
 
+=======
+>>>>>>> 2824988 (Code review)
                 pin_version = pin_versions[pin_name]
                 reqs.append(f"{pin_name}>={pin_version}")
 
@@ -116,9 +119,20 @@ class SetupConfig:
     # --- Properties of project ---
 
     @property
+<<<<<<< HEAD
     def pjrt_plugin_path(self) -> Path:
         """Full path to custom TT PJRT plugin."""
         return REPO_DIR / f"build/src/tt/pjrt_plugin_tt.so"
+=======
+    def pjrt_plugin(self) -> str:
+        """Full file name of custom TT PJRT plugin."""
+        return f"{self.package_name}.so"
+
+    @property
+    def pjrt_plugin_path(self) -> Path:
+        """Full path to custom TT PJRT plugin."""
+        return REPO_DIR / f"build/src/tt/{self.pjrt_plugin}"
+>>>>>>> 2824988 (Code review)
 
     @property
     def tt_mlir_install_dir(self) -> Path:
@@ -137,9 +151,25 @@ class SetupConfig:
     # --- Properties of wheel bundle ---
 
     @property
+<<<<<<< HEAD
     def jax_plugin_target_dir_relpath(self) -> Path:
         """Path to our custom jax plugin relative to this script."""
         return Path(f"jax_plugins/pjrt_plugin_tt")
+=======
+    def jax_plugin_init(self) -> Path:
+        """Path to __init__.py which initializes jax plugin."""
+        return THIS_DIR / "__init__.py"
+
+    @property
+    def jax_plugin_init_copied(self) -> bool:
+        """Returns True if __init__.py is already copied to destination."""
+        return (self.jax_plugin_target_dir / "__init__.py").exists()
+
+    @property
+    def jax_plugin_target_dir_relpath(self) -> Path:
+        """Path to our custom jax plugin relative to this script."""
+        return Path(f"jax_plugins/{self.package_name}")
+>>>>>>> 2824988 (Code review)
 
     @property
     def jax_plugin_target_dir(self) -> Path:
@@ -152,6 +182,7 @@ class SetupConfig:
     @property
     def pjrt_plugin_copied(self) -> bool:
         """Returns True if .so file is already copied to destination."""
+<<<<<<< HEAD
         return (self.jax_plugin_target_dir / "pjrt_plugin_tt.so").exists()
 
     @property
@@ -163,6 +194,9 @@ class SetupConfig:
     def jax_plugin_init_copied(self) -> bool:
         """Returns True if __init__.py is already copied to destination."""
         return (self.jax_plugin_target_dir / "__init__.py").exists()
+=======
+        return (self.jax_plugin_target_dir / self.pjrt_plugin).exists()
+>>>>>>> 2824988 (Code review)
 
     @property
     def tt_mlir_target_dir(self) -> Path:
@@ -246,11 +280,18 @@ class CMakeBuildPy(build_py):
     Custom build_py command that builds the native CMake-based PJRT plugin and prepares
     the package for wheel creation.
 
+<<<<<<< HEAD
     It first ensures project is built, then it copies pre-written __init__.py file
     containing plugin initialization code inside the plugin di, afterwards copies
     created JAX plugin (product of the build) `pjrt_plugin_tt.so` inside the plugin dir,
     and finally copies entire tt-mlir installation dir inside the plugin dir as well,
     for them all to be packaged together.
+=======
+    It first ensures project is built, then it copies the created JAX plugin (product
+    of the build) `pjrt_plugin_tt.so` inside the plugin dir, and finally copies entire
+    tt-mlir installation dir inside the plugin dir as well, for them all to be packaged
+    together.
+>>>>>>> 2824988 (Code review)
 
     NOTE MANIFEST.in defines command through which additional non-python files (like
     .yaml, .so, .a, etc.) are going to be included in the final package. This cannot be
@@ -317,6 +358,11 @@ class CMakeBuildPy(build_py):
             "-DCMAKE_CXX_COMPILER=clang++-17",
             "-DTTMLIR_ENABLE_RUNTIME=ON",
             "-DTTMLIR_ENABLE_STABLEHLO=ON",
+<<<<<<< HEAD
+=======
+            "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+            "-DTT_RUNTIME_ENABLE_PERF_TRACE=ON",
+>>>>>>> 2824988 (Code review)
         ]
         build_command = ["--build", "build"]
 
@@ -326,6 +372,7 @@ class CMakeBuildPy(build_py):
 
 
 setup(
+<<<<<<< HEAD
     author="tt-xla team",
     author_email="tt-xla@tenstorrent.com",
     description="Tenstorrent PJRT plugin",
@@ -333,15 +380,37 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",
         "Development Status :: 3 - Alpha",
+=======
+    name=config.project_name,
+    version=config.version,
+    install_requires=config.requirements,
+    classifiers=[
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3",
+>>>>>>> 2824988 (Code review)
     ],
     cmdclass={
         "bdist_wheel": BdistWheel,
         "build_py": CMakeBuildPy,
     },
+<<<<<<< HEAD
+=======
+    package_dir={
+        f"jax_plugins.{config.package_name}": f"{config.jax_plugin_target_dir_relpath}",
+    },
+    packages=[
+        f"jax_plugins.{config.package_name}",
+    ],
+    include_package_data=True,
+    package_data={
+        f"jax_plugins.{config.package_name}": [f"{config.pjrt_plugin}"],
+    },
+>>>>>>> 2824988 (Code review)
     entry_points={
         # We must advertise which Python modules should be treated as loadable
         # plugins. This augments the path based scanning that Jax does, which
         # is not always robust to all packaging circumstances.
+<<<<<<< HEAD
         "jax_plugins": ["pjrt_plugin_tt = jax_plugins.pjrt_plugin_tt"],
     },
     include_package_data=True,
@@ -358,4 +427,14 @@ setup(
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
     zip_safe=False,
+=======
+        "jax_plugins": [
+            f"{config.package_name} = jax_plugins.{config.package_name}",
+        ],
+    },
+    description="Tenstorrent PJRT plugin",
+    long_description=config.long_description,
+    long_description_content_type=config.description_content_type,
+    zip_safe=config.zip_safe,
+>>>>>>> 2824988 (Code review)
 )
