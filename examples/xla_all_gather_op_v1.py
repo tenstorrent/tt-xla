@@ -10,6 +10,12 @@ import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import os
 
+from jax import config
+
+# config.update("jax_default_device", "tpu")
+# config.update("jax_enable_x64", True)
+config.update("jax_use_shardy_partitioner", True)
+
 os.environ["PJRT_DEVICE"] = "TT"
 os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
@@ -31,6 +37,26 @@ xr.use_spmd()
 
 # Device mesh, this and partition spec as well as the input tensor shape define the individual shard shape.
 num_devices = xr.global_runtime_device_count()
+
+"""
+First 512 rows of t are in 0,1,2,3 ; t_local = (512, 8192)
+Second 512 rows of t are in 4,5,6,7 ; t_local = (512, 8192)
+
+w = (8192, 4096)
+
+y_local = t_local @ w = (512, 4096)
+
+
+Concat between [0,4] should be done with mesh_shard op.
+
+[
+  1 2
+  3 4
+]
+
+0 1 2 3
+4 5 6 7
+"""
 
 mesh_shape = (2, 4)
 device_ids = np.array(range(num_devices))
