@@ -1,5 +1,3 @@
-
-
 [![Tests][tests badge]][tests]
 [![Codecov][codecov badge]][codecov]
 
@@ -34,7 +32,6 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
   - See [docs pages](https://docs.tenstorrent.com/tt-forge-fe/getting-started.html) for an overview and getting started guide.
 
 - [tt-torch](https://github.com/tenstorrent/tt-torch)
-
   - A MLIR-native, open-source, PyTorch 2.X and torch-mlir based front-end. It provides stableHLO (SHLO) graphs to `tt-mlir`. Supports ingestion of PyTorch models via PT2.X compile and ONNX models via torch-mlir (ONNX->SHLO)
   - See [docs pages](https://docs.tenstorrent.com/tt-torch) for an overview and getting started guide.
 
@@ -54,3 +51,8 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
 -----
 # Tenstorrent Bounty Program Terms and Conditions
 This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://docs.tenstorrent.com/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
+
+[codecov]: https://codecov.io/gh/tenstorrent/tt-xla
+[tests]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml?query=branch%3Amain
+[codecov badge]: https://codecov.io/gh/tenstorrent/tt-xla/graph/badge.svg?token=XQJ3JVKIRI
+[tests badge]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml/badge.svg?query=branch%3Amain

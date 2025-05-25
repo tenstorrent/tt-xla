@@ -1,4 +1,3 @@
-
 # Getting Started with tt-xla
 tt-xla leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX (and in the future other frameworks), [tt-mlir](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about PJRT project. This project is a fork of [iree-pjrt](https://github.com/stellaraccident/iree-pjrt).
 
@@ -27,9 +26,8 @@ cmake --build build
 The tt-xla repo contains various tests in the **tests** directory. To run them all, please run `pytest -v tests` from the project root directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
 
 ## Common Build Errors
-- Building `tt-xla` requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
-- `tt-xla` also builds `tt-metal` and it may cause `sfpi-trisc-ncrisc-build-failure`.
-- Please see the tt-mlir [docs](https://docs.tenstorrent.com/tt-mlir/build.html#common-build-errors) for common build errors.
+- Building tt-xla requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
+- Please also see the tt-mlir [docs](https://docs.tenstorrent.com/tt-mlir/build.html#common-build-errors) for common build errors.
 
 ### Pre-Commit
 Pre-Commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install from the root of the repository using:
@@ -46,9 +44,3 @@ pre-commit run --all-files
 ```
 
 For more information please visit [pre-commit](https://pre-commit.com/).
-
-
-[codecov]: https://codecov.io/gh/tenstorrent/tt-xla
-[tests]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml?query=branch%3Amain
-[codecov badge]: https://codecov.io/gh/tenstorrent/tt-xla/graph/badge.svg?token=XQJ3JVKIRI
-[tests badge]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml/badge.svg?query=branch%3Amain
