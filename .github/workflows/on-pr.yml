@@ -60,6 +60,9 @@ jobs:
     needs: [pre-commit, spdx, check-files]
     if: needs.check-files.outputs.skip == 'false'
     uses: ./.github/workflows/build-and-test.yml
+    permissions:
+      checks: write
+      packages: write
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
