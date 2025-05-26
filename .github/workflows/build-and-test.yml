@@ -74,6 +74,8 @@ jobs:
       - name: Build Docker images and output the image name
         id: build
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # Output the image name
           set pipefail
