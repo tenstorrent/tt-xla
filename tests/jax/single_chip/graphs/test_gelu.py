@@ -21,9 +21,10 @@ import flax.linen as nn
         (64, 64),
     ],
 )
+@pytest.mark.parametrize("approximate", [False, True])
 @pytest.mark.xfail(reason=incorrect_result("Bad accuracy"))
-def test_gelu(x_shape):
+def test_gelu(x_shape, approximate):
     def gelu(x: jax.Array) -> jax.Array:
-        return nn.gelu(x, approximate=False)
+        return nn.gelu(x, approximate=approximate)
 
     run_graph_test_with_random_inputs(gelu, [x_shape])
