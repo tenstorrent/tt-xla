@@ -25,7 +25,7 @@ def create_alexnet_random_input_image() -> jax.Array:
         minval=-128,
         maxval=128,
     )
-    return img
+    return img/128
 
 
 class AlexNetTester(ModelTester):

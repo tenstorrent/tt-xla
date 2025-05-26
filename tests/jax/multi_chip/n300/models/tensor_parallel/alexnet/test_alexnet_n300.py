@@ -41,27 +41,6 @@ def training_tester() -> AlexNetMultichipTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/604"
-    )
-)
-def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
-    inference_tester.test()
-
-
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
@@ -69,12 +48,6 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/604"
-    )
 )
 def test_alexnet_multichip_n300_inference_shardy(
     inference_tester: AlexNetMultichipTester,

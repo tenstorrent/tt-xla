@@ -12,6 +12,10 @@
 
 // c++ standard library includes
 #include <stdexcept>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h>
 
 // tt-xla includes
 #include "common/pjrt_implementation/error_instance.h"
@@ -43,9 +47,27 @@ EventInstance::EventInstance()
             event_instance->m_on_ready_callbacks);
 
         // After this point we shouldn't access the event anymore!
+        // Log RAM memory usage (Linux-specific)
+        std::ifstream statm("/proc/self/statm");
+        if (statm.is_open()) {
+          long size = 0, resident = 0;
+          statm >> size >> resident;
+          long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+          long rss_kb = resident * page_size_kb;
+          std::cerr << "RAM usage_1: " << rss_kb/1024 << " MB" << std::endl;
+        }
         for (OnReadyCallback &callback : on_ready_callbacks) {
+          std::cerr << "Executing callback" << std::endl;
           callback.callback_function(
               *ErrorInstance::makeError(status).release(), callback.user_arg);
+        }
+        std::ifstream statm2("/proc/self/statm");
+        if (statm2.is_open()) {
+          long size = 0, resident = 0;
+          statm2 >> size >> resident;
+          long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+          long rss_kb = resident * page_size_kb;
+          std::cerr << "RAM usage_2: " << rss_kb/1024 << " MB" << std::endl;
         }
       },
       this);
@@ -58,6 +80,7 @@ EventInstance::~EventInstance() {
     // In such cases, we must let the thread continue running independent of the
     // destructor to avoid a deadlock. This can happen only when event is ready
     // so it is safe to not notify the callbacks thread.
+    std::cerr << "HERE" << std::endl;
     m_callbacks_thread->detach();
     m_callbacks_thread.release();
   } else {

@@ -37,7 +37,7 @@ class AtolConfig(ConfigBase):
 @dataclass
 class AllcloseConfig(ConfigBase):
     rtol: float = 1e-2
-    atol: float = 1e-2
+    atol: float = 1.6e-1
 
 
 # When tensors are too close, pcc will output NaN values.

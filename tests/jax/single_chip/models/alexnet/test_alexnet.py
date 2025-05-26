@@ -50,12 +50,6 @@ def training_tester() -> AlexNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
-    )
-)
 def test_alexnet_inference(inference_tester: AlexNetTester):
     inference_tester.test()
 

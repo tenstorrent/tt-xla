@@ -13,6 +13,10 @@
 // c++ standard library includes
 #include <stdexcept>
 #include <thread>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h>
 
 // tt-mlir includes
 #include "tt/runtime/utils.h"
@@ -117,13 +121,27 @@ void BufferInstance::deleteData() {
   if (m_data_deleted) {
     return;
   }
-
+  std::ifstream statm0("/proc/self/statm");
+  if (statm0.is_open()) {
+    long size = 0, resident = 0;
+    statm0 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM before_deallocate: " << rss_kb/1024 << " MB" << std::endl;
+  }
   tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
-
+  std::ifstream statm1("/proc/self/statm");
+  if (statm1.is_open()) {
+    long size = 0, resident = 0;
+    statm1 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM after_deallocate: " << rss_kb/1024 << " MB" << std::endl;
+  }
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
     m_done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
-
+    std::cerr << "ARE WE HERE" << std::endl;
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
     delete m_done_with_host_buffer_event;
@@ -152,10 +170,41 @@ void BufferInstance::copyFromHost(
   // copying scalars and numpy arrays, so the copy shouldn't take long. We can
   // mark the event as ready since we don't need the original host buffer
   // anymore.
-  if (host_buffer_semantics ==
-      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
+  if (true) {
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
+
+    std::cerr << "DO STUFF" << std::endl;
+    for (int i=0;i<100;i++) {
+      std::ifstream statm3("/proc/self/statm");
+      if (statm3.is_open()) {
+        long size = 0, resident = 0;
+        statm3 >> size >> resident;
+        long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+        long rss_kb = resident * page_size_kb;
+        std::cerr << "RAM usage before stuff: " << rss_kb/1024 << " MB" << std::endl;
+      }
+      tt::runtime::Tensor m_runtime_tensor_2 = tt::runtime::createOwnedHostTensor(
+        host_buffer, shape, strides, element_size, runtime_data_type);
+      std::ifstream statm0("/proc/self/statm");
+      if (statm0.is_open()) {
+        long size = 0, resident = 0;
+        statm0 >> size >> resident;
+        long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+        long rss_kb = resident * page_size_kb;
+        std::cerr << "RAM usage do stuff: " << rss_kb/1024 << " MB" << std::endl;
+      }
+      tt::runtime::deallocateTensor(m_runtime_tensor_2, /*force=*/true);
+      std::ifstream statm1("/proc/self/statm");
+      if (statm1.is_open()) {
+        long size = 0, resident = 0;
+        statm1 >> size >> resident;
+        long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+        long rss_kb = resident * page_size_kb;
+        std::cerr << "RAM usage do stuff end: " << rss_kb/1024 << " MB" << std::endl;
+      }
+    }
+    std::cerr << "DO STUFF" << std::endl;
 
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
@@ -312,9 +361,23 @@ namespace internal {
 
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
-
+  std::ifstream statm0("/proc/self/statm");
+  if (statm0.is_open()) {
+    long size = 0, resident = 0;
+    statm0 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage_buffer_0: " << rss_kb/1024 << " MB" << std::endl;
+  }
   delete BufferInstance::unwrap(args->buffer);
-
+  std::ifstream statm("/proc/self/statm");
+  if (statm.is_open()) {
+    long size = 0, resident = 0;
+    statm >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage_buffer_1: " << rss_kb/1024 << " MB" << std::endl;
+  }
   return nullptr;
 }
 
@@ -370,7 +433,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // https://github.com/tenstorrent/tt-xla/issues/500
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
-
+  std::cerr << "size=" << buffer->getRuntimeTensorSize() << std::endl;
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
     args->dst_size = buffer->getRuntimeTensorSize();

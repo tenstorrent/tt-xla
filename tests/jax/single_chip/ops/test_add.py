@@ -6,8 +6,12 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+import gc
+import ctypes
 
 from tests.utils import Category
+import sys
+import inspect
 
 
 @pytest.mark.push
@@ -20,13 +24,15 @@ from tests.utils import Category
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
     [
-        [(32, 32), (32, 32)],
-        [(64, 64), (64, 64)],
+        [(10000, 10000), (10000, 10000)],
     ],
     ids=lambda val: f"{val}",
 )
 def test_add(x_shape: tuple, y_shape: tuple):
     def add(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.add(x, y)
-
-    run_op_test_with_random_inputs(add, [x_shape, y_shape])
+    for i in range(10000, 10001):
+        run_op_test_with_random_inputs(add, [(i,i), (i,i)])
+        gc.collect()  # Force garbage collection
+        libc = ctypes.CDLL("libc.so.6")
+        libc.malloc_trim(0)

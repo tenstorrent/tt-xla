@@ -13,6 +13,10 @@
 // c++ standard library includes
 #include <cstring>
 #include <string>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h>
 
 // tt-xla includes
 #include "common/module_builder.h"
@@ -55,7 +59,14 @@ PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Destroy");
 
   delete ExecutableInstance::unwrap(args->executable);
-
+  std::ifstream statm("/proc/self/statm");
+  if (statm.is_open()) {
+    long size = 0, resident = 0;
+    statm >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage: " << rss_kb/1024 << " MB" << std::endl;
+  }
   return nullptr;
 }
 

@@ -13,6 +13,11 @@
 // c++ standard library includes
 #include <numeric>
 
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h>
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -83,6 +88,14 @@ tt_pjrt_status
 LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::Execute");
 
+  std::ifstream statm0("/proc/self/statm");
+  if (statm0.is_open()) {
+    long size = 0, resident = 0;
+    statm0 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage begin exec: " << rss_kb/1024 << " MB" << std::endl;
+  }
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     DLOG_F(ERROR,
            "Requested number of devices to run the executable on (%zu) doesn't "
@@ -112,14 +125,30 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
+  std::ifstream statm1("/proc/self/statm");
+  if (statm1.is_open()) {
+    long size = 0, resident = 0;
+    statm1 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage begin exec: " << rss_kb/1024 << " MB" << std::endl;
+  }
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
-
-  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
+  std::vector<tt::runtime::Tensor> output_tensors;
+  std::ifstream statm("/proc/self/statm");
+  if (statm.is_open()) {
+    long size = 0, resident = 0;
+    statm >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage_submit: " << rss_kb/1024 << " MB" << std::endl;
+  }
+  output_tensors = tt::runtime::submit(
       *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
       input_tensors);
 
@@ -260,6 +289,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
     if (laid_out_tensor.data != input_tensor.data) {
+      std::cerr << "LAYOUT SHITCH" << std::endl;
       tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
     }
 
@@ -380,7 +410,14 @@ onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
 
   delete LoadedExecutableInstance::unwrap(args->executable);
-
+  std::ifstream statm("/proc/self/statm");
+  if (statm.is_open()) {
+    long size = 0, resident = 0;
+    statm >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage: " << rss_kb/1024 << " MB" << std::endl;
+  }
   return nullptr;
 }
 
@@ -388,7 +425,14 @@ PJRT_Error *onLoadedExecutableGetExecutable(
     PJRT_LoadedExecutable_GetExecutable_Args *args) {
   DLOG_F(LOG_DEBUG,
          "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
-
+  std::ifstream statm0("/proc/self/statm");
+  if (statm0.is_open()) {
+    long size = 0, resident = 0;
+    statm0 >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage create exec: " << rss_kb/1024 << " MB" << std::endl;
+  }
   LoadedExecutableInstance *loaded_executable =
       LoadedExecutableInstance::unwrap(args->loaded_executable);
 
@@ -399,7 +443,14 @@ PJRT_Error *onLoadedExecutableGetExecutable(
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Executable_Destroy` on the executable.
   args->executable = *executable_instance.release();
-
+  std::ifstream statm("/proc/self/statm");
+  if (statm.is_open()) {
+    long size = 0, resident = 0;
+    statm >> size >> resident;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
+    long rss_kb = resident * page_size_kb;
+    std::cerr << "RAM usage end create exec: " << rss_kb/1024 << " MB" << std::endl;
+  }
   return nullptr;
 }
 

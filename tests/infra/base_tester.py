@@ -57,6 +57,8 @@ class BaseTester(ABC):
             compare_atol(device_output, golden_output, self._comparison_config.atol)
         if self._comparison_config.pcc.enabled:
             compare_pcc(device_output, golden_output, self._comparison_config.pcc)
+        # print("device_output", device_output)
+        # print("golden_output", golden_output)
         if self._comparison_config.allclose.enabled:
             compare_allclose(
                 device_output, golden_output, self._comparison_config.allclose
