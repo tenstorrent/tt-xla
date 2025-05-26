@@ -92,8 +92,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
            m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
-
+  // DLOG_F(LOG_DEBUG, "[HET DEBUG] System descriptor: %s",
+  // m_system_descriptor.asJson().c_str());
   size_t devices_count = tt::runtime::getNumAvailableDevices();
+  DLOG_F(LOG_DEBUG, "[HET DEBUG] Number of devices: %zu", devices_count);
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
@@ -157,6 +159,7 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
                                    LoadedExecutableInstance **out_executable) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
+  DLOG_F(LOG_DEBUG, "[HET DEBUG] mlir_code: {}", mlir_code);
 
   tt_pjrt_status compile_status =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path);
@@ -330,7 +333,12 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-
+  DLOG_F(LOG_DEBUG, "[HET DEBUG] Compile Args start");
+  DLOG_F(LOG_DEBUG, "Program code: %s", args->program->code);
+  DLOG_F(LOG_DEBUG, "Program code size: %zu", args->program->code_size);
+  DLOG_F(LOG_DEBUG, "Program format: %s", args->program->format);
+  DLOG_F(LOG_DEBUG, "Compile options: %s", args->compile_options);
+  DLOG_F(LOG_DEBUG, "[HET DEBUG] Compile Args end");
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != ModuleBuilder::c_mlir_format_name) {
