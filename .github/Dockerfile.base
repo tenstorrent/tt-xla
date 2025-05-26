@@ -41,6 +41,7 @@ RUN wget https://apt.llvm.org/llvm.sh && \
     ln -s /usr/bin/clang-17 /usr/bin/clang && \
     ln -s /usr/bin/clang++-17 /usr/bin/clang++
 
+# Install python packages
 RUN pip install cmake
 
 # Install Googletest
