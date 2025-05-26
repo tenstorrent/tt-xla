@@ -43,10 +43,6 @@ on:
         required: true
         type: string
 
-permissions:
-  packages: write
-  checks: write
-
 jobs:
 
   build-image:
