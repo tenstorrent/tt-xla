@@ -65,5 +65,4 @@ def test_dtypes(dtype: DTypeLike):
         return jnp.array(1, dtype)  # same as dtype(1)
 
     with enable_x64():
-        print("DEBUG LOG", dtype)
         run_op_test(scalar, [])
