@@ -43,10 +43,6 @@ on:
         required: true
         type: string
 
-permissions:
-  packages: write
-  checks: write
-
 jobs:
 
   build-image:
@@ -66,7 +62,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_TOKEN }}
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
@@ -78,6 +74,8 @@ jobs:
       - name: Build Docker images and output the image name
         id: build
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # Output the image name
           set pipefail
@@ -220,7 +218,7 @@ jobs:
         updateComment: true
         detailed_summary: true
         group_suite: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_TOKEN }}
 
     - name: Prepare code coverage report
       if: matrix.build.runs-on == 'n300' && (success() || failure())
