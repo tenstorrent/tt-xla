@@ -4,15 +4,10 @@ from jax import Array
 from flax import nnx
 import jax
 import jax.numpy as jnp
-from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
-import os
-import numpy as np
 
 from flax.linen import combine_masks, make_causal_mask
 from jax import lax
 from dataclasses import dataclass
-import flax.linen as nn
-import optax
 
 from singlechip.flaxconfigmixtral import MixtralConfig
 from transformers.modeling_flax_utils import ACT2FN
@@ -579,15 +574,32 @@ class FlaxMixtralForCausalLM(nnx.Module):
             attentions=outputs.attentions,
             router_logits=outputs.router_logits,
         )
+    
+    def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask = None):
+        batch_size, _ = input_ids.shape
 
+        for i in range(self.config.num_hidden_layers):
+            self.model.layers[i].attn.cached_key = jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype = jnp.float32)
+            self.model.layers[i].attn.cached_value = jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype = jnp.float32)
+            self.model.layers[i].attn.cache_index = jnp.array(0, dtype = jnp.int32)
+
+        extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
+
+        if attention_mask is not None:
+            extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
+
+        position_ids = jnp.cumsum(extended_attention_mask, axis = -1) - 1
+
+        return input_ids, extended_attention_mask, position_ids
+    
     def generate(
         self,
         input_ids,
-        attention_mask=None,
+        attention_mask,
+        position_ids = None,
         max_new_tokens=20,
         pad_token_id=None,
         eos_token_id=None,
-        position_ids = None,
     ):
         """Generate text efficiently using properly initialized KV caching in NNX."""
         # Set defaults for special tokens
@@ -596,11 +608,11 @@ class FlaxMixtralForCausalLM(nnx.Module):
         
         # Initialize generation variables
         batch_size, seq_length = input_ids.shape
-        max_length = seq_length + max_new_tokens
         has_reached_eos = jnp.zeros(batch_size, dtype=jnp.bool_)
         
-        
-        position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
+        if position_ids is None:
+            position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
+            
         # Now process the real prompt to fill in the cache for actual tokens
         outputs = self(
             input_ids=input_ids,
@@ -612,10 +624,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
         next_token = jnp.argmax(next_token_logits, axis=-1)
         next_token = next_token[:, None]  # Add sequence dimension
         
-        # # Add first generated token
         all_token_ids = jnp.concatenate([input_ids, next_token], axis=1)
-        
-        # Track current sequence length
         
         # Check early stopping conditions
         if eos_token_id is not None:

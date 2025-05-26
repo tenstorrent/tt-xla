@@ -2,100 +2,113 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from huggingface_hub import login
 import numpy as np
-import jax
 import jax.numpy as jnp
 import os
-import sys
 from dotenv import load_dotenv
-from jax import lax
 
 load_dotenv()
 
-from flax import nnx
-from torch import nn
-from singlechip.convert_weights import make_model
+from singlechip.convert_weights import convert_weights
 
 #need a token
 hf_token = os.getenv("HF_TOKEN")
 login(token=hf_token) 
 
+def prepare_output(result):
+    if result.startswith("<|begin_of_text|>"):
+        result = result[len("<|begin_of_text|>"):].lstrip()
 
-def main(model_id = 'mistralai/Mixtral-8x7B-v0.1',
-    prompt: str = (
-    "Q: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. "
-    "She sells the remainder at the farmers' market daily for $2 per fresh duck egg. "
-    "How much in dollars does she make every day at the farmers' market?\n"
-    "A: ")):
+    if result.startswith(prompt):
+        result = result[len(prompt):].lstrip()
+    
+    return result
 
+def prepare_pytorch_inputs(model_id: str, prompt: str):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    config = AutoConfig.from_pretrained(model_id)
-    config.num_hidden_layers = 2
-    config._attn_implementation = "eager"
-    # Print all special tokens and their IDs
-    for token_name in tokenizer.special_tokens_map:
-        token_str = tokenizer.special_tokens_map[token_name]
-        token_id = tokenizer.convert_tokens_to_ids(token_str)
-        print(f"{token_name}: {token_str} -> {token_id}")
+    inputs = tokenizer(prompt, return_tensors="pt")
+    input_ids = inputs.input_ids
+    attention_mask = inputs.attention_mask
 
+    return input_ids, attention_mask, tokenizer
+
+
+def prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len):
+    input_ids = jnp.array(pt_input_ids)
+    attention_mask = jnp.array(pt_attention_mask)
+    input_ids, attention_mask, position_ids = jax_model.prepare_inputs_for_generation(input_ids, max_len, attention_mask)
+    return input_ids, attention_mask, position_ids
+
+
+def load_pytorch_model_from_hf(model_id, config):
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         config=config,
         device_map="auto",
         torch_dtype=torch.float32
     )
-    print(tokenizer.eos_token, tokenizer.pad_token)
-    print(tokenizer.special_tokens_map)
 
-    inputs = tokenizer(prompt, return_tensors="pt")
-    batch_size = 3
-    seq_len = 10
-    input_ids = inputs.input_ids.to(model.device)
-    attention_mask = inputs.attention_mask.to(model.device)
-    print("eos_token_id in input_ids:", tokenizer.eos_token_id in input_ids[0])
-    input_ids = torch.randint(config.vocab_size, (8, 10)).long()
-    attention_mask = torch.ones_like(input_ids)
-    print("✍️ Generating...")
-    outputs = model.generate(
-        input_ids,
-        attention_mask=attention_mask
+    return model
+
+def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
+    return pt_model.generate(
+        pt_input_ids,
+        attention_mask=pt_attention_mask
     )
-    max_len = outputs[0].shape[0]
-    result = tokenizer.decode(outputs[0], skip_special_tokens=False)
-    if result.startswith("<|begin_of_text|>"):
-        result = result[len("<|begin_of_text|>"):].lstrip()
 
-    if result.startswith(prompt):
-        result = result[len(prompt):].lstrip()
 
-    
-    batch_size, seq_len = input_ids.shape
-    input_ids = jnp.array(input_ids)
-    attention_mask = jnp.array(attention_mask)
-    flax_model = make_model(config, model)
-    
-    for i in range(config.num_hidden_layers):
-        flax_model.model.layers[i].attn.cached_key = jnp.zeros((batch_size, max_len, 8, 128), dtype = jnp.float32)
-        flax_model.model.layers[i].attn.cached_value = jnp.zeros((batch_size, max_len, 8, 128), dtype = jnp.float32)
-        flax_model.model.layers[i].attn.cache_index = jnp.array(0, dtype = jnp.int32)
-
-    extended_attention_mask = jnp.ones((batch_size, max_len), dtype = "i4")
-    extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
-    # extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask_jax, (0, 0))
-    generated_ids = flax_model.generate(
-        input_ids=input_ids,
-        attention_mask=extended_attention_mask,
-        max_new_tokens=max_len - seq_len 
+def run_jax_model(jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len):
+    _, seq_len = jax_input_ids.shape
+    return jax_model.generate(
+        input_ids = jax_input_ids,
+        attention_mask = jax_attention_mask,
+        max_new_tokens = max_len - seq_len,
+        position_ids = jax_position_ids
     )
-    print(generated_ids.shape)
-    print(generated_ids)
-    resultJax = tokenizer.decode(torch.tensor(generated_ids[0]), skip_special_tokens=False)
-    if resultJax.startswith("<|begin_of_text|>"):
-        resultJax = resultJax[len("<|begin_of_text|>"):].lstrip()
 
-    if result.startswith(prompt):
-        resultJax = resultJax[len(prompt):].lstrip()
-    print("OutputJax:", resultJax)
-    print("\n🧠 OutputHF:\n", result) 
-    print(np.array(resultJax) == np.array(result))
-    
-main()
+
+def compare_outputs(pt_outputs, jax_outputs):
+    return np.array(pt_outputs) == np.array(jax_outputs)
+
+
+def run_comparison_test(model_id: str, prompt: str):
+    #Setting up the config for both models
+    config = AutoConfig.from_pretrained(model_id)
+    config.num_hidden_layers = 2
+    config._attn_implementation = "eager"
+
+    pt_input_ids, pt_attention_mask, tokenizer = prepare_pytorch_inputs(model_id, prompt)
+    pt_model = load_pytorch_model_from_hf(model_id, config)
+    pt_outputs = run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask)
+
+    max_len = pt_outputs[0].shape[0]
+
+    jax_model = convert_weights(pt_model, config) #convert_weights
+    jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len)
+    jax_outputs = run_jax_model(jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len)
+
+    result_pt = tokenizer.decode(pt_outputs[0], skip_special_tokens=False)
+    result_jax = tokenizer.decode(torch.tensor(jax_outputs[0]), skip_special_tokens=False)
+
+    result_pt = prepare_output(result_pt)
+    result_jax = prepare_output(result_jax)
+
+    print(compare_outputs(result_pt, result_jax))
+
+if __name__ == '__main__':
+    model_id = "mistralai/Mixtral-8x7B-v0.1"
+    prompt = "Q: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. "
+    "She sells the remainder at the farmers' market daily for $2 per fresh duck egg. "
+    "How much in dollars does she make every day at the farmers' market?\n"
+    "A: Janet sells 16 - 3 - 4 = <<16-3-4=9>>9 duck eggs a day.\n"
+    "She makes 9 * 2 = $<<9*2=18>>18 every day at the farmer's market.\n"
+    "F: #### 18 \n\n"
+    "Q: Josh decides to try flipping a house. He buys a house for $80,000 and then puts in $50,000 in repairs. This increased the value of the house by 150%. How much profit did he make?\n"
+    "A: The cost of the house and repairs came out to 80,000 + 50,000 = $<<80000+50000=130000>>130,000\n"
+    "He increased the value of the house by 80,000 * 1.5 = <<80000*1.5=120000>>120,000\n"
+    "So the new value of the house is 120,000 + 80,000 = $<<120000+80000=200000>>200,000\n"
+    "So he made a profit of 200,000 - 130,000 = $<<200000-130000=70000>>70,000\n"
+    "F: #### 70000\n\n"
+    "Q: A bumper car rink has 12 red cars. They have 2 fewer green cars than they have red cars. They have 3 times the number of blue cars as they have green cars. The rink also has yellow cars.  If the rink has 75 cars in total how many yellow cars do they have?\n"
+    "A:"
+    run_comparison_test(model_id, prompt)
+

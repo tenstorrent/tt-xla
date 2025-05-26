@@ -12,7 +12,7 @@ class MixtralConfig(PretrainedConfig):
         num_hidden_layers=32,
         num_attention_heads=32,
         num_key_value_heads=8,
-        head_dim=None,
+        head_dim=128,
         hidden_act="silu",
         max_position_embeddings=4096,
         initializer_range=0.02,

@@ -3,26 +3,20 @@ from singlechip.flaxconfigmixtral import MixtralConfig
 import jax
 import jax.numpy as jnp
 
-def make_model(configTorch, modelTorch):
+
+def convert_weights(modelTorch, configTorch):
     embeddings = modelTorch.model.embed_tokens.weight.detach().cpu().numpy()
     # Save LM head
     lm_head = modelTorch.lm_head.weight.detach().cpu().numpy()
-
     configJax = MixtralConfig(num_hidden_layers=2)
     newmodel = FlaxMixtralForCausalLM(configJax)
     newmodel.model.embed_tokens.embedding.value = jnp.array(embeddings)
     newmodel.lm_head.kernel.value = jnp.array(lm_head.T)
-    # Save attention components
-    layer = modelTorch.model.layers[0]
-    layerJax = newmodel.model.layers[0]
-    input_layernorm = layer.input_layernorm.weight.detach().cpu().numpy()
-    post_attention_layernorm = layer.post_attention_layernorm.weight.detach().cpu().numpy()
-    final_norm = modelTorch.model.norm.weight.detach().cpu().numpy()
 
-    
+    final_norm = modelTorch.model.norm.weight.detach().cpu().numpy()
     newmodel.model.norm.weight.value = jnp.array(final_norm)
 
-    for i in range(configJax.num_hidden_layers):
+    for i in range(configTorch.num_hidden_layers):
         layer = modelTorch.model.layers[i]
         layerJax = newmodel.model.layers[i]
         input_layernorm = layer.input_layernorm.weight.detach().cpu().numpy()
