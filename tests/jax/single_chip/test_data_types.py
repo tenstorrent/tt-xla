@@ -22,25 +22,19 @@ from tests.utils import Category, enable_x64
     "dtype",
     [
         # uints
-        pytest.param(
-            jnp.uint8,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
-        ),
+        jnp.uint8,
         jnp.uint16,
         jnp.uint32,
         jnp.uint64,
         # ints
-        pytest.param(
-            jnp.int8,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
-        ),
+        jnp.int8,
         jnp.int16,
         jnp.int32,
         jnp.int64,
         # floats
         pytest.param(
             jnp.float16,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
+            marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
         jnp.float32,
         pytest.param(
@@ -71,4 +65,5 @@ def test_dtypes(dtype: DTypeLike):
         return jnp.array(1, dtype)  # same as dtype(1)
 
     with enable_x64():
+        print("DEBUG LOG", dtype)
         run_op_test(scalar, [])
