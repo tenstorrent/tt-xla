@@ -120,7 +120,7 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
-        key: "ubuntu-latest"
+        key: "code-cov-build"
 
     # Build project
     - name: Run tt-xla build
@@ -289,7 +289,7 @@ jobs:
     needs: build-image
     timeout-minutes: 120
     runs-on: ubuntu-latest
-    name: "Build tt-xla release wheel"
+    name: "Tt-xla release wheel build"
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
 
