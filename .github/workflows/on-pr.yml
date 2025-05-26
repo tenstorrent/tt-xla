@@ -18,6 +18,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
   cancel-in-progress: true
 
+permissions:
+  packages: write
+  checks: write
+
 jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yml
