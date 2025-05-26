@@ -47,6 +47,12 @@ w = (8192, 4096)
 y_local = t_local @ w = (512, 4096)
 
 
+0 1
+2 3
+4 5
+6 7
+
+
 Concat between [0,4] should be done with mesh_shard op.
 
 [
@@ -73,6 +79,9 @@ w = w.to(xm.xla_device())
 
 xs.mark_sharding(t, mesh, ("x", None))
 xs.mark_sharding(w, mesh, (None, None))
+
+# t = t + t
+# xm.mark_step()
 
 from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 
