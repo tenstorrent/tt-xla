@@ -104,22 +104,13 @@ jobs:
           # Update the CMakeLists.txt file with the new SHA
           sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
 
-    - name: Fetch job id
-      id: fetch-job-id
-      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-      with:
-        job_name: "Build tt-xla"
-
     - name: Set reusable strings
       id: strings
       shell: bash
-      env:
-        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
-        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
@@ -134,7 +125,6 @@ jobs:
         build-output-dir: ${{ steps.strings.outputs.build-output-dir }}
         install-output-dir: ${{ steps.strings.outputs.install-output-dir }}
         work-dir: ${{ steps.strings.outputs.work-dir }}
-        test_report_path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Verify tt-mlir SHA override
       if: ${{ inputs.mlir_override }}
@@ -290,3 +280,74 @@ jobs:
         files: ${{ steps.strings.outputs.test_report_path }}
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  build-ttxla-release-whl:
+    needs: build-image
+    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    name: "Build tt-xla release wheel"
+    container:
+      image: ${{ needs.build-image.outputs.docker-image }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+
+    - name: Override tt-mlir SHA mlir_override is set
+      if: ${{ inputs.mlir_override }}
+      shell: bash
+      run: |
+          # Update the CMakeLists.txt file with the new SHA
+          sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "Build tt-xla"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        create-symlink: true
+        key: "release-build"
+
+    - name: Build the wheel
+      shell: bash
+      run: |
+        source venv/activate
+        cd ${{ steps.strings.outputs.work-dir }}/python_packages/pjrt_plugin_tt
+        python setup.py bdist_wheel
+
+    - name: Upload the wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: xla-whl-release
+        path: ${{ steps.strings.outputs.work-dir }}/python_packages/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl
+
+    - name: Verify tt-mlir SHA override
+      if: ${{ inputs.mlir_override }}
+      continue-on-error: true
+      shell: bash
+      run: |
+          cd third_party/tt-mlir
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          commit_sha=$(git rev-parse HEAD)
+          commit_title=$(git log -1 --pretty=%s)
+          echo "Branch name: $branch_name"
+          echo "Commit SHA: $commit_sha"
+          echo "Commit title: $commit_title"
+          echo "::notice::Using tt-mlir: $branch_name, commit: $commit_sha, title: $commit_title"
