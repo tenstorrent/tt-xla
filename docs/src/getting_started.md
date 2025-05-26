@@ -26,11 +26,11 @@ cmake --build build
 To build a wheel run
 
 ```bash
->> cd python_packages/pjrt_plugin_tt
+>> cd python_package
 >> python setup.py bdist_wheel
 ```
 
-this will output `python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using
+this will output `python_package/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using
 
 ```bash
 pip install pjrt_plugin_tt*.whl

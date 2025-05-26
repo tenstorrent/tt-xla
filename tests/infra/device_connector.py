@@ -7,7 +7,7 @@ from __future__ import annotations
 import importlib.util
 import os
 from enum import Enum
-from typing import Generator, Sequence
+from typing import Sequence
 
 import jax
 import jax._src.xla_bridge as xb
@@ -138,10 +138,15 @@ class DeviceConnector:
         For wheel installs, imports the prebuilt plugin which self-registers.
         """
         try:
-            # Check if the wheel-installed jax plugin exists.
-            spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
+            # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
+            jax_plugins_spec = importlib.util.find_spec("jax_plugins")
+            plugin_spec = None
 
-            if spec is not None:
+            if jax_plugins_spec is not None:
+                # Check if the wheel-installed jax plugin exists.
+                plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
+
+            if plugin_spec is not None:
                 # Wheel-installed plugin is present, it will self-register on demand.
                 pass
             else:

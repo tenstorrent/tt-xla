@@ -60,16 +60,6 @@ class SetupConfig:
 
     # --- Necessary wheel properties ---
 
-    package_name: str = "pjrt_plugin_tt"
-    description_content_type: str = "text/markdown"
-    # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
-    zip_safe: bool = False
-
-    @property
-    def project_name(self) -> str:
-        """Name of the lib as pip will display it."""
-        return self.package_name.replace("_", "-")
-
     @property
     def version(self) -> str:
         """Wheel version."""
@@ -106,6 +96,10 @@ class SetupConfig:
 
             # Convert pinned versions to >= for install_requires.
             for pin_name in ("jax", "jaxlib"):
+                assert (
+                    pin_name in pin_versions.keys()
+                ), f"Requirement {pin_name} not found in {requirements_path}"
+
                 pin_version = pin_versions[pin_name]
                 reqs.append(f"{pin_name}>={pin_version}")
 
@@ -122,14 +116,9 @@ class SetupConfig:
     # --- Properties of project ---
 
     @property
-    def pjrt_plugin(self) -> str:
-        """Full file name of custom TT PJRT plugin."""
-        return f"{self.package_name}.so"
-
-    @property
     def pjrt_plugin_path(self) -> Path:
         """Full path to custom TT PJRT plugin."""
-        return REPO_DIR / f"build/src/tt/{self.pjrt_plugin}"
+        return REPO_DIR / f"build/src/tt/pjrt_plugin_tt.so"
 
     @property
     def tt_mlir_install_dir(self) -> Path:
@@ -148,19 +137,9 @@ class SetupConfig:
     # --- Properties of wheel bundle ---
 
     @property
-    def jax_plugin_init(self) -> Path:
-        """Path to __init__.py which initializes jax plugin."""
-        return THIS_DIR / "__init__.py"
-
-    @property
-    def jax_plugin_init_copied(self) -> bool:
-        """Returns True if __init__.py is already copied to destination."""
-        return (self.jax_plugin_target_dir / "__init__.py").exists()
-
-    @property
     def jax_plugin_target_dir_relpath(self) -> Path:
         """Path to our custom jax plugin relative to this script."""
-        return Path(f"jax_plugins/{self.package_name}")
+        return Path(f"jax_plugins/pjrt_plugin_tt")
 
     @property
     def jax_plugin_target_dir(self) -> Path:
@@ -173,7 +152,17 @@ class SetupConfig:
     @property
     def pjrt_plugin_copied(self) -> bool:
         """Returns True if .so file is already copied to destination."""
-        return (self.jax_plugin_target_dir / self.pjrt_plugin).exists()
+        return (self.jax_plugin_target_dir / "pjrt_plugin_tt.so").exists()
+
+    @property
+    def jax_plugin_init(self) -> Path:
+        """Path to __init__.py which initializes jax plugin."""
+        return THIS_DIR / "__init__.py"
+
+    @property
+    def jax_plugin_init_copied(self) -> bool:
+        """Returns True if __init__.py is already copied to destination."""
+        return (self.jax_plugin_target_dir / "__init__.py").exists()
 
     @property
     def tt_mlir_target_dir(self) -> Path:
@@ -257,10 +246,11 @@ class CMakeBuildPy(build_py):
     Custom build_py command that builds the native CMake-based PJRT plugin and prepares
     the package for wheel creation.
 
-    It first ensures project is built, then it copies the created JAX plugin (product
-    of the build) `pjrt_plugin_tt.so` inside the plugin dir, and finally copies entire
-    tt-mlir installation dir inside the plugin dir as well, for them all to be packaged
-    together.
+    It first ensures project is built, then it copies pre-written __init__.py file
+    containing plugin initialization code inside the plugin di, afterwards copies
+    created JAX plugin (product of the build) `pjrt_plugin_tt.so` inside the plugin dir,
+    and finally copies entire tt-mlir installation dir inside the plugin dir as well,
+    for them all to be packaged together.
 
     NOTE MANIFEST.in defines command through which additional non-python files (like
     .yaml, .so, .a, etc.) are going to be included in the final package. This cannot be
@@ -327,8 +317,6 @@ class CMakeBuildPy(build_py):
             "-DCMAKE_CXX_COMPILER=clang++-17",
             "-DTTMLIR_ENABLE_RUNTIME=ON",
             "-DTTMLIR_ENABLE_STABLEHLO=ON",
-            "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
-            "-DTT_RUNTIME_ENABLE_PERF_TRACE=ON",
         ]
         build_command = ["--build", "build"]
 
@@ -338,37 +326,36 @@ class CMakeBuildPy(build_py):
 
 
 setup(
-    name=config.project_name,
-    version=config.version,
-    install_requires=config.requirements,
+    author="tt-xla team",
+    author_email="tt-xla@tenstorrent.com",
+    description="Tenstorrent PJRT plugin",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",
+        "Development Status :: 3 - Alpha",
     ],
     cmdclass={
         "bdist_wheel": BdistWheel,
         "build_py": CMakeBuildPy,
     },
-    package_dir={
-        f"jax_plugins.{config.package_name}": f"{config.jax_plugin_target_dir_relpath}",
-    },
-    packages=[
-        f"jax_plugins.{config.package_name}",
-    ],
-    include_package_data=True,
-    package_data={
-        f"jax_plugins.{config.package_name}": [f"{config.pjrt_plugin}"],
-    },
     entry_points={
         # We must advertise which Python modules should be treated as loadable
         # plugins. This augments the path based scanning that Jax does, which
         # is not always robust to all packaging circumstances.
-        "jax_plugins": [
-            f"{config.package_name} = jax_plugins.{config.package_name}",
-        ],
+        "jax_plugins": ["pjrt_plugin_tt = jax_plugins.pjrt_plugin_tt"],
     },
-    description="Tenstorrent PJRT plugin",
+    include_package_data=True,
+    install_requires=config.requirements,
+    license="Apache-2.0",
+    long_description_content_type="text/markdown",
     long_description=config.long_description,
-    long_description_content_type=config.description_content_type,
-    zip_safe=config.zip_safe,
+    name="pjrt-plugin-tt",
+    packages=["jax_plugins.pjrt_plugin_tt"],
+    package_data={"jax_plugins.pjrt_plugin_tt": ["pjrt_plugin_tt.so"]},
+    package_dir={f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt"},
+    python_requires="==3.10",
+    url="https://github.com/tenstorrent/tt-xla",
+    version=config.version,
+    # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
+    zip_safe=False,
 )
