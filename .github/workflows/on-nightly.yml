@@ -8,9 +8,6 @@ on:
 jobs:
   nightly_tests:
     uses: ./.github/workflows/build-and-test.yml
-    permissions:
-      checks: write
-      packages: write
     secrets: inherit
     with:
       test_mark: 'nightly'
@@ -24,9 +21,6 @@ jobs:
 
   test_full_model:
     uses: ./.github/workflows/build-and-test.yml
-    permissions:
-      checks: write
-      packages: write
     secrets: inherit
     needs: nightly_tests
     if: always()  # This ensures the job runs regardless of success or failure of `nightly_tests`

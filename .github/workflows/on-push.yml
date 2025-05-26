@@ -21,9 +21,6 @@ jobs:
   build-and-test:
     needs: [pre-commit, spdx]
     uses: ./.github/workflows/build-and-test.yml
-    permissions:
-      checks: write
-      packages: write
     secrets: inherit
     with:
       test_mark: 'push'

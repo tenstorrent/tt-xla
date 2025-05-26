@@ -216,7 +216,7 @@ jobs:
         updateComment: true
         detailed_summary: true
         group_suite: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_TOKEN }}
 
     - name: Prepare code coverage report
       if: matrix.build.runs-on == 'n300' && (success() || failure())
