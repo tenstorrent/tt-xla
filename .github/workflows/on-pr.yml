@@ -10,10 +10,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  packages: "write"
-  checks: "write"
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
   cancel-in-progress: true
