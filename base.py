@@ -30,3 +30,13 @@ class ForgeModel(ABC):
             Any: Sample inputs that can be fed to the model
         """
         pass
+
+    @classmethod
+    @abstractmethod
+    def decode_output(cls, **kwargs):
+        """Load and return sample inputs for the model.
+
+        Returns:
+            Any: Output will be Decoded from the model
+        """
+        pass
