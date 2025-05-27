@@ -47,6 +47,7 @@
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
+#include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
@@ -108,6 +109,12 @@ ModuleBuilder::buildModule(const std::string_view &mlir_code,
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
+
+  // Run shardy automatic parallelization pass
+  runAutomaticShardingPipeline(mlir_module);
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -397,6 +404,23 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
   }
 
   return llvm::LogicalResult::success();
+}
+
+void ModuleBuilder::runAutomaticShardingPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::PassManager automatic_sharding_pipeline_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
+
+  mlir::tt::stablehlo::AutomaticShardingPipelineOptions automatic_sharding_pipeline_options;
+  automatic_sharding_pipeline_options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};;
+  mlir::tt::stablehlo::createAutomaticShardingPipeline(automatic_sharding_pipeline_pm, automatic_sharding_pipeline_options);
+
+  if (mlir::failed(automatic_sharding_pipeline_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to run automatic sharding pipeline");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  DLOG_F(LOG_DEBUG, "SHLO Automatic Sharding Pipeline Module:");
+  printModule(mlir_module);
 }
 
 void ModuleBuilder::convertFromSHLOToTTIR(

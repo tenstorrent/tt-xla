@@ -98,6 +98,9 @@ private:
   // case of 1D mesh so that the rest of our compiler logic can assume 2D mesh.
   mlir::sdy::MeshAttr getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op);
 
+  // Run automatic sharding pipeline via shardy.
+  void runAutomaticShardingPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
