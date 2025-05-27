@@ -1,5 +1,5 @@
 from singlechip.flaxmixtral import FlaxMixtralForCausalLM
-from singlechip.flaxconfigmixtral import MixtralConfig
+# from singlechip.flaxconfigmixtral import MixtralConfig
 import jax
 import jax.numpy as jnp
 
@@ -8,8 +8,7 @@ def convert_weights(modelTorch, configTorch):
     embeddings = modelTorch.model.embed_tokens.weight.detach().cpu().numpy()
     # Save LM head
     lm_head = modelTorch.lm_head.weight.detach().cpu().numpy()
-    configJax = MixtralConfig(num_hidden_layers=2)
-    newmodel = FlaxMixtralForCausalLM(configJax)
+    newmodel = FlaxMixtralForCausalLM(configTorch)
     newmodel.model.embed_tokens.embedding.value = jnp.array(embeddings)
     newmodel.lm_head.kernel.value = jnp.array(lm_head.T)
 
@@ -49,4 +48,5 @@ def convert_weights(modelTorch, configTorch):
             expert.gate_proj.kernel.value = jnp.array(w3.T)
             expert.up_proj.kernel.value = jnp.array(w1.T)
             expert.down_proj.kernel.value = jnp.array(w2.T)
+            
     return newmodel

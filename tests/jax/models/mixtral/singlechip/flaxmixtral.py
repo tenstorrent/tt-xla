@@ -8,8 +8,8 @@ import jax.numpy as jnp
 from flax.linen import combine_masks, make_causal_mask
 from jax import lax
 from dataclasses import dataclass
-
-from singlechip.flaxconfigmixtral import MixtralConfig
+from transformers.models.mixtral.configuration_mixtral import MixtralConfig
+# from singlechip.flaxconfigmixtral import MixtralConfig
 from transformers.modeling_flax_utils import ACT2FN
 
 @dataclass

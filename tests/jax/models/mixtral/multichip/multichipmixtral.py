@@ -11,11 +11,10 @@ import numpy as np
 from flax.linen import combine_masks, make_causal_mask
 from jax import lax
 from dataclasses import dataclass
-import flax.linen as nn
 from jax_config import cpu_devices, axis_name, num_devices, device_mesh
-from functools import partial
 
-from singlechip.flaxconfigmixtral import MixtralConfig
+# from singlechip.flaxconfigmixtral import MixtralConfig
+from transformers.models.mixtral.configuration_mixtral import MixtralConfig
 from transformers.modeling_flax_utils import ACT2FN
 
 @dataclass
@@ -44,7 +43,7 @@ class MixtralBlockSparseTop2MLP(nnx.Module):
         self.up_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs = rngs)
         self.gate_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs = rngs)
         self.down_proj = nnx.Linear(inner_dim, embed_dim, use_bias=False, rngs = rngs)
-        self.act_fn = jax.nn.silu
+        self.act_fn = ACT2FN[config.hidden_act]
 
     def __call__(self, hidden_states):
         gate_states = self.act_fn(self.up_proj(hidden_states)) * self.gate_proj(hidden_states)
@@ -70,23 +69,13 @@ class MixtralSparseMoeBlock(nnx.Module):
             dtype=self.dtype, 
             rngs=rngs
         )
-        # Create all experts, but each will be sharded to a different device
-        
+
+        self.experts = []
         for i in range(self.num_experts):
-            device = device_mesh.devices[i]
-            
-            # Create expert with parameters on this device
-            with jax.sharding.Mesh([device], axis_names=["expert"]):
-                expert = MixtralBlockSparseTop2MLP(config, rngs=rngs)
-                setattr(self, f"experts_{i}", expert)
-            
-            print(f"Expert {i} initialized on device {device}")
+            expert = MixtralBlockSparseTop2MLP(config, rngs=rngs)
+            self.experts.append(expert)
             
         self.jitter_noise = config.router_jitter_noise
-    
-    def _get_expert(self, idx):
-        """Helper to get expert by index"""
-        return getattr(self, f"experts_{idx}")
     
     def __call__(self, hidden_states):
         batch_size, seq_len, hid_dim = hidden_states.shape
@@ -102,7 +91,7 @@ class MixtralSparseMoeBlock(nnx.Module):
             (batch_size * seq_len, hid_dim), dtype=hidden_states.dtype)
 
         for expert_idx in range(self.num_experts):
-            expert_layer = self._get_expert(expert_idx)
+            expert_layer = self.experts[expert_idx]
             token_masks = jnp.zeros((self.top_k, batch_size * seq_len), dtype=jnp.bool_)
             for k in range(self.top_k):
                 token_masks = token_masks.at[k].set(selected_experts[:, k] == expert_idx)
@@ -607,7 +596,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
         past_key_values = outputs.past_key_values
         # Project to vocabulary
         logits = self.lm_head(hidden_states)
-        
+        # return logits, past_key_values
         return FlaxMoeCausalLMOutput(
             logits=logits,
             hidden_states=outputs.hidden_states,
@@ -616,3 +605,45 @@ class FlaxMixtralForCausalLM(nnx.Module):
             past_key_values = past_key_values
         )
 
+    def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask = None):
+        batch_size, _ = input_ids.shape
+        past_key_values = {}
+        for i in range(self.config.num_hidden_layers):
+            layer_key = f'layer_{i}'
+            past_key_values[layer_key] = {
+            'cached_key': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
+            'cached_value': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
+            'cache_index': jnp.array(0, dtype=jnp.int32)
+            }
+
+        extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
+
+        if attention_mask is not None:
+            extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
+
+        position_ids = jnp.cumsum(extended_attention_mask, axis = -1) - 1
+
+        return input_ids, extended_attention_mask, position_ids, past_key_values
+    
+    def prepare_sharding(self):
+        pass
+
+    def generate(self,
+        input_ids,
+        attention_mask,
+        position_ids = None,
+        max_new_tokens=20,
+        pad_token_id=None,
+        eos_token_id=None
+    ):
+        pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
+        eos_token_id = eos_token_id if eos_token_id is not None else getattr(self.config, "eos_token_id", None)
+        
+        # Initialize generation variables
+        batch_size, seq_length = input_ids.shape
+        has_reached_eos = jnp.zeros(batch_size, dtype=jnp.bool_)
+
+        if position_ids is None:
+            position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
+        
+        #finish this
