@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-#
 
-set(TT_MLIR_VERSION "6d98ed1404df99766d27f70804f41b5cf23af61e")
+set(TT_MLIR_VERSION "72d47a621021e6021696473a0421ca80f5401ca6")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -24,9 +23,13 @@ if (TOOLCHAIN STREQUAL "ON")
 else()
     include(ExternalProject)
     add_subdirectory(pjrt_c_api)
+
+    # ----- tt-mlir -----
+
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
     set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
+
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
@@ -54,19 +57,25 @@ else()
 
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}")
 
-    # Link to all TTMLIR libraries in ${TTMLIR_INSTALL_DIR}/install/lib
+    # Expose all tt-mlir .so files as shared imported libraries.
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")
     foreach(TTMLIR_LIBRARY ${TTMLIR_LIBRARIES})
+        # Remove `lib` prefix and `.so` extention from shared lib name.
         get_filename_component(lib_name ${TTMLIR_LIBRARY} NAME_WE)
-        string(REPLACE "lib" "" lib_name ${lib_name}) # Remove the "lib" prefix if it exists
+        string(REPLACE "lib" "" lib_name ${lib_name})
+
         add_library(${lib_name} SHARED IMPORTED GLOBAL)
-        set_target_properties(${lib_name} PROPERTIES EXCLUDE_FROM_ALL TRUE IMPORTED_LOCATION ${TTMLIR_LIBRARY})
+        set_target_properties(${lib_name} PROPERTIES
+            EXCLUDE_FROM_ALL TRUE
+            IMPORTED_LOCATION ${TTMLIR_LIBRARY}
+        )
         add_dependencies(${lib_name} tt-mlir)
     endforeach()
 
     set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-undef -Wno-unsafe-buffer-usage -Wno-disabled-macro-expansion")
+
     ExternalProject_Add(
         loguru
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
@@ -81,5 +90,4 @@ else()
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
     )
-
 endif()

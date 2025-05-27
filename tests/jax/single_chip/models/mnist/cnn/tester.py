@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from infra import ComparisonConfig, ModelTester, RunMode
+from jaxtyping import PyTree
 
 
 class MNISTCNNTester(ModelTester):
@@ -37,16 +38,14 @@ class MNISTCNNTester(ModelTester):
         return img
 
     # @override
-    def _get_forward_method_args(self):
-        inp = self._get_input_activations()
-
+    def _get_input_parameters(self) -> PyTree:
         # Example of flax.linen convention of first instatiating a model object
         # and then later calling init to generate a set of initial tensors (parameters
         # and maybe some extra state). Parameters are not stored with the models
         # themselves, they are provided together with inputs to the forward method.
-        parameters = self._model.init(jax.random.PRNGKey(42), inp, train=False)
-
-        return [parameters, inp]
+        return self._model.init(
+            jax.random.PRNGKey(42), self._input_activations, train=False
+        )
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:

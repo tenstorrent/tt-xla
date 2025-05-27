@@ -20,7 +20,7 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
 
     Extracted here in order not to pollute the test function.
     """
-    if not use_shardy and sharding_mode == ShardingMode.INPUTS:
+    if use_shardy or sharding_mode == ShardingMode.INPUTS:
         pytest.xfail(
             failed_ttmlir_compilation(
                 "Sharding constraint not supported in tt-mlir "
@@ -34,15 +34,7 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
 @pytest.mark.parametrize(
     "use_shardy",
     [
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                reason=failed_ttmlir_compilation(
-                    "Sharding constraint not supported in tt-mlir "
-                    "(https://github.com/tenstorrent/tt-xla/issues/563)"
-                )
-            ),
-        ),
+        True,
         False,
     ],
 )
@@ -56,7 +48,7 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
         ShardingMode.INPUTS_AND_MODULE,
     ],
 )
-def test_add_reshard(
+def test_reshard(
     use_shardy: bool,
     input_shape: tuple,
     mesh_shape: tuple,

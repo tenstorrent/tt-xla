@@ -118,7 +118,17 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
+  // Wait if there is a copy to host in progress.
+  if (m_copy_to_host_thread) {
+    m_copy_to_host_thread->join();
+  }
+
+  // Runtime tensor can be uninitialized if something breaks between input
+  // buffer creation and copying data from host, so we have to check if handle
+  // is set before deallocating tensor.
+  if (m_runtime_tensor.handle) {
+    tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
+  }
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -250,9 +260,15 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
     return tt_pjrt_status::kFailedPrecondition;
   }
 
+  // Wait if there is a copy already in progress.
+  if (m_copy_to_host_thread) {
+    m_copy_to_host_thread->join();
+  }
+
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  std::thread(
+  // Start copying in a separate thread.
+  m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
          EventInstance *event) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
@@ -265,8 +281,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, m_runtime_tensor, event.get())
-      .join();
+      host_buffer, m_runtime_tensor, event.get());
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.

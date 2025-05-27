@@ -48,10 +48,9 @@ class ViTTester(ModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        assert hasattr(self._model, "params")
         return {
-            "params": self._model.params,
-            "pixel_values": self._get_input_activations(),
+            "params": self._input_parameters,
+            "pixel_values": self._input_activations,
         }
 
     # @override

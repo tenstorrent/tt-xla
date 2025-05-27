@@ -29,19 +29,16 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices,
-    MemoryInstance *host_memory) {
+    std::vector<DeviceInstance *> &&addressable_devices) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices,
-                        MemoryInstance *host_memory)
+                        std::vector<DeviceInstance *> &&addressable_devices)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices),
-                                   host_memory) {}
+                                   std::move(addressable_devices)) {}
   };
 
-  return std::make_unique<make_unique_enabler>(
-      std::move(executable_image), std::move(addressable_devices), host_memory);
+  return std::make_unique<make_unique_enabler>(std::move(executable_image),
+                                               std::move(addressable_devices));
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -337,7 +334,8 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
-              m_addressable_devices[device_index], m_host_memory);
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory());
 
       output_buffer->markAsDataReady();
 

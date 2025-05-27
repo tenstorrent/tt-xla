@@ -94,6 +94,10 @@ private:
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Gets shardy mesh attribute from the mesh op and adjusts it to 2D mesh in
+  // case of 1D mesh so that the rest of our compiler logic can assume 2D mesh.
+  mlir::sdy::MeshAttr getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op);
+
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -148,8 +152,13 @@ private:
   void
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Checks if the jax is using the Shardy mlir dialect.
+  // Checks if the StableHLO code is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Checks if the StableHLO code is using manual computation ops of the Shardy
+  // mlir dialect.
+  bool isUsingShardyManualComputation(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.

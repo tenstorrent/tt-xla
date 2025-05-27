@@ -14,7 +14,9 @@ class AlexNetModel(nn.Module):
     JAX implementation of the AlexNet model originally introduced by Alex Krizhevsky
     in papers:
       - "ImageNet Classification with Deep Convolutional Neural Networks"
+        (https://papers.nips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)
       - "One weird trick for parallelizing convolutional neural networks"
+        (https://arxiv.org/abs/1404.5997)
     """
 
     param_dtype: Optional[
@@ -77,6 +79,9 @@ class AlexNetModel(nn.Module):
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
+
+        # Flatten
+        x = x.reshape((x.shape[0], -1))
 
         # First classifier layer
         x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)

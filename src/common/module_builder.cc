@@ -37,6 +37,8 @@
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
 #include "shardy/dialect/sdy/ir/register.h"
+#include "shardy/dialect/sdy/transforms/export/passes.h"
+#include "shardy/dialect/sdy/transforms/propagation/basic_propagation.h"
 #include "shardy/round_trip_import/constants.h"
 #include "shardy/round_trip_import/pipelines.h"
 #include "shardy/round_trip_import/utils.h"
@@ -163,6 +165,14 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   if (isUsingShardy(mlir_module)) {
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
     mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
+    // The following Shardy passes are only needed for automatic computation,
+    // since manual computation already has propagated shardings, leading to an
+    // error in that case.
+    if (!isUsingShardyManualComputation(mlir_module)) {
+      shardy_pm.addPass(mlir::createInlinerPass());
+      shardy_pm.addPass(mlir::sdy::createBasicPropagationPass());
+      shardy_pm.addPass(mlir::sdy::createCloseShardingsPass());
+    }
     if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
       DLOG_F(ERROR,
              "Failed to convert from Shardy roundtrip import pass module");
@@ -212,7 +222,7 @@ void ModuleBuilder::collectInputShardingsShardy(
     return;
   }
 
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  mlir::sdy::MeshAttr shardy_mesh = getAdjustedShardyMeshAttribute(*mesh_op);
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
 
@@ -269,7 +279,7 @@ void ModuleBuilder::collectOutputShardingsShardy(
     return;
   }
 
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
+  mlir::sdy::MeshAttr shardy_mesh = getAdjustedShardyMeshAttribute(*mesh_op);
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
@@ -286,6 +296,12 @@ void ModuleBuilder::collectOutputShardingsShardy(
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
   }
+}
+
+mlir::sdy::MeshAttr
+ModuleBuilder::getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op) {
+  mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
+  return mlir::tt::sharding_utils::adjustSdyMeshAttr(mesh_op, shardy_mesh);
 }
 
 void ModuleBuilder::collectOutputTypes(
@@ -634,6 +650,22 @@ bool ModuleBuilder::isUsingShardy(
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
 
   return mesh_op.has_value();
+}
+
+bool ModuleBuilder::isUsingShardyManualComputation(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  if (!isUsingShardy(module)) {
+    return false;
+  }
+
+  bool is_using_shardy_manual_computation = false;
+  module.get().walk([&](mlir::sdy::ManualComputationOp op) {
+    is_using_shardy_manual_computation = true;
+
+    return mlir::WalkResult::interrupt();
+  });
+
+  return is_using_shardy_manual_computation;
 }
 
 std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
