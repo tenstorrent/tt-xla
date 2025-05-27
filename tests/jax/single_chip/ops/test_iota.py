@@ -22,4 +22,4 @@ def test_iota(length: int):
     def iota(_: jax.Array) -> jax.Array:
         return lax.iota(jnp.float32, length)
 
-    run_op_test_with_random_inputs(iota, [(1,)])  
+    run_op_test_with_random_inputs(iota, [(1,)])
