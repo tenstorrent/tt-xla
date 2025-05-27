@@ -21,8 +21,27 @@ import flax.linen as nn
         (64, 64),
     ],
 )
-@pytest.mark.parametrize("approximate", [False, True])
-@pytest.mark.xfail(reason=incorrect_result("Bad accuracy"))
+@pytest.mark.parametrize(
+    "approximate",
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                reason=incorrect_result(
+                    "Atol comparison failed. Calculated: atol=nan. Required: atol=0.16."
+                )
+            ),
+        ),
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                reason=incorrect_result(
+                    "Allclose comparison failed. Required: atol=0.01, rtol=0.01."
+                )
+            ),
+        ),
+    ],
+)
 def test_gelu(x_shape, approximate):
     def gelu(x: jax.Array) -> jax.Array:
         return nn.gelu(x, approximate=approximate)
