@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from enum import Enum
-from typing import Generator, Sequence
+from typing import Sequence
 
 import jax
 import jax._src.xla_bridge as xb
@@ -110,11 +111,6 @@ class DeviceConnector:
         # anymore.
         jax.config.update("jax_num_cpu_devices", 8)
 
-        plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
-        if not os.path.exists(plugin_path):
-            raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
-
-        self._plugin_path = plugin_path
         self._initialize_backend()
 
     def _number_of_devices(self, device_type: DeviceType) -> int:
@@ -138,12 +134,39 @@ class DeviceConnector:
         """
         Registers TT plugin which will make TTDevice available in JAX.
 
-        Needs to be called before any other JAX command.
+        For source builds, loads the plugin from build directory.
+        For wheel installs, imports the prebuilt plugin which self-registers.
         """
-        xb.register_plugin(
-            DeviceType.TT.value,
-            library_path=self._plugin_path,
-        )
+        try:
+            # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
+            jax_plugins_spec = importlib.util.find_spec("jax_plugins")
+            plugin_spec = None
+
+            if jax_plugins_spec is not None:
+                # Check if the wheel-installed jax plugin exists.
+                plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
+
+            if plugin_spec is not None:
+                # Wheel-installed plugin is present, it will self-register on demand.
+                pass
+            else:
+                # No wheel plugin found, fallback to local build registration.
+                plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
+                if not os.path.exists(plugin_path):
+                    raise FileNotFoundError(
+                        f"Could not find TT PJRT plugin at {plugin_path}"
+                    )
+
+                xb.register_plugin(
+                    DeviceType.TT.value,
+                    library_path=plugin_path,
+                )
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to initialize TT PJRT plugin from wheel or local build."
+            ) from e
+
+        # Update JAX config to prioritize supported platforms.
         jax.config.update("jax_platforms", self._supported_devices_str())
 
         self._initialized = True
