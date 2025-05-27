@@ -30,8 +30,7 @@ RUN apt-get update && apt-get install -y \
     libyaml-cpp-dev \
     libboost-all-dev \
     jq \
-    curl \
-    lcov
+    curl lcov
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
