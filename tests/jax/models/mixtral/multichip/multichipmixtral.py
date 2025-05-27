@@ -5,15 +5,12 @@ from flax import nnx
 import jax
 import jax.numpy as jnp
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
-import os
-import numpy as np
 
 from flax.linen import combine_masks, make_causal_mask
 from jax import lax
 from dataclasses import dataclass
 from jax_config import cpu_devices, axis_name, num_devices, device_mesh
 
-# from singlechip.flaxconfigmixtral import MixtralConfig
 from transformers.models.mixtral.configuration_mixtral import MixtralConfig
 from transformers.modeling_flax_utils import ACT2FN
 
@@ -611,9 +608,9 @@ class FlaxMixtralForCausalLM(nnx.Module):
         for i in range(self.config.num_hidden_layers):
             layer_key = f'layer_{i}'
             past_key_values[layer_key] = {
-            'cached_key': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
-            'cached_value': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
-            'cache_index': jnp.array(0, dtype=jnp.int32)
+                'cached_key': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
+                'cached_value': jnp.zeros((batch_size, max_length, self.config.num_key_value_heads, self.config.head_dim), dtype=jnp.float32),
+                'cache_index': jnp.array(0, dtype=jnp.int32)
             }
 
         extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
@@ -626,24 +623,127 @@ class FlaxMixtralForCausalLM(nnx.Module):
         return input_ids, extended_attention_mask, position_ids, past_key_values
     
     def prepare_sharding(self):
-        pass
+        partitioning_rules = {
+            # Attention layers - tensor parallel
+            ('model', 'layers', '*', 'attn', 'q_proj', 'kernel'): P(None, 'X'),
+            ('model', 'layers', '*', 'attn', 'k_proj', 'kernel'): P(None, 'X'),
+            ('model', 'layers', '*', 'attn', 'v_proj', 'kernel'): P(None, 'X'),
+            ('model', 'layers', '*', 'attn', 'o_proj', 'kernel'): P('X', None),
+            
+            # MoE layers - tensor parallel
+            ('model', 'layers', '*', 'block_sparse_moe', 'gate', 'kernel'): P(),  # Router replicated
+            ('model', 'layers', '*', 'block_sparse_moe', 'experts', '*', 'up_proj', 'kernel'): P(None, 'X'),
+            ('model', 'layers', '*', 'block_sparse_moe', 'experts', '*', 'down_proj', 'kernel'): P('X', None),
+            ('model', 'layers', '*', 'block_sparse_moe', 'experts', '*', 'gate', 'kernel'): P(None, 'X'),
+            
+            # Embeddings and output layers
+            ('model', 'embed_tokens', 'embedding'): P('X', None),
+            ('lm_head', 'kernel'): P(None, 'X'),
+            
+            # Layer norms stay replicated
+            ('model', 'layers', '*', 'input_norm'): P(),
+            ('model', 'layers', '*', 'attn_norm'): P(),
+            ('model', 'norm'): P(),
+        }
+        
+        sharded_model = nnx.with_partitioning(self, partitioning_rules)
+        cache_specs = {}
+        for i in range(self.config.num_hidden_layers):
+            layer_key = f'layer_{i}'
+            cache_specs[layer_key] = {
+                'cached_key': P(),     # Replicated
+                'cached_value': P(),   # Replicated
+                'cache_index': P()     # Replicated
+            }
 
-    def generate(self,
+        return sharded_model, cache_specs
+
+    def generate(
+        self,
         input_ids,
         attention_mask,
         position_ids = None,
+        past_key_values = None,
         max_new_tokens=20,
         pad_token_id=None,
         eos_token_id=None
     ):
         pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
         eos_token_id = eos_token_id if eos_token_id is not None else getattr(self.config, "eos_token_id", None)
-        
         # Initialize generation variables
-        batch_size, seq_length = input_ids.shape
+        batch_size, seq_len = input_ids.shape
+        max_len = max_new_tokens + seq_len 
+
         has_reached_eos = jnp.zeros(batch_size, dtype=jnp.bool_)
 
         if position_ids is None:
             position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
+
+        sharded_model, cache_specs = self.prepare_sharding()
+
+        def model_forward(input_ids, attention_mask, position_ids, past_key_values):
+            # Call the model
+            outputs = sharded_model(
+                input_ids,
+                attention_mask,
+                position_ids,
+                past_key_values,
+            )
+            outputs = outputs.raw_value
+            return outputs.logits, outputs.past_key_values
+
+        sharded_forward = nnx.shard_map(
+            model_forward,
+            mesh = device_mesh,
+            in_specs = (P(), P(), P(), cache_specs), 
+            out_specs = (P(), cache_specs),          
+            check_rep = False
+        )
+
+        jit_forward = nnx.jit(sharded_forward, donate_argnums=(3,))
         
-        #finish this
+        all_token_ids = jnp.zeros((batch_size, max_len), dtype=input_ids.dtype)
+        all_token_ids = all_token_ids.at[:, :seq_len].set(input_ids)
+        
+        # First forward pass
+        logits, past_key_values = jit_forward(
+            input_ids, 
+            attention_mask, 
+            position_ids[:, :seq_len],
+            past_key_values 
+        )
+
+        next_token_logits = logits[:, -1, :]
+        next_token = jnp.argmax(next_token_logits, axis=-1)
+        all_token_ids = all_token_ids.at[:, seq_len].set(next_token)
+
+        cur_len = seq_len
+        for step in range(1, max_new_tokens):
+            if eos_token_id is not None and jnp.all(has_reached_eos):
+                break 
+            
+            next_token = next_token[:, None] 
+            
+            new_position_ids = position_ids[:, cur_len].reshape(-1, 1)
+
+            logits_step, past_key_values = jit_forward(
+                next_token,
+                attention_mask, 
+                new_position_ids,
+                past_key_values, 
+            )
+
+            cur_len += 1
+            next_token_logits = logits_step[:, 0, :] 
+            next_token = jnp.argmax(next_token_logits, axis=-1)
+            
+            all_token_ids = lax.dynamic_update_slice(
+                all_token_ids,
+                next_token[:, None],  
+                (0, cur_len)
+            )
+            
+            if eos_token_id is not None:
+                has_reached_eos = has_reached_eos | (next_token == eos_token_id)
+                
+        return all_token_ids
