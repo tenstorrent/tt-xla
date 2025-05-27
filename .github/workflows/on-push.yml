@@ -9,6 +9,10 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
+permissions:
+  packages: write
+  checks: write
+
 jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yml
@@ -21,9 +25,6 @@ jobs:
   build-and-test:
     needs: [pre-commit, spdx]
     uses: ./.github/workflows/build-and-test.yml
-    permissions:
-      packages: write
-      checks: write
     secrets: inherit
     with:
       test_mark: 'push'
