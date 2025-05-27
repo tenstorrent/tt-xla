@@ -6,7 +6,7 @@ from typing import Any, Callable, Optional, Union
 
 import flax.linen as nn
 import jax.numpy as jnp
-import jax
+from jax._src.typing import DTypeLike
 
 
 class DoubleConv(nn.Module):
@@ -14,9 +14,7 @@ class DoubleConv(nn.Module):
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
-    param_dtype: Optional[
-        Union[str, type[Any], jnp.dtype, jax._src.typing.SupportsDType, Any]
-    ] = jnp.bfloat16
+    param_dtype: Optional[DTypeLike] = jnp.bfloat16
 
     def setup(self):
         self.conv1 = nn.Conv(
@@ -56,9 +54,7 @@ class DownBlock(nn.Module):
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
-    param_dtype: Optional[
-        Union[str, type[Any], jnp.dtype, jax._src.typing.SupportsDType, Any]
-    ] = jnp.bfloat16
+    param_dtype: Optional[DTypeLike] = jnp.bfloat16
 
     def setup(self):
         self.double_conv = DoubleConv(
@@ -70,9 +66,11 @@ class DownBlock(nn.Module):
         )
 
     def __call__(self, x, train: bool):
-        x = nn.max_pool(x, window_shape=(2, 2), strides=(2, 2), padding="VALID")
-        x = self.double_conv(x, train)
-        return x
+        feature_map = self.double_conv(x, train)
+        pooled_x = nn.max_pool(
+            feature_map, window_shape=(2, 2), strides=(2, 2), padding="VALID"
+        )
+        return pooled_x, feature_map
 
 
 class UpBlock(nn.Module):
@@ -80,12 +78,10 @@ class UpBlock(nn.Module):
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
-    param_dtype: Optional[
-        Union[str, type[Any], jnp.dtype, jax._src.typing.SupportsDType, Any]
-    ] = jnp.bfloat16
+    param_dtype: Optional[DTypeLike] = jnp.bfloat16
 
     def setup(self):
-        self.upconv = nn.ConvTranspose(
+        self.up_conv = nn.ConvTranspose(
             features=self.out_channels,
             kernel_size=(2, 2),
             strides=(2, 2),
@@ -101,7 +97,7 @@ class UpBlock(nn.Module):
         )
 
     def __call__(self, x, skip, train: bool):
-        x = self.upconv(x)
+        x = self.up_conv(x)
         skip = self.crop_skip_connection(skip, x.shape)
         x = jnp.concatenate([x, skip], axis=-1)
         x = self.double_conv(x, train)
@@ -135,23 +131,13 @@ class UNet(nn.Module):
     num_levels: int = 4
     activation: Callable = nn.relu
     use_batchnorm: bool = False
-    param_dtype: Optional[
-        Union[str, type[Any], jnp.dtype, jax._src.typing.SupportsDType, Any]
-    ] = jnp.bfloat16
+    param_dtype: Optional[DTypeLike] = jnp.bfloat16
 
     def setup(self):
-        self.lifting = DoubleConv(
-            self.in_channels,
-            self.hidden_channels,
-            activation=self.activation,
-            use_batchnorm=self.use_batchnorm,
-            param_dtype=self.param_dtype,
-        )
-
         down_blocks = []
-        in_ch = self.hidden_channels
+        in_ch = self.in_channels
         for i in range(self.num_levels):
-            out_ch = self.hidden_channels * 2 ** (i + 1)
+            out_ch = in_ch * 2
             down_blocks.append(
                 DownBlock(
                     in_channels=in_ch,
@@ -163,11 +149,18 @@ class UNet(nn.Module):
             )
             in_ch = out_ch
 
-        in_ch = self.hidden_channels * 2**self.num_levels
+        self.bottom_double_conv = DoubleConv(
+            in_channels=in_ch,
+            out_channels=in_ch * 2,
+            activation=self.activation,
+            use_batchnorm=self.use_batchnorm,
+            param_dtype=self.param_dtype,
+        )
 
         up_blocks = []
+        in_ch = in_ch * 2
         for i in range(self.num_levels):
-            out_ch = self.hidden_channels * 2 ** (self.num_levels - i - 1)
+            out_ch = in_ch // 2
             up_blocks.append(
                 UpBlock(
                     in_channels=in_ch,
@@ -193,14 +186,12 @@ class UNet(nn.Module):
     def __call__(self, x: jnp.ndarray, train: bool) -> jnp.ndarray:
         skip_connections = []
 
-        x = self.lifting(x, train)
-        skip_connections.append(x)
+        for i, down_block in enumerate(self.down_blocks):
+            x, skip = down_block(x, train)
+            skip_connections.append(skip)
 
-        for block in self.down_blocks:
-            x = block(x, train)
-            skip_connections.append(x)
+        x = self.bottom_double_conv(x, train)
 
-        skip_connections = skip_connections[:-1]
         for up_block, skip in zip(self.up_blocks, reversed(skip_connections)):
             x = up_block(x, skip, train)
 

@@ -6,6 +6,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+from jaxtyping import PyTree
 
 from infra import ComparisonConfig, Framework, ModelTester, RunMode, random_tensor
 from .model_implementation import UNet
@@ -54,14 +55,12 @@ class UNetTester(ModelTester):
             framework=Framework.JAX,
         )
 
-    def _get_forward_method_args(self) -> list:
-        inputs = self._get_input_activations()
-        parameters = self._model.init(
+    def _get_input_parameters(self) -> PyTree:
+        return self._model.init(
             jax.random.PRNGKey(0),
-            inputs,
-            train=RunMode.TRAINING,
+            self._get_input_activations(),
+            train=self._run_mode == RunMode.TRAINING,
         )
-        return [parameters, inputs]
 
     def _get_forward_method_kwargs(self) -> dict:
         train = self._run_mode == RunMode.TRAINING
@@ -101,7 +100,7 @@ def training_tester() -> UNetTester:
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "Test failed due to missing decomposition from ttir.convolution to ttir.conv_transpose2d. "
-        "https://github.com/tenstorrent/tt-xla/issues/417"
+        "https://github.com/tenstorrent/tt-xla/issues/633"
     )
 )
 def test_unet_inference(inference_tester: UNetTester):
