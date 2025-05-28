@@ -3,6 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+import ctypes
+import gc
+from loguru import logger
+import psutil
+import time
+import threading
 
 
 def pytest_configure(config: pytest.Config):
@@ -116,3 +122,69 @@ def pytest_collection_modifyitems(items):
         if is_model_test:
             # Add model group independently of tags dict.
             item.user_properties.append(("group", model_group))
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--log-memory",
+        action="store_true",
+        default=False,
+        help="Enable memory usage tracking for tests",
+    )
+
+
+@pytest.fixture(autouse=True)
+def memory_usage_tracker(request):
+    """
+    A pytest fixture that tracks memory usage during the execution of a test.
+    Only runs if --log-memory is passed to pytest.
+    """
+    if request.config.getoption("--log-memory"):
+        process = psutil.Process()
+        # Initialize memory tracking variables
+        start_mem = process.memory_info().rss / (1024 * 1024)  # MB
+        min_mem = start_mem
+        max_mem = start_mem
+        total_mem = start_mem
+        count = 1
+        tracking = True
+
+        def track_memory():
+            nonlocal min_mem, max_mem, total_mem, count
+            while tracking:
+                current_mem = process.memory_info().rss / (1024 * 1024)
+                min_mem = min(min_mem, current_mem)
+                max_mem = max(max_mem, current_mem)
+                total_mem += current_mem
+                count += 1
+                time.sleep(0.1)
+
+        tracker_thread = threading.Thread(target=track_memory)
+        tracker_thread.start()
+        yield
+        tracking = False
+        tracker_thread.join()
+
+        end_mem = process.memory_info().rss / (1024 * 1024)  # MB
+        min_mem = min(min_mem, end_mem)
+        max_mem = max(max_mem, end_mem)
+        total_mem += end_mem
+        count += 1
+        avg_mem = total_mem / count
+        by_test = max_mem - start_mem
+        logger.info(f"Test memory usage:")
+        logger.info(f"    By test: {by_test:.2f} MB")
+        logger.info(f"    Minimum: {min_mem:.2f} MB")
+        logger.info(f"    Maximum: {max_mem:.2f} MB")
+        logger.info(f"    Average: {avg_mem:.2f} MB")
+    else:
+        yield
+
+    # Clean up memory.
+    gc.collect()
+    libc = ctypes.CDLL("libc.so.6")
+    libc.malloc_trim(0)
+
+    if request.config.getoption("--log-memory"):
+        after_gc = process.memory_info().rss / (1024 * 1024)
+        logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
