@@ -219,31 +219,31 @@ jobs:
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
-    # - name: Download install artifacts
-    #   uses: ./.github/actions/download-artifact
-    #   with:
-    #     name: install-artifacts
-    #     path: install
-    #     github_token: ${{ secrets.GITHUB_TOKEN }}
-
-    # - name: Download build artifacts
-    #   uses: ./.github/actions/download-artifact
-    #   with:
-    #     name: build-artifacts
-    #     path: build
-    #     github_token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download wheel
-      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+    - name: Download install artifacts
+      uses: ./.github/actions/download-artifact
       with:
-        name: xla-whl-codecov
+        name: install-artifacts
+        path: install
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Install wheel
-      shell: bash
-      run: |
-        source venv/activate
-        pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
+    - name: Download build artifacts
+      uses: ./.github/actions/download-artifact
+      with:
+        name: build-artifacts
+        path: build
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Download wheel
+    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+    #   with:
+    #     name: xla-whl-codecov
+    #     github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Install wheel
+    #   shell: bash
+    #   run: |
+    #     source venv/activate
+    #     pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
 
     - name: Run tests
       env:
