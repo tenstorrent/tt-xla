@@ -221,6 +221,12 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args);
 // Implements PJRT_Buffer_IsDeleted API function.
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args);
 
+// Implements PJRT_Buffer_CopyToDevice API function.
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args);
+
+// Implements PJRT_Buffer_CopyToMemory API function.
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args);
+
 // Implements PJRT_Buffer_IsOnCpu API function.
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args);
 

@@ -89,6 +89,8 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
+  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
+  api->PJRT_Buffer_CopyToDevice = internal::onBufferCopyToDevice;
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
@@ -411,6 +413,75 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  size_t memory_size = src_buffer->getRuntimeTensorSize();
+  DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
+  if (src_buffer->getDevice() == dst_device) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+  std::unique_ptr<BufferInstance> dst_buffer =
+      BufferInstance::createInputBufferInstance(
+          src_buffer->getDataType(), src_buffer->getDimensionsRaw(),
+          src_buffer->getNumberOfDimensions(), dst_device,
+          dst_device->getDefaultMemory());
+  void *host_memory = malloc(memory_size);
+  runtime::memcpy(host_memory, src_buffer->getRuntimeTensor());
+  std::unique_ptr<EventInstance> done_with_host_buffer_event =
+      EventInstance::createInstance();
+  EventInstance *done_with_host_buffer_event_ptr =
+      done_with_host_buffer_event.get();
+  dst_buffer->copyFromHost(host_memory, src_buffer->getDataType(),
+                           src_buffer->getDimensionsRaw(),
+                           src_buffer->getNumberOfDimensions(), nullptr, 0,
+                           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+                           &done_with_host_buffer_event_ptr);
+  args->dst_buffer = *dst_buffer.release();
+
+  free(host_memory);
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  size_t memory_size = src_buffer->getRuntimeTensorSize();
+  MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
+  DeviceInstance *dst_device =
+      MemoryInstance::unwrap(args->dst_memory)->getDevice();
+
+  if (src_buffer->getDevice() == dst_device) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+
+  std::unique_ptr<BufferInstance> dst_buffer =
+      BufferInstance::createInputBufferInstance(
+          src_buffer->getDataType(), src_buffer->getDimensionsRaw(),
+          src_buffer->getNumberOfDimensions(), dst_device, dst_memory);
+
+  void *host_memory = malloc(memory_size);
+  runtime::memcpy(host_memory, src_buffer->getRuntimeTensor());
+  std::unique_ptr<EventInstance> done_with_host_buffer_event =
+      EventInstance::createInstance();
+  EventInstance *done_with_host_buffer_event_ptr =
+      done_with_host_buffer_event.get();
+  dst_buffer->copyFromHost(host_memory, src_buffer->getDataType(),
+                           src_buffer->getDimensionsRaw(),
+                           src_buffer->getNumberOfDimensions(), nullptr, 0,
+                           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+                           &done_with_host_buffer_event_ptr);
+  args->dst_buffer = *dst_buffer.release();
+
+  free(host_memory);
 
   return nullptr;
 }
