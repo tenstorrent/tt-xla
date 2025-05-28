@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, fields
 from pathlib import Path
 
@@ -353,7 +354,7 @@ setup(
     packages=["jax_plugins.pjrt_plugin_tt"],
     package_data={"jax_plugins.pjrt_plugin_tt": ["pjrt_plugin_tt.so"]},
     package_dir={f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt"},
-    python_requires="==3.10",
+    python_requires=">=3.10, <3.11",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
