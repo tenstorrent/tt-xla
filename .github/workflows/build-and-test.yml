@@ -242,7 +242,7 @@ jobs:
     - name: Install wheel
       shell: bash
       run: |
-        source env/activate
+        source venv/activate
         pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
 
     - name: Run tests
