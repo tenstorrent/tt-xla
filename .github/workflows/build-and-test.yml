@@ -93,6 +93,10 @@ jobs:
 
     steps:
 
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
