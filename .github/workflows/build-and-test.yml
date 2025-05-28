@@ -92,6 +92,7 @@ jobs:
       image: ${{ needs.build-image.outputs.docker-image }}
 
     steps:
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -312,6 +313,10 @@ jobs:
       image: ${{ needs.build-image.outputs.docker-image }}
 
     steps:
+    - name: Fix permissions
+      shell: bash
+      run: sudo chown ubuntu:ubuntu -R $(pwd)
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
