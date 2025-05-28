@@ -220,24 +220,24 @@ jobs:
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
     - name: Download install artifacts
-      uses: ./.github/actions/download-artifact
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
       with:
         name: install-artifacts
         path: install
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ github.token }}
 
     - name: Download build artifacts
-      uses: ./.github/actions/download-artifact
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
       with:
         name: build-artifacts
         path: build
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ github.token }}
 
     # - name: Download wheel
     #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
     #   with:
     #     name: xla-whl-codecov
-    #     github_token: ${{ secrets.GITHUB_TOKEN }}
+    #     github_token: ${{ github.token }}
 
     # - name: Install wheel
     #   shell: bash
