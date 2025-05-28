@@ -186,7 +186,8 @@ jobs:
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
-        pytest ${{ matrix.build.dir }}  \
+        pytest  --log-memory \
+                ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
