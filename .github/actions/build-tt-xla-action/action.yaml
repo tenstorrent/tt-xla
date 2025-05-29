@@ -38,7 +38,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: xla-whl-codecov
-        path: ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl
+        path: ${{ inputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
     - name: Archive Build Directory
       shell: bash
