@@ -4,6 +4,8 @@
 
 import pytest
 
+from .utils import ModelInfo
+
 
 def pytest_configure(config: pytest.Config):
     """
@@ -18,8 +20,7 @@ def pytest_configure(config: pytest.Config):
             - `shlo_op_name`: name of the matching stablehlo operation
 
         - Model tests:
-            - `model_name`: name of the model under test
-            - 'model_group': utils.ModelGroup
+            - `model_info`: utils.ModelInfo
             - `run_mode`: infra.RunMode
             - `bringup_status`: utils.BringupStatus
             - `pcc`: float
@@ -40,13 +41,12 @@ def pytest_collection_modifyitems(items):
     Pytest hook to process the custom marker and attach recorder properties to the test.
     """
 
-    def validate_keys(keys: dict, is_model_test: bool):
+    def validate_keys(keys: dict, tagged_as_model_test: bool):
         valid_keys = [
             "category",
             "jax_op_name",
             "shlo_op_name",
-            "model_name",
-            "model_group",
+            "model_info",
             "run_mode",
             "bringup_status",
             "pcc",
@@ -61,13 +61,8 @@ def pytest_collection_modifyitems(items):
             )
 
         # If model test, check all necessary properties are provided.
-        if is_model_test:
-            mandatory_model_properties = [
-                "model_name",
-                "model_group",
-                "run_mode",
-                "bringup_status",
-            ]
+        if tagged_as_model_test:
+            mandatory_model_properties = ["model_info", "run_mode", "bringup_status"]
 
             if not all(
                 model_property in keys for model_property in mandatory_model_properties
@@ -85,34 +80,32 @@ def pytest_collection_modifyitems(items):
         properties_marker = item.get_closest_marker(name="record_test_properties")
 
         # Utils flags helping handling model tests properly.
-        is_model_test = False
-        model_group = None
+        tagged_as_model_test = False
 
         if properties_marker:
             # Extract the key-value pairs passed to the marker.
             properties: dict = properties_marker.kwargs
 
             # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
-
+            tagged_as_model_test = (
+                item.get_closest_marker(name="model_test") is not None
+            )
             # Validate that only allowed keys are used.
-            validate_keys(properties.keys(), is_model_test)
+            validate_keys(properties.keys(), tagged_as_model_test)
 
-            # Turn all properties to strings.
-            for k, v in properties.items():
-                properties[k] = str(v)
-
-            if is_model_test:
-                model_group = properties.get("model_group")
-
-            # Tag them.
+            # Put all properties in tags.
             for key, value in properties.items():
-                # Skip model_group, we don't need it in tags, we will insert it separately.
-                if key != "model_group":
-                    tags[key] = value
+                if key == "model_info":
+                    model_info: ModelInfo = value
+                    tags["model_name"] = model_info.name
+                    tags["model_info"] = model_info.to_report_dict()
 
-        # Attach metadata and tags dictionary as a single property.
+                    if tagged_as_model_test:
+                        tags["group"] = str(model_info.group)
+                        # Add model group independently of tags dict also.
+                        item.user_properties.append(("group", str(model_info.group)))
+                else:
+                    tags[key] = str(value)
+
+        # Attach tags dictionary as a single property. Also set owner.
         item.user_properties.extend([("tags", tags), ("owner", "tt-xla")])
-        if is_model_test:
-            # Add model group independently of tags dict.
-            item.user_properties.append(("group", model_group))

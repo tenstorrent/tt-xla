@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable
 
 import jax
 import jax.lax as jlx
@@ -84,6 +85,31 @@ class BringupStatus(Enum):
         return self.name
 
 
+@dataclass(frozen=True)
+class ModelInfo:
+    model: str
+    variant: str
+    path: str
+    group: ModelGroup
+    task: ModelTask
+    source: ModelSource
+    framework: Framework
+
+    @property
+    def name(self) -> str:
+        return f"{self.framework}_{self.model}_{self.variant}_{self.task}_{self.source}"
+
+    def to_report_dict(self) -> dict:
+        """Represents self as dict suitable for pytest reporting pipeline."""
+        return {
+            "task": str(self.task),
+            "source": str(self.source),
+            "framework": str(self.framework),
+            "model_arch": self.model,  # Changed key to match forge
+            "variant_name": self.variant,  # Changed key to match forge
+        }
+
+
 def failed_fe_compilation(reason: str) -> str:
     return f"{BringupStatus.FAILED_FE_COMPILATION}: {reason}"
 
@@ -102,17 +128,6 @@ def incorrect_result(reason: str) -> str:
 
 def passed(reason: str) -> str:
     return f"{BringupStatus.PASSED}: {reason}"
-
-
-def build_model_name(
-    framework: Framework,
-    model: str,
-    variant: Optional[str],
-    task: ModelTask,
-    source: ModelSource,
-) -> str:
-    variant = variant if variant is not None else "base"
-    return f"{framework}_{model}_{variant}_{task}_{source}"
 
 
 @contextmanager

@@ -9,21 +9,22 @@ from tests.utils import (
     BringupStatus,
     Category,
     ModelGroup,
+    ModelInfo,
     ModelSource,
     ModelTask,
-    build_model_name,
     incorrect_result,
 )
 
 from ..tester import AlbertV2Tester
 
-MODEL_PATH = "albert/albert-base-v2"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
+info = ModelInfo(
     "albert_v2",
     "base",
+    "albert/albert-base-v2",
+    ModelGroup.GENERALITY,
     ModelTask.NLP_MASKED_LM,
     ModelSource.HUGGING_FACE,
+    Framework.JAX,
 )
 
 
@@ -32,12 +33,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH)
+    return AlbertV2Tester(info.path)
 
 
 @pytest.fixture
 def training_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH, RunMode.TRAINING)
+    return AlbertV2Tester(info.path, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -46,10 +47,9 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
+    model_info=info,
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
@@ -64,9 +64,8 @@ def test_flax_albert_v2_base_inference(inference_tester: AlbertV2Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    model_info=info,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_albert_v2_base_training(training_tester: AlbertV2Tester):
