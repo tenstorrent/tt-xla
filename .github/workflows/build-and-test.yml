@@ -219,12 +219,12 @@ jobs:
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
-    - name: Download install artifacts
-      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-      with:
-        name: install-artifacts
-        path: install
-        github_token: ${{ github.token }}
+    # - name: Download install artifacts
+    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+    #   with:
+    #     name: install-artifacts
+    #     path: install
+    #     github_token: ${{ github.token }}
 
     - name: Download build artifacts
       uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
@@ -233,17 +233,17 @@ jobs:
         path: build
         github_token: ${{ github.token }}
 
-    # - name: Download wheel
-    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-    #   with:
-    #     name: xla-whl-codecov
-    #     github_token: ${{ github.token }}
+    - name: Download wheel
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+      with:
+        name: xla-whl-codecov
+        github_token: ${{ github.token }}
 
-    # - name: Install wheel
-    #   shell: bash
-    #   run: |
-    #     source venv/activate
-    #     pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
+    - name: Install wheel
+      shell: bash
+      run: |
+        source venv/activate
+        pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
 
     - name: Run tests
       env:
@@ -251,9 +251,6 @@ jobs:
       shell: bash
       run: |
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
-        export LD_LIBRARY_PATH="${{ steps.strings.outputs.install-output-dir }}/tt-metal/runtime/sfpi/compiler/lib:${LD_LIBRARY_PATH}"
-        export LD_LIBRARY_PATH="${{ steps.strings.outputs.install-output-dir }}/tt-metal/runtime/sfpi/compiler/libexec:${LD_LIBRARY_PATH}"
-        echo $LD_LIBRARY_PATH
         source venv/activate
         pytest ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
