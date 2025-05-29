@@ -129,19 +129,6 @@ jobs:
         build-output-dir: ${{ steps.strings.outputs.build-output-dir }}
         work-dir: ${{ steps.strings.outputs.work-dir }}
 
-    - name: Build the wheel
-      shell: bash
-      run: |
-        source venv/activate
-        cd ${{ steps.strings.outputs.work-dir }}/python_package
-        python setup.py bdist_wheel
-
-    - name: Upload the wheel
-      uses: actions/upload-artifact@v4
-      with:
-        name: xla-whl-codecov
-        path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
-
     - name: Verify tt-mlir SHA override
       if: ${{ inputs.mlir_override }}
       continue-on-error: true
