@@ -35,7 +35,7 @@ runs:
       shell: bash
       run: |
         source venv/activate
-        cd ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt
+        cd ${{ inputs.work-dir }}/python_package
         python setup.py bdist_wheel
 
     - name: Upload tt xla wheel
