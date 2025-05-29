@@ -250,15 +250,16 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
-        ls build
-        echo "---"
-        ls build/src
-        echo "---"
-        find ./ -name "pjrt_plugin_tt.so"
-        echo "---"
         find ./ -name "libTTMLIRCompiler.so"
         echo "---"
+        ls -l ./install/lib
+        echo "---"
+        ls -l ${{ steps.strings.outputs.install-output-dir }}/lib
+        echo "---"
+        find ./ -name "*.so"
+        echo "---"
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
+        echo $LD_LIBRARY_PATH
         source venv/activate
         pytest ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
