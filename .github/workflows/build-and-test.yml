@@ -85,6 +85,7 @@ jobs:
 
   build-ttxla:
     needs: build-image
+    if: ${{ inputs.test_mark == 'push' || inputs.test_mark == 'nightly' }}
     timeout-minutes: 120
     runs-on: ubuntu-latest
     name: "Build tt-xla"
