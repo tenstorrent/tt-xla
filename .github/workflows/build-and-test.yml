@@ -250,15 +250,9 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
-        find ./ -name "libTTMLIRCompiler.so"
-        echo "---"
-        ls -l ./install/lib
-        echo "---"
-        ls -l ${{ steps.strings.outputs.install-output-dir }}/lib
-        echo "---"
-        find ./ -name "*.so"
-        echo "---"
         export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
+        export LD_LIBRARY_PATH="${{ steps.strings.outputs.install-output-dir }}/tt-metal/runtime/sfpi/compiler/lib:${LD_LIBRARY_PATH}"
+        export LD_LIBRARY_PATH="${{ steps.strings.outputs.install-output-dir }}/tt-metal/runtime/sfpi/compiler/libexec:${LD_LIBRARY_PATH}"
         echo $LD_LIBRARY_PATH
         source venv/activate
         pytest ${{ matrix.build.dir }}  \
