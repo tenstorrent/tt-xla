@@ -4,9 +4,6 @@ inputs:
   build-output-dir:
     description: "Build folder location"
     required: true
-  install-output-dir:
-    description: "Install folder location"
-    required: true
   work-dir:
     description: "tt-xla root"
     required: true
@@ -43,21 +40,6 @@ runs:
       with:
         name: xla-wheel
         path: ${{ inputs.work-dir }}/python_packages/pjrt_plugin_tt/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl
-
-    # - name: Archive Install Directory
-    #   shell: bash
-    #   working-directory: ${{ inputs.install-output-dir }}
-    #   run: tar cf artifact.tar .
-
-    # - name: Upload Install Folder
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: install-artifacts
-    #     path: ${{ inputs.install-output-dir }}/artifact.tar
-
-    # - name: Remove tar archive
-    #   shell: bash
-    #   run: rm -f ${{ inputs.install-output-dir }}/artifact.tar
 
     - name: Archive Build Directory
       shell: bash

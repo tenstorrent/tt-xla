@@ -115,7 +115,6 @@ jobs:
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-        echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
 
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
@@ -128,7 +127,6 @@ jobs:
       uses: ./.github/actions/build-tt-xla-action
       with:
         build-output-dir: ${{ steps.strings.outputs.build-output-dir }}
-        install-output-dir: ${{ steps.strings.outputs.install-output-dir }}
         work-dir: ${{ steps.strings.outputs.work-dir }}
 
     - name: Build the wheel
@@ -218,13 +216,6 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-
-    # - name: Download install artifacts
-    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-    #   with:
-    #     name: install-artifacts
-    #     path: install
-    #     github_token: ${{ github.token }}
 
     - name: Download build artifacts
       uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
@@ -347,7 +338,6 @@ jobs:
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-        echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
     - name: ccache

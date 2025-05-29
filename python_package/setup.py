@@ -7,7 +7,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass, fields
 from pathlib import Path
 
