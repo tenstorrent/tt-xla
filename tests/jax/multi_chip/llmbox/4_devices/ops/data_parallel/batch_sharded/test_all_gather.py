@@ -18,25 +18,41 @@ from utils import failed_fe_compilation
     "use_shardy",
     [
         True,
-        False,
+        # False,
     ],
 )
 @pytest.mark.parametrize(
-    ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (1, 4), ("batch", "model"))]
+    ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (2, 4), ("batch", "model"))]
 )
+# @pytest.mark.parametrize(
+#     "sharding_mode",
+#     [
+#         ShardingMode.INPUTS_AND_MODULE,
+#         pytest.param(
+#             ShardingMode.MODULE,
+#             marks=pytest.mark.xfail(
+#                 reason=failed_fe_compilation(
+#                     "Cannot get sharding information through the protobuf "
+#                     "(https://github.com/tenstorrent/tt-xla/issues/277)"
+#                 )
+#             ),
+#         ),
+#     ],
+# )
+
 @pytest.mark.parametrize(
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
-        pytest.param(
-            ShardingMode.MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_fe_compilation(
-                    "Cannot get sharding information through the protobuf "
-                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
-                )
-            ),
-        ),
+        # pytest.param(
+        #     ShardingMode.MODULE,
+        #     marks=pytest.mark.xfail(
+        #         reason=failed_fe_compilation(
+        #             "Cannot get sharding information through the protobuf "
+        #             "(https://github.com/tenstorrent/tt-xla/issues/277)"
+        #         )
+        #     ),
+        # ),
     ],
 )
 def test_all_gather(

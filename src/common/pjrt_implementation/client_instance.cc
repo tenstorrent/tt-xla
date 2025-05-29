@@ -165,7 +165,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
     const std::unordered_map<std::string, std::string> &compile_options) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
-  DLOG_F(LOG_DEBUG, "[HET DEBUG] mlir_code: {}", mlir_code);
+  // DLOG_F(LOG_DEBUG, "[HET DEBUG] mlir_code: {}", mlir_code); 
 
   tt_pjrt_status compile_status = m_module_builder->buildModule(
       mlir_code, m_cached_system_descriptor_path, compile_options);
