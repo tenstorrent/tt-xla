@@ -34,7 +34,6 @@ class AlexNetModel(nn.Module):
             param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Second feature extraction layer
@@ -46,7 +45,6 @@ class AlexNetModel(nn.Module):
             param_dtype=self.param_dtype,
         )(x)
         x = nn.relu(x)
-        x = LocalResponseNormalization()(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
 
         # Third feature extraction layer
@@ -84,17 +82,29 @@ class AlexNetModel(nn.Module):
         x = x.reshape((x.shape[0], -1))
 
         # First classifier layer
-        x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)
+        x = nn.Dense(
+            features=4096,
+            param_dtype=self.param_dtype,
+            kernel_init=nn.initializers.ones_init(),
+        )(x)
         x = nn.relu(x)
         x = nn.Dropout(rate=0.5)(x, deterministic=not train)
 
         # Second classifier layer
-        x = nn.Dense(features=4096, param_dtype=self.param_dtype)(x)
+        x = nn.Dense(
+            features=4096,
+            param_dtype=self.param_dtype,
+            kernel_init=nn.initializers.ones_init(),
+        )(x)
         x = nn.relu(x)
         x = nn.Dropout(rate=0.5)(x, deterministic=not train)
 
         # Third classifier layer
-        x = nn.Dense(features=1000, param_dtype=self.param_dtype)(x)
+        x = nn.Dense(
+            features=1000,
+            param_dtype=self.param_dtype,
+            kernel_init=nn.initializers.ones_init(),
+        )(x)
         x = nn.softmax(x)
 
         return x

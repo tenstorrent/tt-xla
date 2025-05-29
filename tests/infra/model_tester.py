@@ -187,7 +187,8 @@ class ModelTester(BaseTester, ABC):
 
         tt_res = DeviceRunner.run_on_tt_device(compiled_workload)
         cpu_res = DeviceRunner.run_on_cpu(compiled_workload)
-
+        print("tt_res:", tt_res)
+        print("cpu_res:", cpu_res)
         self._compare(tt_res, cpu_res)
 
     def _test_training(self):
