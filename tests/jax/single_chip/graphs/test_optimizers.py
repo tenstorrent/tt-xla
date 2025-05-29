@@ -126,3 +126,31 @@ def test_resnet18_sgd(param_shape: tuple):
         return optax.apply_updates(params, updates)
 
     run_graph_test_with_random_inputs(resnet18_sgd_update, [param_shape, param_shape])
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "AssertionError: Atol comparison failed. Calculated: atol=104.6875. Required: atol=0.16."
+    )
+)
+@pytest.mark.parametrize("param_shape", [(128, 128), (256, 256)])
+def test_radam(param_shape: tuple):
+    """Test RAdam optimizer with EfficientNeRF shapes."""
+
+    def radam_update(params: jax.Array, grads: jax.Array) -> jax.Array:
+        grads = grads * 0.01
+        learning_rate = 8e-4
+        optimizer = optax.radam(
+            learning_rate=learning_rate,
+            b1=0.9,
+            b2=0.999,
+            eps=1e-8,
+        )
+        opt_state = optimizer.init(params)
+        updates, _ = optimizer.update(grads, opt_state, params)
+        return optax.apply_updates(params, updates)
+
+    run_graph_test_with_random_inputs(radam_update, [param_shape, param_shape])
