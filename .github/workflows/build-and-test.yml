@@ -214,7 +214,6 @@ jobs:
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-        echo "install-output-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
     - name: Download build artifacts
@@ -241,7 +240,6 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
-        export LD_LIBRARY_PATH="/opt/ttmlir-toolchain/lib/:${{ steps.strings.outputs.install-output-dir }}/lib:${LD_LIBRARY_PATH}"
         source venv/activate
         pytest ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
