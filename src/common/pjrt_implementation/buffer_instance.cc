@@ -89,8 +89,8 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
-  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
   api->PJRT_Buffer_CopyToDevice = internal::onBufferCopyToDevice;
+  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
@@ -455,6 +455,7 @@ PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
                 .release();
   }
   MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+
   src_buffer->copyToDevice(
       dst_device, dst_memory,
       reinterpret_cast<BufferInstance **>(&args->dst_buffer));
