@@ -31,11 +31,11 @@ def main():
     register_pjrt_plugin()
     tt_device = jax.devices("tt")[0]
 
-    model = FlaxResNetForImageClassification.from_pretrained(
-        "microsoft/resnet-50", from_pt=True
-    )
-
     with jax.default_device(jax.devices("cpu")[0]):
+        # Instantiating the model seems to also run it in op by op mode once for whatver reason, also do that on the CPU
+        model = FlaxResNetForImageClassification.from_pretrained(
+            "microsoft/resnet-50", from_pt=True
+        )
         # Make sure to generate on the CPU, RNG requires an unsupported SHLO op
         random_image = jax.random.normal(jax.random.PRNGKey(0), (1, 3, 224, 224))
 
@@ -44,9 +44,9 @@ def main():
     )
     random_image = device_put(random_image, tt_device)
 
-    model.__call__ = jax.jit(model.__call__, static_argnames=["train"])
+    compiled_fwd = jax.jit(model.__call__, static_argnames=["train"])
 
-    result = model(random_image, train=False)
+    result = compiled_fwd(random_image, train=False, params=model.params)
     print(result)
 
 
