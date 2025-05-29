@@ -325,6 +325,34 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status BufferInstance::copyToDevice(DeviceInstance *dst_device,
+                                            MemoryInstance *dst_memory,
+                                            BufferInstance **dst_buffer) {
+  size_t memory_size = getRuntimeTensorSize();
+  if (getDevice() == dst_device) {
+    return tt_pjrt_status::kInvalidArgument;
+  }
+  std::unique_ptr<BufferInstance> dst_buffer_instance =
+      BufferInstance::createInputBufferInstance(
+          getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
+          dst_device, dst_device->getDefaultMemory());
+  void *host_memory = malloc(memory_size);
+  runtime::memcpy(host_memory, getRuntimeTensor());
+  std::unique_ptr<EventInstance> done_with_host_buffer_event =
+      EventInstance::createInstance();
+  EventInstance *done_with_host_buffer_event_ptr =
+      done_with_host_buffer_event.get();
+  dst_buffer_instance->copyFromHost(
+      host_memory, getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
+      nullptr, 0, PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+      &done_with_host_buffer_event_ptr);
+  *dst_buffer = dst_buffer_instance.release();
+
+  free(host_memory);
+
+  return tt_pjrt_status::kSuccess;
+}
+
 namespace internal {
 
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
@@ -426,25 +454,10 @@ PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
-  std::unique_ptr<BufferInstance> dst_buffer =
-      BufferInstance::createInputBufferInstance(
-          src_buffer->getDataType(), src_buffer->getDimensionsRaw(),
-          src_buffer->getNumberOfDimensions(), dst_device,
-          dst_device->getDefaultMemory());
-  void *host_memory = malloc(memory_size);
-  runtime::memcpy(host_memory, src_buffer->getRuntimeTensor());
-  std::unique_ptr<EventInstance> done_with_host_buffer_event =
-      EventInstance::createInstance();
-  EventInstance *done_with_host_buffer_event_ptr =
-      done_with_host_buffer_event.get();
-  dst_buffer->copyFromHost(host_memory, src_buffer->getDataType(),
-                           src_buffer->getDimensionsRaw(),
-                           src_buffer->getNumberOfDimensions(), nullptr, 0,
-                           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
-                           &done_with_host_buffer_event_ptr);
-  args->dst_buffer = *dst_buffer.release();
-
-  free(host_memory);
+  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+  src_buffer->copyToDevice(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
   return nullptr;
 }
@@ -463,25 +476,9 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
                 .release();
   }
 
-  std::unique_ptr<BufferInstance> dst_buffer =
-      BufferInstance::createInputBufferInstance(
-          src_buffer->getDataType(), src_buffer->getDimensionsRaw(),
-          src_buffer->getNumberOfDimensions(), dst_device, dst_memory);
-
-  void *host_memory = malloc(memory_size);
-  runtime::memcpy(host_memory, src_buffer->getRuntimeTensor());
-  std::unique_ptr<EventInstance> done_with_host_buffer_event =
-      EventInstance::createInstance();
-  EventInstance *done_with_host_buffer_event_ptr =
-      done_with_host_buffer_event.get();
-  dst_buffer->copyFromHost(host_memory, src_buffer->getDataType(),
-                           src_buffer->getDimensionsRaw(),
-                           src_buffer->getNumberOfDimensions(), nullptr, 0,
-                           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
-                           &done_with_host_buffer_event_ptr);
-  args->dst_buffer = *dst_buffer.release();
-
-  free(host_memory);
+  src_buffer->copyToDevice(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
   return nullptr;
 }
