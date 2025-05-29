@@ -85,7 +85,6 @@ jobs:
 
   build-ttxla:
     needs: build-image
-    if: ${{ inputs.test_mark == 'push' || inputs.test_mark == 'nightly' }}
     timeout-minutes: 120
     runs-on: ubuntu-latest
     name: "Build tt-xla"
@@ -129,6 +128,7 @@ jobs:
       with:
         build-output-dir: ${{ steps.strings.outputs.build-output-dir }}
         work-dir: ${{ steps.strings.outputs.work-dir }}
+        enable_artifact_upload: ${{ inputs.test_mark == 'push' || inputs.test_mark == 'nightly' }}
 
     - name: Verify tt-mlir SHA override
       if: ${{ inputs.mlir_override }}
