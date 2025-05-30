@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ...base import ForgeModel
 from .src.yolov3 import Yolov3
+from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -79,12 +80,10 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
         # Original image used in test
-        image_url = (
-            "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
-        )
+        image_file = get_file("test_images/dog_1546x1213.jpg")
 
         # Download and load image
-        image = Image.open(requests.get(image_url, stream=True).raw)
+        image = Image.open(image_file)
 
         # Preprocess the image
         transform = transforms.Compose(
