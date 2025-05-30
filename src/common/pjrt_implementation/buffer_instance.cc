@@ -325,30 +325,44 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   return tt_pjrt_status::kSuccess;
 }
 
-tt_pjrt_status BufferInstance::copyToDevice(DeviceInstance *dst_device,
-                                            MemoryInstance *dst_memory,
-                                            BufferInstance **dst_buffer) {
-  size_t memory_size = getRuntimeTensorSize();
+tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
+                                                  MemoryInstance *dst_memory,
+                                                  BufferInstance **dst_buffer) {
+  if (getMemory() == dst_memory) {
+    return tt_pjrt_status::kInvalidArgument;
+  }
   if (getDevice() == dst_device) {
     return tt_pjrt_status::kInvalidArgument;
   }
+
   std::unique_ptr<BufferInstance> dst_buffer_instance =
       BufferInstance::createInputBufferInstance(
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
           dst_device, dst_memory);
-  void *host_memory = malloc(memory_size);
-  runtime::memcpy(host_memory, getRuntimeTensor());
-  std::unique_ptr<EventInstance> done_with_host_buffer_event =
-      EventInstance::createInstance();
-  EventInstance *done_with_host_buffer_event_ptr =
-      done_with_host_buffer_event.get();
+
+  std::shared_ptr<void> host_memory;
+  if (m_memory->isHostMemory()) {
+    // No need to free, just alias the pointer (do not manage its lifetime).
+    // Use a no-op deleter to avoid freeing memory we don't own.
+    host_memory =
+        std::shared_ptr<void>(m_runtime_tensor.data.get(), [](void *) {});
+  } else {
+    size_t memory_size = getRuntimeTensorSize();
+    void *ptr = malloc(memory_size);
+    tt::runtime::memcpy(ptr, getRuntimeTensor());
+    host_memory = std::shared_ptr<void>(ptr, free);
+  }
+
+  EventInstance *done_with_host_buffer_event_ptr = nullptr;
+
   dst_buffer_instance->copyFromHost(
-      host_memory, getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
-      nullptr, 0, PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+      host_memory.get(), getDataType(), getDimensionsRaw(),
+      getNumberOfDimensions(), nullptr, 0,
+      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
       &done_with_host_buffer_event_ptr);
   *dst_buffer = dst_buffer_instance.release();
 
-  free(host_memory);
+  delete done_with_host_buffer_event_ptr;
 
   return tt_pjrt_status::kSuccess;
 }
@@ -450,13 +464,14 @@ PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
   size_t memory_size = src_buffer->getRuntimeTensorSize();
   DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
+  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+
   if (src_buffer->getDevice() == dst_device) {
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
-  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
 
-  src_buffer->copyToDevice(
+  src_buffer->copyToDeviceMemory(
       dst_device, dst_memory,
       reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
@@ -467,17 +482,17 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
-  size_t memory_size = src_buffer->getRuntimeTensorSize();
   MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
-  DeviceInstance *dst_device =
-      MemoryInstance::unwrap(args->dst_memory)->getDevice();
 
-  if (src_buffer->getDevice() == dst_device) {
-    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
-                .release();
+  // Copying into to host memory is undefined, since it's not clear
+  // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
+  if (dst_memory->isHostMemory()) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
-  src_buffer->copyToDevice(
+  DeviceInstance *dst_device =
+      MemoryInstance::unwrap(args->dst_memory)->getDevice();
+  src_buffer->copyToDeviceMemory(
       dst_device, dst_memory,
       reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 

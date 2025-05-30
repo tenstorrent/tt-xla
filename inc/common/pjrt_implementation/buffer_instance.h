@@ -116,7 +116,7 @@ public:
                     PJRT_HostBufferSemantics host_buffer_semantics,
                     EventInstance **out_done_with_host_buffer_event);
 
-  // Asynchronously copies the buffer's data into a preallocated host buffer.
+  // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);
 
@@ -128,11 +128,11 @@ public:
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
 
-  // Copies the buffer's data to the device and its memory specified in the
+  // Copies this buffer's data to the device and its memory specified in the
   // arguments.
-  tt_pjrt_status copyToDevice(DeviceInstance *dst_device,
-                              MemoryInstance *dst_memory,
-                              BufferInstance **dst_buffer);
+  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
+                                    MemoryInstance *dst_memory,
+                                    BufferInstance **dst_buffer);
 
 private:
   // Constructor used for the input buffers.
