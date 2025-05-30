@@ -125,6 +125,11 @@ def pytest_collection_modifyitems(items):
 
 
 def pytest_addoption(parser):
+    """
+    Custom CLI pytest option to enable memory usage tracking in tests.
+
+    Use it when calling pytest like `pytest --log-memory ...`.
+    """
     parser.addoption(
         "--log-memory",
         action="store_true",
