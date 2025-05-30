@@ -328,10 +328,7 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
 tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
                                                   MemoryInstance *dst_memory,
                                                   BufferInstance **dst_buffer) {
-  if (getMemory() == dst_memory) {
-    return tt_pjrt_status::kInvalidArgument;
-  }
-  if (getDevice() == dst_device) {
+  if (getMemory() == dst_memory || getDevice() == dst_device) {
     return tt_pjrt_status::kInvalidArgument;
   }
 
@@ -347,10 +344,12 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
     host_memory =
         std::shared_ptr<void>(m_runtime_tensor.data.get(), [](void *) {});
   } else {
-    size_t memory_size = getRuntimeTensorSize();
-    void *ptr = malloc(memory_size);
-    tt::runtime::memcpy(ptr, getRuntimeTensor());
-    host_memory = std::shared_ptr<void>(ptr, free);
+    std::unique_ptr<char[]> host_memory_unique =
+        std::make_unique<char[]>(getRuntimeTensorSize());
+    tt::runtime::memcpy(host_memory_unique.get(), m_runtime_tensor);
+    host_memory =
+        std::shared_ptr<void>(host_memory_unique.release(),
+                              [](void *p) { delete[] static_cast<char *>(p); });
   }
 
   EventInstance *done_with_host_buffer_event_ptr = nullptr;
@@ -461,15 +460,10 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
 
 PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
+
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
-  size_t memory_size = src_buffer->getRuntimeTensorSize();
   DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
   MemoryInstance *dst_memory = dst_device->getDefaultMemory();
-
-  if (src_buffer->getDevice() == dst_device) {
-    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
-                .release();
-  }
 
   src_buffer->copyToDeviceMemory(
       dst_device, dst_memory,
@@ -483,6 +477,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
   MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
+  DeviceInstance *dst_device = dst_memory->getDevice();
 
   // Copying into to host memory is undefined, since it's not clear
   // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
@@ -490,8 +485,6 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
-  DeviceInstance *dst_device =
-      MemoryInstance::unwrap(args->dst_memory)->getDevice();
   src_buffer->copyToDeviceMemory(
       dst_device, dst_memory,
       reinterpret_cast<BufferInstance **>(&args->dst_buffer));
