@@ -89,6 +89,8 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
+  api->PJRT_Buffer_CopyToDevice = internal::onBufferCopyToDevice;
+  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
@@ -323,6 +325,47 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
+                                                  MemoryInstance *dst_memory,
+                                                  BufferInstance **dst_buffer) {
+  if (getMemory() == dst_memory || getDevice() == dst_device) {
+    return tt_pjrt_status::kInvalidArgument;
+  }
+
+  std::unique_ptr<BufferInstance> dst_buffer_instance =
+      BufferInstance::createInputBufferInstance(
+          getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
+          dst_device, dst_memory);
+
+  std::shared_ptr<void> host_memory;
+  if (m_memory->isHostMemory()) {
+    // No need to free, just alias the pointer (do not manage its lifetime).
+    // Use a no-op deleter to avoid freeing memory we don't own.
+    host_memory =
+        std::shared_ptr<void>(m_runtime_tensor.data.get(), [](void *) {});
+  } else {
+    std::unique_ptr<char[]> host_memory_unique =
+        std::make_unique<char[]>(getRuntimeTensorSize());
+    tt::runtime::memcpy(host_memory_unique.get(), m_runtime_tensor);
+    host_memory =
+        std::shared_ptr<void>(host_memory_unique.release(),
+                              [](void *p) { delete[] static_cast<char *>(p); });
+  }
+
+  EventInstance *done_with_host_buffer_event_ptr = nullptr;
+
+  dst_buffer_instance->copyFromHost(
+      host_memory.get(), getDataType(), getDimensionsRaw(),
+      getNumberOfDimensions(), nullptr, 0,
+      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+      &done_with_host_buffer_event_ptr);
+  *dst_buffer = dst_buffer_instance.release();
+
+  delete done_with_host_buffer_event_ptr;
+
+  return tt_pjrt_status::kSuccess;
+}
+
 namespace internal {
 
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
@@ -411,6 +454,40 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
+  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
+  DeviceInstance *dst_device = dst_memory->getDevice();
+
+  // Copying into to host memory is undefined, since it's not clear
+  // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
+  if (dst_memory->isHostMemory()) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
   return nullptr;
 }

@@ -116,7 +116,7 @@ public:
                     PJRT_HostBufferSemantics host_buffer_semantics,
                     EventInstance **out_done_with_host_buffer_event);
 
-  // Asynchronously copies the buffer's data into a preallocated host buffer.
+  // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);
 
@@ -127,6 +127,12 @@ public:
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
+
+  // Copies this buffer's data to the device and its memory specified in the
+  // arguments.
+  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
+                                    MemoryInstance *dst_memory,
+                                    BufferInstance **dst_buffer);
 
 private:
   // Constructor used for the input buffers.
@@ -220,6 +226,12 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args);
 
 // Implements PJRT_Buffer_IsDeleted API function.
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args);
+
+// Implements PJRT_Buffer_CopyToDevice API function.
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args);
+
+// Implements PJRT_Buffer_CopyToMemory API function.
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args);
 
 // Implements PJRT_Buffer_IsOnCpu API function.
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args);
