@@ -128,7 +128,7 @@ public:
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
 
-  // Copyies the buffer's data to the device and its memory specified in the
+  // Copies the buffer's data to the device and its memory specified in the
   // arguments.
   tt_pjrt_status copyToDevice(DeviceInstance *dst_device,
                               MemoryInstance *dst_memory,

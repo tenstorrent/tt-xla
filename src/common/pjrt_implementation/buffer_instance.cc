@@ -335,7 +335,7 @@ tt_pjrt_status BufferInstance::copyToDevice(DeviceInstance *dst_device,
   std::unique_ptr<BufferInstance> dst_buffer_instance =
       BufferInstance::createInputBufferInstance(
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
-          dst_device, dst_device->getDefaultMemory());
+          dst_device, dst_memory);
   void *host_memory = malloc(memory_size);
   runtime::memcpy(host_memory, getRuntimeTensor());
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
