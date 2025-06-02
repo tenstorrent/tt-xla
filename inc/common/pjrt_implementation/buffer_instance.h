@@ -120,6 +120,12 @@ public:
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);
 
+  // Copies this buffer's data to the device and its memory specified in the
+  // arguments.
+  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
+                                    MemoryInstance *dst_memory,
+                                    BufferInstance **dst_buffer);
+
   // Sets that buffer data is ready (transferred from host or computed on
   // device) and marks data ready event as ready (if it is already created).
   void markAsDataReady();
@@ -127,12 +133,6 @@ public:
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
-
-  // Copies this buffer's data to the device and its memory specified in the
-  // arguments.
-  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
-                                    MemoryInstance *dst_memory,
-                                    BufferInstance **dst_buffer);
 
 private:
   // Constructor used for the input buffers.

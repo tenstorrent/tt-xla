@@ -303,32 +303,13 @@ void BufferInstance::markAsDataReady() {
   }
 }
 
-tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
-  if (m_data_ready_event) {
-    DLOG_F(ERROR, "Buffer marked as data ready multiple times");
-    return tt_pjrt_status::kInternal;
-  }
-
-  std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
-
-  std::unique_ptr<EventInstance> data_ready_event =
-      EventInstance::createInstance();
-  if (m_data_ready) {
-    data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
-  }
-  m_data_ready_event = data_ready_event.get();
-
-  // Releasing the ownership to the PJRT API caller since the caller is
-  // responsible for calling `PJRT_Event_Destroy` on the event.
-  *out_event = data_ready_event.release();
-
-  return tt_pjrt_status::kSuccess;
-}
-
 tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
                                                   MemoryInstance *dst_memory,
                                                   BufferInstance **dst_buffer) {
+  // PJRT API specification requires returning error in case of copying to same
+  // device/memory space.
   if (getMemory() == dst_memory || getDevice() == dst_device) {
+    DLOG_F(ERROR, "Cannot copy buffer to the same memory or device");
     return tt_pjrt_status::kInvalidArgument;
   }
 
@@ -362,6 +343,28 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
   *dst_buffer = dst_buffer_instance.release();
 
   delete done_with_host_buffer_event_ptr;
+
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
+  if (m_data_ready_event) {
+    DLOG_F(ERROR, "Buffer marked as data ready multiple times");
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
+
+  std::unique_ptr<EventInstance> data_ready_event =
+      EventInstance::createInstance();
+  if (m_data_ready) {
+    data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
+  }
+  m_data_ready_event = data_ready_event.get();
+
+  // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling `PJRT_Event_Destroy` on the event.
+  *out_event = data_ready_event.release();
 
   return tt_pjrt_status::kSuccess;
 }
@@ -482,6 +485,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
   // Copying into to host memory is undefined, since it's not clear
   // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
   if (dst_memory->isHostMemory()) {
+    DLOG_F(ERROR, "Copying buffer to host memory is not supported");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
