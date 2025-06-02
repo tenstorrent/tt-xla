@@ -318,10 +318,6 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
           dst_device, dst_memory);
 
-  std::unique_ptr<char[]> host_memory =
-      std::make_unique<char[]>(getRuntimeTensorSize());
-  tt::runtime::memcpy(host_memory.get(), m_runtime_tensor);
-
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
@@ -332,7 +328,11 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
       calculateStrides(getNumberOfDimensions(), nullptr, 0, element_size);
 
   dst_buffer_instance->m_runtime_tensor = tt::runtime::createOwnedHostTensor(
-      host_memory.get(), shape, strides, element_size, runtime_data_type);
+      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+  tt::runtime::memcpy(dst_buffer_instance->m_runtime_tensor, m_runtime_tensor);
+  tt::runtime::setTensorRetain(dst_buffer_instance->m_runtime_tensor,
+                               /*retain=*/true);
+  dst_buffer_instance->markAsDataReady();
 
   *dst_buffer = dst_buffer_instance.release();
 
