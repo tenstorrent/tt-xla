@@ -318,31 +318,23 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
           dst_device, dst_memory);
 
-  std::shared_ptr<void> host_memory;
-  if (m_memory->isHostMemory()) {
-    // No need to free, just alias the pointer (do not manage its lifetime).
-    // Use a no-op deleter to avoid freeing memory we don't own.
-    host_memory =
-        std::shared_ptr<void>(m_runtime_tensor.data.get(), [](void *) {});
-  } else {
-    std::unique_ptr<char[]> host_memory_unique =
-        std::make_unique<char[]>(getRuntimeTensorSize());
-    tt::runtime::memcpy(host_memory_unique.get(), m_runtime_tensor);
-    host_memory =
-        std::shared_ptr<void>(host_memory_unique.release(),
-                              [](void *p) { delete[] static_cast<char *>(p); });
-  }
+  std::unique_ptr<char[]> host_memory =
+      std::make_unique<char[]>(getRuntimeTensorSize());
+  tt::runtime::memcpy(host_memory.get(), m_runtime_tensor);
 
-  EventInstance *done_with_host_buffer_event_ptr = nullptr;
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape =
+      calculateShape(getDimensionsRaw(), getNumberOfDimensions());
+  std::vector<std::uint32_t> strides =
+      calculateStrides(getNumberOfDimensions(), nullptr, 0, element_size);
 
-  dst_buffer_instance->copyFromHost(
-      host_memory.get(), getDataType(), getDimensionsRaw(),
-      getNumberOfDimensions(), nullptr, 0,
-      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
-      &done_with_host_buffer_event_ptr);
+  dst_buffer_instance->m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+      host_memory.get(), shape, strides, element_size, runtime_data_type);
+
   *dst_buffer = dst_buffer_instance.release();
-
-  delete done_with_host_buffer_event_ptr;
 
   return tt_pjrt_status::kSuccess;
 }
