@@ -10,10 +10,12 @@ jaxlib==0.5.0
 jaxtyping
 librosa
 lit
+loguru
 ml_collections
 ninja
 pillow
 pre-commit
+psutil
 pybind11
 pytest
 sentencepiece
