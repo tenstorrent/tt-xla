@@ -58,6 +58,12 @@ public:
                              std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory);
 
+  static std::unique_ptr<BufferInstance>
+  createOutputBufferInstance(const tt::runtime::Tensor &tensor,
+                            std::vector<std::uint32_t> &&dimensions,
+                            DeviceInstance *device, MemoryInstance *memory,
+                            PJRT_Buffer_Type expected_data_type);
+
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
 
@@ -144,6 +150,12 @@ private:
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
                  DeviceInstance *device, MemoryInstance *memory);
+
+  // Constructor used for the output buffers.
+  BufferInstance(const tt::runtime::Tensor &tensor,
+                 const std::vector<std::uint32_t> &dimensions,
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type expected_data_type);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);

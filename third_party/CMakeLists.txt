@@ -2,8 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "59e17c65976c913b2a62d9704b6f67ea216ffb6b")
+option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
+
+if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
+    set(TT_MLIR_VERSION "59e17c65976c913b2a62d9704b6f67ea216ffb6b")
+endif()
+
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
+
 
 if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)

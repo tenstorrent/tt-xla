@@ -307,6 +307,7 @@ ModuleBuilder::getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op) {
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_is_output_scalar.clear();
+  m_output_data_types.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
@@ -314,6 +315,7 @@ void ModuleBuilder::collectOutputTypes(
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
+      m_output_data_types.push_back(getDataType(returnType));
     }
   }
 }
@@ -328,6 +330,62 @@ std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
     }
   });
   return public_func_ops;
+}
+
+PJRT_Buffer_Type ModuleBuilder::getDataType(mlir::Type type) {
+
+  if (mlir::RankedTensorType tensorType =
+          mlir::dyn_cast<mlir::RankedTensorType>(type)) {
+    return getDataType(tensorType.getElementType());
+  }
+
+  if (mlir::FloatType floatType = mlir::dyn_cast_or_null<mlir::FloatType>(type)) {
+    if (floatType.isF64()) {
+      return PJRT_Buffer_Type_F64;
+    } else if (floatType.isF32()) {
+      return PJRT_Buffer_Type_F32;
+    } else if (floatType.isF16()) {
+      return PJRT_Buffer_Type_F16;
+    } else if (floatType.isBF16()) {
+      return PJRT_Buffer_Type_BF16; 
+    } else {
+      throw std::runtime_error("Unsupported float type");
+    }
+      
+  }
+  else if (mlir::IntegerType intType = mlir::dyn_cast<mlir::IntegerType>(type)) {
+    if (intType.isSigned() || intType.isSignless()) {
+      if (intType.getWidth() == 64) {
+        return PJRT_Buffer_Type_S64;
+      } else if (intType.getWidth() == 32) {
+        return PJRT_Buffer_Type_S32;
+      } else if (intType.getWidth() == 16) {
+        return PJRT_Buffer_Type_S16;
+      } else if (intType.getWidth() == 8) {
+        return PJRT_Buffer_Type_S8;
+      } else if (intType.getWidth() == 1 && intType.isSignless()) {
+        return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
+      } else {
+        throw std::runtime_error("Unsupported signed integer type");
+      }
+    } else {
+      if (intType.getWidth() == 64) {
+        return PJRT_Buffer_Type_U64;
+      } else if (intType.getWidth() == 32) {
+        return PJRT_Buffer_Type_U32;
+      } else if (intType.getWidth() == 16) {
+        return PJRT_Buffer_Type_U16;
+      } else if (intType.getWidth() == 8) {
+        return PJRT_Buffer_Type_U8;
+      } else if (intType.getWidth() == 1) {
+        return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
+      } else {
+        throw std::runtime_error("Unsupported unsigned integer type");
+      }
+    }
+  }
+
+  throw std::runtime_error("Unknown type");
 }
 
 bool ModuleBuilder::isScalarType(mlir::Type type) {
