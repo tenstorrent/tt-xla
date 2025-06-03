@@ -137,7 +137,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists);
+                      args->output_lists, m_executable_image->getExpectedOutputDataTypes());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
@@ -329,7 +329,8 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
 void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<std::vector<tt::runtime::Tensor>>
         &untilized_output_tensors,
-    size_t num_devices, PJRT_Buffer **const *output_lists) {
+    size_t num_devices, PJRT_Buffer **const *output_lists,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t num_outputs = untilized_output_tensors.size();
 
   for (int device_index = 0; device_index < num_devices; ++device_index) {
@@ -342,7 +343,8 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
               m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory());
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index]);
 
       output_buffer->markAsDataReady();
 

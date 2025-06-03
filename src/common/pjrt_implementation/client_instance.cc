@@ -185,7 +185,8 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
           m_module_builder->getDevicesMeshShape(),
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
-          m_module_builder->getIsOutputScalar());
+          m_module_builder->getIsOutputScalar(),
+          m_module_builder->getOutputDataTypes());
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`

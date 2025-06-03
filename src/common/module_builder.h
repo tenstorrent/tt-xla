@@ -17,6 +17,7 @@
 
 // tt-mlir includes
 #include "tt/runtime/types.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
@@ -43,6 +44,10 @@ public:
   // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
     return m_is_output_scalar;
+  };
+
+  const std::vector<PJRT_Buffer_Type> &getOutputDataTypes() const {
+    return m_output_data_types;
   };
 
   // Returns number of partitions defined for the program module.
@@ -80,6 +85,9 @@ private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
+
+  // Returns the data type of the given MLIR type.
+  PJRT_Buffer_Type getDataType(mlir::Type type);
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -193,6 +201,9 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // For every output, store the data type
+  std::vector<PJRT_Buffer_Type> m_output_data_types;
 
   // Number of partitions defined for the program module.
   size_t m_num_partitions;

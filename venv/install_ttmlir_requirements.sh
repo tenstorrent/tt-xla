@@ -8,7 +8,7 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-source ${TTPJRT_SOURCE_DIR}/venv/bin/activate
+# source ${TTPJRT_SOURCE_DIR}/venv/bin/activate
 
 TT_MLIR_ENV_DIR=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/env
 
