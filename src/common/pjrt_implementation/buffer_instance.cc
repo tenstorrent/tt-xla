@@ -23,6 +23,8 @@
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
+#include "ttmlir/Target/Common/types_generated.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -142,16 +144,89 @@ void BufferInstance::deleteData() {
   }
 }
 
+template <typename dtype64, typename dtype32>
+void handleHost64To32(void **buffer, int64_t **byte_strides, size_t num_byte_strides, int64_t num_elements) {
+  
+  assert(sizeof(dtype64) == 8 && "dtype64 must be 8 bytes");
+  assert(sizeof(dtype32) == 4 && "dtype32 must be 4 bytes");
+  
+  dtype64 *old_buffer = static_cast<dtype64*>(*buffer);
+  dtype32 *new_buffer = (dtype32*)malloc(sizeof(dtype32)*num_elements);
+
+  for (int i = 0; i < num_elements; i++) {
+    
+    if (std::is_same_v<dtype32, int32_t> || std::is_same_v<dtype32, uint32_t>) {
+      if (old_buffer[i] > (dtype64)std::numeric_limits<dtype32>::max()) {
+        new_buffer[i] = std::numeric_limits<dtype32>::max();
+      } else if (old_buffer[i] < (dtype64)std::numeric_limits<dtype32>::lowest()) {
+        new_buffer[i] = std::numeric_limits<dtype32>::lowest();
+      } else {
+        new_buffer[i] = (dtype32)old_buffer[i];
+      }
+    } else {
+      new_buffer[i] = (dtype32)old_buffer[i];
+    }
+
+  }
+
+  int64_t *new_byte_strides = (int64_t*)malloc((sizeof(int64_t)*num_byte_strides));
+  for (int j = 0; j < num_byte_strides; j++) {
+    new_byte_strides[j] = (*byte_strides)[j] / 2;
+  }
+  *byte_strides = new_byte_strides;
+
+  *buffer = static_cast<void*>(new_buffer);
+}
+
+void handleCopyUnsupportedDataTypeFromHost(PJRT_Buffer_Type data_type, size_t num_byte_strides, size_t num_dims, const std::int64_t *dims, void **buffer, bool *created_new_buffer, PJRT_Buffer_Type *device_data_type, std::int64_t **byte_strides) {
+  if (data_type != PJRT_Buffer_Type_F64 && data_type != PJRT_Buffer_Type_S64) {
+    *created_new_buffer = false;
+    return;
+  }
+  
+  int64_t num_elements = 1;
+  for (int i = 0; i < num_dims; i++) {
+    num_elements *= dims[i];
+  }
+
+  if (data_type == PJRT_Buffer_Type_S64) {
+    DLOG_F(WARNING, "Attempting to push S64 buffer with num_elements = %ld to device. Casting to S32...", num_elements);
+    handleHost64To32<int64_t, int32_t>(buffer, byte_strides, num_byte_strides, num_elements);
+    *created_new_buffer = true;
+    *device_data_type = PJRT_Buffer_Type_S32;
+
+  } else if (data_type == PJRT_Buffer_Type_F64) {
+    DLOG_F(WARNING, "Attempting to push F64 buffer with num_elements = %ld to device. Casting to F32...", num_elements);
+    handleHost64To32<double, float>(buffer, byte_strides, num_byte_strides, num_elements);
+    *created_new_buffer = true;
+    *device_data_type = PJRT_Buffer_Type_F32;
+  } else {
+    DLOG_F(ERROR, "Unsupported data type: %d", data_type);
+  }
+}
+  
+
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
-    const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
+    const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides_,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
+
+  assert(data_type == m_data_type && "m_data_type and data_type do not match");
+
+  void *buffer = const_cast<void*>(host_buffer);
+  int64_t *byte_strides = const_cast<int64_t*>(byte_strides_);
+  bool created_new_buffer = false;
+  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+  m_device_data_type = m_data_type;
+  
+  handleCopyUnsupportedDataTypeFromHost(data_type, num_byte_strides, num_dims, dims, &buffer, &created_new_buffer, &m_device_data_type, &byte_strides);
+
   ::tt::target::DataType runtime_data_type =
-      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_device_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+  
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
@@ -165,12 +240,18 @@ void BufferInstance::copyFromHost(
   // mark the event as ready since we don't need the original host buffer
   // anymore.
   if (host_buffer_semantics ==
-      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
+      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall || created_new_buffer) {
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
+        buffer, shape, strides, element_size, runtime_data_type);
 
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+
+    // If we created a new buffer and byte_strides for an unsupported dtype, we must free them now.
+    if (created_new_buffer) {
+      free(buffer);
+      free(byte_strides);
+    }
   }
   // Otherwise when input host buffer has other semantic we are allowed to alias
   // it, so we can create borrowed host which doesn't copy any data and instead
@@ -182,7 +263,7 @@ void BufferInstance::copyFromHost(
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
     m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
+        const_cast<void *>(buffer), shape, strides, element_size,
         runtime_data_type);
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
@@ -194,7 +275,6 @@ void BufferInstance::copyFromHost(
     // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
   }
-
   // We want to be in control when input buffers are deallocated, which happens
   // during buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
@@ -267,6 +347,29 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
   return strides;
 }
 
+template <typename dtype64, typename dtype32>
+void handleHost64To32(const tt::runtime::Tensor &runtime_tensor, void **host_buffer, std::int64_t num_elements) {
+  std::unique_ptr<dtype32[]> host_buffer_32 = std::make_unique<dtype32[]>(num_elements);
+  tt::runtime::memcpy(host_buffer_32.get(), runtime_tensor);
+  dtype64 *host_buffer_64 = (dtype64*)*host_buffer;
+  for (size_t i = 0; i < num_elements; ++i) {
+    host_buffer_64[i] = (dtype64)host_buffer_32[i];
+  }
+}
+
+void handleCopyRuntimeTensorToUnsupportedHostDtype(PJRT_Buffer_Type data_type, PJRT_Buffer_Type device_data_type, const tt::runtime::Tensor &runtime_tensor, size_t runtime_tensor_size, void **host_buffer) {
+  int64_t num_elements = runtime_tensor_size / tt::runtime::utils::dataTypeElementSize(tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(device_data_type));
+
+  if (data_type == PJRT_Buffer_Type_F64) {
+    handleHost64To32<double, float>(runtime_tensor, host_buffer, num_elements);
+  } else if (data_type == PJRT_Buffer_Type_S64) {
+    handleHost64To32<int64_t, int32_t>(runtime_tensor, host_buffer, num_elements);
+  } else {
+    DLOG_F(ERROR, "Unsupported data type: %d", data_type);
+  }
+}
+
+
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
@@ -289,13 +392,22 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
+  tt::target::DataType runtime_tensor_data_type = tt::runtime::getTensorDataType(m_runtime_tensor);
+  PJRT_Buffer_Type pjrt_tensor_data_type = tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(runtime_tensor_data_type);
+
+  assert((m_device_data_type == PJRT_Buffer_Type_INVALID || m_device_data_type == pjrt_tensor_data_type) && "If m_device_data_type is set, it must be equal to the runtime tensor data type");
+
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event) {
+         EventInstance *event, PJRT_Buffer_Type host_data_type, PJRT_Buffer_Type device_data_type, size_t runtime_tensor_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-          tt::runtime::memcpy(host_buffer, runtime_tensor);
+          if (host_data_type != device_data_type) {
+            handleCopyRuntimeTensorToUnsupportedHostDtype(host_data_type, device_data_type, runtime_tensor, runtime_tensor_size, &host_buffer);
+          } else {
+            tt::runtime::memcpy(host_buffer, runtime_tensor);
+          }
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -303,7 +415,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, m_runtime_tensor, event.get());
+      host_buffer, m_runtime_tensor, event.get(), m_data_type, pjrt_tensor_data_type, runtime_tensor_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
