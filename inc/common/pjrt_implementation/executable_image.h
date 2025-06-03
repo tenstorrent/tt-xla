@@ -41,7 +41,8 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar);
+      const std::vector<bool> &is_output_scalar,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -98,6 +99,10 @@ public:
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
 
+  const std::vector<PJRT_Buffer_Type> &getExpectedOutputDataTypes() const {
+    return m_expected_output_data_types;
+  }
+
   // Gets the vector of memory kinds for each output.
   const std::vector<const char *> &getOutputMemoryKinds() const {
     return m_output_memory_kinds;
@@ -119,7 +124,8 @@ private:
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar);
+      const std::vector<bool> &is_output_scalar,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Flatbuffer binary produced by the compiler.
   tt::runtime::Binary m_flatbuffer_binary;
@@ -153,6 +159,9 @@ private:
 
   // Holds data type for each output buffer.
   std::vector<PJRT_Buffer_Type> m_output_types;
+
+  // Holds expected data type for each output buffer.
+  std::vector<PJRT_Buffer_Type> m_expected_output_data_types;
 
   // Holds dimensions for each output buffer.
   std::vector<std::vector<std::uint32_t>> m_output_dimensions;

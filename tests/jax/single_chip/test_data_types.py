@@ -36,16 +36,7 @@ from utils import Category, enable_x64
             marks=pytest.mark.skip(reason="Unsupported data type"),
         ),
         jnp.float32,
-        pytest.param(
-            jnp.float64,
-            marks=pytest.mark.xfail(
-                reason=(
-                    "Executable expected parameter 0 of size 8 but got buffer "
-                    "with incompatible size 4. See issue "
-                    "https://github.com/tenstorrent/tt-xla/issues/170"
-                )
-            ),
-        ),
+        jnp.float64,
         # bfloat
         jnp.bfloat16,
         # bool
@@ -53,7 +44,7 @@ from utils import Category, enable_x64
     ],
 )
 def test_dtypes(dtype: DTypeLike):
-    def scalar() -> jax.Array:
+    def scalar(inp) -> jax.Array:
         """
         This test just returns a scalar of a certain dtype. It will fail if dtype is
         unsupported. In mlir graph, it produces one simple stablehlo.constant op.
@@ -61,7 +52,10 @@ def test_dtypes(dtype: DTypeLike):
         Scalars are actually 0-dim arrays. They can be created the same way arrays are,
         using `jax.array(<some-value>, dtype)` or using `dtype(<some-value>)`.
         """
-        return jnp.array(1, dtype)  # same as dtype(1)
+        return inp  # same as dtype(1)
 
+    # Pass in a jax array with the desired dtype to the program
+    # This ensures the we will push a tensor to device, run a
+    # program tha does nothing, and pulls the output back to host
     with enable_x64():
-        run_op_test(scalar, [])
+        run_op_test(scalar, [jnp.array(1, dtype)])
