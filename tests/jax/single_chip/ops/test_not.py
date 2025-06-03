@@ -38,8 +38,8 @@ def test_logical_not(shape: tuple):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
-    jax_op_name="jax.numpy.logical_not",
-    shlo_op_name="stablehlo.not{LOGICAL}",
+    jax_op_name="jax.numpy.bitwise_not",
+    shlo_op_name="stablehlo.not{BITWISE}",
 )
 @pytest.mark.parametrize(
     ["shape"],
