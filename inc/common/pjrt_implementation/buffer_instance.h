@@ -145,6 +145,9 @@ private:
                  const std::vector<std::uint32_t> &dimensions,
                  DeviceInstance *device, MemoryInstance *memory);
 
+  // Copies the tensor inside the src_buffer to the tensor of this buffer.
+  void copyFromBuffer(const BufferInstance *src_buffer);
+
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
                                                    size_t num_dims);

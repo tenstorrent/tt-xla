@@ -206,6 +206,26 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
+void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
+          src_buffer->m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape = calculateShape(
+      src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions());
+  std::vector<std::uint32_t> strides = calculateStrides(
+      src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
+
+  m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+
+  tt::runtime::memcpy(m_runtime_tensor, src_buffer->m_runtime_tensor);
+  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
+
+  markAsDataReady();
+}
+
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims) {
   if (num_dims == 0) {
@@ -318,21 +338,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
           dst_device, dst_memory);
 
-  ::tt::target::DataType runtime_data_type =
-      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
-  std::uint32_t element_size =
-      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-  std::vector<std::uint32_t> shape =
-      calculateShape(getDimensionsRaw(), getNumberOfDimensions());
-  std::vector<std::uint32_t> strides =
-      calculateStrides(getNumberOfDimensions(), nullptr, 0, element_size);
-
-  dst_buffer_instance->m_runtime_tensor = tt::runtime::createOwnedHostTensor(
-      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
-  tt::runtime::memcpy(dst_buffer_instance->m_runtime_tensor, m_runtime_tensor);
-  tt::runtime::setTensorRetain(dst_buffer_instance->m_runtime_tensor,
-                               /*retain=*/true);
-  dst_buffer_instance->markAsDataReady();
+  dst_buffer_instance->copyFromBuffer(this);
 
   *dst_buffer = dst_buffer_instance.release();
 
