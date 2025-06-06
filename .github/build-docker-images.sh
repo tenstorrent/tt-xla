@@ -30,18 +30,14 @@ build_and_push() {
             --progress=plain \
             --build-arg FROM_TAG=$DOCKER_TAG \
             -t $image_name:$DOCKER_TAG \
-            -t $image_name:latest \
+            -t $image_name:wip-testing \
             -f $dockerfile .
 
         echo "Pushing image $image_name:$DOCKER_TAG"
         docker push $image_name:$DOCKER_TAG
-
-        # If we are on main branch also push the latest tag
-        if [ "$on_main" = "true" ]; then
-            echo "Pushing image $image_name:latest"
-            docker push $image_name:latest
-        fi
     fi
+
+    docker buildx imagetools create $image_name:$DOCKER_TAG --tag $image_name:wip-testing --tag $image_name:$DOCKER_TAG
 }
 
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base $ON_MAIN
