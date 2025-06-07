@@ -5,8 +5,8 @@ datasets
 einops
 flax==0.10.4
 fsspec
-jax==0.5.0
-jaxlib==0.5.0
+jax==0.6.0
+jaxlib==0.6.0
 jaxtyping
 librosa
 lit
