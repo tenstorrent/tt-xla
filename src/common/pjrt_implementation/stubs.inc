@@ -111,5 +111,13 @@
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Client_TopologyDescription);
+  _STUB(PJRT_Client_DmaMap);
+  _STUB(PJRT_Client_DmaUnmap);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_RetrieveBuffer);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferCount);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
