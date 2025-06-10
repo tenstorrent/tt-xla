@@ -156,6 +156,7 @@ void BufferInstance::copyFromHost(
     for (int i = 0; i < num_dims; i++) {
       num_elements *= dims[i];
     }
+    DLOG_F(WARNING, "Attempting to push S64 buffer with num_elements = %lld to device. Casting to S32...", num_elements);
 
     int64_t *old_buffer = static_cast<int64_t*>(buffer);
     int32_t *new_buffer = (int32_t*)malloc(sizeof(int32_t)*num_elements);
