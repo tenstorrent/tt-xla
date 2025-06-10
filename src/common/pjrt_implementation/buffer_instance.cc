@@ -23,6 +23,7 @@
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -147,6 +148,28 @@ void BufferInstance::copyFromHost(
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
+
+  void *buffer = const_cast<void*>(host_buffer);
+  bool created_new_buffer = false;
+  if (m_data_type == PJRT_Buffer_Type_S64) {
+    int64_t num_elements = 1;
+    for (int i = 0; i < num_dims; i++) {
+      num_elements *= dims[i];
+    }
+
+    int64_t *old_buffer = static_cast<int64_t*>(buffer);
+    int32_t *new_buffer = (int32_t*)malloc(sizeof(int32_t)*num_elements);
+
+    for (int i = 0; i < num_elements; i++) {
+      new_buffer[i] = static_cast<int32_t>(old_buffer[i]);
+    }
+
+    buffer = static_cast<void*>(new_buffer);
+    created_new_buffer = true;
+    m_data_type = PJRT_Buffer_Type_S32;
+
+  }
+
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
@@ -167,7 +190,7 @@ void BufferInstance::copyFromHost(
   if (host_buffer_semantics ==
       PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
+        buffer, shape, strides, element_size, runtime_data_type);
 
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
@@ -182,7 +205,7 @@ void BufferInstance::copyFromHost(
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
     m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
+        const_cast<void *>(buffer), shape, strides, element_size,
         runtime_data_type);
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
@@ -194,7 +217,9 @@ void BufferInstance::copyFromHost(
     // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
   }
-
+  if (created_new_buffer) {
+    free(buffer);
+  }
   // We want to be in control when input buffers are deallocated, which happens
   // during buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
