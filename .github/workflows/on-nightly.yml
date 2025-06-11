@@ -98,7 +98,7 @@ jobs:
       - name: Add a tag
         id: add-tag
         run: |
-          TAG_NAME="release-$(date +'%Y%m%d')"
+          TAG_NAME="release-$(date +'%Y%m%d')-$RANDOM"
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
           echo "tag-name=$TAG_NAME" >> "$GITHUB_OUTPUT"
