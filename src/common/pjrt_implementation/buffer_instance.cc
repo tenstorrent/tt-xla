@@ -145,11 +145,12 @@ void BufferInstance::deleteData() {
 
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
-    const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
+    const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides_,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
 
   void *buffer = const_cast<void*>(host_buffer);
+  int64_t *byte_strides = const_cast<int64_t*>(byte_strides_);
   bool created_new_buffer = false;
   if (m_data_type == PJRT_Buffer_Type_S64) {
     int64_t num_elements = 1;
@@ -173,6 +174,13 @@ void BufferInstance::copyFromHost(
       }
       DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
       new_buffer[i] = new_int;
+
+      int64_t *new_byte_strides = (int64_t*)malloc((sizeof(int64_t)*num_byte_strides) / 2);
+      for (int j = 0; j < num_byte_strides; j++) {
+        new_byte_strides[j] = byte_strides[j] / 2;
+      }
+      byte_strides = new_byte_strides;
+
     }
 
     buffer = static_cast<void*>(new_buffer);
@@ -201,6 +209,13 @@ void BufferInstance::copyFromHost(
       }
       DLOG_F(WARNING, "Converting F64 with value: %f to F32 with value: %f", old_float, new_float);
       new_buffer[i] = (float)new_float;
+      
+      int64_t *new_byte_strides = (int64_t*)malloc((sizeof(int64_t)*num_byte_strides) / 2);
+      for (int j = 0; j < num_byte_strides; j++) {
+        new_byte_strides[j] = byte_strides[j] / 2;
+      }
+      byte_strides = new_byte_strides;
+
     }
 
     buffer = static_cast<void*>(new_buffer);
@@ -258,6 +273,7 @@ void BufferInstance::copyFromHost(
   }
   if (created_new_buffer) {
     free(buffer);
+    free(byte_strides);
   }
   // We want to be in control when input buffers are deallocated, which happens
   // during buffer destruction or on delete/destroy API calls.
