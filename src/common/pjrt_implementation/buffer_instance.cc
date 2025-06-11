@@ -156,7 +156,7 @@ void BufferInstance::copyFromHost(
     for (int i = 0; i < num_dims; i++) {
       num_elements *= dims[i];
     }
-    DLOG_F(WARNING, "Attempting to push S64 buffer with num_elements = %lld to device. Casting to S32...", num_elements);
+    // DLOG_F(WARNING, "Attempting to push S64 buffer with num_elements = %lld to device. Casting to S32...", num_elements);
 
     int64_t *old_buffer = static_cast<int64_t*>(buffer);
     int32_t *new_buffer = (int32_t*)malloc(sizeof(int32_t)*num_elements);
@@ -164,19 +164,48 @@ void BufferInstance::copyFromHost(
     for (int i = 0; i < num_elements; i++) {
       int64_t old_int = (old_buffer[i]);
       int32_t new_int;
-      if (old_int > std::numeric_limits<int32_t>::max()) {
+      if (old_int > (int64_t)std::numeric_limits<int32_t>::max()) {
         new_int = std::numeric_limits<int32_t>::max();
-        DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
-      } else if (old_int < std::numeric_limits<int32_t>::min()) {
+      } else if (old_int < (int64_t)std::numeric_limits<int32_t>::min()) {
         new_int = std::numeric_limits<int32_t>::min();
-        DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
+      } else {
+        new_int = (int32_t)old_int;
       }
+      DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
       new_buffer[i] = new_int;
     }
 
     buffer = static_cast<void*>(new_buffer);
     created_new_buffer = true;
     m_data_type = PJRT_Buffer_Type_S32;
+
+  } else if (m_data_type == PJRT_Buffer_Type_F64) {
+    int64_t num_elements = 1;
+    for (int i = 0; i < num_dims; i++) {
+      num_elements *= dims[i];
+    }
+    DLOG_F(WARNING, "Attempting to push F64 buffer with num_elements = %lld to device. Casting to F32...", num_elements);
+
+    double *old_buffer = static_cast<double*>(buffer);
+    float *new_buffer = (float*)malloc(sizeof(float)*num_elements);
+
+    for (int i = 0; i < num_elements; i++) {
+      double old_float = (old_buffer[i]);
+      float new_float;
+      if (old_float > (double)std::numeric_limits<float>::max()) {
+        new_float = std::numeric_limits<float>::max();
+      } else if (old_float < (double)std::numeric_limits<float>::lowest()) {
+        new_float = std::numeric_limits<float>::lowest();
+      } else {
+        new_float = (float)old_float;
+      }
+      DLOG_F(WARNING, "Converting F64 with value: %f to F32 with value: %f", old_float, new_float);
+      new_buffer[i] = (float)new_float;
+    }
+
+    buffer = static_cast<void*>(new_buffer);
+    created_new_buffer = true;
+    m_data_type = PJRT_Buffer_Type_F32;
 
   }
 
