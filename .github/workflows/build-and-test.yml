@@ -294,6 +294,10 @@ jobs:
     name: "Tt-xla release wheel build"
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
+    env:
+      WHEEL_NAME: xla-whl-release
+    outputs:
+      wheel-name: ${{ steps.set-wheel-name.outputs.wheel-name }}
 
     steps:
     - uses: actions/checkout@v4
@@ -334,6 +338,10 @@ jobs:
         create-symlink: true
         key: "release-build"
 
+    - name: Set wheel name output
+      id: set-wheel-name
+      run: echo "wheel-name=$WHEEL_NAME" >> "$GITHUB_OUTPUT"
+
     - name: Build the wheel
       shell: bash
       run: |
@@ -344,7 +352,7 @@ jobs:
     - name: Upload the wheel
       uses: actions/upload-artifact@v4
       with:
-        name: xla-whl-release
+        name: ${{ env.WHEEL_NAME }}
         path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
     - name: Verify tt-mlir SHA override

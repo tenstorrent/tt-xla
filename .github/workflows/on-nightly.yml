@@ -83,3 +83,37 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
+
+  release-wheel:
+    name: "Release the tt-xla wheel"
+    runs-on: ubuntu-latest
+    needs:
+      - nightly_tests
+      - test_full_model
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Add a tag
+        id: add-tag
+        run: |
+          TAG_NAME="release-$(date +'%Y%m%d')"
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+          echo "tag-name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.nightly_tests.outputs.wheel-name }}
+          path: dist
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.add-tag.outputs.tag-name }}
+          name: "Release for ${{ steps.add-tag.outputs.tag-name }}"
+          body: "Test release."
+          files: ./dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
