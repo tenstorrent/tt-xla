@@ -103,6 +103,9 @@ jobs:
           git push origin "$TAG_NAME"
           echo "tag-name=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
+      - name: Log out
+        run: echo "${{ needs.nightly_tests.outputs.wheel-name }}"
+
       - name: Download wheel artifact
         uses: actions/download-artifact@v4
         with:
