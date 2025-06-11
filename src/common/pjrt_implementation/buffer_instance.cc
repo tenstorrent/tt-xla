@@ -162,7 +162,16 @@ void BufferInstance::copyFromHost(
     int32_t *new_buffer = (int32_t*)malloc(sizeof(int32_t)*num_elements);
 
     for (int i = 0; i < num_elements; i++) {
-      new_buffer[i] = static_cast<int32_t>(old_buffer[i]);
+      int64_t old_int = (old_buffer[i]);
+      int32_t new_int;
+      if (old_int > std::numeric_limits<int32_t>::max()) {
+        new_int = std::numeric_limits<int32_t>::max();
+        DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
+      } else if (old_int < std::numeric_limits<int32_t>::min()) {
+        new_int = std::numeric_limits<int32_t>::min();
+        DLOG_F(WARNING, "Converting S64 with value: %lld to S32 with value: %lld", old_int, new_int);
+      }
+      new_buffer[i] = new_int;
     }
 
     buffer = static_cast<void*>(new_buffer);
