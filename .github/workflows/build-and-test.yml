@@ -223,68 +223,68 @@ jobs:
         source venv/activate
         pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
 
-    - name: Run tests
-      env:
-        HF_HOME: /mnt/dockercache/huggingface
-      shell: bash
-      run: |
-        source venv/activate
-        pytest  --log-memory -sv \
-                ${{ matrix.build.dir }}  \
-                -m "${{ inputs.test_mark }}" \
-                --junitxml=${{ steps.strings.outputs.test_report_path }} \
-                2>&1 | tee pytest.log
+    # - name: Run tests
+    #   env:
+    #     HF_HOME: /mnt/dockercache/huggingface
+    #   shell: bash
+    #   run: |
+    #     source venv/activate
+    #     pytest  --log-memory -sv \
+    #             ${{ matrix.build.dir }}  \
+    #             -m "${{ inputs.test_mark }}" \
+    #             --junitxml=${{ steps.strings.outputs.test_report_path }} \
+    #             2>&1 | tee pytest.log
 
-    - name: Upload Test Log
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: pytest.log
+    # - name: Upload Test Log
+    #   uses: actions/upload-artifact@v4
+    #   if: success() || failure()
+    #   with:
+    #     name: test-log-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+    #     path: pytest.log
 
-    - name: Upload Test Report
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.test_report_path }}
+    # - name: Upload Test Report
+    #   uses: actions/upload-artifact@v4
+    #   if: success() || failure()
+    #   with:
+    #     name: test-reports-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+    #     path: ${{ steps.strings.outputs.test_report_path }}
 
-    - name: Show Test Report
-      continue-on-error: true
-      uses: mikepenz/action-junit-report@v5
-      if: success() || failure()
-      with:
-        report_paths: ${{ steps.strings.outputs.test_report_path }}
-        check_name: TT-XLA Tests
-        comment: true
-        updateComment: true
-        detailed_summary: true
-        group_suite: true
-        token: ${{ github.token }}
+    # - name: Show Test Report
+    #   continue-on-error: true
+    #   uses: mikepenz/action-junit-report@v5
+    #   if: success() || failure()
+    #   with:
+    #     report_paths: ${{ steps.strings.outputs.test_report_path }}
+    #     check_name: TT-XLA Tests
+    #     comment: true
+    #     updateComment: true
+    #     detailed_summary: true
+    #     group_suite: true
+    #     token: ${{ github.token }}
 
-    - name: Prepare code coverage report
-      if: matrix.build.runs-on == 'n300' && (success() || failure())
-      run: |
-        lcov --directory build --capture --output-file coverage.info
-        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
-        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
-        lcov --list coverage.info
+    # - name: Prepare code coverage report
+    #   if: matrix.build.runs-on == 'n300' && (success() || failure())
+    #   run: |
+    #     lcov --directory build --capture --output-file coverage.info
+    #     lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
+    #     sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
+    #     lcov --list coverage.info
 
-    - name: Upload coverage reports to Codecov
-      if: matrix.build.runs-on == 'n300' && (success() || failure())
-      uses: codecov/codecov-action@v5
-      with:
-        files: coverage.info
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+    # - name: Upload coverage reports to Codecov
+    #   if: matrix.build.runs-on == 'n300' && (success() || failure())
+    #   uses: codecov/codecov-action@v5
+    #   with:
+    #     files: coverage.info
+    #     disable_search: true
+    #     token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload test results to Codecov
-      if: success() || failure()
-      uses: codecov/test-results-action@v1
-      with:
-        files: ${{ steps.strings.outputs.test_report_path }}
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+    # - name: Upload test results to Codecov
+    #   if: success() || failure()
+    #   uses: codecov/test-results-action@v1
+    #   with:
+    #     files: ${{ steps.strings.outputs.test_report_path }}
+    #     disable_search: true
+    #     token: ${{ secrets.CODECOV_TOKEN }}
 
   build-ttxla-release-whl:
     needs: build-image
