@@ -98,13 +98,10 @@ jobs:
       - name: Add a tag
         id: add-tag
         run: |
-          TAG_NAME="release-$(date +'%Y%m%d')-$RANDOM"
+          TAG_NAME="nightly-$(date +'%Y%m%d')-${{ github.run_id }}-${{ github.run_attempt }}"
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
           echo "tag-name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Log out
-        run: echo "${{ needs.nightly_tests.outputs.wheel-name }}"
 
       - name: Download wheel artifact
         uses: actions/download-artifact@v4
@@ -116,8 +113,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.add-tag.outputs.tag-name }}
-          name: "Release for ${{ steps.add-tag.outputs.tag-name }}"
-          body: "Test release."
+          name: "Nigthly release: ${{ steps.add-tag.outputs.tag-name }}"
+          body: "Release created during the nigthly workflow run on $(date +'%Y-%m-%d')."
           files: ./dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
