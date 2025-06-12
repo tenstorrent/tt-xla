@@ -53,8 +53,19 @@ def get_file(path):
     else:
         cache_dir = cache_dir_fallback
 
-    cache_dir.mkdir(parents=True, exist_ok=True)
     file_path = cache_dir / file_name
+
+    # Support case where shared cache is read only and file not found. Can read files from it, but
+    # fall back to home dir cache for storing downloaded files. Common w/ CI cache shared w/ users.
+    cache_dir_rdonly = not os.access(cache_dir, os.W_OK)
+    if not file_path.exists() and cache_dir_rdonly and cache_dir != cache_dir_fallback:
+        print(
+            f"Warning: {cache_dir} is read-only, using {cache_dir_fallback} for {path}"
+        )
+        cache_dir = cache_dir_fallback
+        file_path = cache_dir / file_name
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # If file is not found in cache, download URL from web, or get file from IRD_LF_CACHE web server.
     if not file_path.exists():
