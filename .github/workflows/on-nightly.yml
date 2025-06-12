@@ -96,3 +96,7 @@ jobs:
     steps:
       - name: Tag and release
         uses: tenstorrent/tt-forge/.github/actions/tag-and-release@vvukoman/tag-and-release-action
+        with:
+          wheel-name: ${{ needs.nightly_tests.outputs.wheel-name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
