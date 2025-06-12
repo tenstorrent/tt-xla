@@ -58,6 +58,7 @@ visualize_tensor_sharding(w, use_color=False)
 # In this version of the all gather, we perform the all-gather on t first to
 # reconstruct the full tensor on all devices, and then perform the matmul.
 t = torch_xla._XLAC._xla_all_gather(t, 0, 2, [[0, 4], [1, 5], [2, 6], [3, 7]], True)
+# t = xm.all_gather(t, 0, [[0, 4], [1, 5], [2, 6], [3, 7]], True)
 
 y = t @ w
 
