@@ -109,7 +109,6 @@ jobs:
           name: ${{ needs.nightly_tests.outputs.wheel-name }}
           path: dist
 
-
       - name: Get previous nightly tag and commit list
         id: commit-list
         run: |
