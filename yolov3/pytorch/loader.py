@@ -7,11 +7,8 @@ YOLOv3 model loader implementation
 Reference: https://github.com/tenstorrent/tt-buda-demos/blob/main/model_demos/cv_demos/yolo_v3/pytorch_yolov3_holli.py
 """
 import torch
-import requests
-import os
 from PIL import Image
 from torchvision import transforms
-from pathlib import Path
 
 from ...base import ForgeModel
 from .src.yolov3 import Yolov3
@@ -33,31 +30,15 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The YOLOv3 model instance.
         """
         num_classes = 80
-        weights_url = (
+        weights_file = get_file(
             "https://www.ollihuotari.com/data/yolov3_pytorch/yolov3_coco_01.h5"
         )
-
-        # Download model weights
-        if (
-            "DOCKER_CACHE_ROOT" in os.environ
-            and Path(os.environ["DOCKER_CACHE_ROOT"]).exists()
-        ):
-            download_dir = Path(os.environ["DOCKER_CACHE_ROOT"]) / "custom_weights"
-        else:
-            download_dir = Path.home() / ".cache/custom_weights"
-        download_dir.mkdir(parents=True, exist_ok=True)
-
-        load_path = download_dir / weights_url.split("/")[-1]
-        if not load_path.exists():
-            response = requests.get(weights_url, stream=True)
-            with open(str(load_path), "wb") as f:
-                f.write(response.content)
 
         # Create model and load weights
         model = Yolov3(num_classes=num_classes)
         model.load_state_dict(
             torch.load(
-                str(load_path),
+                str(weights_file),
                 map_location=torch.device("cpu"),
             )
         )
@@ -80,7 +61,9 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
         # Original image used in test
-        image_file = get_file("test_images/dog_1546x1213.jpg")
+        image_file = get_file(
+            "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
+        )
 
         # Download and load image
         image = Image.open(image_file)

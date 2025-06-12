@@ -38,15 +38,10 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
         # Create a random input tensor with the correct shape, using default dtype
-        image = (
-            Image.open(
-                get_file(
-                    "test_files/onnx/centernet/inputs/17790319373_bd19b24cfc_k.jpg"
-                )
-            )
-            .convert("RGB")
-            .resize((512, 512))
+        image_file = get_file(
+            "https://github.com/xingyizhou/CenterNet/raw/master/images/17790319373_bd19b24cfc_k.jpg"
         )
+        image = Image.open(image_file).convert("RGB").resize((512, 512))
         m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
         preprocess = transforms.Compose(
             [
