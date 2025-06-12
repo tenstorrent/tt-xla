@@ -71,14 +71,23 @@ mesh = Mesh(device_ids, mesh_shape, ("x", "y"))
 # Random inputs between 0 and 0.1
 t = (torch.rand(1024, 8192) - 0.0) * 0.1
 w = (torch.rand(8192, 4096) - 0.0) * 0.1
+z = (torch.rand(1024, 4096) - 0.0) * 0.1
 
 golden = t @ w
 
+# For PyTorch v2.7
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
+# z = z.to(xm.xla_device())
+
+# For PyTorch v2.8 and above, use the following:
+# t = t.to(torch_xla.device())
+# w = w.to(torch_xla.device())
+# z = z.to(torch_xla.device())
 
 xs.mark_sharding(t, mesh, ("x", None))
 xs.mark_sharding(w, mesh, (None, None))
+# xs.mark_sharding(z, mesh, ("x", "y"))
 
 # t = t + t
 # xm.mark_step()
