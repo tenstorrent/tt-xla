@@ -50,6 +50,7 @@ def training_tester() -> AlexNetMultichipTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
     inference_tester.test()
@@ -62,7 +63,6 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_n300_inference_shardy(
     inference_tester: AlexNetMultichipTester,
