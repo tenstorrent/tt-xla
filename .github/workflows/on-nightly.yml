@@ -109,12 +109,39 @@ jobs:
           name: ${{ needs.nightly_tests.outputs.wheel-name }}
           path: dist
 
+
+      - name: Get previous nightly tag and commit list
+        id: commit-list
+        run: |
+          TAG_NAME="${{ steps.add-tag.outputs.tag-name }}"
+
+          PREV_TAG=$(git tag --list 'nightly-*' --sort=-creatordate | grep -v "^$TAG_NAME$" | head -n 1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous nightly tag found."
+            echo "commits=No previous nightly tag found." >> "$GITHUB_OUTPUT"
+          else
+            COMMITS=$(git log --pretty=format:'- %h %s (%an)' "$PREV_TAG..$TAG_NAME")
+            if [ -z "$COMMITS" ]; then
+              COMMITS="No new commits since last nightly."
+            fi
+
+            COMMITS="${COMMITS//'%'/'%25'}"
+            COMMITS="${COMMITS//$'\n'/'%0A'}"
+
+            echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create a release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.add-tag.outputs.tag-name }}
           name: "Nigthly release: ${{ steps.add-tag.outputs.tag-name }}"
-          body: "Release created during the nigthly workflow run."
+          body: |
+            Release created during the nigthly workflow run.
+
+            Commits since the last nightly:
+            ${{ steps.commit-list.outputs.commits }}
           files: ./dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
