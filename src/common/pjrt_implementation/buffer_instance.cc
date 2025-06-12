@@ -152,7 +152,14 @@ void BufferInstance::copyFromHost(
   void *buffer = const_cast<void*>(host_buffer);
   int64_t *byte_strides = const_cast<int64_t*>(byte_strides_);
   bool created_new_buffer = false;
+  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
   if (m_data_type == PJRT_Buffer_Type_S64) {
+
+    if (shape.size() == 0) {
+      DLOG_F(WARNING, "SINGLETON INT64 DETECTED, IGNORING COMPLETELY");
+      return;
+    }
+
     int64_t num_elements = 1;
     for (int i = 0; i < num_dims; i++) {
       num_elements *= dims[i];
@@ -228,7 +235,7 @@ void BufferInstance::copyFromHost(
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+  
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
