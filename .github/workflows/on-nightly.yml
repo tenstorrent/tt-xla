@@ -95,4 +95,4 @@ jobs:
       - test_full_model
     steps:
       - name: Tag and release
-        uses: tenstorrent/tt-forge/.github/actions/tag-and-release@tag-and-release
+        uses: tenstorrent/tt-forge/.github/actions/tag-and-release@vvukoman/tag-and-release-action
