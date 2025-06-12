@@ -114,7 +114,7 @@ jobs:
         with:
           tag_name: ${{ steps.add-tag.outputs.tag-name }}
           name: "Nigthly release: ${{ steps.add-tag.outputs.tag-name }}"
-          body: "Release created during the nigthly workflow run on $(date +'%Y-%m-%d')."
+          body: "Release created during the nigthly workflow run."
           files: ./dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
