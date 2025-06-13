@@ -10,7 +10,6 @@ from jax._src.typing import DTypeLike
 
 
 class DoubleConv(nn.Module):
-    in_channels: int
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
@@ -50,7 +49,6 @@ class DoubleConv(nn.Module):
 
 
 class DownBlock(nn.Module):
-    in_channels: int
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
@@ -58,8 +56,7 @@ class DownBlock(nn.Module):
 
     def setup(self):
         self.double_conv = DoubleConv(
-            self.in_channels,
-            self.out_channels,
+            out_channels=self.out_channels,
             activation=self.activation,
             use_batchnorm=self.use_batchnorm,
             param_dtype=self.param_dtype,
@@ -74,7 +71,6 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    in_channels: int
     out_channels: int
     activation: Callable = nn.relu
     use_batchnorm: bool = False
@@ -89,7 +85,6 @@ class UpBlock(nn.Module):
             param_dtype=self.param_dtype,
         )
         self.double_conv = DoubleConv(
-            in_channels=self.out_channels * 2,
             out_channels=self.out_channels,
             activation=self.activation,
             use_batchnorm=self.use_batchnorm,
@@ -135,46 +130,45 @@ class UNet(nn.Module):
 
     def setup(self):
         down_blocks = []
-        in_ch = self.in_channels
+        out_ch = self.in_channels * self.hidden_channels
+
+        # Create down blocks
         for i in range(self.num_levels):
-            out_ch = in_ch * 2
             down_blocks.append(
                 DownBlock(
-                    in_channels=in_ch,
                     out_channels=out_ch,
                     activation=self.activation,
                     use_batchnorm=self.use_batchnorm,
                     param_dtype=self.param_dtype,
                 )
             )
-            in_ch = out_ch
+            out_ch = out_ch * 2
 
+        # Bottom convolution
         self.bottom_double_conv = DoubleConv(
-            in_channels=in_ch,
-            out_channels=in_ch * 2,
+            out_channels=out_ch,
             activation=self.activation,
             use_batchnorm=self.use_batchnorm,
             param_dtype=self.param_dtype,
         )
 
+        # Create up blocks
         up_blocks = []
-        in_ch = in_ch * 2
         for i in range(self.num_levels):
-            out_ch = in_ch // 2
+            out_ch = out_ch // 2
             up_blocks.append(
                 UpBlock(
-                    in_channels=in_ch,
                     out_channels=out_ch,
                     activation=self.activation,
                     use_batchnorm=self.use_batchnorm,
                     param_dtype=self.param_dtype,
                 )
             )
-            in_ch = out_ch
 
         self.down_blocks = tuple(down_blocks)
         self.up_blocks = tuple(up_blocks)
 
+        # Final output convolution
         self.output_conv = nn.Conv(
             self.out_channels,
             kernel_size=(1, 1),
@@ -186,7 +180,7 @@ class UNet(nn.Module):
     def __call__(self, x: jnp.ndarray, train: bool) -> jnp.ndarray:
         skip_connections = []
 
-        for i, down_block in enumerate(self.down_blocks):
+        for down_block in self.down_blocks:
             x, skip = down_block(x, train)
             skip_connections.append(skip)
 
@@ -195,5 +189,4 @@ class UNet(nn.Module):
         for up_block, skip in zip(self.up_blocks, reversed(skip_connections)):
             x = up_block(x, skip, train)
 
-        x = self.output_conv(x)
-        return x
+        return self.output_conv(x)
