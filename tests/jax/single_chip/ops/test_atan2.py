@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -14,8 +14,8 @@ from tests.utils import Category
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
-    jax_op_name="jax.numpy.power",
-    shlo_op_name="stablehlo.power",
+    jax_op_name="jax.numpy.atan2",
+    shlo_op_name="stablehlo.atan2",
 )
 @pytest.mark.parametrize(
     ["x_shape", "y_shape"],
@@ -25,8 +25,8 @@ from tests.utils import Category
     ],
     ids=lambda val: f"{val}",
 )
-def test_power(x_shape: tuple, y_shape: tuple):
-    def power(x: jax.Array, y: jax.Array) -> jax.Array:
-        return jnp.power(x, y)
+def test_atan2(x_shape: tuple, y_shape: tuple):
+    def atan2(x: jax.Array, y: jax.Array) -> jax.Array:
+        return jnp.atan2(x, y)
 
-    run_op_test_with_random_inputs(power, [x_shape, y_shape])
+    run_op_test_with_random_inputs(atan2, [x_shape, y_shape])

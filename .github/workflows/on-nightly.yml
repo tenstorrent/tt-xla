@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+permissions:
+  packages: write
+  checks: write
+
 jobs:
   nightly_tests:
     uses: ./.github/workflows/build-and-test.yml

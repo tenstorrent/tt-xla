@@ -32,3 +32,26 @@ def test_logical_not(shape: tuple):
 
     input = random_tensor(shape, jnp.int32, minval=0, maxval=2, random_seed=3)
     run_op_test(logical_not, [input])
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    jax_op_name="jax.numpy.bitwise_not",
+    shlo_op_name="stablehlo.not{BITWISE}",
+)
+@pytest.mark.parametrize(
+    ["shape"],
+    [
+        [(32, 32)],
+        [(64, 64)],
+    ],
+    ids=lambda val: f"{val}",
+)
+def test_bitwise_not(shape: tuple):
+    def bitwise_not(a: jax.Array) -> jax.Array:
+        return jnp.bitwise_not(a)
+
+    input = random_tensor(shape, jnp.int32, minval=0, maxval=10, random_seed=3)
+    run_op_test(bitwise_not, [input])

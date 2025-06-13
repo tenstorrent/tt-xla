@@ -9,6 +9,10 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
+permissions:
+  packages: write
+  checks: write
+
 jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yml

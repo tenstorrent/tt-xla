@@ -89,6 +89,8 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
+  api->PJRT_Buffer_CopyToDevice = internal::onBufferCopyToDevice;
+  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
@@ -204,6 +206,26 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
+void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
+          src_buffer->m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape = calculateShape(
+      src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions());
+  std::vector<std::uint32_t> strides = calculateStrides(
+      src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
+
+  m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+
+  tt::runtime::memcpy(m_runtime_tensor, src_buffer->m_runtime_tensor);
+  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
+
+  markAsDataReady();
+}
+
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims) {
   if (num_dims == 0) {
@@ -299,6 +321,28 @@ void BufferInstance::markAsDataReady() {
   if (m_data_ready_event) {
     m_data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
   }
+}
+
+tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
+                                                  MemoryInstance *dst_memory,
+                                                  BufferInstance **dst_buffer) {
+  // PJRT API specification requires returning error in case of copying to same
+  // device/memory space.
+  if (getMemory() == dst_memory || getDevice() == dst_device) {
+    DLOG_F(ERROR, "Cannot copy buffer to the same memory or device");
+    return tt_pjrt_status::kInvalidArgument;
+  }
+
+  std::unique_ptr<BufferInstance> dst_buffer_instance =
+      BufferInstance::createInputBufferInstance(
+          getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
+          dst_device, dst_memory);
+
+  dst_buffer_instance->copyFromBuffer(this);
+
+  *dst_buffer = dst_buffer_instance.release();
+
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
@@ -411,6 +455,41 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
+  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
+  DeviceInstance *dst_device = dst_memory->getDevice();
+
+  // Copying into to host memory is undefined, since it's not clear
+  // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
+  if (dst_memory->isHostMemory()) {
+    DLOG_F(ERROR, "Copying buffer to host memory is not supported");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
   return nullptr;
 }

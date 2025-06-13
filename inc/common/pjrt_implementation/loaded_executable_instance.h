@@ -120,7 +120,7 @@ private:
                       const tt::runtime::Device &runtime_device);
 
   // Untilizes output tensors and transfers them from device to host.
-  static tt_pjrt_status untilizeToHost(
+  tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,
       size_t num_devices,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);

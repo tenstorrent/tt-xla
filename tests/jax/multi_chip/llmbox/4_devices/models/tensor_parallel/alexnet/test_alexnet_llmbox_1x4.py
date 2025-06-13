@@ -51,13 +51,7 @@ def training_tester() -> AlexNetMultichipTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_llmbox_1x4_inference(
     inference_tester: AlexNetMultichipTester,
@@ -72,12 +66,6 @@ def test_alexnet_multichip_llmbox_1x4_inference(
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/604"
-    )
 )
 def test_alexnet_multichip_llmbox_1x4_inference_shardy(
     inference_tester: AlexNetMultichipTester,

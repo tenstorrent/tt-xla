@@ -116,9 +116,15 @@ public:
                     PJRT_HostBufferSemantics host_buffer_semantics,
                     EventInstance **out_done_with_host_buffer_event);
 
-  // Asynchronously copies the buffer's data into a preallocated host buffer.
+  // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);
+
+  // Copies this buffer's data to the device and its memory specified in the
+  // arguments.
+  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
+                                    MemoryInstance *dst_memory,
+                                    BufferInstance **dst_buffer);
 
   // Sets that buffer data is ready (transferred from host or computed on
   // device) and marks data ready event as ready (if it is already created).
@@ -138,6 +144,9 @@ private:
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
                  DeviceInstance *device, MemoryInstance *memory);
+
+  // Copies the tensor inside the src_buffer to the tensor of this buffer.
+  void copyFromBuffer(const BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
@@ -220,6 +229,12 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args);
 
 // Implements PJRT_Buffer_IsDeleted API function.
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args);
+
+// Implements PJRT_Buffer_CopyToDevice API function.
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args);
+
+// Implements PJRT_Buffer_CopyToMemory API function.
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args);
 
 // Implements PJRT_Buffer_IsOnCpu API function.
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args);

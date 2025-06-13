@@ -52,9 +52,9 @@ class PccConfig(ConfigBase):
 @dataclass
 class ComparisonConfig:
     equal: EqualConfig = EqualConfig(False)
-    atol: AtolConfig = AtolConfig()
+    atol: AtolConfig = AtolConfig(False)
     pcc: PccConfig = PccConfig()
-    allclose: AllcloseConfig = AllcloseConfig()
+    allclose: AllcloseConfig = AllcloseConfig(False)
 
     def enable_all(self) -> None:
         self.equal.enable()
