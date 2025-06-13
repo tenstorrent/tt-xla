@@ -34,6 +34,10 @@ class AlexNetMultichipModel(nn.Module):
         # need to explicitely state the parameters partitioning because
         # replication is assumed by default.
 
+        scaled_kernel_init = nn.initializers.variance_scaling(
+            scale=0.5, mode="fan_in", distribution="truncated_normal"
+        )
+
         # First feature extraction layer
         x = nn.Conv(
             features=64,
@@ -41,6 +45,7 @@ class AlexNetMultichipModel(nn.Module):
             strides=(4, 4),
             padding=0,
             param_dtype=self.param_dtype,
+            kernel_init=scaled_kernel_init,
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
@@ -52,6 +57,7 @@ class AlexNetMultichipModel(nn.Module):
             strides=(1, 1),
             padding=2,
             param_dtype=self.param_dtype,
+            kernel_init=scaled_kernel_init,
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
@@ -63,6 +69,7 @@ class AlexNetMultichipModel(nn.Module):
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
+            kernel_init=scaled_kernel_init,
         )(x)
         x = nn.relu(x)
 
@@ -73,6 +80,7 @@ class AlexNetMultichipModel(nn.Module):
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
+            kernel_init=scaled_kernel_init,
         )(x)
         x = nn.relu(x)
 
@@ -83,6 +91,7 @@ class AlexNetMultichipModel(nn.Module):
             strides=(1, 1),
             padding=1,
             param_dtype=self.param_dtype,
+            kernel_init=scaled_kernel_init,
         )(x)
         x = nn.relu(x)
         x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2))
@@ -95,7 +104,7 @@ class AlexNetMultichipModel(nn.Module):
 
         # Utilizing tensor parallelism for Dense layers.
         dense_kernel_init = nn.with_partitioning(
-            nn.linear.default_kernel_init,
+            scaled_kernel_init,
             (None, self.axis_name),
         )
         dense_bias_init = nn.with_partitioning(
