@@ -43,9 +43,9 @@ on:
         required: true
         type: string
     outputs:
-      wheel-name:
-        description: "The name of the built wheel"
-        value: ${{ jobs.build-ttxla-release-whl.outputs.wheel-name }}
+      wheel-artifact-name:
+        description: "The name of the built wheel's artiafct"
+        value: ${{ jobs.build-ttxla-release-whl.outputs.wheel-artifact-name }}
 
 jobs:
 
@@ -299,9 +299,9 @@ jobs:
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
     env:
-      WHEEL_NAME: xla-whl-release
+      WHEEL_ARTIFACT_NAME: xla-whl-release
     outputs:
-      wheel-name: ${{ steps.set-wheel-name.outputs.wheel-name }}
+      wheel-artifact-name: ${{ steps.set-wheel-name.outputs.wheel-artifact-name }}
 
     steps:
     - uses: actions/checkout@v4
@@ -344,7 +344,7 @@ jobs:
 
     - name: Set wheel name output
       id: set-wheel-name
-      run: echo "wheel-name=$WHEEL_NAME" >> "$GITHUB_OUTPUT"
+      run: echo "wheel-artifact-name=$WHEEL_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
 
     - name: Build the wheel
       shell: bash
@@ -356,7 +356,7 @@ jobs:
     - name: Upload the wheel
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.WHEEL_NAME }}
+        name: ${{ env.WHEEL_ARTIFACT_NAME }}
         path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
     - name: Verify tt-mlir SHA override
