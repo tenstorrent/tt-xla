@@ -9,11 +9,11 @@ from transformers import (
     SegformerConfig,
     SegformerForImageClassification,
 )
-import requests
 from PIL import Image
 
 from transformers import AutoImageProcessor
 from ...base import ForgeModel
+from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -42,8 +42,7 @@ class ModelLoader(ForgeModel):
     def load_inputs(cls, dtype_override=None):
         """Generate sample inputs for Segformer models."""
         # Get the Image
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
+        image = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
 
         # Initialize tokenizer
         image_processor = AutoImageProcessor.from_pretrained(cls.model_name)

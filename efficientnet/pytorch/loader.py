@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-VGG19-UNet model loader implementation
+EfficientNet model loader implementation
 """
 import torch
 
