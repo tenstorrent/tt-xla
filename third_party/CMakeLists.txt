@@ -39,7 +39,7 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -48,7 +48,6 @@ else()
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
-          -DTT_RUNTIME_DEBUG=ON
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
