@@ -44,7 +44,7 @@ def training_tester() -> ViTTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
