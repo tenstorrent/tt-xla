@@ -54,7 +54,7 @@ def training_tester(request) -> MnistMLPMultichipTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
     "inference_tester", [(1024, 512, 256)], indirect=True, ids=lambda val: f"{val}"

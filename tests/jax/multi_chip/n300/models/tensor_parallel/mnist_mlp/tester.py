@@ -57,9 +57,8 @@ class MnistMLPMultichipTester(MultichipModelTester):
 
     # @override
     def _get_input_activations_partition_specs(self) -> PartitionSpec:
-        # Sharding data on batch axis since data parallelism is utilized for the
-        # convolutional layers.
-        return PartitionSpec(self.main_axis_name)
+        # No data parallelism utilized in this model.
+        return PartitionSpec()
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
