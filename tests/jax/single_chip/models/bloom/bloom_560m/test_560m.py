@@ -43,13 +43,19 @@ def training_tester() -> BloomTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
+@pytest.mark.push
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.26489052176475525. Required: pcc=0.99"
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_bloom_560m_inference(inference_tester: BloomTester):
     inference_tester.test()

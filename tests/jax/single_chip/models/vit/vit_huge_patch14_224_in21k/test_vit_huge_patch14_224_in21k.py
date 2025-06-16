@@ -44,13 +44,19 @@ def training_tester() -> ViTTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
+@pytest.mark.push
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99"
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_vit_huge_patch14_224_in21k_inference(
     inference_tester: ViTTester,
