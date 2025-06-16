@@ -19,6 +19,14 @@ convertRuntimeToPJRTDataType(tt::target::DataType runtime_data_type);
 tt::target::DataType
 convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type);
 
+PJRT_Buffer_Type
+convertUnsupportedToPJRTDataType(tt::target::UnsupportedDataType unsupported_data_type);
+
+tt::target::UnsupportedDataType
+convertPJRTToUnsupportedDataType(PJRT_Buffer_Type pjrt_data_type);
+
+bool isDataTypeSupported(PJRT_Buffer_Type data_type);
+
 } // namespace tt::pjrt::data_type_utils
 
 #endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_UTILS_H_

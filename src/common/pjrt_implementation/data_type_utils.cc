@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
 #include <stdexcept>
@@ -60,6 +61,20 @@ convertRuntimeToPJRTDataType(tt::target::DataType runtime_data_type) {
   }
 }
 
+PJRT_Buffer_Type
+convertUnsupportedToPJRTDataType(tt::target::UnsupportedDataType unsupported_data_type) {
+  switch (unsupported_data_type) {
+  case tt::target::UnsupportedDataType::Float64:
+    return PJRT_Buffer_Type_F64;
+  case tt::target::UnsupportedDataType::Int64:
+    return PJRT_Buffer_Type_S64;
+  case tt::target::UnsupportedDataType::Bool:
+    return PJRT_Buffer_Type_PRED;
+  default:
+    return PJRT_Buffer_Type_INVALID;
+  }
+}
+
 tt::target::DataType
 convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
   switch (pjrt_data_type) {
@@ -82,4 +97,44 @@ convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
   }
 }
 
+tt::target::UnsupportedDataType
+convertPJRTToUnsupportedDataType(PJRT_Buffer_Type pjrt_data_type) {
+  switch (pjrt_data_type) {
+  case PJRT_Buffer_Type_F64:
+    return tt::target::UnsupportedDataType::Float64;
+  case PJRT_Buffer_Type_S64:
+    return tt::target::UnsupportedDataType::Int64;
+  case PJRT_Buffer_Type_S16:
+    return tt::target::UnsupportedDataType::Int16;
+  case PJRT_Buffer_Type_S8:
+    return tt::target::UnsupportedDataType::Int8;
+  case PJRT_Buffer_Type_U64:
+    return tt::target::UnsupportedDataType::UInt64;
+  case PJRT_Buffer_Type_PRED:
+    return tt::target::UnsupportedDataType::Bool;
+  default:
+    throw std::runtime_error(std::string("PJRT data type: ") + getPJRTBufferTypeString(pjrt_data_type) + " does not have tt::target::UnsupportedDataType equivalent");
+  }
+}
+
+bool isDataTypeSupported(PJRT_Buffer_Type data_type) {
+  switch (data_type) {
+  case PJRT_Buffer_Type_U8:
+    return true;
+  case PJRT_Buffer_Type_U16:
+    return true;
+  case PJRT_Buffer_Type_U32:
+    return true;
+  case PJRT_Buffer_Type_S32:
+    return true;
+  case PJRT_Buffer_Type_F16:
+    return true;
+  case PJRT_Buffer_Type_F32:
+    return true;
+  case PJRT_Buffer_Type_BF16:
+    return true;
+  default:
+    return false;
+  }
+}
 } // namespace tt::pjrt::data_type_utils
