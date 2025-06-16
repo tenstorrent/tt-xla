@@ -6,6 +6,9 @@ import pytest
 from infra import Framework, RunMode
 from infra.multichip_utils import enable_shardy
 
+from tests.jax.multi_chip.n300.models.tensor_parallel.mnist_mlp.tester import (
+    MnistMLPMultichipTester,
+)
 from tests.utils import (
     BringupStatus,
     Category,
@@ -14,8 +17,6 @@ from tests.utils import (
     ModelTask,
     build_model_name,
 )
-
-from .tester import MnistMLPMultichipTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
