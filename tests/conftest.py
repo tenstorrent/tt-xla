@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from contextlib import contextmanager
+from functools import partial
+import pytest
 import ctypes
 import gc
 from loguru import logger
@@ -12,6 +14,9 @@ import sys
 import time
 import threading
 import time
+import jax
+import transformers
+import transformers.modeling_flax_utils
 
 import psutil
 import pytest
@@ -244,3 +249,36 @@ def initialize_device_connectors():
     """
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
+
+
+real_gelu = None
+
+
+@pytest.fixture(autouse=True)
+def monkeypatch_import(request):
+    global real_gelu
+    if real_gelu is None:
+
+        real_gelu = jax.nn.gelu
+
+    def mygelu(x, approximate=True):
+        if approximate:
+            return jax.lax.composite(
+                lambda x: real_gelu(x, approximate=True),
+                "tenstorrent.gelu_tanh",
+            )(x)
+        else:
+            return jax.lax.composite(
+                lambda x: real_gelu(x, approximate=False),
+                "tenstorrent.gelu",
+            )(x)
+
+    jax.nn.gelu = mygelu
+
+    transformers.modeling_flax_utils.ACT2FN["gelu"] = partial(
+        mygelu, approximate=False
+    )  # I am not sure why I need to patch ACT2FN too when it pulls jax.nn.gelu
+
+    yield
+
+    pass

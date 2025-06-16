@@ -12,7 +12,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import ViTTester
@@ -50,12 +49,6 @@ def training_tester() -> ViTTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99"
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
 )
 def test_vit_huge_patch14_224_in21k_inference(
     inference_tester: ViTTester,

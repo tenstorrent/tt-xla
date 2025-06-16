@@ -49,12 +49,6 @@ def training_tester() -> ElectraTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131044.7890625. Required: atol=0.16 "
-        "(https://github.com/tenstorrent/tt-xla/issues/379)"
-    )
-)
 def test_electra_base_generator_inference(inference_tester: ElectraTester):
     inference_tester.test()
 
