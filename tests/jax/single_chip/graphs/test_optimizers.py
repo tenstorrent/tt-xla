@@ -30,11 +30,6 @@ def test_sgd(param_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: Atol comparison failed. Calculated: atol=1308.9918212890625. Required: atol=0.16."
-    )
-)
 @pytest.mark.parametrize("param_shape", [(32, 32), (64, 64)])
 def test_adam(param_shape: tuple):
     """Test Adam optimizer update step."""
@@ -52,11 +47,6 @@ def test_adam(param_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: Atol comparison failed. Calculated: atol=39.28125. Required: atol=0.16."
-    )
-)
 @pytest.mark.parametrize("param_shape", [(4096, 4096), (4096, 11008)])
 def test_llama_adamw(param_shape: tuple):
     """Test AdamW optimizer with LLaMA-like shape of parameters."""
@@ -131,11 +121,6 @@ def test_resnet18_sgd(param_shape: tuple):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: Atol comparison failed. Calculated: atol=104.6875. Required: atol=0.16."
-    )
-)
 @pytest.mark.parametrize("param_shape", [(128, 128), (256, 256)])
 def test_radam(param_shape: tuple):
     """Test RAdam optimizer with EfficientNeRF shapes."""
