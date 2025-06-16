@@ -18,7 +18,7 @@ def create_mnist_random_input_image() -> jax.Array:
     key = jax.random.PRNGKey(37)
     # B, H, W, C
     # Channels is 1 as MNIST is in grayscale.
-    img = jax.random.normal(key, (4, 28, 28, 1))
+    img = jax.random.normal(key, (32, 28, 28, 1))
     return img
 
 
