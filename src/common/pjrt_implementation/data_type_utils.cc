@@ -61,20 +61,6 @@ convertRuntimeToPJRTDataType(tt::target::DataType runtime_data_type) {
   }
 }
 
-PJRT_Buffer_Type
-convertUnsupportedToPJRTDataType(tt::target::UnsupportedDataType unsupported_data_type) {
-  switch (unsupported_data_type) {
-  case tt::target::UnsupportedDataType::Float64:
-    return PJRT_Buffer_Type_F64;
-  case tt::target::UnsupportedDataType::Int64:
-    return PJRT_Buffer_Type_S64;
-  case tt::target::UnsupportedDataType::Bool:
-    return PJRT_Buffer_Type_PRED;
-  default:
-    return PJRT_Buffer_Type_INVALID;
-  }
-}
-
 tt::target::DataType
 convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
   switch (pjrt_data_type) {
@@ -92,26 +78,18 @@ convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
     return tt::target::DataType::Float32;
   case PJRT_Buffer_Type_BF16:
     return tt::target::DataType::BFloat16;
-  default:
-    throw std::runtime_error(std::string("Unsupported PJRT buffer data type: ") + getPJRTBufferTypeString(pjrt_data_type));
-  }
-}
-
-tt::target::UnsupportedDataType
-convertPJRTToUnsupportedDataType(PJRT_Buffer_Type pjrt_data_type) {
-  switch (pjrt_data_type) {
   case PJRT_Buffer_Type_F64:
-    return tt::target::UnsupportedDataType::Float64;
+    return tt::target::DataType::Float64;
   case PJRT_Buffer_Type_S64:
-    return tt::target::UnsupportedDataType::Int64;
+    return tt::target::DataType::Int64;
   case PJRT_Buffer_Type_S16:
-    return tt::target::UnsupportedDataType::Int16;
+    return tt::target::DataType::Int16;
   case PJRT_Buffer_Type_S8:
-    return tt::target::UnsupportedDataType::Int8;
+    return tt::target::DataType::Int8;
   case PJRT_Buffer_Type_U64:
-    return tt::target::UnsupportedDataType::UInt64;
+    return tt::target::DataType::UInt64;
   case PJRT_Buffer_Type_PRED:
-    return tt::target::UnsupportedDataType::Bool;
+    return tt::target::DataType::Bool;
   default:
     throw std::runtime_error(std::string("PJRT data type: ") + getPJRTBufferTypeString(pjrt_data_type) + " does not have tt::target::UnsupportedDataType equivalent");
   }

@@ -182,15 +182,9 @@ void BufferInstance::copyFromHost(
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
   std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
   
-  m_device_data_type = m_data_type;
-  if (!tt::pjrt::data_type_utils::isDataTypeSupported(m_data_type)) {
-    m_device_data_type = tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-      ::tt::runtime::utils::getUnsupportedDataTypeAlias(tt::pjrt::data_type_utils::convertPJRTToUnsupportedDataType(m_data_type))
-    );
-  }
 
   ::tt::target::DataType runtime_data_type =
-      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_device_data_type);
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   
@@ -207,15 +201,11 @@ void BufferInstance::copyFromHost(
   // mark the event as ready since we don't need the original host buffer
   // anymore.
   if (host_buffer_semantics ==
-      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
+      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall || !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
 
-    if (m_data_type == m_device_data_type) {
-      m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+    m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
-    } else {
-      m_runtime_tensor = tt::runtime::createOwnedHostTensorFromUnsupportedDataType(
-        host_buffer, shape, strides, tt::pjrt::data_type_utils::convertPJRTToUnsupportedDataType(m_data_type));
-    }
+    
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
   // Otherwise when input host buffer has other semantic we are allowed to alias
@@ -227,15 +217,10 @@ void BufferInstance::copyFromHost(
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
-    if (m_data_type == m_device_data_type) {
-      m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
-        runtime_data_type);
-    } else {
-      // If the data type us unsupported we must create an owned tensor as we cannot change the data in the host buffer.
-      m_runtime_tensor = tt::runtime::createOwnedHostTensorFromUnsupportedDataType(
-        const_cast<void *>(host_buffer), shape, strides, tt::pjrt::data_type_utils::convertPJRTToUnsupportedDataType(m_data_type));
-    }
+    m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
+      const_cast<void *>(host_buffer), shape, strides, element_size,
+      runtime_data_type);
+    
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.
@@ -345,19 +330,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   tt::target::DataType runtime_tensor_data_type = tt::runtime::getTensorDataType(m_runtime_tensor);
   PJRT_Buffer_Type pjrt_tensor_data_type = tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(runtime_tensor_data_type);
 
-  assert((m_device_data_type == PJRT_Buffer_Type_INVALID || m_device_data_type == pjrt_tensor_data_type) && "If m_device_data_type is set, it must be equal to the runtime tensor data type");
-
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event, PJRT_Buffer_Type host_data_type, PJRT_Buffer_Type device_data_type, size_t runtime_tensor_size) {
+         EventInstance *event, PJRT_Buffer_Type data_type, size_t runtime_tensor_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-          if (!tt::pjrt::data_type_utils::isDataTypeSupported(host_data_type)) {
-            tt::runtime::copyIntoDestWithUnsupportedDataType(host_buffer, runtime_tensor, tt::pjrt::data_type_utils::convertPJRTToUnsupportedDataType(host_data_type));
-          } else {
-            tt::runtime::memcpy(host_buffer, runtime_tensor);
-          }
+          tt::runtime::memcpy(host_buffer, runtime_tensor, tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(data_type));
+          
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -365,7 +345,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, m_runtime_tensor, event.get(), m_data_type, m_device_data_type, runtime_tensor_size);
+      host_buffer, m_runtime_tensor, event.get(), m_data_type, runtime_tensor_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.

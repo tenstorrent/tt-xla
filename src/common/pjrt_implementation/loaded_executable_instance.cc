@@ -18,7 +18,7 @@
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"

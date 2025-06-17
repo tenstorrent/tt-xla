@@ -172,10 +172,6 @@ private:
   // Buffer's data type.
   PJRT_Buffer_Type m_data_type;
 
-  // Buffer's data type on device (will be different than m_data_type only when 
-  // copying from host to device, when data type is unsupported on device)
-  PJRT_Buffer_Type m_device_data_type = PJRT_Buffer_Type_INVALID;
-
   // Buffer's dimensions. Shouldn't be changed after construction because client
   // might depend on the raw pointer to these dimensions.
   const std::vector<std::int64_t> m_dimensions;
