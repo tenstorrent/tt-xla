@@ -34,8 +34,8 @@ class ModelLoader(ForgeModel):
     def load_inputs(cls, dtype_override=None):
         """Generate sample inputs for Vit models."""
         # Get the Image
-        image = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-
+        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
+        image = Image.open(image_file)
         # Initialize tokenizer
         image_processor = AutoImageProcessor.from_pretrained(
             cls.model_name, use_fast=True
