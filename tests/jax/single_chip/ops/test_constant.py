@@ -46,9 +46,6 @@ def test_constant_ones(shape: tuple):
     jax_op_name="jax.numpy.array",
     shlo_op_name="stablehlo.constant",
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.constant'")
-)
 def test_constant_multi_value():
     def module_constant_multi():
         return jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)
