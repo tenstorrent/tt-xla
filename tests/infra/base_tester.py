@@ -18,7 +18,6 @@ from .comparison import (
     compare_pcc,
 )
 from .device_runner import DeviceRunner
-from .types import Tensor
 
 
 class BaseTester(ABC):
@@ -41,8 +40,8 @@ class BaseTester(ABC):
 
     def _compare(
         self,
-        device_out: Tensor,
-        golden_out: Tensor,
+        device_out: PyTree,
+        golden_out: PyTree,
     ) -> None:
         device_output, golden_output = DeviceRunner.put_tensors_on_cpu(
             device_out, golden_out
