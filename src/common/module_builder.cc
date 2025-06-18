@@ -47,7 +47,7 @@
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
