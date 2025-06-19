@@ -9,6 +9,7 @@ from jax._src.lib import xla_extension as xe
 from jax.experimental import serialize_executable
 from jax.experimental.serialize_executable import _JaxPjrtUnpickler
 import io
+import pickle
 
 
 def register_pjrt_plugin():
@@ -23,6 +24,16 @@ def register_pjrt_plugin():
     xb.register_plugin("tt", library_path=plugin_path)
     jax.config.update("jax_platforms", "tt,cpu")
 
+
+def persistent_load(pid):
+    # We're only interested in the 'XlaSerializedExecutable', which comes first.
+    # pid is a tuple like: ('xla_serialized_executable', XlaSerializedExecutable(...))
+    if (len(pid) < 2):
+        return pid[0]
+    print("pid_size=", len(pid))
+    print("pid=", pid[0])
+    print("pid[1]=", pid[1])
+    return pid[1]
 
 @jax.jit
 def my_func(x):
@@ -39,13 +50,20 @@ x = jnp.array([1.0, 2.0, 3.0])
 compiled = my_func.lower(x).compile()
 
 # Working example
-runtime_exec = compiled.runtime_executable()
-client = xe.get_c_api_client('tt')
-serialized = client.serialize_executable(runtime_exec)
+# runtime_exec = compiled.runtime_executable()
+# client = xe.get_c_api_client('tt')
+# serialized = client.serialize_executable(runtime_exec)
 
 # # Fancy Example
 # Serialize the compiled executable
-# payload, in_tree, out_tree = serialize_executable.serialize(compiled)
+payload, in_tree, out_tree = serialize_executable.serialize(compiled)
+
+# Extract the binary from the payload using the generic unpickler
+payload_io = io.BytesIO(payload)
+unpickler = pickle.Unpickler(payload_io)
+unpickler.persistent_load = persistent_load
+unloaded_executable, _, _ = unpickler.load()
+flatbuffer_binary = unloaded_executable
 
 # Deserialize the payload into a callable
 #exec_fn = serialize_executable.deserialize_and_load(payload, in_tree, out_tree)
@@ -55,9 +73,9 @@ serialized = client.serialize_executable(runtime_exec)
 
 # Call the deserialized executable
 #result = exec_fn(x2)
-
+print(dir(unloaded_executable))
 #print("Result:", result)
-with open("compiled_executable.ttnn", "wb") as f:
-    f.write(serialized)
+with open("compiled_executable_2.ttnn", "wb") as f:
+    f.write(flatbuffer_binary.xla_executable)
 
 # print(f"Serialized binary written to compiled_executable.ttnn ({len(serialized)} bytes)")
