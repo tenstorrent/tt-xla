@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
 import os
@@ -6,6 +9,7 @@ from jax._src.lib import xla_extension as xe
 from jax.experimental import serialize_executable
 from jax.experimental.serialize_executable import _JaxPjrtUnpickler
 import io
+
 
 def register_pjrt_plugin():
     """Registers TT PJRT plugin."""
@@ -22,7 +26,8 @@ def register_pjrt_plugin():
 
 @jax.jit
 def my_func(x):
-    return x ** 2 + 1
+    return x**2 + 1
+
 
 register_pjrt_plugin()
 
@@ -34,25 +39,25 @@ x = jnp.array([1.0, 2.0, 3.0])
 compiled = my_func.lower(x).compile()
 
 # Working example
-# runtime_exec = compiled.runtime_executable()
-# client = xe.get_c_api_client('tt')
-# serialized = client.serialize_executable(runtime_exec)
+runtime_exec = compiled.runtime_executable()
+client = xe.get_c_api_client('tt')
+serialized = client.serialize_executable(runtime_exec)
 
 # # Fancy Example
 # Serialize the compiled executable
-payload, in_tree, out_tree = serialize_executable.serialize(compiled)
+# payload, in_tree, out_tree = serialize_executable.serialize(compiled)
 
 # Deserialize the payload into a callable
-exec_fn = serialize_executable.deserialize_and_load(payload, in_tree, out_tree)
+#exec_fn = serialize_executable.deserialize_and_load(payload, in_tree, out_tree)
 
 # Prepare inputs that match the original input structure
-x2 = jnp.array([1.0, 2.0, 3.0])  # Must match dtype/shape of original x
+#x2 = jnp.array([1.0, 2.0, 3.0])  # Must match dtype/shape of original x
 
 # Call the deserialized executable
-result = exec_fn(x2)
+#result = exec_fn(x2)
 
-print("Result:", result)
-# with open("compiled_executable.ttnn", "wb") as f:
-#     f.write(serialized)
+#print("Result:", result)
+with open("compiled_executable.ttnn", "wb") as f:
+    f.write(serialized)
 
 # print(f"Serialized binary written to compiled_executable.ttnn ({len(serialized)} bytes)")
