@@ -32,14 +32,7 @@ SerializedExecutableInstance::SerializedExecutableInstance(
     std::shared_ptr<ExecutableImage> executable_image) {
   const tt::runtime::Binary &flatbuffer_binary =
       executable_image->getFlatbufferBinary();
-  flatbuffer_binary.store("test.ttnn");
-  const std::string &optimized_mlir_code =
-      executable_image->getOptimizedMlirCode();
-  // flatbuffer_binary.storeToMemory(m_serialized_code);
-  m_serialized_code.resize(optimized_mlir_code.size());
-  std::transform(optimized_mlir_code.begin(), optimized_mlir_code.end(),
-           m_serialized_code.begin(),
-           [](char c) { return static_cast<std::byte>(c); });
+  flatbuffer_binary.storeToMemory(m_serialized_flatbuffer);
 }
 
 } // namespace tt::pjrt

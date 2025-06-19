@@ -51,8 +51,6 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Executable_OutputMemoryKinds =
       internal::onExecutableOutputMemoryKinds;
   api->PJRT_Executable_Serialize = internal::onExecutableSerialize;
-  api->PJRT_Executable_DeserializeAndLoad =
-      internal::onExecutableDeserializeAndLoad;
 }
 
 namespace internal {
@@ -230,7 +228,7 @@ PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
           std::make_shared<ExecutableImage>(*executable_image));
 
   args->serialized_bytes = reinterpret_cast<const char *>(
-      serialized_executable->getSerializedCode().data());
+      serialized_executable->getSerializedFlatbuffer().data());
   args->serialized_bytes_size =
       serialized_executable->getSerializedSizeInBytes();
   args->serialized_executable_deleter = [](PJRT_SerializedExecutable *exec) {
@@ -238,38 +236,6 @@ PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
   };
   args->serialized_executable = *serialized_executable.release();
 
-  return nullptr;
-}
-
-PJRT_Error *
-onExecutableDeserializeAndLoad(PJRT_Executable_DeserializeAndLoad_Args *args) {
-  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_DeserializeAndLoad");
-
-  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
-  std::string mlir_code(args->serialized_executable,
-                        args->serialized_executable_size);
-  client_instance->getModuleBuilder()->buildModule(
-      mlir_code, client_instance->getCachedSystemDescriptorPath());
-  std::string executable_name = "tt_executable";
-  std::shared_ptr<ExecutableImage> executable_image =
-      ExecutableImage::createInstance(
-          client_instance->getModuleBuilder()->getFlatbufferBinary(),
-          std::move(mlir_code), std::move(executable_name),
-          client_instance->getModuleBuilder()->getNumPartitions(),
-          client_instance->getModuleBuilder()->getNumReplicas(),
-          client_instance->getModuleBuilder()->getNumDevicesToUtilize(),
-          client_instance->getModuleBuilder()->getDevicesMeshShape(),
-          client_instance->getModuleBuilder()->getInputShardings(),
-          client_instance->getModuleBuilder()->getOutputShardings(),
-          client_instance->getModuleBuilder()->getIsOutputScalar());
-  std::vector<DeviceInstance *> addressable_devices(
-      client_instance->getAddressableDevicesRaw().begin(),
-      client_instance->getAddressableDevicesRaw().begin() +
-          client_instance->getModuleBuilder()->getNumDevicesToUtilize());
-  std::unique_ptr<LoadedExecutableInstance> executable =
-      LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
-  args->loaded_executable = *executable.release();
   return nullptr;
 }
 
