@@ -109,10 +109,6 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
 // Implements PJRT_Executable_Serialize API function.
 PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args);
 
-// Implements PJRT_Executable_DeserializeAndLoad API function.
-PJRT_Error *
-onExecutableDeserializeAndLoad(PJRT_Executable_DeserializeAndLoad_Args *args);
-
 } // namespace internal
 
 } // namespace tt::pjrt

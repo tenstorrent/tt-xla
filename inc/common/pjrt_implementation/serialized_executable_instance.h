@@ -48,8 +48,8 @@ public:
   }
 
   // Returns the serialized flatbuffer data.
-  const std::vector<std::byte> &getSerializedCode() const {
-    return m_serialized_code;
+  const std::vector<std::byte> &getSerializedFlatbuffer() const {
+    return m_serialized_flatbuffer;
   }
 
   // Releases the resources of this serialized executable instance.
@@ -57,19 +57,15 @@ public:
 
   // Gets the size of the serialized flatbuffer in bytes.
   size_t getSerializedSizeInBytes() const {
-    return m_serialized_code.size();
+    return m_serialized_flatbuffer.size();
   }
 
 private:
   // Creates serialized executable instance from the executable image.
   SerializedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image);
-
-  // Executable image instance.
-  std::shared_ptr<ExecutableImage> m_executable_image;
-
-  // Serialized data buffer - best options:
-  std::vector<std::byte> m_serialized_code;
+  // Serialized data buffer
+  std::vector<std::byte> m_serialized_flatbuffer;
 };
 
 namespace internal {} // namespace internal
