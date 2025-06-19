@@ -25,8 +25,8 @@ from .model_implementation import FlaxSentenceTransformerBERT
 MODEL_PATH = "emrecan/bert-base-turkish-cased-mean-nli-stsb-tr"
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "sentence_transformer",
-    None,
+    "sentence-transformer",
+    "bert",
     ModelTask.NLP_TEXT_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -48,7 +48,7 @@ class FlaxSBERTTester(ModelTester):
 
     # @override
     def _get_model(self) -> nn.Module:
-        config = BertConfig.from_pretrained(MODEL_PATH)
+        config = BertConfig.from_pretrained(self._model_path)
         return FlaxSentenceTransformerBERT(config=config)
 
     # @override
@@ -57,21 +57,22 @@ class FlaxSBERTTester(ModelTester):
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
 
         # The model weights used in this test were trained on Turkish sentence pairs.
         # These sentences below match the training data distribution.
         inputs = tokenizer(
             ["Bu örnek bir cümle", "Her cümle vektöre çevriliyor"],
             padding=True,
-            truncation=True,
+            truncation="longest_first",
+            max_length=512,
             return_tensors="jax",
         )
         return inputs
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        pretrained_model = FlaxBertModel.from_pretrained(MODEL_PATH, from_pt=True)
+        pretrained_model = FlaxBertModel.from_pretrained(self._model_path, from_pt=True)
         params = pretrained_model.params
 
         inputs = self._get_input_activations()
@@ -80,14 +81,7 @@ class FlaxSBERTTester(ModelTester):
             "input_ids": inputs["input_ids"],
             "attention_mask": inputs["attention_mask"],
             "token_type_ids": inputs.get("token_type_ids"),
-            "normalize": True,
-            "include_prompt": True,
-            "prompt_length": 0,
         }
-
-    # @override
-    def _get_static_argnames(self):
-        return ["normalize", "include_prompt"]
 
 
 # ----- Fixtures -----
