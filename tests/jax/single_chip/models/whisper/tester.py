@@ -6,7 +6,7 @@ from typing import Dict
 
 import jax
 from datasets import load_dataset
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import (
     FlaxPreTrainedModel,
     FlaxWhisperForAudioClassification,
@@ -14,7 +14,7 @@ from transformers import (
 )
 
 
-class WhisperTester(ModelTester):
+class WhisperTester(JaxModelTester):
     """Tester for Whisper model."""
 
     def __init__(

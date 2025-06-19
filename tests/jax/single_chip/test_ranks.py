@@ -8,7 +8,7 @@ various ranks, in order not to parametrize each test additionally with ranks.
 
 import jax
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 from jax import numpy as jnp
 
 from tests.utils import Category
@@ -41,7 +41,7 @@ def test_unary_op(x_shape: tuple):
     def negate(x: jax.Array) -> jax.Array:
         return jnp.negative(x)
 
-    run_op_test_with_random_inputs(negate, [x_shape])
+    run_single_chip_op_test_with_random_inputs(negate, [x_shape])
 
 
 @pytest.mark.push
@@ -71,4 +71,4 @@ def test_binary_op(shape: tuple):
     def add(x: jax.Array, y: jax.Array) -> jax.Array:
         return x + y
 
-    run_op_test_with_random_inputs(add, [shape, shape])
+    run_single_chip_op_test_with_random_inputs(add, [shape, shape])

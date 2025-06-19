@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_graph_test_with_random_inputs
+from infra import run_single_chip_graph_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -25,4 +25,4 @@ def test_softmax(x_shape: tuple, axis: int):
     def softmax(x: jax.Array) -> jax.Array:
         return jax.nn.softmax(x, axis=axis)
 
-    run_graph_test_with_random_inputs(softmax, [x_shape])
+    run_single_chip_graph_test_with_random_inputs(softmax, [x_shape])

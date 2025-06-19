@@ -7,7 +7,7 @@ from typing import Dict, Sequence
 import jax
 import pytest
 from flax import nnx
-from infra import ModelTester, RunMode
+from infra import JaxModelTester, RunMode
 from jaxtyping import PyTree
 
 from ..model import ExampleModel
@@ -15,7 +15,7 @@ from ..model import ExampleModel
 # ----- Tester -----
 
 
-class ExampleModelOnlyKwargsTester(ModelTester):
+class ExampleModelOnlyKwargsTester(JaxModelTester):
     """
     Example tester showcasing how to use only keyword arguments for model's forward
     method.

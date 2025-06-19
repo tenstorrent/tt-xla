@@ -15,7 +15,7 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from utilities.types import Framework, Model
 from utilities.workloads import Workload, WorkloadFactory
 
-from .base_tester import BaseTester
+from ..single_chip_tester import SingleChipTester
 
 
 class RunMode(Enum):
@@ -26,21 +26,8 @@ class RunMode(Enum):
         return self.value
 
 
-class ModelTester(BaseTester, ABC):
-    """
-    Abstract base class all model testers must inherit.
-
-    Derived classes must provide implementations of:
-    ```
-    _get_model
-    _get_input_activations
-    _get_input_parameters # Optional, has default behaviour.
-    _get_forward_method_name # Optional, has default behaviour.
-    # One of or both:
-    _get_forward_method_args # Optional, has default behaviour.
-    _get_forward_method_kwargs # Optional, has default behaviour.
-    ```
-    """
+class ModelTester(SingleChipTester, ABC):
+    """Abstract base class all single chip model testers must inherit."""
 
     # -------------------- Public methods --------------------
 
@@ -110,17 +97,15 @@ class ModelTester(BaseTester, ABC):
             }
         return {}
 
-    def _get_static_argnames(self) -> Sequence[str]:
-        """
-        Return the names of arguments which should be treated as static by JIT compiler.
-        Static arguments are those which are not replaced with Tracer objects by the JIT
-        but rather are used as is, which is needed if control flow or shapes depend on them.
-        https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html#jit-mechanics-tracing-and-static-variables
+    @abstractmethod
+    def _configure_model_for_inference(self, model: Model) -> None:
+        """Configures `model` for inference."""
+        raise NotImplementedError("Subclasses must implement this method")
 
-
-        By default no arguments are static.
-        """
-        return []
+    @abstractmethod
+    def _configure_model_for_training(self, model: Model) -> None:
+        """Configures `model` for training."""
+        raise NotImplementedError("Subclasses must implement this method")
 
     # ----------------------------------
 
@@ -153,8 +138,8 @@ class ModelTester(BaseTester, ABC):
         It instantiates and stores the concrete model instance, determines in which
         framework it was written, based on the framework instantiates a DeviceRunner
         (which internally instantiates a DeviceConnector singleton, ensuring plugin
-        registration and connection to the device), a FrameworkAdapter and a Comparator,
-        and finally packs model's forward method and its arguments in a Workload.
+        registration and connection to the device) and a Comparator, and finally packs
+        model's forward method and its arguments in a Workload.
 
         NOTE It is important that plugin registration is conducted before any other
         framework-specific commands are executed. For example, getting forward method
@@ -227,13 +212,3 @@ class ModelTester(BaseTester, ABC):
     def _test_training(self):
         """TODO"""
         raise NotImplementedError("Support for training not implemented")
-
-    # --- Private convenience wrappers ---
-
-    def _configure_model_for_inference(self) -> None:
-        """Configures model for inference."""
-        self._adapter.configure_model_for_inference(self._model)
-
-    def _configure_model_for_training(self) -> None:
-        """Configures model for training."""
-        self._adapter.configure_model_for_training(self._model)

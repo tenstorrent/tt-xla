@@ -7,12 +7,21 @@ from typing import Any, Sequence
 
 import jax
 from connectors import DeviceConnector, DeviceType
+<<<<<<< HEAD
 from flax import linen
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from jaxtyping import PyTree
-from utilities.multichip_utils import MultichipWorkload, ShardingMode
+from utilities.multichip_utils import ShardingMode
+=======
+from jax.sharding import NamedSharding
+>>>>>>> ed48740 (Code review)
 from utilities.types import Device, Tensor
-from utilities.workloads.jax_workload import JaxWorkload, Workload
+from utilities.workloads import Workload
+from utilities.workloads.jax_workload import (
+    JaxMultichipWorkload,
+    JaxWorkload,
+    ShardingMode,
+)
 
 from .device_runner import DeviceRunner
 
@@ -31,7 +40,7 @@ class JaxDeviceRunner(DeviceRunner):
         return self._device_connector
 
     def run_on_multichip_device(
-        self, multichip_workload: MultichipWorkload, sharding_mode: ShardingMode
+        self, multichip_workload: JaxMultichipWorkload, sharding_mode: ShardingMode
     ) -> Tensor:
         """Runs `multichip_workload` on a multichip device."""
         return self._run_on_multichip_device(multichip_workload, sharding_mode)
@@ -108,7 +117,7 @@ class JaxDeviceRunner(DeviceRunner):
     # -----------------
 
     def _run_on_multichip_device(
-        self, multichip_workload: MultichipWorkload, sharding_mode: ShardingMode
+        self, multichip_workload: JaxMultichipWorkload, sharding_mode: ShardingMode
     ) -> Tensor:
         """
         Runs `workload` on a multichip device.
@@ -126,9 +135,9 @@ class JaxDeviceRunner(DeviceRunner):
 
     def _put_multichip_workload_on_device(
         self,
-        multichip_workload: MultichipWorkload,
-    ) -> MultichipWorkload:
-        """Gives the workload inputs shardings, necessary for multichip workloads"""
+        multichip_workload: JaxMultichipWorkload,
+    ) -> JaxMultichipWorkload:
+        """Gives the workload inputs shardings, necessary for multichip workloads."""
         args_on_device = []
         spec_index = 0
         for arg in multichip_workload.args:
@@ -154,7 +163,7 @@ class JaxDeviceRunner(DeviceRunner):
                 spec_index += 1
             kwargs_on_device[key] = device_arg
 
-        return MultichipWorkload(
+        return JaxMultichipWorkload(
             multichip_workload.executable,
             args_on_device,
             kwargs_on_device,

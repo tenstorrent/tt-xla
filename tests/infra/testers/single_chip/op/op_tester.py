@@ -6,16 +6,20 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
+import jax
+import torch
 from comparators import ComparisonConfig
 from utilities.types import Framework, Tensor
 from utilities.utils import random_tensor
 from utilities.workloads import Workload, WorkloadFactory
+from utilities.workloads.jax_workload import JaxWorkload
+from utilities.workloads.torch_workload import TorchWorkload
 
-from .base_tester import BaseTester
+from ..single_chip_tester import SingleChipTester
 
 
-class OpTester(BaseTester):
-    """Specific tester for ops."""
+class OpTester(SingleChipTester):
+    """Specific single chip tester for ops."""
 
     # -------------------- Public methods --------------------
 
@@ -68,8 +72,35 @@ class OpTester(BaseTester):
     def _initialize_all_components(self) -> None:
         self._initialize_framework_specific_helpers()
 
+    # @override
+    def _compile(self, workload: Workload) -> Workload:
+        """
+        Compiles executable carried in `workload` based on framework.
 
-def run_op_test(
+        Returns compiled workload.
+        """
+
+        def compile_jax_workload(workload: JaxWorkload) -> Workload:
+            workload.executable = jax.jit(
+                workload.executable, static_argnames=workload.static_argnames
+            )
+            return workload
+
+        def compile_torch_workload(workload: TorchWorkload) -> Workload:
+            assert workload.executable is not None
+
+            workload.executable = torch.compile(workload.executable, backend="openxla")
+            return workload
+
+        if self._framework == Framework.JAX:
+            assert isinstance(workload, JaxWorkload)
+            return compile_jax_workload(workload)
+        else:
+            assert isinstance(workload, TorchWorkload)
+            return compile_torch_workload(workload)
+
+
+def run_single_chip_op_test(
     op: Callable,
     inputs: Sequence[Tensor],
     comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -84,7 +115,7 @@ def run_op_test(
     tester.test(workload)
 
 
-def run_op_test_with_random_inputs(
+def run_single_chip_op_test_with_random_inputs(
     op: Callable,
     input_shapes: Sequence[tuple],
     minval: float = 0.0,

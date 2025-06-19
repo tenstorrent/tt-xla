@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -23,4 +23,4 @@ def test_sign(x_shape: tuple):
         return jnp.sign(x)
 
     # Trying both negative and positive values.
-    run_op_test_with_random_inputs(sign, [x_shape], minval=-5.0, maxval=5.0)
+    run_single_chip_op_test_with_random_inputs(sign, [x_shape], minval=-5.0, maxval=5.0)

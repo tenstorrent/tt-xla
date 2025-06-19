@@ -4,8 +4,8 @@
 
 import jax
 import pytest
+from infra import run_single_chip_op_test_with_random_inputs
 
-from infra import run_op_test_with_random_inputs
 from tests.utils import Category
 
 
@@ -28,6 +28,6 @@ def test_clamp(x_shape: tuple, min_shape: tuple, max_shape: tuple):
     def clamp(x: jax.Array, min: jax.Array, max: jax.Array) -> jax.Array:
         return jax.lax.clamp(min, x, max)
 
-    run_op_test_with_random_inputs(
+    run_single_chip_op_test_with_random_inputs(
         clamp, [x_shape, min_shape, max_shape], minval=-5.0, maxval=5.0
     )

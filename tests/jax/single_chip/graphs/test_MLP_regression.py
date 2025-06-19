@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import ComparisonConfig, run_graph_test_with_random_inputs
+from infra import ComparisonConfig, run_single_chip_graph_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -54,6 +54,6 @@ def test_nn_with_relu(W1, b1, W2, b2, X, y, comparison_config: ComparisonConfig)
         final_loss = loss(W1, b1, W2, b2, X, y)
         return final_loss
 
-    run_graph_test_with_random_inputs(
+    run_single_chip_graph_test_with_random_inputs(
         simple_nn, [W1, b1, W2, b2, X, y], comparison_config=comparison_config
     )

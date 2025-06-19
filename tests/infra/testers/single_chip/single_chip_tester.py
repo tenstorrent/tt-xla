@@ -7,15 +7,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from adapters import FrameworkAdapter, FrameworkAdapterFactory
 from comparators import Comparator, ComparatorFactory, ComparisonConfig
 from runners import DeviceRunner, DeviceRunnerFactory
 from utilities.types import Framework, Tensor
 from utilities.workloads import Workload
 
 
-class BaseTester(ABC):
-    """Abstract base class all testers must inherit."""
+class SingleChipTester(ABC):
+    """Abstract base class all single chip testers must inherit."""
 
     # -------------------- Protected methods --------------------
 
@@ -31,7 +30,6 @@ class BaseTester(ABC):
         # Easier to spot if located in constructor instead of dynamically creating them
         # somewhere in methods.
         self._device_runner: DeviceRunner = None
-        self._adapter: FrameworkAdapter = None
         self._comparator: Comparator = None
 
         # Initialize rest of the class.
@@ -45,28 +43,24 @@ class BaseTester(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    @abstractmethod
+    def _compile(self, workload: Workload) -> Workload:
+        """Compiles `workload`."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def _initialize_framework_specific_helpers(self) -> None:
         """
-        Initializes `self._device_runner`, `self._adapter` and `self._comparator`.
+        Initializes `self._device_runner` and `self._comparator`.
 
         This function triggers connection to device.
         """
         # Creating runner will register plugin and connect the device properly.
         self._device_runner = DeviceRunnerFactory(self._framework).create_runner()
-        self._adapter = FrameworkAdapterFactory(self._framework).create_adapter()
         self._comparator = ComparatorFactory(self._framework).create_comparator(
             self._comparison_config
         )
 
     # --- Convenience wrappers ---
-
-    def _compile(self, workload: Workload) -> Workload:
-        """
-        Compiles workload into optimized kernels.
-
-        Returns new "compiled" Workload.
-        """
-        return self._adapter.compile(workload)
 
     def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""

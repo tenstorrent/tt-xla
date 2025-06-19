@@ -10,12 +10,12 @@ from comparators import ComparisonConfig
 from utilities.types import Framework, Tensor
 from utilities.workloads import WorkloadFactory
 
-from .op_tester import OpTester
+from ..op.op_tester import OpTester
 
 
 class GraphTester(OpTester):
     """
-    Specific tester for graphs.
+    Specific single chip tester for graphs.
 
     Currently same as OpTester.
     """
@@ -23,7 +23,7 @@ class GraphTester(OpTester):
     pass
 
 
-def run_graph_test(
+def run_single_chip_graph_test(
     graph: Callable,
     inputs: Sequence[Tensor],
     comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -38,7 +38,7 @@ def run_graph_test(
     tester.test(workload)
 
 
-def run_graph_test_with_random_inputs(
+def run_single_chip_graph_test_with_random_inputs(
     graph: Callable,
     input_shapes: Sequence[tuple],
     comparison_config: ComparisonConfig = ComparisonConfig(),

@@ -4,21 +4,6 @@
 
 from __future__ import annotations
 
-<<<<<<<< HEAD:tests/infra/multichip_op_tester.py
-from enum import Enum
-from typing import Callable, Sequence
-
-import jax
-from jax.experimental.shard_map import shard_map
-from jax.sharding import NamedSharding
-
-from .base_tester import BaseTester
-from .comparison import ComparisonConfig
-from .device_connector import device_connector
-from .device_runner import DeviceRunner
-from .multichip_utils import ShardingMode, enable_shardy
-from .workload import MultichipWorkload, Workload
-========
 from typing import Callable, Sequence
 
 import jax
@@ -28,27 +13,36 @@ from connectors.jax_device_connector import JaxDeviceConnector
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding
 from runners.jax_device_runner import JaxDeviceRunner
-from utilities.multichip_utils import MultichipWorkload, ShardingMode, enable_shardy
 from utilities.types import Framework
+from utilities.workloads.jax_workload import (
+    JaxMultichipWorkload,
+    ShardingMode,
+    enable_shardy,
+)
 
-from .base_tester import BaseTester
->>>>>>>> 10f4575 (Added support for torch in test infrastructure. Added two simple examples and two MNIST models to demonstrate how it works.):tests/infra/testers/multichip_tester.py
+from .multi_chip_tester import MultiChipTester
 
 
-class MultichipOpTester(BaseTester):
+class JaxMultiChipTester(MultiChipTester):
     """
     A tester for evaluating operations in a multichip JAX execution environment.
 
-    This class extends `BaseTester` and provides functionality for testing
+    This class extends `MultiChipTester` and provides functionality for testing
     operations using a specified device mesh, input sharding specifications,
     and output sharding specifications.
 
-    TODO this class is hardcoded to jax. No multichip support for torch in infra yet.
+    Attributes
+    ----------
+        _device_mesh: jax.Mesh
+            The device mesh over which the computation is distributed.
 
-    Attributes:
-        device_mesh (jax.Mesh): The device mesh over which the computation is distributed.
-        in_specs (tuple): The sharding specifications for the input tensors.
-        out_specs (jax.sharding.PartitionSpec): The sharding specification for the output tensor.
+        _in_specs: tuple
+            The sharding specifications for the input tensors.
+
+        _out_specs: jax.sharding.PartitionSpec
+            The sharding specification for the output tensor.
+
+        TODO (ajakovljevic): update this docstring with more info on attributes.
     """
 
     # -------------------- Public methods --------------------
@@ -76,8 +70,8 @@ class MultichipOpTester(BaseTester):
 
     def test(
         self,
-        multichip_workload: MultichipWorkload,
-        cpu_workload: MultichipWorkload,
+        multichip_workload: JaxMultichipWorkload,
+        cpu_workload: JaxMultichipWorkload,
         sharding_mode: ShardingMode,
     ) -> None:
         """
@@ -86,7 +80,7 @@ class MultichipOpTester(BaseTester):
         assert isinstance(self._device_runner, JaxDeviceRunner)
 
         with self._device_mesh:
-            compiled_device_workload = MultichipWorkload(
+            compiled_device_workload = JaxMultichipWorkload(
                 self._compile_for_device(multichip_workload.executable, sharding_mode),
                 multichip_workload.args,
                 multichip_workload.kwargs,
@@ -98,7 +92,7 @@ class MultichipOpTester(BaseTester):
             )
 
         with self._cpu_mesh:
-            compiled_cpu_workload = MultichipWorkload(
+            compiled_cpu_workload = JaxMultichipWorkload(
                 self._compile_for_cpu(cpu_workload.executable, sharding_mode),
                 cpu_workload.args,
                 cpu_workload.kwargs,
@@ -131,13 +125,13 @@ class MultichipOpTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        device_workload = MultichipWorkload(
+        device_workload = JaxMultichipWorkload(
             executable,
             inputs,
             device_mesh=self._device_mesh,
             in_specs=self._in_specs,
         )
-        cpu_workload = MultichipWorkload(
+        cpu_workload = JaxMultichipWorkload(
             executable,
             inputs,
             device_mesh=self._cpu_mesh,
@@ -171,7 +165,7 @@ class MultichipOpTester(BaseTester):
         sharding_mode: ShardingMode,
         static_argnames: Sequence[str] = None,
     ) -> Callable:
-        """Sets up `executable` for just-in-time compile and execution on CPU"""
+        """Sets up `executable` for just-in-time compile and execution on CPU."""
         module_sharded = (
             shard_map(
                 executable,
@@ -214,7 +208,7 @@ class MultichipOpTester(BaseTester):
         )
 
 
-def run_multichip_test_with_random_inputs(
+def run_jax_multi_chip_test_with_random_inputs(
     executable: Callable,
     input_shapes: Sequence[tuple],
     mesh_shape: tuple,
@@ -226,23 +220,17 @@ def run_multichip_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
-    framework: Framework = Framework.JAX,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a
     mesh of TT devices and comparing it to output of the cpu executable ran with the same input.
     The xla backend used the shardy dialect if `use_shardy` is True, otherwise it uses GSPMD.
     """
-<<<<<<<< HEAD:tests/infra/multichip_op_tester.py
-    with enable_shardy(use_shardy):
-        tester = MultichipOpTester(
-========
-    device_connector = DeviceConnectorFactory(framework).create_connector()
+    device_connector = DeviceConnectorFactory(Framework.JAX).create_connector()
     assert isinstance(device_connector, JaxDeviceConnector)
 
     with enable_shardy(use_shardy), device_connector.simulate_cpu_mesh(mesh_shape):
-        tester = MultichipTester(
->>>>>>>> 10f4575 (Added support for torch in test infrastructure. Added two simple examples and two MNIST models to demonstrate how it works.):tests/infra/testers/multichip_tester.py
+        tester = JaxMultiChipTester(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(

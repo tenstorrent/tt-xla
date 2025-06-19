@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import random_tensor, run_op_test
+from infra import random_tensor, run_single_chip_op_test
 
 from tests.utils import Category, convert_output_to_bfloat16
 
@@ -33,7 +33,7 @@ def test_logical_and(shape: tuple):
     # TODO change int32 to bool https://github.com/tenstorrent/tt-xla/issues/339
     lhs = random_tensor(shape, jnp.int32, minval=0, maxval=2, random_seed=3)
     rhs = random_tensor(shape, jnp.int32, minval=0, maxval=2, random_seed=6)
-    run_op_test(logical_and, [lhs, rhs])
+    run_single_chip_op_test(logical_and, [lhs, rhs])
 
 
 @pytest.mark.push
@@ -57,4 +57,4 @@ def test_bitwise_and(shape: tuple):
 
     lhs = random_tensor(shape, jnp.int32, minval=0, maxval=10, random_seed=3)
     rhs = random_tensor(shape, jnp.int32, minval=0, maxval=10, random_seed=6)
-    run_op_test(bitwise_and, [lhs, rhs])
+    run_single_chip_op_test(bitwise_and, [lhs, rhs])

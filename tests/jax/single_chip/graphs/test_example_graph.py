@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_graph_test_with_random_inputs
+from infra import run_single_chip_graph_test_with_random_inputs
 from jax import numpy as jnp
 
 
@@ -25,4 +25,4 @@ def example_graph(x: jax.Array, y: jax.Array) -> jax.Array:
     ],
 )
 def test_example_graph(x_shape: tuple, y_shape: tuple):
-    run_graph_test_with_random_inputs(example_graph, [x_shape, y_shape])
+    run_single_chip_graph_test_with_random_inputs(example_graph, [x_shape, y_shape])

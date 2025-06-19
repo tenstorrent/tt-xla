@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
-from jax.tree import map as tree_map
-from jaxtyping import PyTree
 from runners.utils import run_on_cpu
 from torch.utils._pytree import tree_flatten, tree_map
 from utilities.types import Framework, PyTree

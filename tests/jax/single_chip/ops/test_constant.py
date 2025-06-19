@@ -4,7 +4,7 @@
 
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test
+from infra import run_single_chip_op_test
 
 from tests.utils import Category, failed_ttmlir_compilation
 
@@ -21,7 +21,7 @@ def test_constant_zeros(shape: tuple):
     def module_constant_zeros():
         return jnp.zeros(shape)
 
-    run_op_test(module_constant_zeros, [])
+    run_single_chip_op_test(module_constant_zeros, [])
 
 
 @pytest.mark.push
@@ -36,7 +36,7 @@ def test_constant_ones(shape: tuple):
     def module_constant_ones():
         return jnp.ones(shape)
 
-    run_op_test(module_constant_ones, [])
+    run_single_chip_op_test(module_constant_ones, [])
 
 
 @pytest.mark.push
@@ -50,4 +50,4 @@ def test_constant_multi_value():
     def module_constant_multi():
         return jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)
 
-    run_op_test(module_constant_multi, [])
+    run_single_chip_op_test(module_constant_multi, [])

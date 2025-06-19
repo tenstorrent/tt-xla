@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -22,4 +22,4 @@ def test_transpose(x_shape: tuple):
     def transpose(x: jax.Array) -> jax.Array:
         return jnp.transpose(x)
 
-    run_op_test_with_random_inputs(transpose, [x_shape])
+    run_single_chip_op_test_with_random_inputs(transpose, [x_shape])

@@ -4,8 +4,8 @@
 
 import jax
 import pytest
+from infra import run_single_chip_op_test_with_random_inputs
 
-from infra import run_op_test_with_random_inputs
 from tests.utils import Category
 
 
@@ -21,4 +21,6 @@ def test_floor(x_shape: tuple):
     def floor(x: jax.Array) -> jax.Array:
         return jax.lax.floor(x)
 
-    run_op_test_with_random_inputs(floor, [x_shape], minval=-5.0, maxval=5.0)
+    run_single_chip_op_test_with_random_inputs(
+        floor, [x_shape], minval=-5.0, maxval=5.0
+    )

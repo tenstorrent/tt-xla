@@ -4,7 +4,7 @@
 
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -56,4 +56,4 @@ def test_slice(begin: int, end: int, dim: int):
     shape = [10, 10, 10, 10]
     shape[dim] = 128
 
-    run_op_test_with_random_inputs(module_slice, [shape])
+    run_single_chip_op_test_with_random_inputs(module_slice, [shape])

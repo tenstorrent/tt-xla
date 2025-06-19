@@ -7,12 +7,12 @@ from typing import Dict, Sequence, Type
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
 from utilities.types import Model
 
 
-class MNISTCNNTester(ModelTester):
+class MNISTCNNTester(JaxModelTester):
     """Tester for MNIST CNN model."""
 
     def __init__(

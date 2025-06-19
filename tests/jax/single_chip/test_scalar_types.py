@@ -8,7 +8,7 @@ special case of 0-dim arrays.
 
 import jax
 import pytest
-from infra import run_op_test
+from infra import run_single_chip_op_test
 from jax import numpy as jnp
 
 from tests.utils import Category
@@ -23,7 +23,7 @@ def test_scalar_scalar_add():
     def add() -> jax.Array:
         return jnp.array(1, jnp.float32) + jnp.array(2, jnp.float32)
 
-    run_op_test(add, [])
+    run_single_chip_op_test(add, [])
 
 
 @pytest.mark.push
@@ -44,5 +44,5 @@ def test_scalar_array_add():
     def scalar_plus_array() -> jax.Array:
         return jnp.array(2.0, jnp.float32) + jnp.ones((32, 32), jnp.float32)
 
-    run_op_test(array_plus_scalar, [])
-    run_op_test(scalar_plus_array, [])
+    run_single_chip_op_test(array_plus_scalar, [])
+    run_single_chip_op_test(scalar_plus_array, [])

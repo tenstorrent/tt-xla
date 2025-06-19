@@ -5,7 +5,7 @@
 import jax
 import jax.lax as jlx
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -23,4 +23,6 @@ def test_rsqrt(x_shape: tuple):
         return jlx.rsqrt(x)
 
     # Input must be strictly positive because of sqrt(x).
-    run_op_test_with_random_inputs(rsqrt, [x_shape], minval=0.1, maxval=10.0)
+    run_single_chip_op_test_with_random_inputs(
+        rsqrt, [x_shape], minval=0.1, maxval=10.0
+    )

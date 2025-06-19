@@ -10,7 +10,7 @@ import pytest
 import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
-from infra import Framework, ModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from jaxtyping import PyTree
 from transformers import AutoTokenizer
 
@@ -38,7 +38,7 @@ MODEL_NAME = build_model_name(
 # ----- Tester -----
 
 
-class SqueezeBertTester(ModelTester):
+class SqueezeBertTester(JaxModelTester):
     """Tester for SqueezeBERT model on a masked language modeling task"""
 
     # @override

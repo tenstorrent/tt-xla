@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxGPT2LMHeadModel, FlaxPreTrainedModel
 
 
-class GPT2Tester(ModelTester):
+class GPT2Tester(JaxModelTester):
     """Tester for GPT2 for autoregressive text generation."""
 
     def __init__(

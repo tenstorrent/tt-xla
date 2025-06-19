@@ -7,7 +7,8 @@ from typing import Sequence
 import torch
 from connectors import DeviceConnector, DeviceType
 from utilities.types import Device, Tensor
-from utilities.workloads.torch_workload import TorchWorkload, Workload
+from utilities.workloads import Workload
+from utilities.workloads.torch_workload import TorchWorkload
 
 from .device_runner import DeviceRunner
 
@@ -49,7 +50,7 @@ class TorchDeviceRunner(DeviceRunner):
     ) -> Workload:
         """
         Puts workload's args and kwargs on device only if `.to()` supports it and also
-        puts model if workload is carrying once on device. Returns new workload which is
+        puts model if workload is carrying one on device. Returns new workload which is
         "on device".
         """
         assert isinstance(workload, TorchWorkload)

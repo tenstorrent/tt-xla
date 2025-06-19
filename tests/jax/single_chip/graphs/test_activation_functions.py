@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_graph_test_with_random_inputs
+from infra import run_single_chip_graph_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -20,7 +20,7 @@ def test_relu(x_shape: tuple):
     def relu(x: jax.Array) -> jax.Array:
         return jnp.maximum(x, 0)
 
-    run_graph_test_with_random_inputs(relu, [x_shape])
+    run_single_chip_graph_test_with_random_inputs(relu, [x_shape])
 
 
 # TODO add tests for other activations functions.

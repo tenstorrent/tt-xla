@@ -7,7 +7,7 @@ from typing import Dict, List, Sequence, Tuple, Union
 import jax
 import torch
 from huggingface_hub import hf_hub_download
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from safetensors import safe_open
 from transformers import (
     FlaxPreTrainedModel,
@@ -30,7 +30,7 @@ class ResNetVariant(StrEnum):
     RESNET_152 = "resnet-152"
 
 
-class ResNetTester(ModelTester):
+class ResNetTester(JaxModelTester):
     "Tester for ResNet family of models."
 
     def __init__(

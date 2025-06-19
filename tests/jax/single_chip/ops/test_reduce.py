@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import ComparisonConfig, run_op_test_with_random_inputs
+from infra import ComparisonConfig, run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category, failed_runtime
 
@@ -33,7 +33,7 @@ def test_reduce_sum(x_shape: tuple, comparison_config: ComparisonConfig):
     def reduce_sum(x: jax.Array) -> jax.Array:
         return jnp.sum(x)
 
-    run_op_test_with_random_inputs(
+    run_single_chip_op_test_with_random_inputs(
         reduce_sum, [x_shape], comparison_config=comparison_config
     )
 
@@ -51,7 +51,7 @@ def test_reduce_max(x_shape: tuple, comparison_config: ComparisonConfig):
     def reduce_max(x: jax.Array) -> jax.Array:
         return jnp.max(x)
 
-    run_op_test_with_random_inputs(
+    run_single_chip_op_test_with_random_inputs(
         reduce_max, [x_shape], comparison_config=comparison_config
     )
 

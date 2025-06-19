@@ -6,11 +6,11 @@ from typing import Sequence, Type
 
 import torch
 import torch.nn as nn
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, RunMode, TorchModelTester
 from utilities.types import Model
 
 
-class MNISTCNNTester(ModelTester):
+class MNISTCNNTester(TorchModelTester):
     """Tester for MNIST CNN model."""
 
     def __init__(

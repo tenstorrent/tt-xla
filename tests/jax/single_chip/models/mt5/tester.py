@@ -6,7 +6,7 @@ from typing import Dict
 
 import jax
 import jax.numpy as jnp
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
@@ -15,7 +15,7 @@ from transformers import (
 )
 
 
-class MT5Tester(ModelTester):
+class MT5Tester(JaxModelTester):
     """Tester for mT5 models."""
 
     def __init__(

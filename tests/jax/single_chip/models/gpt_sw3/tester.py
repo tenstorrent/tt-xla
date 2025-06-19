@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Sequence
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import FlaxGPT2LMHeadModel, FlaxPreTrainedModel, GPTSw3Tokenizer
 
 
-class GPTSw3Tester(ModelTester):
+class GPTSw3Tester(JaxModelTester):
     """Tester for GPT-SW3 model."""
 
     def __init__(

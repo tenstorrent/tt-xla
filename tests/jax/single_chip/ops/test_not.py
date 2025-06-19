@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import random_tensor, run_op_test
+from infra import random_tensor, run_single_chip_op_test
 
 from tests.utils import Category, convert_output_to_bfloat16
 
@@ -31,7 +31,7 @@ def test_logical_not(shape: tuple):
         return jnp.logical_not(a)
 
     input = random_tensor(shape, jnp.int32, minval=0, maxval=2, random_seed=3)
-    run_op_test(logical_not, [input])
+    run_single_chip_op_test(logical_not, [input])
 
 
 @pytest.mark.push
@@ -54,4 +54,4 @@ def test_bitwise_not(shape: tuple):
         return jnp.bitwise_not(a)
 
     input = random_tensor(shape, jnp.int32, minval=0, maxval=10, random_seed=3)
-    run_op_test(bitwise_not, [input])
+    run_single_chip_op_test(bitwise_not, [input])

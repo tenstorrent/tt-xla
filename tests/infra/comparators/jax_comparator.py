@@ -5,9 +5,8 @@
 import jax
 import jax.numpy as jnp
 from jax.tree import map as tree_map
-from jaxtyping import PyTree
 from runners.utils import run_on_cpu
-from utilities.types import Framework
+from utilities.types import Framework, PyTree
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig

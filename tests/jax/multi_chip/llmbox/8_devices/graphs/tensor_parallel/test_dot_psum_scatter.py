@@ -2,14 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from infra import make_partition_spec, run_multichip_test_with_random_inputs
 import jax
 import jax.numpy as jnp
 import pytest
 from infra import (
-    make_partition_spec,
     ShardingMode,
-    run_multichip_test_with_random_inputs,
+    make_partition_spec,
+    run_jax_multi_chip_test_with_random_inputs,
 )
 
 from tests.utils import failed_ttmlir_compilation
@@ -89,7 +88,7 @@ def test_dot_psum_scatter(
     )
     out_specs = make_partition_spec(axis_names)
 
-    run_multichip_test_with_random_inputs(
+    run_jax_multi_chip_test_with_random_inputs(
         fwd,
         [batch_shape, W1_shape, B1_shape, W2_shape, B2_shape],
         mesh_shape,

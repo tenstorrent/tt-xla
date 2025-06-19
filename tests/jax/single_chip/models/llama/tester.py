@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import FlaxLlamaForCausalLM, FlaxPreTrainedModel, LlamaTokenizer
 
 
-class LLamaTester(ModelTester):
+class LLamaTester(JaxModelTester):
     """Tester for Llama models."""
 
     # Note: Llama variants are not commonly used for anything else but auto-regressive text generation.

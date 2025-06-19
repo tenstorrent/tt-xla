@@ -4,8 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from jaxtyping import PyTree
-from utilities.types import Tensor
+from utilities.types import PyTree, Tensor
 
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 

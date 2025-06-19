@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -31,4 +31,4 @@ def test_concatenate(x_shape: tuple, y_shape: tuple, axis: int):
     def concat(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.concatenate([x, y], axis=axis)
 
-    run_op_test_with_random_inputs(concat, [x_shape, y_shape])
+    run_single_chip_op_test_with_random_inputs(concat, [x_shape, y_shape])

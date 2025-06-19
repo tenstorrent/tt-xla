@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_op_test_with_random_inputs
+from infra import run_single_chip_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -33,7 +33,7 @@ def test_dot_general_common(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=((1, 1), (0, 0)))
 
-    run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
+    run_single_chip_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
 
 
 # Tests for dot_general op where this operation corresponds to regular matmul.
@@ -55,7 +55,7 @@ def test_dot_general_matmul(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=((2, 1), (0, 0)))
 
-    run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
+    run_single_chip_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
 
 
 # Tests for dot_general op where vectors containing indices of
@@ -78,4 +78,4 @@ def test_dot_general_multiple_contract(x_shape: tuple, y_shape: tuple):
     def dot_general(x: jax.Array, y: jax.Array) -> jax.Array:
         return jax.lax.dot_general(x, y, dimension_numbers=(((1, 3), (1, 2)), (0, 0)))
 
-    run_op_test_with_random_inputs(dot_general, [x_shape, y_shape])
+    run_single_chip_op_test_with_random_inputs(dot_general, [x_shape, y_shape])

@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_graph_test_with_random_inputs
+from infra import run_single_chip_graph_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -20,4 +20,4 @@ def test_simple_gradient(x_shape: tuple):
 
         return jax.grad(gradient)(x)
 
-    run_graph_test_with_random_inputs(simple_gradient, [x_shape])
+    run_single_chip_graph_test_with_random_inputs(simple_gradient, [x_shape])
