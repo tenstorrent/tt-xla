@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import ComparisonConfig, run_single_chip_op_test_with_random_inputs
+from infra import ComparisonConfig, run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -34,6 +34,6 @@ def test_exponential_minus_one(x_shape: tuple, comparison_config: ComparisonConf
     def expm1(x: jax.Array) -> jax.Array:
         return jnp.expm1(x)
 
-    run_single_chip_op_test_with_random_inputs(
+    run_op_test_with_random_inputs(
         expm1, [x_shape], comparison_config=comparison_config
     )

@@ -13,8 +13,8 @@ from utilities.types import Framework, Tensor
 from utilities.workloads import Workload
 
 
-class SingleChipTester(ABC):
-    """Abstract base class all single chip testers must inherit."""
+class BaseTester(ABC):
+    """Abstract base class all testers must inherit."""
 
     # -------------------- Protected methods --------------------
 

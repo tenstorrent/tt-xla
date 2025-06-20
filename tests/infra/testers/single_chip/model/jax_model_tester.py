@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import jax
 from flax import linen, nnx
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
-from utilities.types import Model
+from utilities.types import Framework, Model, PyTree
+from utilities.workloads import Workload, WorkloadFactory
 from utilities.workloads.jax_workload import JaxWorkload, Workload
 
 from .model_tester import ModelTester
@@ -23,38 +24,104 @@ class JaxModelTester(ModelTester):
     _get_input_activations(self) -> Sequence[Any]
     _get_forward_method_name(self) -> str # Optional, has default behaviour.
     _get_static_argnames(self) -> Sequence[str] # Optional, has default behaviour.
+    _get_input_parameters(self) -> Pytree # Optional, has default behaviour.
     # One of or both:
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
     _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
     ```
     """
 
-    # -------------------- Private methods --------------------
+    # -------------------- Protected methods --------------------
 
-    # @override
-    def _get_static_argnames(self) -> Sequence[str]:
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """
-        Return the names of arguments which should be treated as static by JIT compiler.
+        Returns names of arguments which should be treated as static by JIT compiler.
+
         Static arguments are those which are not replaced with Tracer objects by the JIT
         but rather are used as is, which is needed if control flow or shapes depend on them.
         https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html#jit-mechanics-tracing-and-static-variables
-
 
         By default no arguments are static.
         """
         return []
 
+    def _get_input_parameters(self) -> PyTree:
+        """Returns input parameters."""
+        assert isinstance(self._model, FlaxPreTrainedModel) and hasattr(
+            self._model, "params"
+        )
+        return self._model.params
+
     # --- Overrides ---
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
+    def _get_forward_method_args(self) -> Sequence[Any]:
+        """
+        Returns positional arguments for model's forward pass.
 
-        workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+        By default returns input parameters and activations for the Flax linen models,
+        and empty list for other type of models.
+        """
+        if isinstance(self._model, linen.Module):
+            return [self._input_parameters, self._input_activations]
+
+        return []
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
+        """
+        Returns keyword arguments for model's forward pass.
+
+        By default returns input parameters and activations for the HF
+        FlaxPreTrainedModel, and empty dict for other type of models.
+        """
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return {
+                "params": self._input_parameters,
+                **self._input_activations,
+            }
+
+        return {}
+
+    # -------------------- Private methods --------------------
+
+    # --- Overrides ---
+
+    # @override
+    def _initialize_framework(self) -> None:
+        self._framework = Framework.JAX
+
+    # @override
+    def _initialize_workload(self) -> None:
+        """Initializes `self._workload`."""
+        # Prepack model's forward pass and its arguments into a `Workload.`
+        args = self._get_forward_method_args()
+        kwargs = self._get_forward_method_kwargs()
+        forward_static_args = self._get_static_argnames()
+        forward_method_name = self._get_forward_method_name()
+
+        assert (
+            len(args) > 0 or len(kwargs) > 0
+        ), f"Forward method args or kwargs or both must be provided"
+        assert hasattr(
+            self._model, forward_method_name
+        ), f"Model does not have {forward_method_name} method provided."
+
+        forward_pass_method = getattr(self._model, forward_method_name)
+
+        self._workload = WorkloadFactory(self._framework).create_workload(
+            executable=forward_pass_method,
+            model=self._model,
+            args=args,
+            kwargs=kwargs,
+            static_argnames=forward_static_args,
         )
-        return workload
+
+    # @override
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        self._input_activations = self._get_input_activations()
+        self._input_parameters = self._get_input_parameters()
 
     # @override
     def _configure_model_for_inference(self, model: Model) -> None:
@@ -77,3 +144,13 @@ class JaxModelTester(ModelTester):
             return
 
         model.train()
+
+    # @override
+    def _compile(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert isinstance(workload, JaxWorkload)
+
+        workload.executable = jax.jit(
+            workload.executable, static_argnames=workload.static_argnames
+        )
+        return workload

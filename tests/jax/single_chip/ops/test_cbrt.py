@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -22,4 +22,4 @@ def test_cbrt(x_shape: tuple):
     def cbrt(x: jax.Array) -> jax.Array:
         return jnp.cbrt(x)
 
-    run_single_chip_op_test_with_random_inputs(cbrt, [x_shape])
+    run_op_test_with_random_inputs(cbrt, [x_shape])

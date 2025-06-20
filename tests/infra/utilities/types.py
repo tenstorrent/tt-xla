@@ -37,13 +37,3 @@ class Framework(Enum):
 
     def __str__(self) -> str:
         return self.value
-
-    def detect_from_model(model: Model) -> Framework:
-        if isinstance(model, (nnx.Module, linen.Module, FlaxPreTrainedModel)):
-            return Framework.JAX
-        elif isinstance(model, torch.nn.Module):
-            return Framework.TORCH
-        else:
-            raise TypeError(
-                f"No supported framework for model of type {(type(model))}."
-            )

@@ -5,7 +5,7 @@
 import flax
 import jax
 import pytest
-from infra import ComparisonConfig, random_tensor, run_single_chip_op_test
+from infra import ComparisonConfig, random_tensor, run_op_test
 
 from tests.utils import Category
 
@@ -85,7 +85,7 @@ def test_reduce_window_max(
     # TODO raise an issue for this.
     img = random_tensor(img_shape, dtype="bfloat16")
 
-    run_single_chip_op_test(maxpool2d, [img], comparison_config)
+    run_op_test(maxpool2d, [img], comparison_config)
 
 
 # TODO add tests for reduce_window with add kernel.

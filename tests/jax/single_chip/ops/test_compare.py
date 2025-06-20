@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category, convert_output_to_bfloat16
 
@@ -29,7 +29,7 @@ def test_compare_equal(x_shape: tuple, y_shape: tuple):
     def equal(x: jax.Array, y: jax.Array) -> jax.Array:
         return x == y
 
-    run_single_chip_op_test_with_random_inputs(equal, [x_shape, y_shape])
+    run_op_test_with_random_inputs(equal, [x_shape, y_shape])
 
 
 @pytest.mark.push
@@ -52,7 +52,7 @@ def test_compare_not_equal(x_shape: tuple, y_shape: tuple):
     def not_equal(x: jax.Array, y: jax.Array) -> jax.Array:
         return x != y
 
-    run_single_chip_op_test_with_random_inputs(not_equal, [x_shape, y_shape])
+    run_op_test_with_random_inputs(not_equal, [x_shape, y_shape])
 
 
 @pytest.mark.push
@@ -75,7 +75,7 @@ def test_compare_greater(x_shape: tuple, y_shape: tuple):
     def greater(x: jax.Array, y: jax.Array) -> jax.Array:
         return x > y
 
-    run_single_chip_op_test_with_random_inputs(greater, [x_shape, y_shape])
+    run_op_test_with_random_inputs(greater, [x_shape, y_shape])
 
 
 @pytest.mark.push
@@ -98,7 +98,7 @@ def test_compare_greater_equal(x_shape: tuple, y_shape: tuple):
     def greater_equal(x: jax.Array, y: jax.Array) -> jax.Array:
         return x >= y
 
-    run_single_chip_op_test_with_random_inputs(greater_equal, [x_shape, y_shape])
+    run_op_test_with_random_inputs(greater_equal, [x_shape, y_shape])
 
 
 @pytest.mark.push
@@ -121,7 +121,7 @@ def test_compare_less(x_shape: tuple, y_shape: tuple):
     def less(x: jax.Array, y: jax.Array) -> jax.Array:
         return x < y
 
-    run_single_chip_op_test_with_random_inputs(less, [x_shape, y_shape])
+    run_op_test_with_random_inputs(less, [x_shape, y_shape])
 
 
 @pytest.mark.push
@@ -144,4 +144,4 @@ def test_compare_less_equal(x_shape: tuple, y_shape: tuple):
     def less_equal(x: jax.Array, y: jax.Array) -> jax.Array:
         return x <= y
 
-    run_single_chip_op_test_with_random_inputs(less_equal, [x_shape, y_shape])
+    run_op_test_with_random_inputs(less_equal, [x_shape, y_shape])

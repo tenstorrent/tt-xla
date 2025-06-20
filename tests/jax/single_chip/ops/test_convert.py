@@ -6,7 +6,7 @@ import jax
 import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
-from infra import random_tensor, run_single_chip_op_test
+from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
 
 from tests.utils import Category, enable_x64, failed_fe_compilation, failed_runtime
@@ -255,4 +255,4 @@ def test_convert(from_dtype: DTypeLike, to_dtype: DTypeLike):
     with enable_x64():
         input = random_tensor(x_shape, from_dtype, minval=0.0, maxval=10.0)
 
-        run_single_chip_op_test(convert, [input])
+        run_op_test(convert, [input])

@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -29,4 +29,4 @@ def test_subtract(x_shape: tuple, y_shape: tuple):
     def subtract(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.subtract(x, y)
 
-    run_single_chip_op_test_with_random_inputs(subtract, [x_shape, y_shape])
+    run_op_test_with_random_inputs(subtract, [x_shape, y_shape])

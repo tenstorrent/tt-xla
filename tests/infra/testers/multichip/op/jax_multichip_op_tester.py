@@ -20,29 +20,23 @@ from utilities.workloads.jax_workload import (
     enable_shardy,
 )
 
-from .multi_chip_tester import MultiChipTester
+from .base_tester import BaseTester
 
 
-class JaxMultiChipTester(MultiChipTester):
+class JaxMultichipOpTester(BaseTester):
     """
     A tester for evaluating operations in a multichip JAX execution environment.
 
-    This class extends `MultiChipTester` and provides functionality for testing
+    This class extends `BaseTester` and provides functionality for testing
     operations using a specified device mesh, input sharding specifications,
     and output sharding specifications.
 
-    Attributes
-    ----------
-        _device_mesh: jax.Mesh
-            The device mesh over which the computation is distributed.
+    TODO this class is hardcoded to jax. No multichip support for torch in infra yet.
 
-        _in_specs: tuple
-            The sharding specifications for the input tensors.
-
-        _out_specs: jax.sharding.PartitionSpec
-            The sharding specification for the output tensor.
-
-        TODO (ajakovljevic): update this docstring with more info on attributes.
+    Attributes:
+        device_mesh (jax.Mesh): The device mesh over which the computation is distributed.
+        in_specs (tuple): The sharding specifications for the input tensors.
+        out_specs (jax.sharding.PartitionSpec): The sharding specification for the output tensor.
     """
 
     # -------------------- Public methods --------------------
@@ -165,7 +159,7 @@ class JaxMultiChipTester(MultiChipTester):
         sharding_mode: ShardingMode,
         static_argnames: Sequence[str] = None,
     ) -> Callable:
-        """Sets up `executable` for just-in-time compile and execution on CPU."""
+        """Sets up `executable` for just-in-time compile and execution on CPU"""
         module_sharded = (
             shard_map(
                 executable,
@@ -208,7 +202,7 @@ class JaxMultiChipTester(MultiChipTester):
         )
 
 
-def run_jax_multi_chip_test_with_random_inputs(
+def run_multichip_test_with_random_inputs(
     executable: Callable,
     input_shapes: Sequence[tuple],
     mesh_shape: tuple,
@@ -220,17 +214,18 @@ def run_jax_multi_chip_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by running it on a
     mesh of TT devices and comparing it to output of the cpu executable ran with the same input.
     The xla backend used the shardy dialect if `use_shardy` is True, otherwise it uses GSPMD.
     """
-    device_connector = DeviceConnectorFactory(Framework.JAX).create_connector()
+    device_connector = DeviceConnectorFactory(framework).create_connector()
     assert isinstance(device_connector, JaxDeviceConnector)
 
     with enable_shardy(use_shardy), device_connector.simulate_cpu_mesh(mesh_shape):
-        tester = JaxMultiChipTester(
+        tester = JaxMultichipOpTester(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(

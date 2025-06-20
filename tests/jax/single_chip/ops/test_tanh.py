@@ -6,7 +6,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -23,4 +23,4 @@ def test_tanh(x_shape: tuple):
     def tanh(x: jax.Array) -> jax.Array:
         return jnp.tanh(x)
 
-    run_single_chip_op_test_with_random_inputs(tanh, [x_shape])
+    run_op_test_with_random_inputs(tanh, [x_shape])

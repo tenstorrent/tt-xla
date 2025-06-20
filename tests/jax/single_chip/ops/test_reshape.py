@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -30,4 +30,4 @@ def test_reshape(in_shape: tuple, out_shape: tuple):
     def reshape(x: jax.Array):
         return jnp.reshape(x, out_shape)
 
-    run_single_chip_op_test_with_random_inputs(reshape, [in_shape])
+    run_op_test_with_random_inputs(reshape, [in_shape])

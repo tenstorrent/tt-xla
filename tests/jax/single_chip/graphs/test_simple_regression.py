@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_single_chip_graph_test_with_random_inputs
+from infra import run_graph_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -25,6 +25,4 @@ def test_simple_regression(weights, bias, X, y):
         weights -= jax.grad(loss)(weights, bias, X, y)
         return weights
 
-    run_single_chip_graph_test_with_random_inputs(
-        simple_regression, [weights, bias, X, y]
-    )
+    run_graph_test_with_random_inputs(simple_regression, [weights, bias, X, y])

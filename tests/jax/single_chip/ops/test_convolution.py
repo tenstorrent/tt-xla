@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import ComparisonConfig, random_tensor, run_single_chip_op_test
+from infra import ComparisonConfig, random_tensor, run_op_test
 
 from tests.utils import Category
 
@@ -58,7 +58,7 @@ def test_conv1d(
     img = random_tensor(img_shape, dtype="bfloat16")
     kernel = random_tensor(kernel_shape, dtype="bfloat16")
 
-    run_single_chip_op_test(conv1d, [img, kernel], comparison_config)
+    run_op_test(conv1d, [img, kernel], comparison_config)
 
 
 @pytest.mark.push
@@ -143,4 +143,4 @@ def test_conv2d(
     img = random_tensor(img_shape, dtype="bfloat16")
     kernel = random_tensor(kernel_shape, dtype="bfloat16")
 
-    run_single_chip_op_test(conv2d, [img, kernel], comparison_config)
+    run_op_test(conv2d, [img, kernel], comparison_config)

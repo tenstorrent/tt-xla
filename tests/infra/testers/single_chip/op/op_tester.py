@@ -9,16 +9,15 @@ from typing import Callable, Sequence
 import jax
 import torch
 from comparators import ComparisonConfig
+from testers.base_tester import BaseTester
 from utilities.types import Framework, Tensor
 from utilities.utils import random_tensor
 from utilities.workloads import Workload, WorkloadFactory
 from utilities.workloads.jax_workload import JaxWorkload
 from utilities.workloads.torch_workload import TorchWorkload
 
-from ..single_chip_tester import SingleChipTester
 
-
-class OpTester(SingleChipTester):
+class OpTester(BaseTester):
     """Specific single chip tester for ops."""
 
     # -------------------- Public methods --------------------
@@ -100,7 +99,7 @@ class OpTester(SingleChipTester):
             return compile_torch_workload(workload)
 
 
-def run_single_chip_op_test(
+def run_op_test(
     op: Callable,
     inputs: Sequence[Tensor],
     comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -115,7 +114,7 @@ def run_single_chip_op_test(
     tester.test(workload)
 
 
-def run_single_chip_op_test_with_random_inputs(
+def run_op_test_with_random_inputs(
     op: Callable,
     input_shapes: Sequence[tuple],
     minval: float = 0.0,

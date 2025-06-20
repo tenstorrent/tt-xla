@@ -23,7 +23,7 @@ class GraphTester(OpTester):
     pass
 
 
-def run_single_chip_graph_test(
+def run_graph_test(
     graph: Callable,
     inputs: Sequence[Tensor],
     comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -38,7 +38,7 @@ def run_single_chip_graph_test(
     tester.test(workload)
 
 
-def run_single_chip_graph_test_with_random_inputs(
+def run_graph_test_with_random_inputs(
     graph: Callable,
     input_shapes: Sequence[tuple],
     comparison_config: ComparisonConfig = ComparisonConfig(),

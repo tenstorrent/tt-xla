@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -22,4 +22,4 @@ def test_broadcast_in_dim(input_shapes: tuple):
     def broadcast(a: jax.Array):
         return jnp.broadcast_to(a, (2, 4))
 
-    run_single_chip_op_test_with_random_inputs(broadcast, input_shapes)
+    run_op_test_with_random_inputs(broadcast, input_shapes)

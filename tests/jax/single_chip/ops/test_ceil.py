@@ -4,7 +4,7 @@
 
 import jax
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -21,4 +21,4 @@ def test_ceil(x_shape: tuple):
     def ceil(x: jax.Array) -> jax.Array:
         return jax.lax.ceil(x)
 
-    run_single_chip_op_test_with_random_inputs(ceil, [x_shape], minval=-5.0, maxval=5.0)
+    run_op_test_with_random_inputs(ceil, [x_shape], minval=-5.0, maxval=5.0)

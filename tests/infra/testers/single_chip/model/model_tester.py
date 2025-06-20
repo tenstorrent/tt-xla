@@ -9,13 +9,9 @@ from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
 from comparators import ComparisonConfig
-from flax import linen
-from jaxtyping import PyTree
-from transformers.modeling_flax_utils import FlaxPreTrainedModel
-from utilities.types import Framework, Model
-from utilities.workloads import Workload, WorkloadFactory
-
-from ..single_chip_tester import SingleChipTester
+from testers.base_tester import BaseTester
+from utilities.types import Model
+from utilities.workloads import Workload
 
 
 class RunMode(Enum):
@@ -26,7 +22,7 @@ class RunMode(Enum):
         return self.value
 
 
-class ModelTester(SingleChipTester, ABC):
+class ModelTester(BaseTester, ABC):
     """Abstract base class all single chip model testers must inherit."""
 
     # -------------------- Public methods --------------------
@@ -40,7 +36,23 @@ class ModelTester(SingleChipTester, ABC):
 
     # ---------- Protected methods ----------
 
-    # --- For subclasses to override ---
+    def __init__(
+        self,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ) -> None:
+        """Protected constructor for subclasses to use."""
+        self._run_mode = run_mode
+        # Placeholders for objects that will be set in `_initialize_all_components`.
+        # Easier to spot if located in constructor instead of dynamically creating them
+        # somewhere in methods.
+        self._model: Model = None
+        self._workload: Workload = None
+
+        # Framework not passed for now, determined in `_initialize_framework`.
+        super().__init__(comparison_config)
+
+    # --- For test writer's tester subclasses to override ---
 
     @abstractmethod
     def _get_model(self) -> Model:
@@ -50,17 +62,6 @@ class ModelTester(SingleChipTester, ABC):
     @abstractmethod
     def _get_input_activations(self) -> Dict | Sequence[Any]:
         """Returns input activations."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    def _get_input_parameters(self) -> PyTree:
-        """
-        Returns input parameters.
-
-        By default returns existing model parameters for the HF FlaxPreTrainedModel.
-        """
-        if isinstance(self._model, FlaxPreTrainedModel):
-            assert hasattr(self._model, "params")
-            return self._model.params
         raise NotImplementedError("Subclasses must implement this method.")
 
     def _get_forward_method_name(self) -> str:
@@ -76,26 +77,34 @@ class ModelTester(SingleChipTester, ABC):
         """
         Returns positional arguments for model's forward pass.
 
-        By default returns input parameters and activations for the Flax linen models,
-        and empty list for other type of models.
+        By default returns empty list.
         """
-        if isinstance(self._model, linen.Module):
-            return [self._input_parameters, self._input_activations]
         return []
 
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
         """
         Returns keyword arguments for model's forward pass.
 
-        By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel, and empty dict for other type of models.
+        By default returns empty dict.
         """
-        if isinstance(self._model, FlaxPreTrainedModel):
-            return {
-                "params": self._input_parameters,
-                **self._input_activations,
-            }
         return {}
+
+    # --- These are overridden by framework-specific child classes ---
+
+    @abstractmethod
+    def _initialize_framework(self) -> None:
+        """Initializes `self._model` and `self._framework`."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _initialize_workload(self) -> None:
+        """Initializes `self._workload`."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
     def _configure_model_for_inference(self, model: Model) -> None:
@@ -106,23 +115,6 @@ class ModelTester(SingleChipTester, ABC):
     def _configure_model_for_training(self, model: Model) -> None:
         """Configures `model` for training."""
         raise NotImplementedError("Subclasses must implement this method")
-
-    # ----------------------------------
-
-    def __init__(
-        self,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        run_mode: RunMode = RunMode.INFERENCE,
-    ) -> None:
-        """Protected constructor for subclasses to use."""
-        self._run_mode = run_mode
-        # Placeholders for objects that will be set in `_initialize_all_components`.
-        # Easier to spot if located in constructor instead of dynamically creating them
-        # somewhere in methods.
-        self._model: Model = None
-        self._workload: Workload = None
-
-        super().__init__(comparison_config)
 
     # -------------------- Private methods --------------------
 
@@ -135,63 +127,31 @@ class ModelTester(SingleChipTester, ABC):
         methods concrete tester subclasses must implement and sets some useful
         attributes.
 
-        It instantiates and stores the concrete model instance, determines in which
-        framework it was written, based on the framework instantiates a DeviceRunner
+        It stores framework in use, based on the framework instantiates a DeviceRunner
         (which internally instantiates a DeviceConnector singleton, ensuring plugin
-        registration and connection to the device) and a Comparator, and finally packs
-        model's forward method and its arguments in a Workload.
+        registration and connection to the device) and a Comparator, instantiates and
+        stores the concrete model instance and finally packs model or its forward method
+        and its arguments in a Workload.
 
         NOTE It is important that plugin registration is conducted before any other
         framework-specific commands are executed. For example, getting forward method
         args or kwargs must certainly invoke `_get_input_activations` which might
         contain some framework specific commands (like jax.ones(...)). So we should
-        strive to create a DeviceRunner as soon as possible. To avoid forcing user to
-        explicitly pass a framework, it is automatically inferred from the model. Only
-        then are we able to instatiate a proper DeviceRunner (i.e. establish device
+        strive to create a DeviceRunner as soon as possible. Only after determining
+        framework are we able to instatiate a proper DeviceRunner (i.e. establish device
         connection).
         """
-        self._initialize_model_and_framework()
+        self._initialize_framework()
         self._initialize_framework_specific_helpers()
+        self._initialize_model()
         self._initialize_workload()
 
-    def _initialize_model_and_framework(self) -> None:
-        """Initializes `self._model` and `self._framework`."""
+    def _initialize_model(self) -> None:
+        """Initializes `self._model`"""
         # Store model instance.
         self._model = self._get_model()
         # Cache model inputs.
         self._cache_model_inputs()
-        # Determine framework in which the model was written.
-        self._framework = Framework.detect_from_model(self._model)
-
-    def _initialize_workload(self) -> None:
-        """Initializes `self._workload`."""
-        # Prepack model's forward pass and its arguments into a `Workload.`
-        args = self._get_forward_method_args()
-        kwargs = self._get_forward_method_kwargs()
-        forward_static_args = self._get_static_argnames()
-        forward_method_name = self._get_forward_method_name()
-
-        assert (
-            len(args) > 0 or len(kwargs) > 0
-        ), f"Forward method args or kwargs or both must be provided"
-        assert hasattr(
-            self._model, forward_method_name
-        ), f"Model does not have {forward_method_name} method provided."
-
-        forward_pass_method = getattr(self._model, forward_method_name)
-
-        self._workload = WorkloadFactory(self._framework).create_workload(
-            executable=forward_pass_method,
-            model=self._model,
-            args=args,
-            kwargs=kwargs,
-            static_argnames=forward_static_args,
-        )
-
-    def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
-        self._input_activations = self._get_input_activations()
-        self._input_parameters = self._get_input_parameters()
 
     # --- Testing methods ---
 

@@ -9,7 +9,7 @@ parametrize each test additionally with dtypes.
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_single_chip_op_test
+from infra import run_op_test
 from jax._src.typing import DTypeLike
 
 from tests.utils import Category, enable_x64
@@ -65,4 +65,4 @@ def test_dtypes(dtype: DTypeLike):
         return jnp.array(1, dtype)  # same as dtype(1)
 
     with enable_x64():
-        run_single_chip_op_test(scalar, [])
+        run_op_test(scalar, [])

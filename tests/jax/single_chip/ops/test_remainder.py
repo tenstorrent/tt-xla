@@ -5,7 +5,7 @@
 import jax
 import jax.lax as jlx
 import pytest
-from infra import run_single_chip_op_test_with_random_inputs
+from infra import run_op_test_with_random_inputs
 
 from tests.utils import Category
 
@@ -29,4 +29,4 @@ def test_remainder(x_shape: tuple, y_shape: tuple):
     def remainder(x: jax.Array, y: jax.Array) -> jax.Array:
         return jlx.rem(x, y)
 
-    run_single_chip_op_test_with_random_inputs(remainder, [x_shape, y_shape])
+    run_op_test_with_random_inputs(remainder, [x_shape, y_shape])
