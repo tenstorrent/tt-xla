@@ -48,6 +48,7 @@ else()
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
+          -DTT_RUNTIME_ENABLE_PERF_TRACE=ON
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON

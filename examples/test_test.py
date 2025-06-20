@@ -28,12 +28,10 @@ def register_pjrt_plugin():
 def persistent_load(pid):
     # We're only interested in the 'XlaSerializedExecutable', which comes first.
     # pid is a tuple like: ('xla_serialized_executable', XlaSerializedExecutable(...))
-    if (len(pid) < 2):
+    if len(pid) < 2:
         return pid[0]
-    print("pid_size=", len(pid))
-    print("pid=", pid[0])
-    print("pid[1]=", pid[1])
     return pid[1]
+
 
 @jax.jit
 def my_func(x):
@@ -66,16 +64,16 @@ unloaded_executable, _, _ = unpickler.load()
 flatbuffer_binary = unloaded_executable
 
 # Deserialize the payload into a callable
-#exec_fn = serialize_executable.deserialize_and_load(payload, in_tree, out_tree)
+# exec_fn = serialize_executable.deserialize_and_load(payload, in_tree, out_tree)
 
 # Prepare inputs that match the original input structure
-#x2 = jnp.array([1.0, 2.0, 3.0])  # Must match dtype/shape of original x
+# x2 = jnp.array([1.0, 2.0, 3.0])  # Must match dtype/shape of original x
 
 # Call the deserialized executable
-#result = exec_fn(x2)
+# result = exec_fn(x2)
 print(dir(unloaded_executable))
-#print("Result:", result)
-with open("compiled_executable_2.ttnn", "wb") as f:
+# print("Result:", result)
+with open("compiled_executable_3.ttnn", "wb") as f:
     f.write(flatbuffer_binary.xla_executable)
 
 # print(f"Serialized binary written to compiled_executable.ttnn ({len(serialized)} bytes)")
