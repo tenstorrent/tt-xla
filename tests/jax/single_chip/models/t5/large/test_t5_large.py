@@ -49,7 +49,7 @@ def training_tester() -> T5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
     reason=incorrect_result(

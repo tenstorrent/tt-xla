@@ -47,7 +47,7 @@ def training_tester() -> GPTNeoTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
     inference_tester.test()
