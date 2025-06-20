@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from functools import partial
 import pytest
 import ctypes
 import gc
@@ -193,3 +194,41 @@ def memory_usage_tracker(request):
     if request.config.getoption("--log-memory"):
         after_gc = process.memory_info().rss / (1024 * 1024)
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
+
+
+real_gelu = None
+
+
+@pytest.fixture(autouse=True)
+def monkeypatch_import(request):
+    import jax
+
+    global real_gelu
+    if real_gelu is None:
+
+        real_gelu = jax.nn.gelu
+
+    def mygelu(x, approximate=True):
+        if approximate:
+            return jax.lax.composite(
+                lambda x: real_gelu(x, approximate=True),
+                "tt.gelu_tanh",
+            )(x)
+        else:
+            return jax.lax.composite(
+                lambda x: real_gelu(x, approximate=False),
+                "tt.gelu",
+            )(x)
+
+    jax.nn.gelu = mygelu
+
+    import transformers
+    import transformers.modeling_flax_utils
+
+    transformers.modeling_flax_utils.ACT2FN["gelu"] = partial(
+        mygelu, approximate=False
+    )  # I am not sure why I need to patch ACT2FN too when it pulls jax.nn.gelu
+
+    yield
+
+    pass
