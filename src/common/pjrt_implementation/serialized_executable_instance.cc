@@ -14,8 +14,6 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
-#include <iostream>
-
 namespace tt::pjrt {
 
 std::unique_ptr<SerializedExecutableInstance>

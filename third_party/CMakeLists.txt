@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "3fb65b219dce4d43ac733ec02dc1bd89c30fa583")
+set(TT_MLIR_VERSION "1c91c5ea373a06fff179c476a7c2eb65fe1525d1")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -48,6 +48,7 @@ else()
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
+          -DTT_RUNTIME_ENABLE_PERF_TRACE=ON
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
