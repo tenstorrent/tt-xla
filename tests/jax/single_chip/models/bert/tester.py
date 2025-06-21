@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxBertForMaskedLM, FlaxPreTrainedModel
 
 
-class FlaxBertForMaskedLMTester(ModelTester):
+class FlaxBertForMaskedLMTester(JaxModelTester):
     """Tester for BERT model variants on masked language modeling task."""
 
     def __init__(

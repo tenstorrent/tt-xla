@@ -4,7 +4,8 @@
 from typing import Dict, Sequence
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
     FlaxMBartForConditionalGeneration,
@@ -12,7 +13,7 @@ from transformers import (
 )
 
 
-class MBartTester(ModelTester):
+class MBartTester(JaxModelTester):
     """Tester for MBart model variants"""
 
     def __init__(

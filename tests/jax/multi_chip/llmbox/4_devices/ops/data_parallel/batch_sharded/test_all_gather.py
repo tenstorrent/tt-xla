@@ -3,15 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import jax
-import jax.numpy as jnp
 import pytest
 from infra import (
-    make_partition_spec,
     ShardingMode,
-    run_multichip_test_with_random_inputs,
+    make_partition_spec,
+    run_jax_multi_chip_test_with_random_inputs,
 )
 
-from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
+from tests.utils import failed_fe_compilation
 
 
 @pytest.mark.nightly
@@ -55,7 +54,7 @@ def test_all_gather(
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec(axis_names)
 
-    run_multichip_test_with_random_inputs(
+    run_jax_multi_chip_test_with_random_inputs(
         fwd,
         [x_shape],
         mesh_shape,

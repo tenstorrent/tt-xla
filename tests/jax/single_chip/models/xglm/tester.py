@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import FlaxPreTrainedModel, FlaxXGLMForCausalLM, XGLMTokenizer
 
 
-class XGLMTester(ModelTester):
+class XGLMTester(JaxModelTester):
     """Tester for XGLM models for language Modeling task."""
 
     def __init__(

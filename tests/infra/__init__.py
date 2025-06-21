@@ -2,12 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Exposes only what is really needed to write tests, nothing else.
-from .comparison import ComparisonConfig
-from .graph_tester import run_graph_test, run_graph_test_with_random_inputs
-from .model_tester import ModelTester, RunMode
-from .multichip_model_tester import MultichipModelTester
-from .multichip_op_tester import run_multichip_test_with_random_inputs
-from .multichip_utils import ShardingMode, enable_shardy, make_partition_spec
-from .op_tester import run_op_test, run_op_test_with_random_inputs
-from .utils import Framework, create_random_input_image, random_tensor
+"""Exposes only what is really needed to write tests, nothing else."""
+
+from comparators.comparison_config import ComparisonConfig
+from testers.single_chip import JaxModelTester, RunMode, TorchModelTester
+from utilities.utils import Framework, random_tensor
+from utilities.workloads.jax_workload import ShardingMode, make_partition_spec
+
+from .testers.multichip.jax_multi_chip_tester import (
+    run_jax_multi_chip_test_with_random_inputs,
+)
+from .testers.single_chip import (
+    run_graph_test,
+    run_graph_test_with_random_inputs,
+    run_op_test,
+    run_op_test_with_random_inputs,
+)

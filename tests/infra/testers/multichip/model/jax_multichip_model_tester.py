@@ -8,21 +8,21 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Mapping, Sequence, Union
 
 import jax
+from comparators import ComparisonConfig
+from connectors import DeviceConnector, DeviceConnectorFactory
 from flax import linen
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from jaxtyping import PyTree
+from runners import DeviceRunner
 
-from .comparison import ComparisonConfig
-from .device_connector import device_connector
-from .device_runner import DeviceRunner
 from .model_tester import ModelTester, RunMode
 from .multichip_utils import ShardingMode
 from .types import Model
 from .workload import MultichipWorkload, Workload
 
 
-class MultichipModelTester(ModelTester, ABC):
+class JaxMultichipModelTester(ModelTester, ABC):
     """
     Abstract base class all multichip model testers must inherit.
 
