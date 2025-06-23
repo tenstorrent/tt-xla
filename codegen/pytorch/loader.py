@@ -57,8 +57,12 @@ class ModelLoader(ForgeModel):
                 dtype_override=dtype_override
             )  # This will initialize the tokenizer
 
-        text = ["def hello_world():"] * batch_size
+        text = "def hello_world():"
         inputs = cls.tokenizer(text, return_tensors="pt")
+
+        # Replicate tensors for batch size
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
@@ -76,4 +80,20 @@ class ModelLoader(ForgeModel):
         if not hasattr(cls, "tokenizer"):
             cls.load_model()
 
-        return [cls.tokenizer.decode(output) for output in outputs]
+        # Handle both structured outputs and raw tensors
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs
+
+        # Ensure logits are float type for softmax operation
+        if not logits.dtype.is_floating_point:
+            logits = logits.float()
+
+        # Get logits for the last token in each batch
+        next_token_logits = logits[:, -1]
+        next_tokens = next_token_logits.softmax(dim=-1).argmax(dim=-1)
+
+        if next_tokens.dim() == 0:
+            # Single token case
+            return [cls.tokenizer.decode([next_tokens.item()])]
+        else:
+            # Batch of tokens case
+            return [cls.tokenizer.decode([token.item()]) for token in next_tokens]

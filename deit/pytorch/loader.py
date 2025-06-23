@@ -62,7 +62,10 @@ class ModelLoader(ForgeModel):
 
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
         image = Image.open(str(image_file))
-        batch_images = [image] * batch_size  # Create a batch of images
-        inputs = cls.feature_extractor(images=batch_images, return_tensors="pt")
+        inputs = cls.feature_extractor(images=image, return_tensors="pt")
+
+        # Replicate tensors for batch size
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs

@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
             )  # This will initialize the tokenizer
 
         # Create batch of sample inputs
-        cls.test_input = ["This is a sample text from "] * batch_size
+        cls.test_input = "This is a sample text from "
 
         inputs = cls.tokenizer(
             cls.test_input,
@@ -76,6 +76,10 @@ class ModelLoader(ForgeModel):
             add_special_tokens=True,
             truncation=True,
         )
+
+        # Replicate tensors for batch size
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
@@ -95,5 +99,4 @@ class ModelLoader(ForgeModel):
         # Get logits for the last token in each batch
         next_token_logits = outputs.logits[:, -1]
         next_tokens = next_token_logits.softmax(dim=-1).argmax(dim=-1)
-
         return [cls.tokenizer.decode([token.item()]) for token in next_tokens]

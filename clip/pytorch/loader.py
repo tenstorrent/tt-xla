@@ -67,17 +67,19 @@ class ModelLoader(ForgeModel):
 
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
         image = Image.open(str(image_file))
-        batch_images = [image] * batch_size  # Create a batch of images
 
         text = ["a photo of a cat", "a photo of a dog"]
-        batch_text = [text] * batch_size  # Create a batch of text
 
         inputs = cls.processor(
-            text=batch_text,
-            images=batch_images,
+            text=text,
+            images=image,
             return_tensors="pt",
             padding=True,
         )
+
+        # Replicate tensors for batch size
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         if dtype_override is not None:
             inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
