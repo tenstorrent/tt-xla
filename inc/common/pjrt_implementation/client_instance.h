@@ -74,14 +74,6 @@ public:
   tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
                                     LoadedExecutableInstance **out_executable);
 
-  std::unique_ptr<ModuleBuilder> &getModuleBuilder() {
-    return m_module_builder;
-  }
-
-  const std::string &getCachedSystemDescriptorPath() const {
-    return m_cached_system_descriptor_path;
-  }
-
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;

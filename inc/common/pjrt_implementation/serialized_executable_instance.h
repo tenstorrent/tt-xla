@@ -72,4 +72,4 @@ namespace internal {} // namespace internal
 
 } // namespace tt::pjrt
 
-#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_SERIALIZED_EXECUTABLE_INSTANCE_H_

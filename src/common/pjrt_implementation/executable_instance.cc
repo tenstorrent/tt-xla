@@ -12,7 +12,6 @@
 
 // c++ standard library includes
 #include <cstring>
-#include <iostream>
 #include <string>
 
 // tt-xla includes
