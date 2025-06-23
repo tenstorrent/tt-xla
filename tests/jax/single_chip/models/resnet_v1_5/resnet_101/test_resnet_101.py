@@ -44,6 +44,7 @@ def training_tester() -> ResNetTester:
 
 
 @pytest.mark.model_test
+@pytest.mark.push
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
@@ -53,7 +54,7 @@ def training_tester() -> ResNetTester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        "Test killed in CI " "https://github.com/tenstorrent/tt-xla/issues/714"
+        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
     )
 )
 def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
