@@ -43,12 +43,12 @@ def training_tester() -> ResNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
 @pytest.mark.push
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=ModelGroup.RED,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
@@ -62,11 +62,12 @@ def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
     inference_tester.test()
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=ModelGroup.RED,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

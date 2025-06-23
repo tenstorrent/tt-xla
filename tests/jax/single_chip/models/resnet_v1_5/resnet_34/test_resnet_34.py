@@ -43,7 +43,6 @@ def training_tester() -> ResNetTester:
 
 
 @pytest.mark.model_test
-@pytest.mark.push
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
