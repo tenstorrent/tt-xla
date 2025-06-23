@@ -42,7 +42,6 @@ def training_tester() -> ResNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -55,7 +54,6 @@ def test_resnet_v1_5_18_inference(inference_tester: ResNetTester):
     inference_tester.test()
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
