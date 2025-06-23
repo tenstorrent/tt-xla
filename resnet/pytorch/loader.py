@@ -2,25 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Vovnet model loader implementation for question answering
+Resnet model loader implementation for question answering
 """
 import torch
-from pytorchcv.model_provider import get_model as ptcv_get_model
+
 import requests
 from PIL import Image
+from transformers import ResNetForImageClassification
 
 from ...base import ForgeModel
 
 
 class ModelLoader(ForgeModel):
     # Shared configuration parameters
-    model_name = "vovnet27s"
+    model_name = "microsoft/resnet-50"
     input_shape = (3, 224, 224)
 
     @classmethod
     def load_model(cls, dtype_override=None):
-        """Load a Vovnet model from Pytorch CV Model Provider."""
-        model = ptcv_get_model(cls.model_name, pretrained=True)
+        """Load a Resnet model from Hugging Face."""
+        model = ResNetForImageClassification.from_pretrained(
+            cls.model_name, return_dict=False
+        )
+
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -31,7 +35,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def load_inputs(cls, dtype_override=None):
-        """Generate sample inputs for Vovnet models."""
+        """Generate sample inputs for Resnet models."""
 
         # Create a random input tensor with the correct shape, using default dtype
         inputs = torch.rand(1, *cls.input_shape)
