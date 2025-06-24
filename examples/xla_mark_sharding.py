@@ -69,22 +69,22 @@ device_ids = np.array(range(num_devices))
 mesh = Mesh(device_ids, mesh_shape, ("x", "y"))
 
 # Random inputs between 0 and 0.1
-# a = (torch.rand(1024, 8192) - 0.0) * 0.1
+a = (torch.rand(1024, 8192) - 0.0) * 0.1
 # b = (torch.rand(8192, 4096) - 0.0) * 0.1
 # c = (torch.rand(1024, 4096) - 0.0) * 0.1
-d = (torch.rand(1024, 4096) - 0.0) * 0.1
-e = (torch.rand(1024, 4096) - 0.0) * 0.1
+# d = (torch.rand(1024, 4096) - 0.0) * 0.1
+# e = (torch.rand(1024, 4096) - 0.0) * 0.1
 # f = (torch.rand(1024, 4096) - 0.0) * 0.1
 # g = (torch.rand(1024, 4096) - 0.0) * 0.1
 
 # golden = t @ w
 
 # For PyTorch v2.7
-# a = a.to(xm.xla_device())
+a = a.to(xm.xla_device())
 # b = b.to(xm.xla_device())
 # c = c.to(xm.xla_device())
-d = d.to(xm.xla_device())
-e = e.to(xm.xla_device())
+# d = d.to(xm.xla_device())
+# e = e.to(xm.xla_device())
 # f = f.to(xm.xla_device())
 # g = g.to(xm.xla_device())
 
@@ -93,11 +93,13 @@ e = e.to(xm.xla_device())
 # w = w.to(torch_xla.device())
 # z = z.to(torch_xla.device())
 
-# xs.mark_sharding(a, mesh, ("x", None))
+# xs.mark_sharding(a, mesh, (("y", "x"), None))
+
+xs.mark_sharding(a, mesh, ("x", None))
 # xs.mark_sharding(b, mesh, (None, "y"))
 # xs.mark_sharding(c, mesh, (None, None))
-xs.mark_sharding(d, mesh, ("x", "y"))
-xs.mark_sharding(e, mesh, ("y", "x"))
+# xs.mark_sharding(d, mesh, ("x", "y"))
+# xs.mark_sharding(e, mesh, ("y", "x"))
 # xs.mark_sharding(f, mesh, (None, "x"))
 # xs.mark_sharding(g, mesh, ("y", None))
 
@@ -122,10 +124,10 @@ from torch_xla.distributed.spmd.debugging import visualize_tensor_sharding
 # visualize_tensor_sharding(g, use_color=False)
 
 
-# a = a.to("cpu")
+a = a.to("cpu")
 # b = b.to("cpu")
 # c = c.to("cpu")
-d = d.to("cpu")
+# d = d.to("cpu")
 # e = e.to("cpu")
 
 # # In this version of the all gather, we perform the matmul first and then
