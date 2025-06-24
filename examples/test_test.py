@@ -4,8 +4,10 @@
 import jax.numpy as jnp
 from tests.infra.utils import serialize_function_to_binary
 
+
 def my_func(x):
     return x**2 + 1
+
 
 # Call once to trigger compilation
 x = jnp.array([1.0, 2.0, 3.0])
