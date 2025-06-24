@@ -103,7 +103,7 @@ jobs:
       continue-on-error: true
       shell: bash
       run: |
-          cd third_party/tt-mlir
+          cd third_party/tt-mlir/src/tt-mlir
           branch_name=$(git rev-parse --abbrev-ref HEAD)
           commit_sha=$(git rev-parse HEAD)
           commit_title=$(git log -1 --pretty=%s)
