@@ -71,8 +71,14 @@ public:
   }
 
   // Compiles given mlir program.
-  tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
-                                    LoadedExecutableInstance **out_executable);
+  tt_pjrt_status compileMlirProgram(
+      const PJRT_Program *mlir_program,
+      LoadedExecutableInstance **out_executable,
+      const std::unordered_map<std::string, std::string> &compile_options);
+
+  static std::optional<std::unordered_map<std::string, std::string>>
+  getCompileOptions(const char *compile_options_data,
+                    size_t compile_options_size);
 
 protected:
   std::string cached_platform_name_;

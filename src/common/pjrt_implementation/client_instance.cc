@@ -13,8 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
-#include <fstream>
-#include <iostream>
+#include <regex>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -28,8 +27,8 @@
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include <google/protobuf/unknown_field_set.h>
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/unknown_field_set.h>
 #include <iostream>
 
 namespace tt::pjrt {
@@ -160,14 +159,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
   return tt_pjrt_status::kSuccess;
 }
 
-tt_pjrt_status
-ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
-                                   LoadedExecutableInstance **out_executable) {
+tt_pjrt_status ClientInstance::compileMlirProgram(
+    const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
+    const std::unordered_map<std::string, std::string> &compile_options) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
-  tt_pjrt_status compile_status =
-      m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path);
+  tt_pjrt_status compile_status = m_module_builder->buildModule(
+      mlir_code, m_cached_system_descriptor_path, compile_options);
   if (!tt_pjrt_status_is_ok(compile_status)) {
     return compile_status;
   }
@@ -216,6 +215,38 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
   *out_executable = executable.release();
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::optional<std::unordered_map<std::string, std::string>>
+ClientInstance::getCompileOptions(const char *compile_options_data,
+                                  size_t compile_options_size) {
+  using namespace google::protobuf;
+  using namespace google::protobuf::io;
+
+  CodedInputStream cis(reinterpret_cast<const uint8_t *>(compile_options_data),
+                       compile_options_size);
+  UnknownFieldSet unknown_fields;
+
+  if (!unknown_fields.MergeFromCodedStream(&cis)) {
+    return std::nullopt;
+  }
+
+  std::string output;
+  TextFormat::PrintUnknownFieldsToString(unknown_fields, &output);
+  // Extract field 7 entries into a map using regex - field 7 is custom compile
+  // options.
+  std::unordered_map<std::string, std::string> field7_map;
+  std::regex field7_regex(
+      R"DELIM(7 \{\s*1: "(.*?)"\s*2 \{\s*1: "(.*?)"\s*\}\s*\})DELIM");
+  std::sregex_iterator iter(output.begin(), output.end(), field7_regex);
+  std::sregex_iterator end;
+
+  for (; iter != end; ++iter) {
+    const std::smatch &match = *iter;
+    field7_map[match[1].str()] = match[2].str();
+  }
+
+  return field7_map;
 }
 
 namespace internal {
@@ -336,52 +367,46 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
   return nullptr;
 }
 
-void dump_raw_protobuf(const char* data, size_t size) {
+void dump_raw_protobuf(const char *data, size_t size) {
   using namespace google::protobuf;
   using namespace google::protobuf::io;
 
-  CodedInputStream cis(reinterpret_cast<const uint8_t*>(data), size);
+  CodedInputStream cis(reinterpret_cast<const uint8_t *>(data), size);
   UnknownFieldSet unknown_fields;
 
   if (!unknown_fields.MergeFromCodedStream(&cis)) {
-      std::cerr << "Failed to parse serialized proto.\n";
-      return;
+    std::cerr << "Failed to parse serialized proto.\n";
+    return;
   }
 
   std::string output;
   TextFormat::PrintUnknownFieldsToString(unknown_fields, &output);
-  std::cout << output;
+  // Extract field 7 entries into a map using regex - field 7 is custom compile
+  // options.
+  std::map<std::string, std::string> field7_map;
+  std::regex field7_regex(
+      R"DELIM(7 \{\s*1: "(.*?)"\s*2 \{\s*1: "(.*?)"\s*\}\s*\})DELIM");
+  std::sregex_iterator iter(output.begin(), output.end(), field7_regex);
+  std::sregex_iterator end;
+
+  for (; iter != end; ++iter) {
+    const std::smatch &match = *iter;
+    field7_map[match[1].str()] = match[2].str();
+  }
+
+  // Print the extracted map
+  std::cout << "Extracted field 7 map:\n";
+  for (const auto &pair : field7_map) {
+    std::cout << "\"" << pair.first << "\" : \"" << pair.second << "\"\n";
+  }
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  std::cerr << "-----------------------------------------" << std::endl;
-  std::cerr << "this_size=" << args->compile_options_size << std::endl;
-  if (args->compile_options && args->compile_options_size > 0) {
-    std::cerr << "values=";
-    for (size_t i = 0; i < args->compile_options_size; ++i) {
-      char c = static_cast<const char*>(args->compile_options)[i];
-      if (c == '\0') {
-        // Skip null characters to reduce noise
-        continue;
-      } else if (std::isprint(c) || c=='\n' || c=='\r') {
-        std::cerr << c;
-      } else {
-        std::cerr << ' ';
-      }
-    }
-    std::cerr << std::endl;
-  } else {
-    std::cerr << "values=<null or empty>" << std::endl;
-  }
-  std::ofstream out("compile_options.bin", std::ios::binary);
-  std::cerr << "######## DUMPING COMPILE OPTIONS ########" << std::endl;
-  dump_raw_protobuf(
-      reinterpret_cast<const char *>(args->compile_options),
-      args->compile_options_size);
-  std::cerr << "######## DUMPING COMPILE OPTIONS ########" << std::endl;
-  out.write(args->compile_options, args->compile_options_size);
-  std::cerr << "-----------------------------------------" << std::endl;
+  std::optional<std::unordered_map<std::string, std::string>>
+      compile_options_map = ClientInstance::getCompileOptions(
+          reinterpret_cast<const char *>(args->compile_options),
+          args->compile_options_size);
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != ModuleBuilder::c_mlir_format_name) {
@@ -396,7 +421,9 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
 
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
-      reinterpret_cast<LoadedExecutableInstance **>(&args->executable));
+      reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
+      compile_options_map.value_or(
+          std::unordered_map<std::string, std::string>()));
 
   return *ErrorInstance::makeError(compile_status).release();
 }
