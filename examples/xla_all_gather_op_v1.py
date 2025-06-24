@@ -78,7 +78,7 @@ golden = t @ w
 # For PyTorch v2.7
 t = t.to(xm.xla_device())
 w = w.to(xm.xla_device())
-# z = z.to(xm.xla_device())
+z = z.to(xm.xla_device())
 
 # For PyTorch v2.8 and above, use the following:
 # t = t.to(torch_xla.device())
@@ -87,7 +87,7 @@ w = w.to(xm.xla_device())
 
 xs.mark_sharding(t, mesh, ("x", None))
 xs.mark_sharding(w, mesh, (None, None))
-# xs.mark_sharding(z, mesh, ("x", "y"))
+xs.mark_sharding(z, mesh, ("x", "y"))
 
 # t = t + t
 # xm.mark_step()
@@ -105,8 +105,9 @@ y_local = t @ w
 
 # Internal all-gather API
 y = torch_xla._XLAC._xla_all_gather(
-    y_local, 0, 2, [[0, 4], [1, 5], [2, 6], [3, 7]], True
+    y_local, 0, 2, [[0, 4], [1, 5], [2, 6], [3, 7]], True, None, None
 )
+# y = xm.all_gather(y_local, 0, [[0, 4], [1, 5], [2, 6], [3, 7]], pin_layout=True)
 
 y = y.to("cpu")
 print(f"Y Shape: {y.shape}")
