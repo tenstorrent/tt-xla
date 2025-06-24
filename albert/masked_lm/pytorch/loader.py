@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BERT model loader implementation for question answering
+ALBERT model loader implementation for masked language modeling.
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+from transformers import AlbertForMaskedLM, AutoTokenizer
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     LLMModelConfig,
     ModelInfo,
     ModelGroup,
@@ -20,26 +20,33 @@ from ...config import (
 
 
 class ModelLoader(ForgeModel):
-    """BERT model loader implementation for question answering tasks."""
+    """ALBERT model loader implementation for masked language modeling tasks."""
 
-    # Dictionary of available model variants
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        "base": LLMModelConfig(
-            pretrained_model_name="phiyodr/bert-base-finetuned-squad2",
-            max_length=256,
+        "albert-base-v2": LLMModelConfig(
+            pretrained_model_name="albert/albert-base-v2",
+            max_length=128,
         ),
-        "large": LLMModelConfig(
-            pretrained_model_name="phiyodr/bert-large-finetuned-squad2",
-            max_length=256,
+        "albert-large-v2": LLMModelConfig(
+            pretrained_model_name="albert/albert-large-v2",
+            max_length=128,
+        ),
+        "albert-xlarge-v2": LLMModelConfig(
+            pretrained_model_name="albert/albert-xlarge-v2",
+            max_length=128,
+        ),
+        "albert-xxlarge-v2": LLMModelConfig(
+            pretrained_model_name="albert/albert-xxlarge-v2",
+            max_length=128,  # Added default max length
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = "large"
+    DEFAULT_VARIANT = "albert-base-v2"
 
     # Shared configuration parameters
-    context = 'Johann Joachim Winckelmann was a German art historian and archaeologist. He was a pioneering Hellenist who first articulated the difference between Greek, Greco-Roman and Roman art. "The prophet and founding hero of modern archaeology", Winckelmann was one of the founders of scientific archaeology and first applied the categories of style on a large, systematic basis to the history of art. '
-    question = "What discipline did Winkelmann create?"
+    sample_text = "The capital of [MASK] is Paris."
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -63,10 +70,10 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="bert",
+            model="albert_v2",
             variant=variant_name,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.NLP_QA,
+            task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -82,7 +89,7 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer with dtype override if specified
-        tokenizer_kwargs = {"padding_side": "left"}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
@@ -94,14 +101,14 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the BERT model instance for this instance's variant.
+        """Load and return the ALBERT model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The BERT model instance for question answering.
+            torch.nn.Module: The ALBERT model instance for masked language modeling.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -110,43 +117,30 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Load pre-trained model from HuggingFace
+        # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForQuestionAnswering.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+        model = AlbertForMaskedLM.from_pretrained(pretrained_model_name, **model_kwargs)
+
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the BERT model with this instance's variant settings.
+        """Load and return sample inputs for the ALBERT model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
-        # Create tokenized inputs
-        inputs = self.tokenizer.encode_plus(
-            self.question,
-            self.context,
-            add_special_tokens=True,
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
-
+        # Create tokenized inputs for the masked language modeling task
+        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
         return inputs
 
     def decode_output(self, outputs, inputs=None):
@@ -157,7 +151,7 @@ class ModelLoader(ForgeModel):
             inputs: Optional input tensors used to generate the outputs
 
         Returns:
-            str: Decoded answer text
+            str: Decoded prediction for the masked token
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
@@ -166,8 +160,12 @@ class ModelLoader(ForgeModel):
         if inputs is None:
             inputs = self.load_inputs()
 
-        response_start = torch.argmax(outputs.start_logits)
-        response_end = torch.argmax(outputs.end_logits) + 1
-        response_tokens = inputs.input_ids[0, response_start:response_end]
+        # Get the prediction for the masked token
+        logits = outputs.logits
+        mask_token_index = (inputs.input_ids == self.tokenizer.mask_token_id)[
+            0
+        ].nonzero(as_tuple=True)[0]
+        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
+        predicted_tokens = self.tokenizer.decode(predicted_token_id)
 
-        return self.tokenizer.decode(response_tokens)
+        return predicted_tokens
