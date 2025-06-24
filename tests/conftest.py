@@ -7,6 +7,7 @@ import ctypes
 import gc
 from loguru import logger
 import psutil
+import sys
 import time
 import threading
 
@@ -138,6 +139,30 @@ def pytest_addoption(parser):
     )
 
 
+def set_newline_logger():
+    """
+    Set the logger to use a newline at the start of each log message.
+    """
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format="\n<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | {level:8} | <bold><blue>{name}:{function}:{line}</blue></bold> - {message}",
+        level="INFO",
+    )
+
+
+def revert_to_default_logger():
+    """
+    Revert the logger to its default configuration.
+    """
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | {level:8} | <bold><blue>{name}:{function}:{line}</blue></bold> - {message}",
+        level="INFO",
+    )
+
+
 @pytest.fixture(autouse=True)
 def memory_usage_tracker(request):
     """
@@ -177,7 +202,11 @@ def memory_usage_tracker(request):
         count += 1
         avg_mem = total_mem / count
         by_test = max_mem - start_mem
+
+        set_newline_logger()
         logger.info(f"Test memory usage:")
+
+        revert_to_default_logger()
         logger.info(f"    By test: {by_test:.2f} MB")
         logger.info(f"    Minimum: {min_mem:.2f} MB")
         logger.info(f"    Maximum: {max_mem:.2f} MB")
