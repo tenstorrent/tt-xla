@@ -107,10 +107,11 @@ jobs:
           branch_name=$(git rev-parse --abbrev-ref HEAD)
           commit_sha=$(git rev-parse HEAD)
           commit_title=$(git log -1 --pretty=%s)
+          repo_name=$(git config --get remote.origin.url | sed 's/.*\/\([^\/]*\)\.git$/\1/')
           echo "Branch name: $branch_name"
           echo "Commit SHA: $commit_sha"
           echo "Commit title: $commit_title"
-          echo "::notice::Using tt-mlir: $branch_name, commit: $commit_sha, title: $commit_title"
+          echo "::notice::Using tt-mlir (or actually $repo_name): $branch_name, commit: $commit_sha, title: $commit_title"
 
 
   # # Run tests on TT hardware
