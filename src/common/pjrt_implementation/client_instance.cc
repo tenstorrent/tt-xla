@@ -13,6 +13,8 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -23,6 +25,12 @@
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
+
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/unknown_field_set.h>
+#include <google/protobuf/text_format.h>
+#include <iostream>
 
 namespace tt::pjrt {
 
@@ -328,9 +336,52 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
   return nullptr;
 }
 
+void dump_raw_protobuf(const char* data, size_t size) {
+  using namespace google::protobuf;
+  using namespace google::protobuf::io;
+
+  CodedInputStream cis(reinterpret_cast<const uint8_t*>(data), size);
+  UnknownFieldSet unknown_fields;
+
+  if (!unknown_fields.MergeFromCodedStream(&cis)) {
+      std::cerr << "Failed to parse serialized proto.\n";
+      return;
+  }
+
+  std::string output;
+  TextFormat::PrintUnknownFieldsToString(unknown_fields, &output);
+  std::cout << output;
+}
+
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-
+  std::cerr << "-----------------------------------------" << std::endl;
+  std::cerr << "this_size=" << args->compile_options_size << std::endl;
+  if (args->compile_options && args->compile_options_size > 0) {
+    std::cerr << "values=";
+    for (size_t i = 0; i < args->compile_options_size; ++i) {
+      char c = static_cast<const char*>(args->compile_options)[i];
+      if (c == '\0') {
+        // Skip null characters to reduce noise
+        continue;
+      } else if (std::isprint(c) || c=='\n' || c=='\r') {
+        std::cerr << c;
+      } else {
+        std::cerr << ' ';
+      }
+    }
+    std::cerr << std::endl;
+  } else {
+    std::cerr << "values=<null or empty>" << std::endl;
+  }
+  std::ofstream out("compile_options.bin", std::ios::binary);
+  std::cerr << "######## DUMPING COMPILE OPTIONS ########" << std::endl;
+  dump_raw_protobuf(
+      reinterpret_cast<const char *>(args->compile_options),
+      args->compile_options_size);
+  std::cerr << "######## DUMPING COMPILE OPTIONS ########" << std::endl;
+  out.write(args->compile_options, args->compile_options_size);
+  std::cerr << "-----------------------------------------" << std::endl;
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != ModuleBuilder::c_mlir_format_name) {
