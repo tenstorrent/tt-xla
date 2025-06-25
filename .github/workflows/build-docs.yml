@@ -62,9 +62,9 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
-        source env/activate
+        source venv/activate
         export PATH="/github/home/.cargo/bin:$PATH"
-        cmake -G Ninja -B build .
+        cmake -G Ninja -B build
         cmake --build build -- docs
 
     - name: Upload artifact
