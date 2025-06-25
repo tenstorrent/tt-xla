@@ -1,0 +1,73 @@
+name: Build Docs
+
+on:
+  workflow_call:
+    inputs:
+      docker-image:
+        description: 'Docker image to use for build'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - runs-on:
+            - ubuntu-latest
+
+    runs-on: ${{ matrix.build.runs-on }}
+
+    container:
+      image: ${{ inputs.docker-image }}
+
+    env:
+      MDBOOK_VERSION: 0.4.36
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+          submodules: recursive
+          fetch-depth: 0 # Fetch all history and tags
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+
+    - name: Git safe dir
+      run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+    - name: Install mdBook
+      shell: bash
+      run: |
+        source env/activate
+        apt-get update
+        apt install cargo -y
+        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+
+    - name: Setup Pages
+      id: pages
+      uses: actions/configure-pages@v5
+
+    - name: Build Docs
+      shell: bash
+      run: |
+        source env/activate
+        export PATH="/github/home/.cargo/bin:$PATH"
+        cmake -G Ninja -B build .
+        cmake --build build -- docs
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./build/docs/book

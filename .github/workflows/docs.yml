@@ -1,0 +1,45 @@
+name: Docs - Build & Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Sets permissions for:
+#   - downloading docker container
+#   - allowing deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  packages: write
+  checks: write
+  deployments: write
+
+jobs:
+
+  docker-build:
+    uses: ./.github/workflows/build-and-test.yml
+    secrets: inherit
+    with:
+      build_options: ""
+
+  build-docs:
+    needs: docker-build
+    uses: ./.github/workflows/build-docs.yml
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+
+  # Deployment job
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build-docs
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
