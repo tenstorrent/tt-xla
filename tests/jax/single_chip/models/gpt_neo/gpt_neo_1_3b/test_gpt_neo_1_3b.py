@@ -12,7 +12,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import GPTNeoTester
@@ -49,12 +48,7 @@ def training_tester() -> GPTNeoTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_gpt_neo_1_3b_inference(inference_tester: GPTNeoTester):
     inference_tester.test()

@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_runtime,
 )
 
 from ..tester import GPTJTester
@@ -45,17 +45,12 @@ def training_tester() -> GPTJTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-# @pytest.mark.xfail(
-#     reason=failed_ttmlir_compilation(
-#         "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-#         "https://github.com/tenstorrent/tt-xla/issues/318 "
-#     )
-# )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks, where each bank needs to store 22372352 B"
+        "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )
 def test_gpt_j_6b_inference(inference_tester: GPTJTester):

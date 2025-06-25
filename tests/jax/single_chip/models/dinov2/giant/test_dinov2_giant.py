@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_runtime,
 )
 
 from ..tester import Dinov2Tester
@@ -49,11 +49,12 @@ def training_tester() -> Dinov2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "input_tensor_a.get_padded_shape().rank() == this->slice_start.rank() && this->slice_start.rank() == this->slice_end.rank() "
+        "(https://github.com/tenstorrent/tt-xla/issues/535)"
     )
 )
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):

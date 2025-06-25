@@ -12,7 +12,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import BlenderBotTester
@@ -48,12 +47,7 @@ def training_tester() -> BlenderBotTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
     inference_tester.test()

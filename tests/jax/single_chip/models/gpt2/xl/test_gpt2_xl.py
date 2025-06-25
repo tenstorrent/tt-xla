@@ -12,7 +12,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import GPT2Tester
@@ -49,12 +48,7 @@ def training_tester() -> GPT2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_gpt2_xl_inference(inference_tester: GPT2Tester):
     inference_tester.test()

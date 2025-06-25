@@ -12,7 +12,7 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
 
 from ..tester import GPTSw3Tester
@@ -49,11 +49,12 @@ def training_tester() -> GPTSw3Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.16696356236934662. Required: pcc=0.99"
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_gpt_sw3_1_3b_instruct_inference(inference_tester: GPTSw3Tester):
