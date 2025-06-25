@@ -21,7 +21,10 @@ jobs:
     uses: ./.github/workflows/build-and-test.yml
     secrets: inherit
     with:
-      build_options: ""
+      build_options: |
+        [
+            {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"}
+        ]
 
   build-docs:
     needs: docker-build
