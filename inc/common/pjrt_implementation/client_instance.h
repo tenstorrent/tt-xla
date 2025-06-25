@@ -15,6 +15,9 @@
 #include <string>
 #include <vector>
 
+// third-party includes
+#include <google/protobuf/unknown_field_set.h>
+
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
@@ -71,8 +74,14 @@ public:
   }
 
   // Compiles given mlir program.
-  tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
-                                    LoadedExecutableInstance **out_executable);
+  tt_pjrt_status compileMlirProgram(
+      const PJRT_Program *mlir_program,
+      LoadedExecutableInstance **out_executable,
+      const std::unordered_map<std::string, std::string> &compile_options);
+
+  static std::optional<std::unordered_map<std::string, std::string>>
+  getCompileOptions(const char *compile_options_data,
+                    size_t compile_options_size);
 
 protected:
   std::string cached_platform_name_;
@@ -122,6 +131,10 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  static std::unordered_map<std::string, std::string>
+  ExtractCustomProtobufFields(
+      const google::protobuf::UnknownFieldSet &unknown_fields);
 };
 
 namespace internal {
