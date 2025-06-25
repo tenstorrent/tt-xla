@@ -15,6 +15,9 @@
 #include <string>
 #include <vector>
 
+// third-party includes
+#include <google/protobuf/unknown_field_set.h>
+
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
@@ -128,6 +131,10 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  static std::unordered_map<std::string, std::string>
+  ExtractCustomProtobufFields(
+      const google::protobuf::UnknownFieldSet &unknown_fields);
 };
 
 namespace internal {

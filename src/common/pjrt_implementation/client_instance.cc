@@ -13,10 +13,15 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
-#include <regex>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
+
+// third-party includes
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/text_format.h>
+#include <google/protobuf/unknown_field_set.h>
 
 // tt-xla includes
 #include "common/module_builder.h"
@@ -25,13 +30,9 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/unknown_field_set.h>
-#include <iostream>
-
 namespace tt::pjrt {
+
+static constexpr int kCustomCompilerOptionsFieldNumber = 7;
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
@@ -217,36 +218,81 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
+std::unordered_map<std::string, std::string>
+ClientInstance::ExtractCustomProtobufFields(
+    const google::protobuf::UnknownFieldSet &unknown_fields) {
+  std::unordered_map<std::string, std::string> result;
+
+  for (int i = 0; i < unknown_fields.field_count(); ++i) {
+    const google::protobuf::UnknownField &field = unknown_fields.field(i);
+    if (field.number() != kCustomCompilerOptionsFieldNumber ||
+        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+      continue;
+    }
+
+    google::protobuf::UnknownFieldSet custom_field_set;
+    google::protobuf::io::CodedInputStream input(
+        reinterpret_cast<const uint8_t *>(field.length_delimited().data()),
+        field.length_delimited().size());
+    custom_field_set.ParseFromCodedStream(&input);
+
+    std::string key;
+    std::string value;
+
+    for (int j = 0; j < custom_field_set.field_count(); ++j) {
+      const google::protobuf::UnknownField &inner_field =
+          custom_field_set.field(j);
+      if (inner_field.number() == 1 &&
+          inner_field.type() ==
+              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+        key = inner_field.length_delimited();
+      } else if (inner_field.number() == 2 &&
+                 inner_field.type() ==
+                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+        google::protobuf::UnknownFieldSet custom_nested_set;
+        google::protobuf::io::CodedInputStream nested_input(
+            reinterpret_cast<const uint8_t *>(
+                inner_field.length_delimited().data()),
+            inner_field.length_delimited().size());
+        custom_nested_set.ParseFromCodedStream(&nested_input);
+        if (custom_nested_set.field_count() == 0 ||
+            custom_nested_set.field_count() > 1) {
+          // If the nested set has more than one field or is empty, we skip it.
+          continue;
+        }
+        const google::protobuf::UnknownField &value_field =
+            custom_nested_set.field(0);
+        if (value_field.type() ==
+            google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+          value = value_field.length_delimited();
+        }
+      }
+    }
+
+    if (!key.empty() && !value.empty()) {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
 std::optional<std::unordered_map<std::string, std::string>>
 ClientInstance::getCompileOptions(const char *compile_options_data,
                                   size_t compile_options_size) {
-  using namespace google::protobuf;
-  using namespace google::protobuf::io;
 
-  CodedInputStream cis(reinterpret_cast<const uint8_t *>(compile_options_data),
-                       compile_options_size);
-  UnknownFieldSet unknown_fields;
+  google::protobuf::io::CodedInputStream cis(
+      reinterpret_cast<const uint8_t *>(compile_options_data),
+      compile_options_size);
+  google::protobuf::UnknownFieldSet unknown_fields;
 
   if (!unknown_fields.MergeFromCodedStream(&cis)) {
     return std::nullopt;
   }
+  std::unordered_map<std::string, std::string> compile_options_map =
+      ClientInstance::ExtractCustomProtobufFields(unknown_fields);
 
-  std::string output;
-  TextFormat::PrintUnknownFieldsToString(unknown_fields, &output);
-  // Extract field 7 entries into a map using regex - field 7 is custom compile
-  // options.
-  std::unordered_map<std::string, std::string> field7_map;
-  std::regex field7_regex(
-      R"DELIM(7 \{\s*1: "(.*?)"\s*2 \{\s*1: "(.*?)"\s*\}\s*\})DELIM");
-  std::sregex_iterator iter(output.begin(), output.end(), field7_regex);
-  std::sregex_iterator end;
-
-  for (; iter != end; ++iter) {
-    const std::smatch &match = *iter;
-    field7_map[match[1].str()] = match[2].str();
-  }
-
-  return field7_map;
+  return compile_options_map;
 }
 
 namespace internal {
@@ -365,40 +411,6 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
       client_instance->getAddressableMemoriesRaw().size();
 
   return nullptr;
-}
-
-void dump_raw_protobuf(const char *data, size_t size) {
-  using namespace google::protobuf;
-  using namespace google::protobuf::io;
-
-  CodedInputStream cis(reinterpret_cast<const uint8_t *>(data), size);
-  UnknownFieldSet unknown_fields;
-
-  if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    std::cerr << "Failed to parse serialized proto.\n";
-    return;
-  }
-
-  std::string output;
-  TextFormat::PrintUnknownFieldsToString(unknown_fields, &output);
-  // Extract field 7 entries into a map using regex - field 7 is custom compile
-  // options.
-  std::map<std::string, std::string> field7_map;
-  std::regex field7_regex(
-      R"DELIM(7 \{\s*1: "(.*?)"\s*2 \{\s*1: "(.*?)"\s*\}\s*\})DELIM");
-  std::sregex_iterator iter(output.begin(), output.end(), field7_regex);
-  std::sregex_iterator end;
-
-  for (; iter != end; ++iter) {
-    const std::smatch &match = *iter;
-    field7_map[match[1].str()] = match[2].str();
-  }
-
-  // Print the extracted map
-  std::cout << "Extracted field 7 map:\n";
-  for (const auto &pair : field7_map) {
-    std::cout << "\"" << pair.first << "\" : \"" << pair.second << "\"\n";
-  }
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
