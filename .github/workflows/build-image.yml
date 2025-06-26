@@ -35,6 +35,24 @@ jobs:
         run: |
             sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
 
+      - name: Verify third_party directory
+        shell: bash
+        run: |
+          echo "Contents of third_party directory:"
+          ls -l third_party || echo "third_party directory is missing or empty"
+
+      - name: Verify tt-mlir directory
+        shell: bash
+        run: |
+          echo "Contents of third_party/tt-mlir:"
+          ls -l third_party/tt-mlir || echo "tt-mlir directory is missing or empty"
+
+      - name: Ensure dependencies for toolchain build
+        shell: bash
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake build-essential
+          echo "Dependencies installed for toolchain build"
+
       - name: Build Docker images and output the image name
         id: build
         shell: bash
