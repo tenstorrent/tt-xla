@@ -42,9 +42,27 @@ class MixtralBlockSparseTop2MLP(nnx.Module):
             if config.intermediate_size is not None
             else 4 * embed_dim
         )
-        self.up_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs=rngs)
-        self.gate_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs=rngs)
-        self.down_proj = nnx.Linear(inner_dim, embed_dim, use_bias=False, rngs=rngs)
+        self.up_proj = nnx.Linear(
+            embed_dim,
+            inner_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.initializers.lecun_normal(),
+        )
+        self.gate_proj = nnx.Linear(
+            embed_dim,
+            inner_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.initializers.lecun_normal(),
+        )
+        self.down_proj = nnx.Linear(
+            inner_dim,
+            embed_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.initializers.lecun_normal(),
+        )
         self.act_fn = ACT2FN[config.hidden_act]
 
     def __call__(self, hidden_states: Array) -> Array:
@@ -70,6 +88,7 @@ class MixtralSparseMoeBlock(nnx.Module):
             config.num_local_experts,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.initializers.lecun_normal(),
             rngs=rngs,
         )
 
@@ -221,6 +240,7 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.initializers.lecun_normal(),
             rngs=rngs,
         )
 
@@ -230,6 +250,7 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_key_value_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.initializers.lecun_normal(),
             rngs=rngs,
         )
 
@@ -239,6 +260,7 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_key_value_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.initializers.lecun_normal(),
             rngs=rngs,
         )
 
@@ -248,6 +270,7 @@ class MixtralAttention(nnx.Module):
             out_features=self.hidden_size,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.initializers.lecun_normal(),
             rngs=rngs,
         )
 
@@ -303,7 +326,6 @@ class MixtralAttention(nnx.Module):
         batch_size, seq_len, embed = hidden_states.shape
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
-
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
@@ -317,7 +339,6 @@ class MixtralAttention(nnx.Module):
         value_states = value_states.reshape(
             batch_size, seq_len, self.num_key_value_heads, self.head_dim
         )
-
         # cos, sin = position_ids
         cos, sin = position_embeddings
         # query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -464,6 +485,7 @@ class MixtralModel(nnx.Module):
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
             features=config.hidden_size,
+            embedding_init=nnx.initializers.lecun_normal(),
             rngs=nnx.Rngs(0),
         )
 
@@ -523,7 +545,6 @@ class MixtralModel(nnx.Module):
         if cache is None and init_cache:
             cache = [None for _ in range(len(self.layers))]
         hidden_states = input_embeds
-
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         all_hidden_states = () if output_hidden_states else None

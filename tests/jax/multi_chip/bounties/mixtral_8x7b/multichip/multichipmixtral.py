@@ -47,9 +47,33 @@ class MixtralBlockSparseTop2MLP(nnx.Module):
             if config.intermediate_size is not None
             else 4 * embed_dim
         )
-        self.up_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs=rngs)
-        self.gate_proj = nnx.Linear(embed_dim, inner_dim, use_bias=False, rngs=rngs)
-        self.down_proj = nnx.Linear(inner_dim, embed_dim, use_bias=False, rngs=rngs)
+        self.up_proj = nnx.Linear(
+            embed_dim,
+            inner_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
+        )
+        self.gate_proj = nnx.Linear(
+            embed_dim,
+            inner_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
+        )
+        self.down_proj = nnx.Linear(
+            inner_dim,
+            embed_dim,
+            use_bias=False,
+            rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), ("X", None)
+            ),
+        )
         self.act_fn = ACT2FN[config.hidden_act]
 
     def __call__(self, hidden_states):
@@ -76,6 +100,7 @@ class MixtralSparseMoeBlock(nnx.Module):
             config.num_local_experts,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), P()),
             rngs=rngs,
         )
 
@@ -141,7 +166,7 @@ class MixtralRMSNorm(nnx.Module):
     def __init__(self, config: MixtralConfig, dtype=jnp.float32):
         super().__init__()
         self.epsilon = config.rms_norm_eps
-        self.weight = nnx.Param(jnp.ones(config.hidden_size, dtype=dtype))
+        self.weight = nnx.Param(jnp.ones(config.hidden_size, dtype=dtype), sharding=P())
 
     def __call__(self, hidden_states):
         input_dtype = hidden_states.dtype
@@ -184,9 +209,11 @@ class MixtralRotaryEmbedding(nnx.Module):
             getattr(self.config, "head_dim", None)
             or self.config.hidden_size // self.config.num_attention_heads
         )
-        self.inv_freq, self.attention_scaling = create_sinusoidal_positions(
+        inv_freq, attention_scaling = create_sinusoidal_positions(
             head_dim, self.rope_theta
         )
+        self.inv_freq = nnx.Variable(inv_freq)
+        self.attention_scaling = attention_scaling
 
     def __call__(self, x, position_ids=None):
         if position_ids is None:
@@ -238,6 +265,9 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
             rngs=rngs,
         )
 
@@ -247,6 +277,9 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_key_value_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
             rngs=rngs,
         )
 
@@ -256,6 +289,9 @@ class MixtralAttention(nnx.Module):
             out_features=self.num_key_value_heads * self.head_dim,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
             rngs=rngs,
         )
 
@@ -265,6 +301,9 @@ class MixtralAttention(nnx.Module):
             out_features=self.hidden_size,
             use_bias=False,
             dtype=self.dtype,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), ("X", None)
+            ),
             rngs=rngs,
         )
 
@@ -275,10 +314,12 @@ class MixtralAttention(nnx.Module):
             )
 
         casual_mask = make_causal_mask(
-            jnp.ones((1, self.config.max_position_embeddings), dtype="bool"),
+            jnp.ones(
+                (1, 100), dtype="bool"
+            ),  # TODO:this has to be self.config.max_position_embeddings but i need it smaller
             dtype="bool",
         )
-        self.causal_mask = jnp.tril(casual_mask)
+        self.causal_mask = nnx.Variable(jnp.tril(casual_mask))
         self.attention_softmax_in_fp32 = self.dtype is not jnp.float32
 
     def _concatenate_to_cache(self, key, value, query, attention_mask, past_key_values):
@@ -321,7 +362,6 @@ class MixtralAttention(nnx.Module):
     ):
         batch_size, seq_len, embed = hidden_states.shape
         input_shape = hidden_states.shape[:-1]
-
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
@@ -335,7 +375,7 @@ class MixtralAttention(nnx.Module):
         value_states = value_states.reshape(
             batch_size, seq_len, self.num_key_value_heads, self.head_dim
         )
-
+        # print(query_states.shape)
         cos, sin = position_embeddings
 
         query_states, key_states = apply_rotary_pos_emb(
@@ -394,7 +434,6 @@ class MixtralAttention(nnx.Module):
             attention_scores = (
                 jnp.matmul(q, jnp.transpose(k, (0, 1, 3, 2))) * self.scaling
             )
-
             attention_scores = attention_scores + bias
 
             attn_weights = jax.nn.softmax(attention_scores, axis=-1).astype(self.dtype)
@@ -444,6 +483,7 @@ class MixtralDecoderLayer(nnx.Module):
     ):
         residual = hidden_states
         hidden_states = self.input_norm(hidden_states)
+        # print(hidden_states.sharding)
         hidden_states, self_attn_weights, past_key_values = self.attn(
             hidden_states=hidden_states,
             position_ids=position_ids,
@@ -454,27 +494,14 @@ class MixtralDecoderLayer(nnx.Module):
             **kwargs,
         )
         hidden_states = residual + hidden_states
-
         residual = hidden_states
+        # print(hidden_states.shape)
+        # print(hidden_states.sharding)
         hidden_states = self.attn_norm(hidden_states)
 
+        # print(hidden_states.shape)
         hidden_states, router_logits = self.block_sparse_moe(hidden_states)
-
-        # This is for gathering before the MLP
-        # device_id = jax.lax.axis_index("X")
-        # slice_size = hidden_states.shape[0] // num_devices
-        # start_idx = device_id * slice_size
-
-        # # Use lax.dynamic_slice instead of hidden_states[start_idx:end_idx]
-        # slice_sizes = (slice_size,) + tuple(hidden_states.shape[1:])
-        # start_indices = (start_idx,) + (0,) * (len(hidden_states.shape) - 1)
-
-        # hidden_states = jax.lax.dynamic_slice(
-        #     hidden_states,
-        #     start_indices,
-        #     slice_sizes
-        # )
-
+        # print(hidden_states.shape)
         hidden_states = residual + hidden_states
         outputs = (hidden_states,)
         outputs += (past_key_values,)
@@ -501,6 +528,9 @@ class MixtralModel(nnx.Module):
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
             features=config.hidden_size,
+            embedding_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
             rngs=nnx.Rngs(0),
         )
 
@@ -623,6 +653,9 @@ class FlaxMixtralForCausalLM(nnx.Module):
             use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
             rngs=rngs,
         )
 
@@ -704,61 +737,15 @@ class FlaxMixtralForCausalLM(nnx.Module):
         return input_ids, extended_attention_mask, position_ids, past_key_values
 
     def prepare_sharding(self):
-        partitioning_rules = {
-            # Attention layers - tensor parallel
-            ("model", "layers", "*", "attn", "q_proj", "kernel"): P(None, "X"),
-            ("model", "layers", "*", "attn", "k_proj", "kernel"): P(None, "X"),
-            ("model", "layers", "*", "attn", "v_proj", "kernel"): P(None, "X"),
-            ("model", "layers", "*", "attn", "o_proj", "kernel"): P("X", None),
-            # MoE layers - tensor parallel
-            (
-                "model",
-                "layers",
-                "*",
-                "block_sparse_moe",
-                "gate",
-                "kernel",
-            ): P(),  # Router replicated
-            (
-                "model",
-                "layers",
-                "*",
-                "block_sparse_moe",
-                "experts",
-                "*",
-                "up_proj",
-                "kernel",
-            ): P(None, "X"),
-            (
-                "model",
-                "layers",
-                "*",
-                "block_sparse_moe",
-                "experts",
-                "*",
-                "down_proj",
-                "kernel",
-            ): P("X", None),
-            (
-                "model",
-                "layers",
-                "*",
-                "block_sparse_moe",
-                "experts",
-                "*",
-                "gate",
-                "kernel",
-            ): P(None, "X"),
-            # Embeddings and output layers
-            ("model", "embed_tokens", "embedding"): P("X", None),
-            ("lm_head", "kernel"): P(None, "X"),
-            # Layer norms stay replicated
-            ("model", "layers", "*", "input_norm"): P(),
-            ("model", "layers", "*", "attn_norm"): P(),
-            ("model", "norm"): P(),
-        }
 
-        sharded_model = nnx.with_partitioning(self, partitioning_rules)
+        state = nnx.state(self)
+
+        pspecs = nnx.get_partition_spec(state)
+
+        sharded_state = jax.lax.with_sharding_constraint(state, pspecs)
+
+        nnx.update(self, sharded_state)
+
         cache_specs = {}
         for i in range(self.config.num_hidden_layers):
             layer_key = f"layer_{i}"
@@ -768,7 +755,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
                 "cache_index": P(),  # Replicated
             }
 
-        return sharded_model, cache_specs
+        return self, cache_specs
 
     def generate(
         self,
@@ -797,7 +784,8 @@ class FlaxMixtralForCausalLM(nnx.Module):
         if position_ids is None:
             position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
 
-        sharded_model, cache_specs = self.prepare_sharding()
+        with device_mesh:
+            sharded_model, cache_specs = self.prepare_sharding()
 
         def model_forward(input_ids, attention_mask, position_ids, past_key_values):
             # Call the model
@@ -807,14 +795,13 @@ class FlaxMixtralForCausalLM(nnx.Module):
                 position_ids,
                 past_key_values,
             )
-            outputs = outputs.raw_value
             return outputs.logits, outputs.past_key_values
 
         sharded_forward = nnx.shard_map(
             model_forward,
             mesh=device_mesh,
             in_specs=(P(), P(), P(), cache_specs),
-            out_specs=(P(), cache_specs),
+            out_specs=(P(None, None, "X"), cache_specs),
             check_rep=False,
         )
 

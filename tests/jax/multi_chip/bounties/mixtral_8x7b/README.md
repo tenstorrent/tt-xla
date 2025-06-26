@@ -17,13 +17,13 @@ A high-performance JAX/Flax implementation of Mixtral 8x7B with support for both
 ├── jax_config.py                     # JAX configuration for multi-device setup
 ├── requirements.txt                  # Required dependencies
 ├── singlechip/                       # Single-device implementation
-│   ├── flaxmixtral.py               # Core Mixtral model implementation
-│   └── convert_weights.py           # HuggingFace weight conversion utility
+│   ├── flaxmixtral.py                # Core Mixtral model implementation
+│   └── convert_weights.py            # HuggingFace weight conversion utility
 ├── multichip/                        # Multi-device implementation
-│   └── multichipmixtral.py          # Distributed Mixtral with sharding
+│   └── multichipmixtral.py           # Distributed Mixtral with sharding
 └── tests/                            # Testing and validation
-    ├── hf_vs_single.py              # Compare HuggingFace vs single-device
-    └── multi_vs_single.py           # Compare multi-device vs single-device
+    ├── hf_vs_single.py               # Compare HuggingFace vs single-device
+    └── multi_vs_single.py            # Compare multi-device vs single-device
 ```
 
 ## 🛠️ Installation
