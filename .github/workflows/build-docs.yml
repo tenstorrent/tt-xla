@@ -50,7 +50,7 @@ jobs:
     - name: Install mdBook
       shell: bash
       run: |
-        source env/activate
+        source venv/activate
         apt-get update
         apt install cargo -y
         cargo install --version ${MDBOOK_VERSION} mdbook --locked
