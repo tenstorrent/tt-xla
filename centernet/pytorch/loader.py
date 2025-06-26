@@ -60,7 +60,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="centernet",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=task,
             source=ModelSource.CUSTOM,
             framework=Framework.ONNX,

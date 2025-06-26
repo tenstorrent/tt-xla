@@ -39,7 +39,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="segformer",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

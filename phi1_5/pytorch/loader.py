@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="phi1_5",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

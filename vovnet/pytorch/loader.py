@@ -35,7 +35,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="vovnet",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.TORCH_HUB,
             framework=Framework.TORCH,

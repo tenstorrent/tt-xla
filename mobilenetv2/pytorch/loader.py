@@ -36,7 +36,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="mobilenetv2",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.TORCH_HUB,
             framework=Framework.TORCH,

@@ -47,7 +47,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="gliner",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

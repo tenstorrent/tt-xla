@@ -36,7 +36,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="yolov8",
             variant=variant_name,
-            group=ModelGroup.PRIORITY,
+            group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
