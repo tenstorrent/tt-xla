@@ -90,11 +90,6 @@ jobs:
         create-symlink: true
         key: "codecov-build"
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
     # Build project
     - name: Run tt-xla build
       uses: ./.github/actions/build-tt-xla-action
@@ -307,15 +302,9 @@ jobs:
         create-symlink: true
         key: "release-build"
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
     - name: Build the wheel
       shell: bash
       run: |
-        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         cd ${{ steps.strings.outputs.work-dir }}/python_package
         python setup.py bdist_wheel

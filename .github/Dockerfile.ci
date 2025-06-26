@@ -26,8 +26,7 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     cd third_party/tt-mlir/src/tt-mlir/ && \
     source env/activate && \
     cmake -B env/build env && \
-    cmake --build env/build && \
-    cp -r env/build/toolchain/* $TTMLIR_TOOLCHAIN_DIR
+    cmake --build env/build
 
 # Final stage
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
@@ -36,8 +35,5 @@ FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
 COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
-
-RUN echo "Contents of $TTMLIR_TOOLCHAIN_DIR in final stage:" && \
-    ls -l $TTMLIR_TOOLCHAIN_DIR || echo "Toolchain directory is empty or missing"
 
 RUN du -h --max-depth=2 $TTMLIR_TOOLCHAIN_DIR

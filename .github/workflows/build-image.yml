@@ -7,13 +7,16 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+    outputs:
+      docker-image:
+        description: 'Docker image name'
+        value: ${{ jobs.build-image.outputs.docker-image }}
 
 jobs:
-
   build-image:
-    runs-on: n300
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
+    runs-on: n300
     steps:
       - name: Fix permissions
         shell: bash

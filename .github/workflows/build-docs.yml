@@ -47,11 +47,6 @@ jobs:
     - name: Git safe dir
       run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
     - name: Install system deps (Doxygen, Rust, Cargo)
       shell: bash
       run: |
@@ -72,7 +67,6 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
-        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         source "$HOME/.cargo/env"
         cmake -G Ninja -B build
