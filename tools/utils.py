@@ -124,8 +124,10 @@ def load_class_labels(file_path):
 
 def print_compiled_model_results(compiled_model_out, use_1k_labels: bool = True):
     if use_1k_labels:
-        imagenet_class_index_path = (
-            "forge/test/models/files/labels/imagenet_class_index.json"
+        imagenet_class_index_path = str(
+            get_file(
+                "https://storage.googleapis.com/download.tensorflow.org/data/imagenet_class_index.json"
+            )
         )
     else:
         imagenet_class_index_path = str(
