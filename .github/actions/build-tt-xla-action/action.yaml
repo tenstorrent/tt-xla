@@ -35,6 +35,7 @@ runs:
     - name: Build the wheel
       shell: bash
       run: |
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         cd ${{ inputs.work-dir }}/python_package
         python setup.py bdist_wheel
