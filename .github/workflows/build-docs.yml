@@ -34,8 +34,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-          submodules: recursive
-          fetch-depth: 0 # Fetch all history and tags
+        submodules: recursive
+        fetch-depth: 0
 
     - name: Set reusable strings
       id: strings
@@ -51,18 +51,21 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    
-    - name: Install Doxygen
-      run: sudo apt-get update && sudo apt-get install -y doxygen
 
-    - name: Install mdBook
+    - name: Install system deps (Doxygen, Rust, Cargo)
       shell: bash
       run: |
-        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
-        source venv/activate
         sudo apt-get update
-        sudo apt install cargo -y
-        sudo cargo install --version ${MDBOOK_VERSION} mdbook --locked
+        sudo apt-get install -y doxygen curl
+
+        # Install Rust
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        source "$HOME/.cargo/env"
+
+        # Install mdBook
+        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+
+        # Ensure ~/.cargo/bin is in PATH for all later steps
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Setup Pages
@@ -74,6 +77,7 @@ jobs:
       run: |
         export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
+        source "$HOME/.cargo/env"
         cmake -G Ninja -B build
         cmake --build build -- docs
 
