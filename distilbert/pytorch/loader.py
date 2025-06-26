@@ -80,7 +80,7 @@ class ModelLoader(ForgeModel):
         """Prepare sample input for Distilbert model"""
 
         # Data preprocessing
-        inputs = self.tokenizer(
+        self.inputs = self.tokenizer(
             self.input_prompt,
             max_length=self.max_length,
             padding="max_length",
@@ -88,4 +88,15 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
-        return inputs
+        return self.inputs
+
+    def decode_output(self, co_out):
+        logits = co_out[0]
+        mask_token_index = (self.inputs["input_ids"] == self.tokenizer.mask_token_id)[
+            0
+        ].nonzero(as_tuple=True)[0]
+        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
+        print(
+            "The predicted token for the [MASK] is: ",
+            self.tokenizer.decode(predicted_token_id),
+        )

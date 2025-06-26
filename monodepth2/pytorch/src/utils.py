@@ -10,6 +10,7 @@ import PIL.Image as pil
 from io import BytesIO
 from .resnet_encoder import ResnetEncoder
 from .depth_decoder import DepthDecoder
+from ....tools.utils import get_file
 
 
 class MonoDepth2(torch.nn.Module):
@@ -51,10 +52,11 @@ def load_model(variant):
 
 def load_input(feed_height, feed_width):
 
-    image_url = "https://raw.githubusercontent.com/nianticlabs/monodepth2/master/assets/test_image.jpg"
-    response = requests.get(image_url)
-    input_image = Image.open(BytesIO(response.content)).convert("RGB")
+    image_file = get_file(
+        "https://raw.githubusercontent.com/nianticlabs/monodepth2/master/assets/test_image.jpg"
+    )
+    input_image = Image.open(image_file).convert("RGB")
+    original_width, original_height = input_image.size
     input_image_resized = input_image.resize((feed_width, feed_height), pil.LANCZOS)
     input_tensor = transforms.ToTensor()(input_image_resized).unsqueeze(0)
-
-    return input_tensor
+    return input_tensor, original_width, original_height

@@ -14,6 +14,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 import timm
+import torch
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from PIL import Image
@@ -87,3 +88,15 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def post_processing(self, co_out, top_k=5):
+        probabilities = torch.nn.functional.softmax(co_out[0][0], dim=0)
+        class_file_path = get_file(
+            "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+        )
+
+        with open(class_file_path, "r") as f:
+            categories = [s.strip() for s in f.readlines()]
+        topk_prob, topk_catid = torch.topk(probabilities, top_k)
+        for i in range(topk_prob.size(0)):
+            print(categories[topk_catid[i]], topk_prob[i].item())

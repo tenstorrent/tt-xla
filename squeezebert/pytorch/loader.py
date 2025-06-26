@@ -73,6 +73,7 @@ class ModelLoader(ForgeModel):
         model = AutoModelForSequenceClassification.from_pretrained(
             self.model_name, return_dict=False, **model_kwargs
         )
+        self.model = model
         model.eval()
         return model
 
@@ -93,3 +94,17 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def decode_output(self, co_out):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            outputs: Model output from a forward pass
+
+        Returns:
+            str: Decoded answer text
+        """
+        predicted_class_id = co_out[0].argmax().item()
+        predicted_category = self.model.config.id2label[predicted_class_id]
+
+        print(f"predicted category: {predicted_category}")

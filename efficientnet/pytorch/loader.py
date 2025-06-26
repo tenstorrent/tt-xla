@@ -17,6 +17,7 @@ from ...base import ForgeModel
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 from torchvision.models._api import WeightsEnum
 from torch.hub import load_state_dict_from_url
+from ...tools.utils import print_compiled_model_results
 
 
 def get_state_dict(self, *args, **kwargs):
@@ -99,3 +100,6 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

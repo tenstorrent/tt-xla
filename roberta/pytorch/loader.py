@@ -74,6 +74,7 @@ class ModelLoader(ForgeModel):
             self.model_name, return_dict=False, **model_kwargs
         )
         model.eval()
+        self.model = model
         return model
 
     def load_inputs(self):
@@ -93,3 +94,15 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def decode_output(self, co_out):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            outputs: Model output from a forward pass
+
+        Returns:
+            str: Decoded answer text
+        """
+        predicted_value = co_out[0].argmax(-1).item()
+        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")

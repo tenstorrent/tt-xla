@@ -6,9 +6,8 @@ Resnet model loader implementation for question answering
 """
 import torch
 
-import requests
-from PIL import Image
 from transformers import ResNetForImageClassification
+from ...tools.utils import print_compiled_model_results
 
 from ...config import (
     ModelInfo,
@@ -80,3 +79,6 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

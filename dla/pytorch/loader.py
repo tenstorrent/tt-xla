@@ -15,7 +15,7 @@ from ...config import (
 from ...base import ForgeModel
 
 from PIL import Image
-from ...tools.utils import get_file
+from ...tools.utils import get_file, print_compiled_model_results
 from torchvision import transforms
 from .src import dla_model
 
@@ -95,3 +95,6 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

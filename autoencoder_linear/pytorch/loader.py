@@ -5,7 +5,10 @@
 """
 Autoencoder Linear model loader implementation
 """
+import os
+import numpy as np
 import torch
+import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from datasets import load_dataset
 
@@ -102,3 +105,9 @@ class ModelLoader(ForgeModel):
             batch_tensor = batch_tensor.to(dtype_override)
 
         return batch_tensor
+
+    def post_processing(self, co_out, save_path):
+        output_image = co_out[0].view(1, 28, 28).detach().numpy()
+        os.makedirs(save_path, exist_ok=True)
+        reconstructed_image_path = f"{save_path}/reconstructed_image.png"
+        plt.imsave(reconstructed_image_path, np.squeeze(output_image), cmap="gray")

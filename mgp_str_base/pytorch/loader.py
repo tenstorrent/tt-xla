@@ -76,8 +76,8 @@ class ModelLoader(ForgeModel):
         image = Image.open(image_file).convert("RGB")
 
         # Preprocess image
-        processor = MgpstrProcessor.from_pretrained(self.model_name)
-        inputs = processor(
+        self.processor = MgpstrProcessor.from_pretrained(self.model_name)
+        inputs = self.processor(
             images=image,
             return_tensors="pt",
         ).pixel_values
@@ -87,3 +87,18 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def decode_output(self, co_out):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            co_out: Model output from a forward pass
+
+        Returns:
+            str: Decoded answer text
+        """
+        output = (co_out[0], co_out[1], co_out[2])
+
+        generated_text = self.processor.batch_decode(output)["generated_text"]
+        print(f"Generated text: {generated_text}")
+        return generated_text

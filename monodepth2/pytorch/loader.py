@@ -4,7 +4,12 @@
 """
 Monodepth2 model loader implementation
 """
-
+import os
+import torch
+import numpy as np
+import matplotlib as mpl
+import matplotlib.cm as cm
+import PIL.Image as pil
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -71,10 +76,36 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None):
         """Prepare sample input for Monodepth2 model"""
 
-        inputs = load_input(self._height, self._width)
+        inputs, original_width, original_height = load_input(self._height, self._width)
+
+        self.original_width = original_width
+        self.original_height = original_height
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def postprocess_and_save_disparity_map(self, co_out, save_path):
+        disp = co_out[0].to(torch.float32)
+        disp_resized = torch.nn.functional.interpolate(
+            disp,
+            (self.original_height, self.original_width),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        # Saving colormapped depth image
+        disp_resized_np = disp_resized.squeeze().cpu().numpy()
+        vmax = np.percentile(disp_resized_np, 95)
+        normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
+        mapper = cm.ScalarMappable(norm=normalizer, cmap="magma")
+        colormapped_im = (mapper.to_rgba(disp_resized_np)[:, :, :3] * 255).astype(
+            np.uint8
+        )
+        im = pil.fromarray(colormapped_im)
+
+        os.makedirs(save_path, exist_ok=True)
+        name_dest_im = f"{save_path}/{self.model_name}_pred_disp_vis.png"
+        im.save(name_dest_im)

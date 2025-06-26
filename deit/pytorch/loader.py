@@ -75,7 +75,6 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             model = model.to(dtype_override)
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -105,3 +104,8 @@ class ModelLoader(ForgeModel):
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def post_processing(self, co_out, model):
+        logits = co_out[0]
+        predicted_class_idx = logits.argmax(-1).item()
+        print("Predicted class:", model.config.id2label[predicted_class_idx])

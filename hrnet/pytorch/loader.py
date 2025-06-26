@@ -17,7 +17,7 @@ import timm
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from PIL import Image
-from ...tools.utils import get_file
+from ...tools.utils import get_file, print_compiled_model_results
 
 
 class ModelLoader(ForgeModel):
@@ -87,3 +87,6 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)
