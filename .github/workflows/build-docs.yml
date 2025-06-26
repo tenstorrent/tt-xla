@@ -62,6 +62,7 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         export PATH="/github/home/.cargo/bin:$PATH"
         cmake -G Ninja -B build
