@@ -104,9 +104,16 @@ xs.mark_sharding(w, mesh, (None, None))
 y_local = t @ w
 
 # Internal all-gather API
+# For PyTorch v2.8 and above, use the following:
 y = torch_xla._XLAC._xla_all_gather(
     y_local, 0, 2, [[0, 4], [1, 5], [2, 6], [3, 7]], True, None, None
 )
+
+# For PyTorch v2.7, use the following:
+# y = torch_xla._XLAC._xla_all_gather(
+#     y_local, 0, 2, [[0, 4], [1, 5], [2, 6], [3, 7]], True
+# )
+
 # y = xm.all_gather(y_local, 0, [[0, 4], [1, 5], [2, 6], [3, 7]], pin_layout=True)
 
 y = y.to("cpu")
