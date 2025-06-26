@@ -53,7 +53,7 @@ def training_tester() -> ResNetTester:
 )
 @pytest.mark.skip(
     reason=failed_fe_compilation(
-        "Segfault (https://github.com/tenstorrent/tt-xla/issues/558)"
+        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
     )
 )
 def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):

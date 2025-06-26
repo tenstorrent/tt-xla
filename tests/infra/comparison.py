@@ -90,8 +90,8 @@ def compare_atol(
     )
     atol = jax.tree.reduce(lambda x, y: jnp.maximum(x, y), leaf_atols)
     assert atol <= atol_config.required_atol, (
-        f"Atol comparison failed. "
-        f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
+        f"Atol comparison failed: calculated={atol}, required={atol_config.required_atol}. "
+        f"{print_max_diff_elements(device_output, golden_output)}"
     )
 
 
@@ -130,6 +130,17 @@ def compare_allclose(
     )
     passed = jax.tree.reduce(lambda x, y: x and y, all_close)
     assert passed, (
-        f"Allclose comparison failed. "
-        f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
+        f"Allclose comparison failed, required: atol={allclose_config.atol}, rtol={allclose_config.rtol}. "
+        f"{print_max_diff_elements(device_output, golden_output)}"
     )
+
+
+def print_max_diff_elements(device_output: PyTree, golden_output: PyTree) -> str:
+    device_output_arr, _ = jax.flatten_util.ravel_pytree(device_output)
+    golden_output_arr, _ = jax.flatten_util.ravel_pytree(golden_output)
+
+    max_diff_idx = jnp.argmax(jnp.abs(device_output_arr - golden_output_arr))
+    device_el = device_output_arr[max_diff_idx]
+    golden_el = golden_output_arr[max_diff_idx]
+
+    return f"Max diff elements: device={device_el}, golden={golden_el}."

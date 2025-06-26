@@ -28,18 +28,12 @@ import flax.linen as nn
             False,
             marks=pytest.mark.xfail(
                 reason=incorrect_result(
-                    "Atol comparison failed. Calculated: atol=nan. Required: atol=0.16."
+                    "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
+                    "https://github.com/tenstorrent/tt-xla/issues/379"
                 )
             ),
         ),
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                reason=incorrect_result(
-                    "Allclose comparison failed. Required: atol=0.01, rtol=0.01."
-                )
-            ),
-        ),
+        pytest.param(True),
     ],
 )
 def test_gelu(x_shape, approximate):

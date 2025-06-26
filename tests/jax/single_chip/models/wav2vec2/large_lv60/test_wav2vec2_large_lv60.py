@@ -12,30 +12,32 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    passed,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import OPTTester
+from ..tester import Wav2Vec2Tester
 
-MODEL_PATH = "facebook/opt-125m"
+MODEL_PATH = "facebook/wav2vec2-large-lv60"
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "opt",
-    "125m",
-    ModelTask.NLP_CAUSAL_LM,
+    "wav2vec2",
+    "large-lv60",
+    ModelTask.AUDIO_CLS,
     ModelSource.HUGGING_FACE,
 )
+
+
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH)
+def inference_tester() -> Wav2Vec2Tester:
+    return Wav2Vec2Tester(MODEL_PATH)
 
 
 @pytest.fixture
-def training_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> Wav2Vec2Tester:
+    return Wav2Vec2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -47,9 +49,15 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-def test_opt_125m_inference(inference_tester: OPTTester):
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "failed to legalize operation 'stablehlo.dynamic_slice' "
+        "https://github.com/tenstorrent/tt-xla/issues/404"
+    )
+)
+def test_wav2vec2_large_lv60_inference(inference_tester: Wav2Vec2Tester):
     inference_tester.test()
 
 
@@ -61,5 +69,5 @@ def test_opt_125m_inference(inference_tester: OPTTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_opt_125m_training(training_tester: OPTTester):
+def test_wav2vec2_large_lv60_training(training_tester: Wav2Vec2Tester):
     training_tester.test()
