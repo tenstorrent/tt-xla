@@ -50,10 +50,11 @@ jobs:
     - name: Install mdBook
       shell: bash
       run: |
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
-        apt-get update
-        apt install cargo -y
-        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+        sudo apt-get update
+        sudo apt install cargo -y
+        sudo cargo install --version ${MDBOOK_VERSION} mdbook --locked
 
     - name: Setup Pages
       id: pages
