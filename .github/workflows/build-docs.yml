@@ -50,8 +50,8 @@ jobs:
     - name: Install system deps (Doxygen, Rust, Cargo)
       shell: bash
       run: |
-        sudo apt-get update
-        sudo apt-get install -y doxygen curl
+        apt-get update
+        apt-get install -y doxygen curl
 
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         source "$HOME/.cargo/env"
