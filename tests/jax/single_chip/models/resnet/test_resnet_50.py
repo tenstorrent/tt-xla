@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import pytest
+from infra import Framework, RunMode
+
+from tests.utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+)
+
+from .tester import ResNetTester, ResNetVariant
+
+MODEL_PATH = "microsoft/resnet-50"
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "resnet",
+    "50",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.HUGGING_FACE,
+)
+
+# ----- Fixtures -----
+
+
+@pytest.fixture
+def inference_tester() -> ResNetTester:
+    return ResNetTester(MODEL_PATH)
+
+
+@pytest.fixture
+def training_tester() -> ResNetTester:
+    return ResNetTester(MODEL_PATH, RunMode.TRAINING)
+
+
+# ----- Tests -----
+
+
+@pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+def test_resnet_50_inference(inference_tester: ResNetTester):
+    inference_tester.test()
+
+
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
+    run_mode=RunMode.TRAINING,
+)
+@pytest.mark.skip(reason="Support for training not implemented")
+def test_resnet_50_training(training_tester: ResNetTester):
+    training_tester.test()
