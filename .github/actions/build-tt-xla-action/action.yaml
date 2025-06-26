@@ -17,6 +17,7 @@ runs:
     - name: Configure CMake
       shell: bash
       run: |
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         cmake -G Ninja \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -27,6 +28,7 @@ runs:
     - name: Build
       shell: bash
       run: |
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
         source venv/activate
         cmake --build ${{ inputs.build-output-dir }}
 
