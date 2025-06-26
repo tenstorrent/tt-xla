@@ -58,14 +58,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y doxygen curl
 
-        # Install Rust
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         source "$HOME/.cargo/env"
 
-        # Install mdBook
         cargo install --version ${MDBOOK_VERSION} mdbook --locked
 
-        # Ensure ~/.cargo/bin is in PATH for all later steps
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Setup Pages

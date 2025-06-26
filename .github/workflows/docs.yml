@@ -5,9 +5,6 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# Sets permissions for:
-#   - downloading docker container
-#   - allowing deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -29,7 +26,6 @@ jobs:
     with:
       docker-image: ${{ needs.docker-build.outputs.docker-image }}
 
-  # Deployment job
   deploy:
     environment:
       name: github-pages

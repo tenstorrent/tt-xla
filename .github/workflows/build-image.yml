@@ -33,14 +33,12 @@ jobs:
         if: ${{ inputs.mlir_override }}
         shell: bash
         run: |
-            # Update the CMakeLists.txt file with the new SHA
             sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
 
       - name: Build Docker images and output the image name
         id: build
         shell: bash
         run: |
-          # Output the image name
           set pipefail
           .github/build-docker-images.sh | tee docker.log
           DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
