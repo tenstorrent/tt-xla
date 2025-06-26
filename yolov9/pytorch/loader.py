@@ -8,16 +8,55 @@ import torch
 import cv2
 import numpy as np
 from ...tools.utils import get_file
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from torch.hub import load_state_dict_from_url
 from ultralytics.nn.tasks import DetectionModel
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="yolov9",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=ModelTask.CV_OBJECT_DET,
+            source=ModelSource.CUSTOM,
+            framework=Framework.TORCH,
+        )
+
     """YOLOv9 model loader implementation."""
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_variant = "yolov9c"
+
+    def load_model(self, dtype_override=None):
         """Load and return the YOLOv9 model instance with default settings.
 
         Args:
@@ -28,7 +67,7 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The YOLOv9 model instance.
         """
 
-        variant = "yolov9c"
+        variant = self.model_variant
         weights = load_state_dict_from_url(
             f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{variant}.pt",
             map_location="cpu",
@@ -43,8 +82,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the YOLOv9 model with default settings.
 
         Args:

@@ -5,6 +5,13 @@
 Swin model loader implementation
 """
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from torchvision import models
 import torch
@@ -14,20 +21,50 @@ from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="swin",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=ModelSource.TORCH_HUB,
+            framework=Framework.TORCH,
+        )
+
     """Loads Swin model and sample input."""
 
-    # Shared configuration parameters
-    model_name = "swin_t"
-    weight_name = "Swin_T_Weights"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "swin_t"
+        self.weight_name = "Swin_T_Weights"
+        self._weights = None
+
+    def load_model(self, dtype_override=None):
         """Load pretrained Swin model."""
-        weights = getattr(models, cls.weight_name).DEFAULT
-        model = getattr(models, cls.model_name)(weights=weights)
+        weights = getattr(models, self.weight_name).DEFAULT
+        model = getattr(models, self.model_name)(weights=weights)
         model.eval()
 
-        cls._weights = weights
+        self._weights = weights
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -35,11 +72,10 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Prepare sample input for Swin model"""
 
-        preprocess = cls._weights.transforms()
+        preprocess = self._weights.transforms()
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
         image = Image.open(image_file).convert("RGB")
         img_t = preprocess(image)

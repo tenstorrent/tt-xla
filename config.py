@@ -76,6 +76,7 @@ class Framework(StrEnum):
     JAX = "jax"
     TORCH = "pytorch"
     NUMPY = "numpy"
+    ONNX = "onnx"
 
 
 class Parallelism(StrEnum):

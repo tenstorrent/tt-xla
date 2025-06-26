@@ -8,17 +8,54 @@ import torch
 
 
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 
 
 class ModelLoader(ForgeModel):
     """FlanT5 model loader implementation for Seq2SeqLM."""
 
-    # Shared configuration parameters
-    model_name = "google/flan-t5-small"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "google/flan-t5-small"
+        self.tokenizer = None
 
     @classmethod
-    def load_model(cls, dtype_override=None):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="flan_t5",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.NLP_CAUSAL_LM,
+            source=ModelSource.HUGGING_FACE,
+            framework=Framework.TORCH,
+        )
+
+    def load_model(self, dtype_override=None):
         """Load and return the FlanT5 model instance with default settings.
 
         Args:
@@ -30,18 +67,17 @@ class ModelLoader(ForgeModel):
         """
         # Initialize tokenizer first with default or overridden dtype
 
-        cls.tokenizer = AutoTokenizer.from_pretrained(cls.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForSeq2SeqLM.from_pretrained(cls.model_name, **model_kwargs)
+        model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name, **model_kwargs)
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the FlanT5 model with default settings.
 
         Args:
@@ -53,16 +89,16 @@ class ModelLoader(ForgeModel):
             dict: Input tensors and attention masks that can be fed to the model.
         """
         # Ensure tokenizer is initialized
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model(
+        if self.tokenizer is None:
+            self.load_model(
                 dtype_override=dtype_override
             )  # This will initialize the tokenizer
 
         # Create tokenized inputs
-        inputs = cls.tokenizer(
+        inputs = self.tokenizer(
             "A step by step recipe to make bolognese pasta:", return_tensors="pt"
         )
-        decoder_input_ids = torch.tensor([[cls.tokenizer.pad_token_id]])
+        decoder_input_ids = torch.tensor([[self.tokenizer.pad_token_id]])
 
         # Batch the inputs using repeat_interleave (works for batch_size=1 too)
         for key in inputs:
@@ -72,8 +108,7 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    @classmethod
-    def decode_output(cls, outputs, dtype_override=None, inputs=None):
+    def decode_output(self, outputs, dtype_override=None, inputs=None):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
@@ -86,17 +121,17 @@ class ModelLoader(ForgeModel):
             str: Decoded answer text
         """
         # Ensure tokenizer is initialized
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model(
+        if self.tokenizer is None:
+            self.load_model(
                 dtype_override=dtype_override
             )  # This will initialize the tokenizer
 
         if inputs is None:
-            inputs = cls.load_inputs()
+            inputs = self.load_inputs()
 
         logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
         token_ids = torch.argmax(logits, dim=-1)
-        decoded = cls.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+        decoded = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
 
         # Return single string for batch_size=1, list for batch_size>1
         return decoded[0] if len(decoded) == 1 else decoded

@@ -10,15 +10,63 @@ from PIL import Image
 from torchvision import transforms
 import numpy as np
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
+from ...config import ModelGroup, ModelTask, ModelSource, Framework
 from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
     """CenterNet model loader implementation."""
 
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
     @classmethod
-    def load_model(cls, **kwargs):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'dla1x_od'.
+                The task is determined based on the variant name:
+                - If 'hpe' in variant name: pose estimation
+                - If '3d' in variant name: 3D detection
+                - Else: object detection
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "dla1x_od"  # Default variant is object detection
+        # Determine task based on variant name
+        if "hpe" in variant_name:
+            task = ModelTask.CV_POSE_ESTIMATION
+        elif "3d" in variant_name.lower():
+            task = ModelTask.CV_3D_DETECTION
+        else:
+            task = ModelTask.CV_OBJECT_DET
+        return ModelInfo(
+            model="centernet",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=task,
+            source=ModelSource.CUSTOM,
+            framework=Framework.ONNX,
+        )
+
+    def load_model(self, **kwargs):
         """Load and return the CenterNet model instance with default settings.
 
         Returns:
@@ -32,8 +80,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, **kwargs):
+    def load_inputs(self, **kwargs):
         """Load and return sample inputs for the CenterNet model with default settings.
 
         Returns:

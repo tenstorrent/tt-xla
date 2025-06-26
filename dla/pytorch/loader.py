@@ -5,6 +5,13 @@
 DLA model loader implementation
 """
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 
 from PIL import Image
@@ -14,15 +21,44 @@ from .src import dla_model
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="dla",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=ModelSource.TORCH_HUB,
+            framework=Framework.TORCH,
+        )
+
     """Loads DLA model and sample input."""
 
-    # Shared configuration parameters
-    model_name = "dla34"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "dla34"
+
+    def load_model(self, dtype_override=None):
         """Load pretrained DLA model."""
-        func = getattr(dla_model, cls.model_name)
+        func = getattr(dla_model, self.model_name)
         model = func(pretrained=None)
         model.eval()
 
@@ -32,8 +68,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Prepare sample input for DLA model"""
 
         # Get the Image

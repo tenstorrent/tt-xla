@@ -5,6 +5,13 @@
 MobilenetV2 model loader implementation
 """
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 import torch
 from PIL import Image
@@ -14,16 +21,43 @@ from .src.utils import download_model
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="mobilenetv2",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=ModelSource.TORCH_HUB,
+            framework=Framework.TORCH,
+        )
+
     """Loads MobilenetV2 model and sample input."""
 
-    # Shared configuration parameters
-    model_name = "mobilenet_v2"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+    def load_model(self, dtype_override=None):
         """Load pretrained MobilenetV2 model."""
+        model_name = "mobilenet_v2"
         model = download_model(
-            torch.hub.load, "pytorch/vision:v0.10.0", cls.model_name, pretrained=True
+            torch.hub.load, "pytorch/vision:v0.10.0", model_name, pretrained=True
         )
         model.eval()
 
@@ -33,8 +67,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Prepare sample input for MobilenetV2 model"""
 
         # Get the Image

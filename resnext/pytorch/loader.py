@@ -6,6 +6,13 @@ Resnext model loader implementation
 """
 
 import torch
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 
 from PIL import Image
@@ -14,18 +21,43 @@ from torchvision import transforms
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="resnext",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=ModelSource.TORCH_HUB,
+            framework=Framework.TORCH,
+        )
+
     """Loads Resnext model and sample input."""
 
-    # Shared configuration parameters
-    model_name = "resnext50_32x4d"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+    def load_model(self, dtype_override=None):
         """Load pretrained Resnext model."""
 
-        model = torch.hub.load(
-            "pytorch/vision:v0.10.0", cls.model_name, pretrained=True
-        )
+        model_name = "resnext50_32x4d"
+        model = torch.hub.load("pytorch/vision:v0.10.0", model_name, pretrained=True)
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -34,8 +66,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Prepare sample input for Resnext model"""
 
         # Get the Image

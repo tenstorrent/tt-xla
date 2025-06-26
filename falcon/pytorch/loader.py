@@ -7,19 +7,56 @@ Falcon model loader implementation for question answering
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, FalconForCausalLM
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="falcon",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=ModelTask.NLP_CAUSAL_LM,
+            source=ModelSource.HUGGING_FACE,
+            framework=Framework.TORCH,
+        )
+
     """Falcon model loader implementation for question answering tasks."""
 
-    # Shared configuration parameters
-    model_name = "tiiuae/Falcon3-1B-Base"
-    input_text = "Write a function to calculate the factorial of a number"
-    max_length = 512
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "tiiuae/Falcon3-1B-Base"
+        self.input_text = "Write a function to calculate the factorial of a number"
+        self.max_length = 512
+        self.tokenizer = None
+
+    def load_model(self, dtype_override=None):
         """Load and return the Falcon model instance with default settings.
 
         Args:
@@ -34,8 +71,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        cls.tokenizer = AutoTokenizer.from_pretrained(
-            cls.model_name, **tokenizer_kwargs
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
@@ -44,35 +81,33 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = AutoModelForCausalLM.from_pretrained(
-            cls.model_name, return_dict=False, use_cache=False, **model_kwargs
+            self.model_name, return_dict=False, use_cache=False, **model_kwargs
         )
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Falcon model with default settings.
 
         Returns:
             dict: Input tensors and attention masks that can be fed to the model.
         """
         # Ensure tokenizer is initialized
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model()  # This will initialize the tokenizer
+        if self.tokenizer is None:
+            self.load_model()  # This will initialize the tokenizer
 
         # Create tokenized inputs
-        inputs = cls.tokenizer.encode(
-            cls.input_text,
+        inputs = self.tokenizer.encode(
+            self.input_text,
             add_special_tokens=True,
             return_tensors="pt",
-            max_length=cls.max_length,
+            max_length=self.max_length,
             padding="max_length",
             truncation=True,
         )
 
         return inputs
 
-    @classmethod
-    def decode_output(cls, outputs, inputs=None):
+    def decode_output(self, outputs, inputs=None):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
@@ -82,14 +117,14 @@ class ModelLoader(ForgeModel):
         Returns:
             str: Decoded answer text
         """
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model()  # This will initialize the tokenizer
+        if self.tokenizer is None:
+            self.load_model()  # This will initialize the tokenizer
 
         if inputs is None:
-            inputs = cls.load_inputs()
+            inputs = self.load_inputs()
 
         response_start = torch.argmax(outputs.start_logits)
         response_end = torch.argmax(outputs.end_logits) + 1
         response_tokens = inputs.input_ids[0, response_start:response_end]
 
-        return cls.tokenizer.decode(response_tokens)
+        return self.tokenizer.decode(response_tokens)

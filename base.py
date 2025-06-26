@@ -145,11 +145,17 @@ class ForgeModel(ABC):
         pass
 
     @classmethod
-    @abstractmethod
     def decode_output(cls, **kwargs):
-        """Load and return sample inputs for the model.
+        """Decode model outputs into a human-readable format if applicable.
+
+        This method is optional - only text-based models typically need it.
+        Default implementation returns the outputs unchanged.
+
+        Args:
+            **kwargs: Model-specific arguments like outputs, inputs, etc.
 
         Returns:
-            Any: Output will be Decoded from the model
+            Any: Decoded outputs or raw outputs if decoding is not implemented
         """
-        pass
+        # Default implementation just returns outputs if present in kwargs
+        return kwargs.get("outputs", None)

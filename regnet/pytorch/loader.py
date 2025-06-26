@@ -5,6 +5,13 @@
 Regnet model loader implementation
 """
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from transformers import AutoFeatureExtractor, RegNetForImageClassification
 from PIL import Image
@@ -12,17 +19,46 @@ from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
+    @classmethod
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="regnet",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=ModelSource.TORCH_HUB,
+            framework=Framework.TORCH,
+        )
+
     """Loads Regnet model and sample input."""
 
-    # Shared configuration parameters
-    model_name = "facebook/regnet-y-040"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
 
-    @classmethod
-    def load_model(cls, dtype_override=None):
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "facebook/regnet-y-040"
+
+    def load_model(self, dtype_override=None):
         """Load pretrained Regnet model."""
 
         model = RegNetForImageClassification.from_pretrained(
-            cls.model_name, return_dict=False
+            self.model_name, return_dict=False
         )
         model.eval()
 
@@ -32,8 +68,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Prepare sample input for Regnet model"""
 
         # Get the Image
@@ -41,7 +76,7 @@ class ModelLoader(ForgeModel):
         image = Image.open(image_file)
 
         # Preprocess image
-        image_processor = AutoFeatureExtractor.from_pretrained(cls.model_name)
+        image_processor = AutoFeatureExtractor.from_pretrained(self.model_name)
         inputs = image_processor(images=image, return_tensors="pt").pixel_values
 
         # Only convert dtype if explicitly requested

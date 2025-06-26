@@ -61,20 +61,41 @@ outputs = bfp16_model(bfp16_inputs)
 
 ## Adding New Models
 
-To add a new model:
+When adding a new model to the repository, follow these guidelines:
 
 1. Create a new top-level directory for your model (e.g., `mynewmodel/`)
 2. Create a framework-specific subdirectory (e.g., `mynewmodel/pytorch/`)
 3. Create a `loader.py` file within the framework directory that implements the ForgeModel interface with a class named `ModelLoader`
 4. Create a `src/` directory for your model implementation files (if needed)
 5. Create `__init__.py` files in both the top-level and framework directories
-6. Implement parameter-free `load_model()` and `load_inputs()` methods
+6. Implement the following standard methods:
+   - `load_model()` - Returns a model instance
+   - `load_inputs()` - Returns sample inputs for the model
+   - `_get_model_info()` - Returns metadata about the model
 
-Example for a new model:
+7. Use the standardized enum values from `config.py`:
+   - `ModelSource` - Use `HUGGING_FACE` for HuggingFace models, `TORCHVISION` for TorchVision models, etc.
+   - `ModelTask` - Use standardized task enums like `NLP_CAUSAL_LM`, `CV_IMAGE_CLS`, `AUDIO_ASR`, etc.
+   - `ModelGroup` - Use `PRIORITY` for high-priority models, `GENERALITY` for others
+
+8. Always use "base" as the default variant name:
+   ```python
+   if variant_name is None:
+       variant_name = "base"  # Previously "default" - now standardized across all loaders
+   ```
+
+Example implementation of a model loader:
 
 ```python
 # mymodel/pytorch/loader.py
 import torch
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from .src.model import MyModel
 
@@ -84,21 +105,37 @@ class ModelLoader(ForgeModel):
     param2 = 42
 
     @classmethod
-    def load_model(cls, dtype_override=None):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="my_model",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,  # Use appropriate enum
+            task=ModelTask.CV_IMAGE_CLS,  # Use appropriate enum
+            source=ModelSource.HUGGING_FACE,  # Use appropriate enum
+            framework=Framework.TORCH,
+        )
+
+    def load_model(self, dtype_override=None):
         """Load and return the model instance with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
         """
-        model = MyModel(param1=cls.param1, param2=cls.param2)
+        model = MyModel(param1=self.param1, param2=self.param2)
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             model = model.to(dtype_override)
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the model with default settings.
 
         Args:
@@ -124,55 +161,112 @@ from .loader import ModelLoader
 from .pytorch import ModelLoader
 ```
 
-## Future Considerations
-
-The new framework-aware directory structure is designed to support various future enhancements:
-
-1. **Multiple Framework Implementations**: The same model could be implemented in PyTorch, TensorFlow, JAX, or other frameworks while maintaining a consistent interface.
-
-2. **Model Variants**: Different versions of the same architecture (e.g., small, medium, large) could be implemented and selected via configuration.
-
 ## Supporting HuggingFace Models
 
 For models available through the HuggingFace Transformers library, we create wrapper loader classes that delegate to the HF APIs. This approach leverages HuggingFace's infrastructure while providing a standardized interface.
 
-Example of BERT implementation:
+Example of BERT implementation with variant support:
 
 ```python
 # bert/pytorch/loader.py
 import torch
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+from typing import Optional
+
 from ...base import ForgeModel
+from ...config import (
+    LLMModelConfig,
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 
 class ModelLoader(ForgeModel):
-    # Shared configuration parameters
-    model_name = "phiyodr/bert-large-finetuned-squad2"
-    torch_dtype = torch.bfloat16
+    """BERT model loader implementation for question answering tasks."""
+
+    # Dictionary of available model variants
+    _VARIANTS = {
+        "base": LLMModelConfig(
+            pretrained_model_name="phiyodr/bert-base-finetuned-squad2",
+            max_length=256,
+        ),
+        "large": LLMModelConfig(
+            pretrained_model_name="phiyodr/bert-large-finetuned-squad2",
+            max_length=256,
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = "large"
+
+    # Sample inputs for inference
     context = 'Johann Joachim Winckelmann was a German art historian and archaeologist...'
     question = "What discipline did Winkelmann create?"
 
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant."""
+        super().__init__(variant)
+        self.tokenizer = None
+
     @classmethod
-    def load_model(cls):
-        """Load a BERT model from Hugging Face."""
+    def _get_model_info(cls, variant_name: Optional[str]) -> ModelInfo:
+        """Implementation method for getting model info with validated variant."""
+        if variant_name is None:
+            variant_name = "base"  # Previously "default" - now standardized
+        return ModelInfo(
+            model="bert",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=ModelTask.NLP_QA,  # Standardized task enum
+            source=ModelSource.HUGGING_FACE,  # Standardized source enum
+            framework=Framework.TORCH,
+        )
+
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant."""
+        tokenizer_kwargs = {"padding_side": "left"}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+        return self.tokenizer
+
+    def load_model(self, dtype_override=None):
+        """Load and return the BERT model instance for this instance's variant."""
+        # Ensure tokenizer is loaded
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        # Load model with dtype override if specified
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+
         model = AutoModelForQuestionAnswering.from_pretrained(
-            cls.model_name, torch_dtype=cls.torch_dtype
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
         return model
 
-    @classmethod
-    def load_inputs(cls):
-        """Generate sample inputs for BERT models."""
-        # Initialize tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(
-            cls.model_name, padding_side="left", torch_dtype=cls.torch_dtype
-        )
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the BERT model with this instance's variant settings."""
+        # Ensure tokenizer is initialized
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        # Get max_length from the variant config
+        max_length = self._variant_config.max_length
 
         # Create tokenized inputs
-        inputs = tokenizer.encode_plus(
-            cls.question, cls.context,
+        inputs = self.tokenizer.encode_plus(
+            self.question,
+            self.context,
             add_special_tokens=True,
             return_tensors="pt",
-            max_length=256,
+            max_length=max_length,
             padding="max_length",
             truncation=True,
         )

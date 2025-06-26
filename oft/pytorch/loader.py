@@ -6,6 +6,13 @@ OFT (Orthographic Feature Transform) model loader implementation
 """
 import torch
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from .src.oftnet import OftNet
 
@@ -13,15 +20,44 @@ from .src.oftnet import OftNet
 class ModelLoader(ForgeModel):
     """OFT model loader implementation."""
 
-    # Shared configuration parameters
-    grid_res = 0.5
-    num_classes = 1
-    frontend = "resnet18"
-    topdown_layers = 8
-    grid_height = 4.0
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.grid_res = 0.5
+        self.num_classes = 1
+        self.frontend = "resnet18"
+        self.topdown_layers = 8
+        self.grid_height = 4.0
 
     @classmethod
-    def load_model(cls):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="oft",
+            variant=variant_name,
+            group=ModelGroup.PRIORITY,
+            task=ModelTask.CV_OBJECT_DET,
+            source=ModelSource.CUSTOM,
+            framework=Framework.TORCH,
+        )
+
+    def load_model(self):
         """Load and return the OFT model instance with default settings.
 
         Returns:
@@ -29,17 +65,16 @@ class ModelLoader(ForgeModel):
         """
         # Load model with defaults
         model = OftNet(
-            num_classes=cls.num_classes,
-            frontend=cls.frontend,
-            topdown_layers=cls.topdown_layers,
-            grid_res=cls.grid_res,
-            grid_height=cls.grid_height,
+            num_classes=self.num_classes,
+            frontend=self.frontend,
+            topdown_layers=self.topdown_layers,
+            grid_res=self.grid_res,
+            grid_height=self.grid_height,
         )
 
         return model
 
-    @classmethod
-    def load_inputs(cls):
+    def load_inputs(self):
         """Load and return sample inputs for the OFT model with default settings.
 
         Returns:
@@ -57,8 +92,8 @@ class ModelLoader(ForgeModel):
         dummy_calib = torch.randn(batch_size, 3, 4)
 
         # Calculate grid dimensions
-        grid_depth = int(grid_size[1] / cls.grid_res)
-        grid_width = int(grid_size[0] / cls.grid_res)
+        grid_depth = int(grid_size[1] / self.grid_res)
+        grid_width = int(grid_size[0] / self.grid_res)
         dummy_grid = torch.randn(batch_size, grid_depth, grid_width, 3)
 
         return (dummy_image, dummy_calib, dummy_grid)

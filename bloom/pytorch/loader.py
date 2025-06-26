@@ -7,6 +7,13 @@ Bloom model loader implementation
 """
 
 
+from ...config import (
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+)
 from ...base import ForgeModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
@@ -14,11 +21,42 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 class ModelLoader(ForgeModel):
     """Bloom model loader implementation."""
 
-    # Shared configuration parameters
-    model_name = "bigscience/bloom-1b1"
+    def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.model_name = "bigscience/bloom-1b1"
+        self.tokenizer = None
+        self.test_input = "This is a sample text from "
 
     @classmethod
-    def load_model(cls, dtype_override=None):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        return ModelInfo(
+            model="bloom",
+            variant=variant_name,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.NLP_CAUSAL_LM,
+            source=ModelSource.HUGGING_FACE,
+            framework=Framework.TORCH,
+        )
+
+    def load_model(self, dtype_override=None):
         """Load and return the Bloom model instance with default settings.
 
         Args:
@@ -33,8 +71,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        cls.tokenizer = AutoTokenizer.from_pretrained(
-            cls.model_name, **tokenizer_kwargs
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
@@ -42,12 +80,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForCausalLM.from_pretrained(cls.model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
 
         return model
 
-    @classmethod
-    def load_inputs(cls, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the Bloom model with default settings.
 
         Args:
@@ -60,16 +97,16 @@ class ModelLoader(ForgeModel):
         """
 
         # Ensure tokenizer is initialized
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model(
+        if self.tokenizer is None:
+            self.load_model(
                 dtype_override=dtype_override
             )  # This will initialize the tokenizer
 
         # Create batch of sample inputs
-        cls.test_input = "This is a sample text from "
+        self.test_input = "This is a sample text from "
 
-        inputs = cls.tokenizer(
-            cls.test_input,
+        inputs = self.tokenizer(
+            self.test_input,
             return_tensors="pt",
             max_length=32,
             padding="max_length",
@@ -83,8 +120,7 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    @classmethod
-    def decode_output(cls, outputs):
+    def decode_output(self, outputs):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
@@ -93,10 +129,10 @@ class ModelLoader(ForgeModel):
         Returns:
             str: Decoded answer text
         """
-        if not hasattr(cls, "tokenizer"):
-            cls.load_model()  # This will initialize the tokenizer
+        if self.tokenizer is None:
+            self.load_model()  # This will initialize the tokenizer
 
         # Get logits for the last token in each batch
         next_token_logits = outputs.logits[:, -1]
         next_tokens = next_token_logits.softmax(dim=-1).argmax(dim=-1)
-        return [cls.tokenizer.decode([token.item()]) for token in next_tokens]
+        return [self.tokenizer.decode([token.item()]) for token in next_tokens]
