@@ -121,7 +121,7 @@ class ModelTester(BaseTester, ABC):
         Configures model for inference *or* training, depending on chosen run mode.
         """
         if self._run_mode == RunMode.INFERENCE:
-            self._configure_model_for_training(self._model)
+            self._configure_model_for_inference(self._model)
         else:
             self._configure_model_for_training(self._model)
 
