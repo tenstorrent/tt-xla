@@ -5,4 +5,4 @@
 CenterNet model implementation for Tenstorrent projects.
 """
 # By default, import from the ONNX implementation."
-from .pytorch import ModelLoader
+from .onnx import ModelLoader

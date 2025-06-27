@@ -79,7 +79,7 @@ class ModelLoader(ForgeModel):
         """Generate sample inputs for Whisper model."""
 
         # Ensure processor is initialized
-        if not hasattr(cls, "processor"):
+        if self.processor is None:
             self.load_model()  # This will initialize the processor
 
         # load dummy dataset and read audio files
