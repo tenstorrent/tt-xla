@@ -4,13 +4,16 @@
 
 
 from contextlib import contextmanager
+import io
 import jax
 import jax.numpy as jnp
 from jax import export
 from jax._src.typing import DTypeLike
+from jax.experimental import serialize_executable
+import pickle
 from typing import Union
 
-from .device_runner import run_on_cpu
+from .device_runner import run_on_cpu, run_on_tt_device
 from .types import Framework, Tensor
 from .workload import Workload
 
@@ -127,3 +130,39 @@ def make_partition_spec(axis_names: tuple) -> jax.sharding.PartitionSpec:
     Returns a PartitionSpec object for the given `axis_names`.
     """
     return jax.sharding.PartitionSpec(*axis_names)
+
+
+@run_on_tt_device
+def serialize_function_to_binary(func, *args, **kwargs):
+    """
+    Serialize a JAX function to binary format.
+
+    Args:
+        func: The function to serialize
+        *args: Sample arguments to trigger compilation
+
+    Returns:
+        bytes: The serialized binary data
+    """
+
+    def persistent_load(pid):
+        if len(pid) < 2:
+            return pid[0]
+        return pid[1]
+
+    # JIT compile the function
+    jitted_func = jax.jit(func)
+
+    # Compile with the provided arguments
+    compiled = jitted_func.lower(*args, **kwargs).compile()
+
+    # Serialize the compiled executable
+    payload, _, _ = serialize_executable.serialize(compiled)
+
+    # Extract the binary from the payload
+    payload_io = io.BytesIO(payload)
+    unpickler = pickle.Unpickler(payload_io)
+    unpickler.persistent_load = persistent_load
+    unloaded_executable, _, _ = unpickler.load()
+
+    return unloaded_executable.xla_executable

@@ -75,9 +75,8 @@
   // https://github.com/tenstorrent/tt-xla/issues/496
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
 
-  // Serialization/deserialization of our executable is not yet supported.
+  // Deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
-  _STUB(PJRT_Executable_Serialize);
   _STUB(PJRT_Executable_DeserializeAndLoad);
   // ---------------------------------------------------------------------------
 

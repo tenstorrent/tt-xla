@@ -43,6 +43,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/executable_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
     "pjrt_implementation/memory_instance.cc"
+    "pjrt_implementation/serialized_executable_instance.cc"
 )
 
 add_dependencies(TTPJRTCommon
