@@ -4,9 +4,8 @@
 
 import jax
 import pytest
-
 from infra import run_op_test_with_random_inputs
-from tests.utils import Category
+from utils import Category
 
 
 @pytest.mark.push

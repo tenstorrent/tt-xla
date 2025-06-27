@@ -5,8 +5,7 @@
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test
-
-from tests.utils import Category, failed_ttmlir_compilation
+from utils import Category, failed_ttmlir_compilation
 
 
 @pytest.mark.push

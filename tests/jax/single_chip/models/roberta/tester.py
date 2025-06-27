@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxPreTrainedModel, FlaxRobertaForMaskedLM
 
 
-class FlaxRobertaForMaskedLMTester(ModelTester):
+class FlaxRobertaForMaskedLMTester(JaxModelTester):
     """Tester for Roberta model on a masked language modeling task."""
 
     # TODO(mrakita): Add tests for other variants.

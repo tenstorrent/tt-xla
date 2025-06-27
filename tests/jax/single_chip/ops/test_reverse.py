@@ -6,8 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
-
-from tests.utils import Category, failed_ttmlir_compilation
+from utils import Category, failed_ttmlir_compilation
 
 
 @pytest.mark.push

@@ -2,16 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import jax.numpy as jnp
 import jax
 import pytest
 from infra import (
-    make_partition_spec,
     ShardingMode,
-    run_multichip_test_with_random_inputs,
+    make_partition_spec,
+    run_jax_multichip_op_test_with_random_inputs,
 )
-
-from tests.utils import failed_ttmlir_compilation, incorrect_result
+from utils import failed_ttmlir_compilation
 
 
 def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
@@ -66,7 +64,7 @@ def test_reshard(
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec([axis_names[1], axis_names[0]])
 
-    run_multichip_test_with_random_inputs(
+    run_jax_multichip_op_test_with_random_inputs(
         fwd,
         [input_shape],
         mesh_shape,

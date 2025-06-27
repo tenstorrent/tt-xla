@@ -3,20 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from infra.multichip_utils import enable_shardy
-
-from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.tester import (
-    AlexNetMultichipTester,
-)
-from tests.utils import (
+from infra import Framework, RunMode, enable_shardy
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+)
+
+from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.tester import (
+    AlexNetMultichipTester,
 )
 
 MODEL_NAME = build_model_name(

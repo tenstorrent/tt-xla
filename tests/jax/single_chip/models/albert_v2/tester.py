@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxAlbertForMaskedLM, FlaxPreTrainedModel
 
 
-class AlbertV2Tester(ModelTester):
+class AlbertV2Tester(JaxModelTester):
     """Tester for Albert model on a masked language modeling task."""
 
     def __init__(

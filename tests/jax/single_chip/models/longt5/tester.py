@@ -5,7 +5,7 @@
 from typing import Any, Dict, Mapping
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import (
     AutoTokenizer,
     FlaxLongT5ForConditionalGeneration,
@@ -13,7 +13,7 @@ from transformers import (
 )
 
 
-class LongT5Tester(ModelTester):
+class LongT5Tester(JaxModelTester):
     """Tester for Long T5 model variants."""
 
     def __init__(

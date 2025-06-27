@@ -6,8 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
-
-from tests.utils import Category, convert_output_to_bfloat16
+from utils import Category, convert_output_to_bfloat16
 
 
 @pytest.mark.push

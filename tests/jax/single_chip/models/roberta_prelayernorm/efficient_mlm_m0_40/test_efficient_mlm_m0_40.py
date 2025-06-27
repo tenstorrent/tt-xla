@@ -6,14 +6,13 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, ModelTester, RunMode
+from infra import ComparisonConfig, Framework, JaxModelTester, RunMode
 from transformers import (
     AutoTokenizer,
     FlaxPreTrainedModel,
     FlaxRobertaPreLayerNormForMaskedLM,
 )
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -33,7 +32,7 @@ MODEL_NAME = build_model_name(
 )
 
 
-class FlaxRobertaPreLayerNormForMaskedLMTester(ModelTester):
+class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
     """Tester for Roberta PreLayerNorm model on a masked language modeling task."""
 
     def __init__(

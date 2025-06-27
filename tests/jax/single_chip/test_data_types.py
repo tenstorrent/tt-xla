@@ -11,8 +11,7 @@ import jax.numpy as jnp
 import pytest
 from infra import run_op_test
 from jax._src.typing import DTypeLike
-
-from tests.utils import Category, enable_x64
+from utils import Category, enable_x64
 
 
 @pytest.mark.push

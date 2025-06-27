@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Sequence
 
 import flax.traverse_util
 import fsspec
@@ -11,10 +10,9 @@ import ml_collections
 import numpy
 import pytest
 from flax import linen as nn
-from infra import Framework, ModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from jaxtyping import PyTree
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -43,7 +41,7 @@ token_mlp_dim = 384
 channel_mlp_dim = 3072
 
 
-class MlpMixerTester(ModelTester):
+class MlpMixerTester(JaxModelTester):
     """Tester for MlpMixer model."""
 
     # @override

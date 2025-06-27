@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxOPTForCausalLM, FlaxPreTrainedModel
 
 
-class OPTTester(ModelTester):
+class OPTTester(JaxModelTester):
     """Tester for OPT models for autoregressive text generation."""
 
     def __init__(

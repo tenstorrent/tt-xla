@@ -2,30 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
-
-from tests.utils import Category
+from utils import Category
 
 dim0_cases = []
-for begin in jnp.arange(10).tolist():
-    for end in jnp.arange(90, 100).tolist():
+for begin in range(10):
+    for end in range(90, 100):
         dim0_cases.append((begin, end, 0))
 
 dim1_cases = []
-for begin in jnp.arange(10).tolist():
-    for end in jnp.arange(90, 100).tolist():
+for begin in range(10):
+    for end in range(90, 100):
         dim1_cases.append((begin, end, 1))
 
 dim2_cases = []
-for begin in jnp.arange(0, 64, 32).tolist():
-    for end in jnp.arange(64, 128, 32).tolist():
+for begin in range(0, 64, 32):
+    for end in range(64, 128, 32):
         dim2_cases.append((begin, end, 2))
 
 dim3_cases = []
-for begin in jnp.arange(0, 64, 32).tolist():
-    for end in jnp.arange(64, 128, 32).tolist():
+for begin in range(0, 64, 32):
+    for end in range(64, 128, 32):
         dim3_cases.append((begin, end, 3))
 
 

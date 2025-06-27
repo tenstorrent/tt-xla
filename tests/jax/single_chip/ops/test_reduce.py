@@ -6,8 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import ComparisonConfig, run_op_test_with_random_inputs
-
-from tests.utils import Category, failed_runtime
+from utils import Category, failed_runtime
 
 
 # TODO investigate why this doesn't pass with default comparison config.
