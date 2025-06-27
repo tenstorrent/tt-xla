@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// PJRT C API includes
+// llvm mlir includes
 #include "mlir/IR/Types.h"
+
+// PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -14,7 +16,7 @@
 
 namespace tt::pjrt::data_type_utils {
 
-// Returns a the name of the PJRT_Buffer_Type enum as a std::string.
+// Returns string with a name of the given PJRT buffer data type.
 std::string getPJRTBufferTypeString(PJRT_Buffer_Type type);
 
 // Returns the PJRT_Buffer_Type enum corresponding to the given runtime data

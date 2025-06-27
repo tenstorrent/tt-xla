@@ -77,7 +77,7 @@ public:
   // Returns number of output buffers per device produced by this executable.
   const size_t getNumOutputs() const { return m_num_outputs; }
 
-  // Returns the vector of output data types
+  // Returns the vector of output data types.
   std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
 
   // Returns raw pointer to data types for each output buffer.

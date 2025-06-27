@@ -191,11 +191,11 @@ void BufferInstance::copyFromHost(
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
   }
-  // Otherwise when input host buffer has other semantic we are allowed to
-  // alias it, so we can create borrowed host which doesn't copy any data and
-  // instead uses direct pointer to existing data. Since we are holding a
-  // pointer to the original data we can't mark the event as ready yet, so we
-  // remember it and mark it as ready once the buffer is destroyed.
+  // Otherwise when input host buffer has other semantic we are allowed to alias
+  // it, so we can create borrowed host which doesn't copy any data and instead
+  // uses direct pointer to existing data. Since we are holding a pointer to the
+  // original data we can't mark the event as ready yet, so we remember it and
+  // mark it as ready once the buffer is destroyed.
   else {
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
@@ -292,11 +292,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
   size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
-  assert(runtime_tensor_size == host_buffer_size &&
-         "the runtime_tensor_size retrieved from "
-         "getConvertedRuntimeTensorSize() must be equal to the host buffer "
-         "size as we should be able to infer this from the runtime tensor "
-         "volume and output type of the BufferInstance.");
+  if (runtime_tensor_size > host_buffer_size) {
+    DLOG_F(ERROR,
+           "Tried to copy device buffer to the host buffer with smaller size "
+           "than required (device buffer size: %zu, host buffer size: %zu)",
+           runtime_tensor_size, host_buffer_size);
+    out_copy_done_event = nullptr;
+    return tt_pjrt_status::kFailedPrecondition;
+  }
 
   // Wait if there is a copy already in progress.
   if (m_copy_to_host_thread) {

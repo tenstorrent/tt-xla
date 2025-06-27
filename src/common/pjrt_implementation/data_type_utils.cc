@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/pjrt_implementation/data_type_utils.h"
-#include "mlir/IR/BuiltinTypes.h"
 
 // c++ standard library includes
 #include <stdexcept>
+
+// llvm mlir includes
+#include "mlir/IR/BuiltinTypes.h"
 
 namespace tt::pjrt::data_type_utils {
 

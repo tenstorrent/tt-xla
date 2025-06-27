@@ -90,9 +90,6 @@ private:
   mlir::OwningOpRef<mlir::ModuleOp>
   createVHLOModule(const std::string_view &code);
 
-  // Returns the data type of the given MLIR type.
-  PJRT_Buffer_Type getDataType(mlir::Type type);
-
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -206,7 +203,7 @@ private:
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
 
-  // For every output, store the expected data type
+  // For every output, stores the expected data type.
   std::vector<PJRT_Buffer_Type> m_output_data_types;
 
   // Number of partitions defined for the program module.
