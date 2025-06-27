@@ -48,9 +48,9 @@ def run_multi_chip(input_ids, attention_mask, max_len, config):
 
 
 def make_inputs(config):
-    batch_size = 2
-    seq_len = 5
-    num_new_tokens = 3
+    batch_size = 4
+    seq_len = 20
+    num_new_tokens = 10
     max_len = seq_len + num_new_tokens
     input_ids = np.random.randint(config.vocab_size, size=(batch_size, seq_len))
     attention_mask = np.ones_like(input_ids)
@@ -64,7 +64,7 @@ def make_inputs(config):
 if __name__ == "__main__":
     model_id = "mistralai/Mixtral-8x7B-v0.1"
     config = AutoConfig.from_pretrained(model_id)
-    config.num_hidden_layers = 2
+    config.num_hidden_layers = 4
     config._attn_implementation = "eager"
     config.intermediate_size = 1024
 

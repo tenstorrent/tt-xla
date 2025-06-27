@@ -114,6 +114,7 @@ class MixtralSparseMoeBlock(nnx.Module):
     def __call__(self, hidden_states):
         batch_size, seq_len, hid_dim = hidden_states.shape
         hidden_states = hidden_states.reshape(-1, hid_dim)
+
         router_logits = self.gate(hidden_states)
 
         routing_weights = jax.nn.softmax(router_logits, axis=1)
@@ -138,6 +139,7 @@ class MixtralSparseMoeBlock(nnx.Module):
             expert_weights = jnp.zeros(
                 (batch_size * seq_len), dtype=routing_weights.dtype
             )
+
             for k in range(self.top_k):
                 expert_weights = expert_weights + jnp.where(
                     selected_experts[:, k] == expert_idx, routing_weights[:, k], 0.0
@@ -157,6 +159,9 @@ class MixtralSparseMoeBlock(nnx.Module):
             final_hidden_states = final_hidden_states + masked_output
 
         final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hid_dim)
+
+        final_hidden_states = jax.lax.psum(final_hidden_states, axis_name="X")
+
         return final_hidden_states, router_logits
 
 
@@ -218,7 +223,7 @@ class MixtralRotaryEmbedding(nnx.Module):
     def __call__(self, x, position_ids=None):
         if position_ids is None:
             position_ids = jnp.tile(jnp.arange(x.shape[-2]), (x.shape[0], 1))
-        inv_freq_expanded = jnp.expand_dims(self.inv_freq, axis=(0, 2))
+        inv_freq_expanded = jnp.expand_dims(self.inv_freq.value, axis=(0, 2))
         inv_freq_expanded = jnp.tile(inv_freq_expanded, (position_ids.shape[0], 1, 1))
         position_ids_expanded = jnp.expand_dims(position_ids, axis=1)
 
@@ -360,11 +365,21 @@ class MixtralAttention(nnx.Module):
         init_cache: Optional[bool] = True,
         **kwargs,
     ):
-        batch_size, seq_len, embed = hidden_states.shape
-        input_shape = hidden_states.shape[:-1]
+        batch_size, seq_len, _ = hidden_states.shape
+
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
+
+        query_states = jax.lax.all_gather(
+            jnp.array(query_states), axis_name="X", axis=2, tiled=True
+        )
+        key_states = jax.lax.all_gather(
+            jnp.array(key_states), axis_name="X", axis=2, tiled=True
+        )
+        value_states = jax.lax.all_gather(
+            jnp.array(value_states), axis_name="X", axis=2, tiled=True
+        )
 
         query_states = query_states.reshape(
             batch_size, seq_len, self.num_heads, self.head_dim
@@ -375,7 +390,7 @@ class MixtralAttention(nnx.Module):
         value_states = value_states.reshape(
             batch_size, seq_len, self.num_key_value_heads, self.head_dim
         )
-        # print(query_states.shape)
+
         cos, sin = position_embeddings
 
         query_states, key_states = apply_rotary_pos_emb(
@@ -390,7 +405,7 @@ class MixtralAttention(nnx.Module):
         mask_shift = cache_index
         max_decoder_length = cached_key.shape[1]
         causal_mask = lax.dynamic_slice(
-            self.causal_mask,
+            self.causal_mask.value,
             (0, 0, mask_shift, 0),
             (1, 1, query_length, max_decoder_length),
         )
@@ -403,7 +418,6 @@ class MixtralAttention(nnx.Module):
             jnp.expand_dims(attention_mask, axis=(-3, -2)), causal_mask.shape
         )
         attention_mask = combine_masks(attention_mask, causal_mask)
-
         (
             key_states,
             value_states,
@@ -449,8 +463,15 @@ class MixtralAttention(nnx.Module):
         )
 
         attn_output = attn_output.reshape(batch_size, seq_len, -1)
-        attn_output = self.o_proj(attn_output)
 
+        local_dim = 4096 // 8
+        start_idx = jax.lax.axis_index("X") * local_dim
+        attn_output_local = jax.lax.dynamic_slice(
+            attn_output, (0, 0, start_idx), (batch_size, seq_len, local_dim)
+        )
+
+        attn_output = self.o_proj(attn_output_local)
+        attn_output = jax.lax.psum(attn_output, axis_name="X")
         return attn_output, attn_weights, past_key_values
 
 
@@ -481,9 +502,9 @@ class MixtralDecoderLayer(nnx.Module):
         position_embeddings: Optional[Tuple[Array, Array]] = None,
         **kwargs,
     ):
+
         residual = hidden_states
         hidden_states = self.input_norm(hidden_states)
-        # print(hidden_states.sharding)
         hidden_states, self_attn_weights, past_key_values = self.attn(
             hidden_states=hidden_states,
             position_ids=position_ids,
@@ -493,16 +514,15 @@ class MixtralDecoderLayer(nnx.Module):
             init_cache=init_cache,
             **kwargs,
         )
+
         hidden_states = residual + hidden_states
         residual = hidden_states
-        # print(hidden_states.shape)
-        # print(hidden_states.sharding)
         hidden_states = self.attn_norm(hidden_states)
 
-        # print(hidden_states.shape)
         hidden_states, router_logits = self.block_sparse_moe(hidden_states)
-        # print(hidden_states.shape)
+
         hidden_states = residual + hidden_states
+
         outputs = (hidden_states,)
         outputs += (past_key_values,)
 
@@ -581,14 +601,17 @@ class MixtralModel(nnx.Module):
 
         if input_embeds is None:
             input_embeds = self.embed_tokens(input_ids)
-
         hidden_states = input_embeds
-
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         all_router_logits = () if output_router_logits else None
+
+        hidden_states = jax.lax.all_gather(
+            hidden_states, axis_name="X", axis=-1, tiled=True
+        )
+
         for decoder_layer in self.layers:
 
             if output_hidden_states:
@@ -701,6 +724,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
     def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask=None):
         batch_size, _ = input_ids.shape
         past_key_values = {}
+
         for i in range(self.config.num_hidden_layers):
             layer_key = f"layer_{i}"
             past_key_values[layer_key] = {
@@ -741,7 +765,6 @@ class FlaxMixtralForCausalLM(nnx.Module):
         state = nnx.state(self)
 
         pspecs = nnx.get_partition_spec(state)
-
         sharded_state = jax.lax.with_sharding_constraint(state, pspecs)
 
         nnx.update(self, sharded_state)
@@ -755,7 +778,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
                 "cache_index": P(),  # Replicated
             }
 
-        return self, cache_specs
+        return cache_specs
 
     def generate(
         self,
@@ -775,7 +798,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
             if eos_token_id is not None
             else getattr(self.config, "eos_token_id", None)
         )
-        # Initialize generation variables
+
         batch_size, seq_len = input_ids.shape
         max_len = max_new_tokens + seq_len
 
@@ -784,12 +807,13 @@ class FlaxMixtralForCausalLM(nnx.Module):
         if position_ids is None:
             position_ids = jnp.cumsum(attention_mask, axis=-1) - 1
 
-        with device_mesh:
-            sharded_model, cache_specs = self.prepare_sharding()
-
-        def model_forward(input_ids, attention_mask, position_ids, past_key_values):
+        def model_forward(
+            model_state, input_ids, attention_mask, position_ids, past_key_values
+        ):
             # Call the model
-            outputs = sharded_model(
+            model = nnx.merge(nnx.graphdef(self), model_state)
+
+            outputs = model(
                 input_ids,
                 attention_mask,
                 position_ids,
@@ -797,22 +821,32 @@ class FlaxMixtralForCausalLM(nnx.Module):
             )
             return outputs.logits, outputs.past_key_values
 
-        sharded_forward = nnx.shard_map(
-            model_forward,
-            mesh=device_mesh,
-            in_specs=(P(), P(), P(), cache_specs),
-            out_specs=(P(None, None, "X"), cache_specs),
-            check_rep=False,
-        )
+        with device_mesh:
+            cache_specs = self.prepare_sharding()
 
-        jit_forward = nnx.jit(sharded_forward, donate_argnums=(3,))
+            model_state = nnx.state(self)
+            model_specs = nnx.get_partition_spec(model_state)
+
+            sharded_forward = nnx.shard_map(
+                model_forward,
+                mesh=device_mesh,
+                in_specs=(model_specs, P(), P(), P(), cache_specs),
+                out_specs=(P(None, None, "X"), cache_specs),
+                check_rep=False,
+            )
+
+            jit_forward = nnx.jit(sharded_forward, donate_argnums=(4,))
 
         all_token_ids = jnp.zeros((batch_size, max_len), dtype=input_ids.dtype)
         all_token_ids = all_token_ids.at[:, :seq_len].set(input_ids)
 
         # First forward pass
         logits, past_key_values = jit_forward(
-            input_ids, attention_mask, position_ids[:, :seq_len], past_key_values
+            model_state,
+            input_ids,
+            attention_mask,
+            position_ids[:, :seq_len],
+            past_key_values,
         )
 
         next_token_logits = logits[:, -1, :]
@@ -829,6 +863,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
             new_position_ids = position_ids[:, cur_len].reshape(-1, 1)
 
             logits_step, past_key_values = jit_forward(
+                model_state,
                 next_token,
                 attention_mask,
                 new_position_ids,

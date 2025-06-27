@@ -118,6 +118,7 @@ class MixtralSparseMoeBlock(nnx.Module):
         expert_mask = jax.nn.one_hot(
             selected_experts, num_classes=self.num_experts, dtype=jnp.int8
         ).transpose(2, 1, 0)
+
         for expert_idx in range(self.num_experts):
             expert_layer = self._get_expert(expert_idx)
             idx, top_x = jnp.where(expert_mask[expert_idx])
@@ -130,7 +131,6 @@ class MixtralSparseMoeBlock(nnx.Module):
             )
 
         final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hid_dim)
-        # print(final_hidden_states)
         return final_hidden_states, router_logits
 
 
@@ -458,8 +458,11 @@ class MixtralDecoderLayer(nnx.Module):
 
         # Fully Connected
         residual = hidden_states
+
         hidden_states = self.attn_norm(hidden_states)
+
         hidden_states, router_logits = self.block_sparse_moe(hidden_states)
+
         hidden_states = residual + hidden_states
         outputs = (hidden_states,)
 
