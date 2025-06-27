@@ -17,11 +17,11 @@ jobs:
       test_mark: 'nightly'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_4", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_8", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
+          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
+          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
+          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
         ]
 
   test_full_model:
@@ -33,11 +33,11 @@ jobs:
       test_mark: 'model_test'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_4", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_8", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
+          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
+          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
+          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
         ]
 
   fail-notify:
