@@ -52,7 +52,7 @@ def training_tester() -> MNISTCNNTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
+def test_torch_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()
 
 
@@ -65,5 +65,5 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
+def test_torch_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
     training_tester.test()

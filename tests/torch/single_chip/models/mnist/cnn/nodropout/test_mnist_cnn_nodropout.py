@@ -58,7 +58,7 @@ def training_tester() -> MNISTCNNTester:
         "failed to legalize operation 'stablehlo.batch_norm_inference'"
     )
 )
-def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
+def test_torch_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()
 
 
@@ -71,5 +71,5 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
+def test_torch_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()
