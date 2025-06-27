@@ -30,5 +30,5 @@ else
 
   export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
   # Include paths to local python files as well as tt-mlir packages and ttrt wheel build folder.
-  export PYTHONPATH="$(pwd):$(pwd)/tests:$(pwd)/third_party/tt-mlir/build/python_packages:$(pwd)/third_party/tt-mlir/build/runtime/tools/python/build/lib.linux-x86_64-3.10"
+  export PYTHONPATH="$(pwd):$(pwd)/tests:$(pwd)/third_party/tt-mlir/build/python_packages:$(pwd)/third_party/tt-mlir/build/runtime/tools/ttrt"
 fi
