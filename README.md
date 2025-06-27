@@ -37,7 +37,7 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
 
 - [tt-xla](https://github.com/tenstorrent/tt-xla)
   - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), `tt-mlir` and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to `tt-mlir` compiler
-  - See [getting_started.md](docs/src/getting_started.md) for an overview and getting started guide.
+  - See [docs pages](https://docs.tenstorrent.com/tt-xla/) for an overview and getting started guide.
 
 -----
 # Related Tenstorrent Projects
