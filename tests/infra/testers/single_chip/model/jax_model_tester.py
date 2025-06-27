@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import jax
 from flax import linen, nnx
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model, PyTree
 from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from op_by_op_infra.pydantic_models import OpTest
+from op_by_op_infra.workflow import run_op_by_op_workflow
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from .model_tester import ModelTester, RunMode
@@ -172,3 +174,23 @@ class JaxModelTester(ModelTester):
             workload.executable, static_argnames=workload.static_argnames
         )
         return workload
+
+    # @override
+    def _test_inference_op_by_op(
+        self,
+        compile_before_split: bool = False,
+        compile_each_submodule_after_split: bool = False,
+        *,
+        frontend: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ) -> List[OpTest]:
+        compiled_workload = self._compile(self._workload)
+        assert isinstance(compiled_workload, JaxWorkload)
+
+        return run_op_by_op_workflow(
+            module=compiled_workload.as_mlir_module_str(),
+            compile_before_split=compile_before_split,
+            compile_each_submodule_after_split=compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )

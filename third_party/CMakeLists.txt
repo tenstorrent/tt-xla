@@ -46,7 +46,7 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
@@ -58,6 +58,15 @@ else()
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}")
 
     # Expose all tt-mlir .so files as shared imported libraries.
+    if(ENABLE_TTRT)
+        add_custom_target(ttrt ALL # Adding it to ALL will trigger its command when `cmake --build build` is executed`
+            COMMENT "Building ttrt... ${TTMLIR_BUILD_DIR}"
+            COMMAND cmake --build ${TTMLIR_BUILD_DIR} -- ttrt
+            DEPENDS tt-mlir
+        )
+    endif()
+
+    # Link to all TTMLIR libraries in ${TTMLIR_INSTALL_DIR}/install/lib
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")

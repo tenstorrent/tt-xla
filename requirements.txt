@@ -17,12 +17,16 @@ pillow
 pre-commit
 psutil
 pybind11
+pydantic
 pytest
+pytest-json-report
 sentencepiece
 setuptools
 soundfile
-torch==2.7.0
-torch_xla==2.7.0
-torchvision
+# We need these specific versions of following packages otherwise compatibility errors
+# will arise. Take care when updating them.
+torch@https://download.pytorch.org/whl/cpu-cxx11-abi/torch-2.6.0%2Bcpu.cxx11.abi-cp310-cp310-linux_x86_64.whl
+torch_xla@https://storage.googleapis.com/pytorch-xla-releases/wheels/tpuvm/torch_xla-2.6.0%2Bcxx11-cp310-cp310-manylinux_2_28_x86_64.whl
+torchvision@https://download.pytorch.org/whl/cpu/torchvision-0.21.0%2Bcpu-cp310-cp310-linux_x86_64.whl
 transformers
 wheel
