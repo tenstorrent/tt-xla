@@ -56,7 +56,8 @@ public:
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
                              std::vector<std::uint32_t> &&dimensions,
-                             DeviceInstance *device, MemoryInstance *memory);
+                             DeviceInstance *device, MemoryInstance *memory,
+                             PJRT_Buffer_Type data_type);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -95,8 +96,14 @@ public:
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
-  // Returns the size of the underlying runtime tensor, in bytes.
-  size_t getRuntimeTensorSize() const;
+  // Returns the size of the tensor in the data type that the host expects.
+  // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
+  // runtime/ttnn. And so, the true data type of the runtime tensor may be
+  // different than what the host expects, and will be casted to the hosts
+  // expected data type when copying to host, possibly leading to a different
+  // size. This function will calculate the converted runtime tensor size to be
+  // tensor_volume * expected_host_data_type_element_size
+  size_t getConvertedRuntimeTensorSize() const;
 
   // Returns true if the buffer data was deleted, i.e. its underlying tensor was
   // deallocated.
@@ -143,7 +150,8 @@ private:
   // Constructor used for the output buffers.
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
-                 DeviceInstance *device, MemoryInstance *memory);
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type expected_data_type);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);

@@ -54,7 +54,9 @@ def training_tester() -> MNISTCNNTester:
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_fe_compilation("Runtime error: Unsupported PJRT buffer data type")
+    reason=failed_fe_compilation(
+        "failed to legalize operation 'stablehlo.rng_bit_generator'"
+    )
 )
 def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()

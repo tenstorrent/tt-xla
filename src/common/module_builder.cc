@@ -55,6 +55,9 @@
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
+// tt-xla includes
+#include "common/pjrt_implementation/data_type_utils.h"
+
 namespace tt::pjrt {
 
 const std::string ModuleBuilder::c_mlir_format_name = "mlir";
@@ -307,6 +310,7 @@ ModuleBuilder::getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op) {
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_is_output_scalar.clear();
+  m_output_data_types.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
@@ -314,6 +318,8 @@ void ModuleBuilder::collectOutputTypes(
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
+      m_output_data_types.push_back(
+          tt::pjrt::data_type_utils::convertMLIRToPJRTDataType(returnType));
     }
   }
 }
