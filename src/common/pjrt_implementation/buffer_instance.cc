@@ -292,18 +292,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
   size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
-  // If the host buffer is intended to be a boolean, than the runtime tensor
-  // size should be greater than the host buffer size as we represent booleans
-  // in BFloat16 in the runtime.
-  if (runtime_tensor_size > host_buffer_size &&
-      m_data_type != PJRT_Buffer_Type_PRED) {
-    DLOG_F(ERROR,
-           "Tried to copy device buffer to the host buffer with smaller size "
-           "than required (device buffer size: %zu, host buffer size: %zu)",
-           runtime_tensor_size, host_buffer_size);
-    out_copy_done_event = nullptr;
-    return tt_pjrt_status::kFailedPrecondition;
-  }
+  assert(runtime_tensor_size == host_buffer_size &&
+         "the runtime_tensor_size retrieved from "
+         "getConvertedRuntimeTensorSize() must be equal to the host buffer "
+         "size as we should be able to infer this from the runtime tensor "
+         "volume and output type of the BufferInstance.");
 
   // Wait if there is a copy already in progress.
   if (m_copy_to_host_thread) {
