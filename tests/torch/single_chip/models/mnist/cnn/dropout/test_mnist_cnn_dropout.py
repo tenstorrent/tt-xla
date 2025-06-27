@@ -13,7 +13,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    failed_fe_compilation,
 )
 
 from ..tester import MNISTCNNTester
@@ -51,10 +51,10 @@ def training_tester() -> MNISTCNNTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime("Runtime error: Unsupported PJRT buffer data type")
+    reason=failed_fe_compilation("Runtime error: Unsupported PJRT buffer data type")
 )
 def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()

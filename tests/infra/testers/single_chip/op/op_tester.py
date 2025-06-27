@@ -59,10 +59,6 @@ class OpTester(BaseTester):
     # -------------------- Private methods --------------------
 
     # @override
-    def _initialize_all_components(self) -> None:
-        self._initialize_framework_specific_helpers()
-
-    # @override
     def _compile(self, workload: Workload) -> Workload:
         """
         Compiles executable carried in `workload` based on framework.

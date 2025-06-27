@@ -98,10 +98,8 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
 
     # @override
     def _initialize_all_components(self) -> None:
-        self._initialize_framework_specific_helpers()
         self._initialize_meshes()
-        self._initialize_model()
-        self._initialize_workload()
+        super()._initialize_all_components()
 
     def _initialize_meshes(self) -> None:
         """Initializes `self._device_mesh` and `self._cpu_mesh`."""

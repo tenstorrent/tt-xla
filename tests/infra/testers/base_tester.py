@@ -27,30 +27,26 @@ class BaseTester(ABC):
         self._comparison_config = comparison_config
         self._framework = framework
         # Placeholders for objects that will be set during
-        # `_initialize_all_components`. Easier to spot if located in constructor instead
-        # of dynamically creating them somewhere in methods.
+        # `_initialize_framework_specific_helpers`. Easier to spot if located in
+        # constructor instead of dynamically creating them somewhere in methods.
         self._device_runner: DeviceRunner = None
         self._comparator: Comparator = None
 
+        # Automatically initialize framework-specific helpers. Leave to subclasses to
+        # override `_initialize_all_components` if there are more initialization steps.
+        self._initialize_framework_specific_helpers()
         # Initialize rest of the class.
         self._initialize_all_components()
-
-    @abstractmethod
-    def _initialize_all_components(self) -> None:
-        """
-        Helper initialization method allowing subclasses to define a piece by piece
-        object construction.
-        """
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
-    def _compile(self, workload: Workload) -> Workload:
-        """Compiles `workload`."""
-        raise NotImplementedError("Subclasses must implement this method.")
 
     def _initialize_framework_specific_helpers(self) -> None:
         """
         Initializes `self._device_runner` and `self._comparator`.
+
+        Based on the framework instantiates a DeviceRunner (which internally
+        instantiates a DeviceConnector singleton, ensuring plugin registration and
+        connection to the device) and a Comparator, instantiates and stores the concrete
+        model instance and finally packs model or its forward method and its arguments
+        in a Workload.
 
         This function triggers connection to device.
         """
@@ -60,6 +56,21 @@ class BaseTester(ABC):
         self._comparator = ComparatorFactory.create_comparator(
             self._framework, self._comparison_config
         )
+
+    def _initialize_all_components(self) -> None:
+        """
+        Helper initialization method allowing subclasses to define a piece by piece
+        object construction.
+
+        Subclasses should override this method if there are more initialization steps
+        to do upon object creation.
+        """
+        pass
+
+    @abstractmethod
+    def _compile(self, workload: Workload) -> Workload:
+        """Compiles `workload`."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
     # --- Convenience wrappers ---
 

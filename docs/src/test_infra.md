@@ -1,6 +1,6 @@
 # Test infra
 
-Test infra consists of main "tester" classes and a few helper ones. It's main goal is making test
+Test infra consists of main "tester" classes and a few helper ones. Its main goal is making test
 writing easy.
 
 Here is a brief class diagram of the infra:

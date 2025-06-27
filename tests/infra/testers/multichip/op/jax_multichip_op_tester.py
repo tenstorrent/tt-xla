@@ -122,7 +122,6 @@ class JaxMultichipOpTester(BaseTester):
 
     # @override
     def _initialize_all_components(self) -> None:
-        self._initialize_framework_specific_helpers()
         self._initialize_meshes()
 
     def _initialize_meshes(self) -> None:

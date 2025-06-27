@@ -19,7 +19,7 @@ Tensor = Union[jax.Array, torch.Tensor]
 
 # Convenience alias. Used to jointly represent models (commonly called NN modules) from
 # different frameworks.
-# NOTE nnx.Module is the newest API, linen.Module is legacy but it is used in some
+# NOTE nnx.Module is the newest API, linen.Module is legacy but it is used in all
 # huggingface models.
 Model = Union[nnx.Module, linen.Module, FlaxPreTrainedModel, torch.nn.Module]
 

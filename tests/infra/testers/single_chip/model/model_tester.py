@@ -129,32 +129,16 @@ class ModelTester(BaseTester, ABC):
 
     # @override
     def _initialize_all_components(self) -> None:
-        """
-        Helper initialization method.
-
-        Based on the framework instantiates a DeviceRunner (which internally
-        instantiates a DeviceConnector singleton, ensuring plugin registration and
-        connection to the device) and a Comparator, instantiates and stores the concrete
-        model instance and finally packs model or its forward method and its arguments
-        in a Workload.
-
-        NOTE It is important that plugin registration is conducted before any other
-        framework-specific commands are executed. For example, getting forward method
-        args or kwargs will inevitably invoke `_get_input_activations` which might
-        contain some framework specific commands (like jax.ones(...)). So we should
-        strive to create a DeviceRunner as soon as possible. Only after havig framework
-        set are we able to instatiate a proper DeviceRunner (i.e. establish device
-        connection).
-
-        NOTE It is also important that model is configured before it is prepacked into a
-        Workload during `_initialize_workload`.
-        """
-        self._initialize_framework_specific_helpers()
         self._initialize_model()
         self._initialize_workload()
 
     def _initialize_model(self) -> None:
-        """Initializes `self._model`"""
+        """
+        Initializes `self._model`
+
+        It is also important that model is configured before it is prepacked into a
+        Workload during `_initialize_workload`.
+        """
         # Store model instance.
         self._model = self._get_model()
         # Configure it.

@@ -51,9 +51,9 @@ def training_tester() -> MNISTCNNTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "failed to legalize operation 'stablehlo.batch_norm_inference'"
     )
