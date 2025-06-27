@@ -5,7 +5,7 @@ tt-xla leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt
 
 ## Installation with Docker
 
-We provide Docker images with all Forge frontends and their dependencies preinstalled and ready to use. 
+We provide Docker images with all Forge frontends and their dependencies preinstalled and ready to use.
 
 1. Install drivers and tt-smi tool on the host machine using [tt-installer](https://github.com/tenstorrent/tt-installer) tool:
 ```bash
