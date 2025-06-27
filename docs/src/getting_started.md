@@ -3,6 +3,42 @@ tt-xla leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt
 
 > **Note:** Currently only Tenstorrent `nebula` boards are supported and `galaxy` boards are not yet supported.
 
+## Quick start
+
+1. Install drivers and tt-smi tool using tt-installer:
+```bash
+/bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
+```
+
+2. Install tt-forge docker image and run it:
+```bash
+# Pull the latest docker
+docker pull ghcr.io/tenstorrent/tt-forge/tt-forge-slim:latest
+
+# Run it
+docker run -it --rm \
+  --device /dev/tenstorrent \
+  -v /dev/hugepages-1G:/dev/hugepages-1G \
+  ghcr.io/tenstorrent/tt-forge/tt-forge-slim:latest
+```
+
+3. Activate the virtual environment which comes prepared in the docker:
+```bash
+source /home/forge/venv-tt-xla/bin/activate
+```
+
+4. Run the demo scripts:
+```
+# Clone the tt-forge repo
+git clone https://github.com/tenstorrent/tt-forge.git
+
+# Demo scripts are located in `tt-forge/demos`, in folders per frontend.
+# Here are some example demo scripts you can run:
+python tt-forge/demos/tt-xla/albert_base_v2/demo.py
+python tt-forge/demos/tt-xla/gpt2/demo.py
+python tt-forge/demos/tt-xla/opt_125m/demo.py
+```
+
 ## Build Process
 tt-xla integration with tt-mlir compiler is still in progress. Currently tt-xla it depends on tt-mlir toolchain for build. This build flow provides an easy way to experiment with tt-xla, StableHLO, and the tt-mlir infrastructure. The build process will be updated in the future to enhance the user experience.
 
