@@ -137,8 +137,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists,
-                      m_executable_image->getExpectedOutputDataTypes());
+                      args->output_lists, m_executable_image->getOutputTypes());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {

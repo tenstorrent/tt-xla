@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/pjrt_implementation/data_type_utils.h"
-#include "xla/pjrt/c/pjrt_c_api.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 // c++ standard library includes
 #include <stdexcept>
@@ -115,31 +115,66 @@ convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
   case PJRT_Buffer_Type_PRED:
     return tt::target::DataType::Bool;
   default:
-    throw std::runtime_error(
-        std::string("PJRT data type: ") +
-        getPJRTBufferTypeString(pjrt_data_type) +
-        " does not have tt::target::UnsupportedDataType equivalent");
+    throw std::runtime_error(std::string("PJRT data type: ") +
+                             getPJRTBufferTypeString(pjrt_data_type) +
+                             " does not have runtime data type equivalent");
   }
 }
 
-bool isDataTypeSupported(PJRT_Buffer_Type data_type) {
-  switch (data_type) {
-  case PJRT_Buffer_Type_U8:
-    return true;
-  case PJRT_Buffer_Type_U16:
-    return true;
-  case PJRT_Buffer_Type_U32:
-    return true;
-  case PJRT_Buffer_Type_S32:
-    return true;
-  case PJRT_Buffer_Type_F16:
-    return true;
-  case PJRT_Buffer_Type_F32:
-    return true;
-  case PJRT_Buffer_Type_BF16:
-    return true;
-  default:
-    return false;
+PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type) {
+
+  if (mlir::RankedTensorType tensorType =
+          mlir::dyn_cast<mlir::RankedTensorType>(type)) {
+    return convertMLIRToPJRTDataType(tensorType.getElementType());
   }
+
+  if (mlir::FloatType floatType =
+          mlir::dyn_cast_or_null<mlir::FloatType>(type)) {
+    if (floatType.isF64()) {
+      return PJRT_Buffer_Type_F64;
+    } else if (floatType.isF32()) {
+      return PJRT_Buffer_Type_F32;
+    } else if (floatType.isF16()) {
+      return PJRT_Buffer_Type_F16;
+    } else if (floatType.isBF16()) {
+      return PJRT_Buffer_Type_BF16;
+    } else {
+      throw std::runtime_error("Unsupported float type");
+    }
+  } else if (mlir::IntegerType intType =
+                 mlir::dyn_cast<mlir::IntegerType>(type)) {
+    if (intType.isSigned() || intType.isSignless()) {
+      if (intType.getWidth() == 64) {
+        return PJRT_Buffer_Type_S64;
+      } else if (intType.getWidth() == 32) {
+        return PJRT_Buffer_Type_S32;
+      } else if (intType.getWidth() == 16) {
+        return PJRT_Buffer_Type_S16;
+      } else if (intType.getWidth() == 8) {
+        return PJRT_Buffer_Type_S8;
+      } else if (intType.getWidth() == 1 && intType.isSignless()) {
+        return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
+      } else {
+        throw std::runtime_error("Unsupported signed integer type");
+      }
+    } else {
+      if (intType.getWidth() == 64) {
+        return PJRT_Buffer_Type_U64;
+      } else if (intType.getWidth() == 32) {
+        return PJRT_Buffer_Type_U32;
+      } else if (intType.getWidth() == 16) {
+        return PJRT_Buffer_Type_U16;
+      } else if (intType.getWidth() == 8) {
+        return PJRT_Buffer_Type_U8;
+      } else if (intType.getWidth() == 1) {
+        return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
+      } else {
+        throw std::runtime_error("Unsupported unsigned integer type");
+      }
+    }
+  }
+
+  throw std::runtime_error("Unsupported data type");
 }
+
 } // namespace tt::pjrt::data_type_utils

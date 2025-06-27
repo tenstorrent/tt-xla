@@ -77,6 +77,9 @@ public:
   // Returns number of output buffers per device produced by this executable.
   const size_t getNumOutputs() const { return m_num_outputs; }
 
+  // Returns the vector of output data types
+  std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
+
   // Returns raw pointer to data types for each output buffer.
   PJRT_Buffer_Type *getOutputTypesRaw() { return m_output_types.data(); }
 
@@ -98,10 +101,6 @@ public:
   // Returns the sharding information for the output buffer with a given index.
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
-
-  const std::vector<PJRT_Buffer_Type> &getExpectedOutputDataTypes() const {
-    return m_expected_output_data_types;
-  }
 
   // Gets the vector of memory kinds for each output.
   const std::vector<const char *> &getOutputMemoryKinds() const {
@@ -159,9 +158,6 @@ private:
 
   // Holds data type for each output buffer.
   std::vector<PJRT_Buffer_Type> m_output_types;
-
-  // Holds expected data type for each output buffer.
-  std::vector<PJRT_Buffer_Type> m_expected_output_data_types;
 
   // Holds dimensions for each output buffer.
   std::vector<std::vector<std::uint32_t>> m_output_dimensions;

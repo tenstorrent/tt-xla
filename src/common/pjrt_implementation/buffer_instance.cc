@@ -14,9 +14,13 @@
 #include <stdexcept>
 #include <thread>
 
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/utils.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
@@ -24,8 +28,6 @@
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
-#include "ttmlir/Target/Common/types_generated.h"
-#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 
@@ -40,20 +42,6 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
   };
 
   return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
-                                               device, memory);
-}
-
-std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
-    const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
-    DeviceInstance *device, MemoryInstance *memory) {
-  struct make_unique_enabler : public BufferInstance {
-    make_unique_enabler(const tt::runtime::Tensor &tensor,
-                        std::vector<std::uint32_t> &&dimensions,
-                        DeviceInstance *device, MemoryInstance *memory)
-        : BufferInstance(tensor, std::move(dimensions), device, memory) {}
-  };
-
-  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
                                                device, memory);
 }
 
@@ -85,23 +73,9 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
-                               DeviceInstance *device, MemoryInstance *memory)
-    : m_data_type(tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-          tt::runtime::getTensorDataType(tensor))),
-      m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
-      m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {
-  // We want to be in control when buffers are deallocated, which happens during
-  // buffer destruction or on delete/destroy API calls.
-  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
-}
-
-BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
-                               const std::vector<std::uint32_t> &dimensions,
                                DeviceInstance *device, MemoryInstance *memory,
-                               PJRT_Buffer_Type expected_data_type)
-    : m_data_type(expected_data_type),
+                               PJRT_Buffer_Type data_type)
+    : m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
@@ -131,10 +105,11 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::getRuntimeTensorSize() const {
+size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   std::uint32_t runtime_tensor_size =
       tt::runtime::getTensorVolume(m_runtime_tensor) *
-      tt::runtime::getTensorElementSize(m_runtime_tensor);
+      tt::runtime::utils::dataTypeElementSize(
+          data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
   return static_cast<size_t>(runtime_tensor_size);
 }
@@ -183,13 +158,12 @@ void BufferInstance::copyFromHost(
     EventInstance **out_done_with_host_buffer_event) {
 
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
-  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-
+  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
@@ -202,6 +176,11 @@ void BufferInstance::copyFromHost(
   // copying scalars and numpy arrays, so the copy shouldn't take long. We can
   // mark the event as ready since we don't need the original host buffer
   // anymore.
+  //
+  // If the runtime data type which has been inferred from m_data_type is not
+  // supported by runtime/ttnn, then we must create an owned tensor as runtime
+  // must case the data inside the host buffer into a supported data type. Thus,
+  // the buffer cannot be borrowed.
   if (host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
@@ -211,12 +190,13 @@ void BufferInstance::copyFromHost(
 
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
-    // Otherwise when input host buffer has other semantic we are allowed to
-    // alias it, so we can create borrowed host which doesn't copy any data and
-    // instead uses direct pointer to existing data. Since we are holding a
-    // pointer to the original data we can't mark the event as ready yet, so we
-    // remember it and mark it as ready once the buffer is destroyed.
-  } else {
+  }
+  // Otherwise when input host buffer has other semantic we are allowed to
+  // alias it, so we can create borrowed host which doesn't copy any data and
+  // instead uses direct pointer to existing data. Since we are holding a
+  // pointer to the original data we can't mark the event as ready yet, so we
+  // remember it and mark it as ready once the buffer is destroyed.
+  else {
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
@@ -233,6 +213,7 @@ void BufferInstance::copyFromHost(
     // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
   }
+
   // We want to be in control when input buffers are deallocated, which happens
   // during buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
@@ -310,7 +291,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           EventInstance **out_copy_done_event) {
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
-  size_t runtime_tensor_size = getRuntimeTensorSize();
+  size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
   // If the host buffer is intended to be a boolean, than the runtime tensor
   // size should be greater than the host buffer size as we represent booleans
   // in BFloat16 in the runtime.
@@ -330,12 +311,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   }
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
-
-  tt::target::DataType runtime_tensor_data_type =
-      tt::runtime::getTensorDataType(m_runtime_tensor);
-  PJRT_Buffer_Type pjrt_tensor_data_type =
-      tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-          runtime_tensor_data_type);
 
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
@@ -486,7 +461,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    args->dst_size = buffer->getRuntimeTensorSize();
+    args->dst_size = buffer->getConvertedRuntimeTensorSize();
     return nullptr;
   }
 

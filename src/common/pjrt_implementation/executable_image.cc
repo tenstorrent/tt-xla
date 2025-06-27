@@ -68,7 +68,7 @@ ExecutableImage::ExecutableImage(
       m_num_devices_to_utilize(num_devices_to_utilize),
       m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
-      m_expected_output_data_types(expected_output_data_types) {
+      m_output_types(expected_output_data_types) {
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -88,10 +88,6 @@ ExecutableImage::ExecutableImage(
   m_output_ranks.resize(m_num_outputs);
 
   for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
-    m_output_types[output_index] =
-        tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-            output_specs[output_index].dataType);
-
     // PJRT expects an empty shape for scalars.
     m_output_dimensions.emplace_back(is_output_scalar[output_index]
                                          ? std::vector<std::uint32_t>()
