@@ -13,11 +13,12 @@ import jax
 
 load_dotenv()
 
-from multichip.multichipmixtral import FlaxMixtralForCausalLM  
+from multichip.multichipmixtral import FlaxMixtralForCausalLM
 
 # need a token
 hf_token = os.getenv("HF_TOKEN")
 login(token=hf_token)
+
 
 def prepare_output(result):
     if result.startswith("<|begin_of_text|>"):
@@ -27,6 +28,7 @@ def prepare_output(result):
         result = result[len(prompt) :].lstrip()
 
     return result
+
 
 def prepare_pytorch_inputs(model_id: str, prompt: str):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -40,9 +42,12 @@ def prepare_pytorch_inputs(model_id: str, prompt: str):
 def prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len):
     input_ids = jnp.array(pt_input_ids)
     attention_mask = jnp.array(pt_attention_mask)
-    input_ids, attention_mask, position_ids, past_key_values = jax_model.prepare_inputs_for_generation(
-        input_ids, max_len, attention_mask
-    )
+    (
+        input_ids,
+        attention_mask,
+        position_ids,
+        past_key_values,
+    ) = jax_model.prepare_inputs_for_generation(input_ids, max_len, attention_mask)
     return input_ids, attention_mask, position_ids, past_key_values
 
 
@@ -52,6 +57,7 @@ def load_pytorch_model_from_hf(model_id, config):
     )
 
     return model
+
 
 def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
     return pt_model.generate(pt_input_ids, attention_mask=pt_attention_mask)
@@ -64,15 +70,21 @@ def load_jax_model(config, pt_model):
     nnx.update(jax_model, new_state)
     return jax_model
 
+
 def run_jax_model(
-    jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len, past_key_values
+    jax_model,
+    jax_input_ids,
+    jax_attention_mask,
+    jax_position_ids,
+    max_len,
+    past_key_values,
 ):
     _, seq_len = jax_input_ids.shape
     out = jax_model.generate(
         input_ids=jax_input_ids,
         attention_mask=jax_attention_mask,
         max_new_tokens=max_len - seq_len,
-        past_key_values = past_key_values,
+        past_key_values=past_key_values,
         position_ids=jax_position_ids,
     )
     return jax.device_get(out)
@@ -97,13 +109,21 @@ def run_comparison_test(model_id: str, prompt: str):
     max_len = pt_outputs[0].shape[0]
 
     jax_model = load_jax_model(config, pt_model)
-    
-    jax_input_ids, jax_attention_mask, jax_position_ids, past_key_values = prepare_jax_inputs(
-        jax_model, pt_input_ids, pt_attention_mask, max_len
-    )
+
+    (
+        jax_input_ids,
+        jax_attention_mask,
+        jax_position_ids,
+        past_key_values,
+    ) = prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len)
 
     jax_outputs = run_jax_model(
-        jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len, past_key_values
+        jax_model,
+        jax_input_ids,
+        jax_attention_mask,
+        jax_position_ids,
+        max_len,
+        past_key_values,
     )
 
     result_pt = tokenizer.decode(pt_outputs[0], skip_special_tokens=False)
