@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import threading
 from abc import ABC, abstractmethod
@@ -12,8 +13,10 @@ from typing import Sequence
 
 from infra.utilities import Device
 
-# Relative path to PJRT plugin for TT devices.
-TT_PJRT_PLUGIN_RELPATH = "build/src/tt/pjrt_plugin_tt.so"
+from python_package import TT_PJRT_PLUGIN_NAME
+
+# Relative path to PJRT plugin for TT devices built from source.
+TT_PJRT_PLUGIN_BUILD_RELPATH = f"build/src/tt/{TT_PJRT_PLUGIN_NAME}"
 
 
 class DeviceType(Enum):
@@ -87,7 +90,7 @@ class DeviceConnector(ABC):
         raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
-    def _register_plugin(self, plugin_path: str) -> None:
+    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
         """
         Registers custom TT plugin which will make TTDevice available.
 
@@ -106,13 +109,40 @@ class DeviceConnector(ABC):
         return cls._instance
 
     def __init__(self) -> None:
-        self._default_xla_flags = os.environ.get("XLA_FLAGS", "")
+        wheel_plugin_path = self._find_plugin_path_from_wheel()
+        build_plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_BUILD_RELPATH)
 
-        plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_RELPATH)
+        if not os.path.exists(wheel_plugin_path) and not os.path.exists(
+            build_plugin_path
+        ):
+            raise FileNotFoundError(
+                f"Could not find TT PJRT plugin either from wheel installation or from "
+                f"local build at {build_plugin_path}"
+            )
+
+        self._register_plugin(wheel_plugin_path, build_plugin_path)
+
+    def _find_plugin_path_from_wheel(self):
+        """Finds path to the plugin installed from wheel."""
+        # Try and see if plugin was installed from a wheel.
+        # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
+        jax_plugins_spec = importlib.util.find_spec("jax_plugins")
+        if jax_plugins_spec is None:
+            return None
+
+        # Check if the wheel-installed jax plugin exists.
+        plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
+        if plugin_spec is None:
+            return None
+
+        # Plugin should be in the same directory as the module's __init__.py file.
+        plugin_path = os.path.join(
+            os.path.dirname(plugin_spec.origin), TT_PJRT_PLUGIN_NAME
+        )
         if not os.path.exists(plugin_path):
-            raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
+            return None
 
-        self._register_plugin(plugin_path)
+        return plugin_path
 
     def _supported_devices(self) -> Sequence[DeviceType]:
         """Returns list of supported device types."""

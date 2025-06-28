@@ -14,6 +14,8 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
+from python_package import TT_PJRT_PLUGIN_NAME
+
 THIS_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
 REPO_DIR = Path(os.path.join(THIS_DIR, "..")).resolve()
 
@@ -118,7 +120,7 @@ class SetupConfig:
     @property
     def pjrt_plugin_path(self) -> Path:
         """Full path to custom TT PJRT plugin."""
-        return REPO_DIR / f"build/src/tt/pjrt_plugin_tt.so"
+        return REPO_DIR / f"build/src/tt/{TT_PJRT_PLUGIN_NAME}"
 
     @property
     def tt_mlir_install_dir(self) -> Path:
@@ -152,7 +154,7 @@ class SetupConfig:
     @property
     def pjrt_plugin_copied(self) -> bool:
         """Returns True if .so file is already copied to destination."""
-        return (self.jax_plugin_target_dir / "pjrt_plugin_tt.so").exists()
+        return (self.jax_plugin_target_dir / TT_PJRT_PLUGIN_NAME).exists()
 
     @property
     def jax_plugin_init(self) -> Path:
@@ -351,7 +353,7 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=["jax_plugins.pjrt_plugin_tt"],
-    package_data={"jax_plugins.pjrt_plugin_tt": ["pjrt_plugin_tt.so"]},
+    package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME]},
     package_dir={f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt"},
     python_requires=">=3.10, <3.11",
     url="https://github.com/tenstorrent/tt-xla",
