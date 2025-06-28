@@ -720,6 +720,57 @@ class FlaxMixtralForCausalLM(nnx.Module):
             router_logits=outputs.router_logits,
             past_key_values=past_key_values,
         )
+    
+    @staticmethod
+    def load_hf_params(state, pt_model, config) -> nnx.state:
+        embeddings = pt_model.model.embed_tokens.weight.detach().cpu().numpy()
+        # Save LM head
+        lm_head = pt_model.lm_head.weight.detach().cpu().numpy()
+        state['model']['embed_tokens']['embedding'].value = jnp.array(embeddings)
+        state['lm_head']['kernel'].value = jnp.array(lm_head.T)
+
+        final_norm = pt_model.model.norm.weight.detach().cpu().numpy()
+        state['model']['norm']['weight'].value = jnp.array(final_norm)
+
+        for i in range(config.num_hidden_layers):
+            layer = pt_model.model.layers[i]
+            layerJax = state['model']['layers'][i]
+            input_layernorm = layer.input_layernorm.weight.detach().cpu().numpy()
+            post_attention_layernorm = (
+                layer.post_attention_layernorm.weight.detach().cpu().numpy()
+            )
+
+            attn_q = layer.self_attn.q_proj.weight.detach().cpu().numpy()
+            attn_k = layer.self_attn.k_proj.weight.detach().cpu().numpy()
+            attn_v = layer.self_attn.v_proj.weight.detach().cpu().numpy()
+            attn_o = layer.self_attn.o_proj.weight.detach().cpu().numpy()
+
+            layerJax['input_norm']['weight'].value = jnp.array(input_layernorm)
+            layerJax['attn_norm']['weight'].value = jnp.array(post_attention_layernorm)
+
+            layerJax['attn']['q_proj']['kernel'].value = jnp.array(attn_q.T)
+            layerJax['attn']['k_proj']['kernel'].value = jnp.array(attn_k.T)
+            layerJax['attn']['v_proj']['kernel'].value = jnp.array(attn_v.T)
+            layerJax['attn']['o_proj']['kernel'].value = jnp.array(attn_o.T)
+
+            moe = layer.block_sparse_moe
+            moe_gate = moe.gate.weight.detach().cpu().numpy()
+
+            layerJax['block_sparse_moe']['gate']['kernel'].value = jnp.array(moe_gate.T)
+
+            num_experts = config.num_local_experts
+
+            for j in range(num_experts):
+                w1 = moe.experts[j].w1.weight.detach().cpu().numpy()
+                w2 = moe.experts[j].w2.weight.detach().cpu().numpy()
+                w3 = moe.experts[j].w3.weight.detach().cpu().numpy()
+                expert = layerJax['block_sparse_moe']['experts'][j]
+
+                expert['gate_proj']['kernel'].value = jnp.array(w3.T)
+                expert['up_proj']['kernel'].value = jnp.array(w1.T)
+                expert['down_proj']['kernel'].value = jnp.array(w2.T)
+
+        return state
 
     def prepare_inputs_for_generation(self, input_ids, max_length, attention_mask=None):
         batch_size, _ = input_ids.shape
