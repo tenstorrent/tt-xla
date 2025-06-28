@@ -19,7 +19,6 @@ from multichip.multichipmixtral import FlaxMixtralForCausalLM
 hf_token = os.getenv("HF_TOKEN")
 login(token=hf_token)
 
-
 def prepare_output(result):
     if result.startswith("<|begin_of_text|>"):
         result = result[len("<|begin_of_text|>") :].lstrip()
@@ -28,7 +27,6 @@ def prepare_output(result):
         result = result[len(prompt) :].lstrip()
 
     return result
-
 
 def prepare_pytorch_inputs(model_id: str, prompt: str):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -55,9 +53,9 @@ def load_pytorch_model_from_hf(model_id, config):
 
     return model
 
-
 def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
     return pt_model.generate(pt_input_ids, attention_mask=pt_attention_mask)
+
 
 def load_jax_model(config, pt_model):
     jax_model = FlaxMixtralForCausalLM(config)
