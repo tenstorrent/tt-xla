@@ -2,12 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import importlib.util
-
 import jax
 import jax._src.xla_bridge as xb
 from infra.utilities import Device
-from jax._src.lib import xla_client
 
 from .device_connector import DeviceConnector, DeviceType
 
@@ -40,31 +37,22 @@ class JaxDeviceConnector(DeviceConnector):
         return len(jax.devices(device_type.value))
 
     # @override
-    def _register_plugin(self, plugin_path: str) -> None:
+    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
         """
         Registers TT plugin which will make TTDevice available in JAX.
 
-        For source builds, loads the plugin from build directory. For wheel installs,
-        imports the prebuilt plugin which self-registers.
+        For wheel installs plugin is self-registered so this only updates the JAX config.
+        If wheel plugin is not available, registers the plugin from build directory.
         """
         try:
-            # Try and see if plugin was installed from a wheel.
-            # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
-            jax_plugins_spec = importlib.util.find_spec("jax_plugins")
-
-            if jax_plugins_spec is not None:
-                # Check if the wheel-installed jax plugin exists.
-                plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
-
-                if plugin_spec is not None:
-                    # Wheel-installed plugin is present, it will self-register on demand.
-                    self._update_jax_config()
-                    return
+            if wheel_plugin_path is not None:
+                # Wheel-installed plugin is present, it will self-register on demand.
+                self._update_jax_config()
+                return
 
             # No wheel plugin found, fall back to local build.
-            xb.register_plugin(DeviceType.TT.value, library_path=plugin_path)
+            xb.register_plugin(DeviceType.TT.value, library_path=build_plugin_path)
             self._update_jax_config()
-
         except Exception as e:
             raise RuntimeError(
                 "Failed to initialize TT PJRT plugin for JAX from wheel or local build."

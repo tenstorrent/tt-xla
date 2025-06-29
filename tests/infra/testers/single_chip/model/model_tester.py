@@ -114,6 +114,16 @@ class ModelTester(BaseTester, ABC):
         """Configures `model` for training."""
         raise NotImplementedError("Subclasses must implement this method")
 
+    @abstractmethod
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @abstractmethod
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
     # -------------------- Private methods --------------------
 
     def _configure_model(self) -> None:
@@ -121,7 +131,7 @@ class ModelTester(BaseTester, ABC):
         Configures model for inference *or* training, depending on chosen run mode.
         """
         if self._run_mode == RunMode.INFERENCE:
-            self._configure_model_for_training(self._model)
+            self._configure_model_for_inference(self._model)
         else:
             self._configure_model_for_training(self._model)
 
@@ -153,10 +163,11 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        compiled_workload = self._compile(self._workload)
+        compiled_cpu_workload = self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(compiled_cpu_workload)
 
-        tt_res = self._run_on_tt_device(compiled_workload)
-        cpu_res = self._run_on_cpu(compiled_workload)
+        compiled_device_workload = self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(compiled_device_workload)
 
         self._compare(tt_res, cpu_res)
 

@@ -54,14 +54,32 @@ class TorchDeviceConnector(DeviceConnector):
         )
 
     # @override
-    def _register_plugin(self, plugin_path: str) -> None:
+    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
+        """
+        Registers TT plugin which will make TTDevice available in PyTorch/XLA.
+
+        For wheel installs, registers the plugin installed from wheel. If wheel plugin
+        is not available, registers the plugin from build directory.
+        """
         try:
             os.environ["PJRT_DEVICE"] = DeviceType.TT.value
             os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
+            if wheel_plugin_path is None:
+                plugin_path = build_plugin_path
+            else:
+                plugin_path = wheel_plugin_path
+                # Export path to metal so it is accessible by the plugin.
+                tt_metal_path = os.path.join(
+                    os.path.dirname(wheel_plugin_path), "tt-mlir/install/tt-metal"
+                )
+                os.environ["TT_METAL_HOME"] = str(tt_metal_path)
+
             plugins.register_plugin(DeviceType.TT.value, TTPjrtPlugin(plugin_path))
         except Exception as e:
-            raise RuntimeError("Failed to initialize TT PJRT plugin for Torch.") from e
+            raise RuntimeError(
+                "Failed to initialize TT PJRT plugin for PyTorch from wheel or local build."
+            ) from e
 
 
 # Global singleton instance.
