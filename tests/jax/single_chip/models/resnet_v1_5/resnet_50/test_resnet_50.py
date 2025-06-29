@@ -11,7 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_fe_compilation,
 )
 
 from ..tester import ResNetTester, ResNetVariant
@@ -51,10 +51,9 @@ def training_tester() -> ResNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-0.06595536321401596. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+@pytest.mark.skip(
+    reason=failed_fe_compilation(
+        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
     )
 )
 def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
