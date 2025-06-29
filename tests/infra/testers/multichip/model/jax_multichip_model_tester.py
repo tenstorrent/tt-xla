@@ -119,24 +119,6 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters = self._get_input_parameters()
 
     # @override
-    def _test_inference(self) -> None:
-        """
-        Tests the model by running inference on TT device and on CPU and comparing the
-        results.
-        """
-        compiled_device_workload = self._compile(
-            self._create_multichip_workload(self._device_mesh)
-        )
-        compiled_cpu_workload = self._compile(
-            self._create_multichip_workload(self._cpu_mesh)
-        )
-
-        cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
-        device_res = self._run_on_multichip_device(compiled_device_workload)
-
-        self._compare(device_res, cpu_res)
-
-    # @override
     def _compile(self, workload: Workload) -> Workload:
         """
         Sets up `workload.executable` for just-in-time compile and execution.
@@ -161,6 +143,26 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
             static_argnames=workload.static_argnames,
         )
         return workload
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(self._create_multichip_workload(self._cpu_mesh))
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        return self._compile(self._create_multichip_workload(self._device_mesh))
+
+    # @override
+    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
+        """Runs workload on CPU."""
+        return self._run_on_multichip_device(compiled_workload)
+
+    # @override
+    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
+        """Runs workload on TT device."""
+        return self._run_on_multichip_device(compiled_workload)
 
     # --- Convenience methods ---
 
