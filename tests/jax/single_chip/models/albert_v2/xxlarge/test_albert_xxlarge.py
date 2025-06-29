@@ -4,8 +4,7 @@
 
 import pytest
 from infra import RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     Framework,

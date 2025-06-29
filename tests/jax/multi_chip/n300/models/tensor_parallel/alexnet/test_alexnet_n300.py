@@ -3,17 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from infra.multichip_utils import enable_shardy
-
-from tests.utils import (
+from infra import Framework, RunMode, enable_shardy
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from .tester import AlexNetMultichipTester
@@ -32,12 +29,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.INFERENCE)
+    return AlexNetMultichipTester(run_mode=RunMode.INFERENCE, num_devices=2)
 
 
 @pytest.fixture
 def training_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.TRAINING)
+    return AlexNetMultichipTester(run_mode=RunMode.TRAINING, num_devices=2)
 
 
 # ----- Tests -----
@@ -50,13 +47,7 @@ def training_tester() -> AlexNetMultichipTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/604"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
     inference_tester.test()
@@ -69,12 +60,6 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=0.4999960660934448. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/604"
-    )
 )
 def test_alexnet_multichip_n300_inference_shardy(
     inference_tester: AlexNetMultichipTester,

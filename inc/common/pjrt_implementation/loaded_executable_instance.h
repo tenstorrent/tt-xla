@@ -120,7 +120,7 @@ private:
                       const tt::runtime::Device &runtime_device);
 
   // Untilizes output tensors and transfers them from device to host.
-  static tt_pjrt_status untilizeToHost(
+  tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,
       size_t num_devices,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
@@ -129,7 +129,8 @@ private:
   // execution.
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
-      size_t num_devices, PJRT_Buffer **const *output_lists);
+      size_t num_devices, PJRT_Buffer **const *output_lists,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);

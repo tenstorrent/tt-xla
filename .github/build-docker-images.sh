@@ -35,12 +35,11 @@ build_and_push() {
 
         echo "Pushing image $image_name:$DOCKER_TAG"
         docker push $image_name:$DOCKER_TAG
+    fi
 
-        # If we are on main branch also push the latest tag
-        if [ "$on_main" = "true" ]; then
-            echo "Pushing image $image_name:latest"
-            docker push $image_name:latest
-        fi
+    if [ "$on_main" = "true" ]; then
+        echo "Pushing latest tag for $image_name"
+        docker buildx imagetools create $image_name:$DOCKER_TAG --tag $image_name:latest --tag $image_name:$DOCKER_TAG
     fi
 }
 

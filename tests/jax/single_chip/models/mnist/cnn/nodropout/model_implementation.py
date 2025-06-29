@@ -19,6 +19,7 @@ class MNISTCNNNoDropoutModel(nn.Module):
         x = nn.max_pool(x, window_shape=(2, 2), strides=(2, 2))
 
         x = x.reshape((x.shape[0], -1))
+
         x = nn.Dense(features=256)(x)
         x = nn.BatchNorm(use_running_average=not train, epsilon=1e-5)(x)
         x = nn.relu(x)

@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxBloomForCausalLM, FlaxPreTrainedModel
 
 
-class BloomTester(ModelTester):
+class BloomTester(JaxModelTester):
     """Tester for Bloom models."""
 
     def __init__(

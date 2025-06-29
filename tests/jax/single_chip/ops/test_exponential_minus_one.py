@@ -6,8 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import ComparisonConfig, run_op_test_with_random_inputs
-
-from tests.utils import Category
+from utils import Category
 
 
 @pytest.fixture

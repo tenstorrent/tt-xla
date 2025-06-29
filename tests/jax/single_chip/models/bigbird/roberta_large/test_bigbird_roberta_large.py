@@ -8,8 +8,7 @@ import jax
 import pytest
 from infra import ComparisonConfig, Framework, RunMode
 from transformers import AutoTokenizer, FlaxBigBirdForCausalLM, FlaxPreTrainedModel
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,

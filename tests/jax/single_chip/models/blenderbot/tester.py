@@ -5,7 +5,8 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
     FlaxBlenderbotForConditionalGeneration,
@@ -13,7 +14,7 @@ from transformers import (
 )
 
 
-class BlenderBotTester(ModelTester):
+class BlenderBotTester(JaxModelTester):
     """Tester for BlenderBot models."""
 
     def __init__(

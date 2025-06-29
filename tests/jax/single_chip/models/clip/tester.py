@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import CLIPProcessor, FlaxCLIPModel, FlaxPreTrainedModel
 
 
-class FlaxCLIPTester(ModelTester):
+class FlaxCLIPTester(JaxModelTester):
     """Tester for CLIP family of models on image classification tasks."""
 
     def __init__(

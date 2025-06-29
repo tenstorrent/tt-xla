@@ -5,8 +5,7 @@
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test
-
-from tests.utils import Category, failed_ttmlir_compilation
+from utils import Category, failed_ttmlir_compilation
 
 
 @pytest.mark.push
@@ -45,9 +44,6 @@ def test_constant_ones(shape: tuple):
     category=Category.OP_TEST,
     jax_op_name="jax.numpy.array",
     shlo_op_name="stablehlo.constant",
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation("failed to legalize operation 'ttir.constant'")
 )
 def test_constant_multi_value():
     def module_constant_multi():

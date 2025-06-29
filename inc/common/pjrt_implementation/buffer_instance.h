@@ -56,7 +56,8 @@ public:
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
                              std::vector<std::uint32_t> &&dimensions,
-                             DeviceInstance *device, MemoryInstance *memory);
+                             DeviceInstance *device, MemoryInstance *memory,
+                             PJRT_Buffer_Type data_type);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -95,8 +96,14 @@ public:
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
-  // Returns the size of the underlying runtime tensor, in bytes.
-  size_t getRuntimeTensorSize() const;
+  // Returns the size of the tensor in the data type that the host expects.
+  // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
+  // runtime/ttnn. And so, the true data type of the runtime tensor may be
+  // different than what the host expects, and will be casted to the hosts
+  // expected data type when copying to host, possibly leading to a different
+  // size. This function will calculate the converted runtime tensor size to be
+  // tensor_volume * expected_host_data_type_element_size
+  size_t getConvertedRuntimeTensorSize() const;
 
   // Returns true if the buffer data was deleted, i.e. its underlying tensor was
   // deallocated.
@@ -116,9 +123,15 @@ public:
                     PJRT_HostBufferSemantics host_buffer_semantics,
                     EventInstance **out_done_with_host_buffer_event);
 
-  // Asynchronously copies the buffer's data into a preallocated host buffer.
+  // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);
+
+  // Copies this buffer's data to the device and its memory specified in the
+  // arguments.
+  tt_pjrt_status copyToDeviceMemory(DeviceInstance *dst_device,
+                                    MemoryInstance *dst_memory,
+                                    BufferInstance **dst_buffer);
 
   // Sets that buffer data is ready (transferred from host or computed on
   // device) and marks data ready event as ready (if it is already created).
@@ -137,7 +150,11 @@ private:
   // Constructor used for the output buffers.
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
-                 DeviceInstance *device, MemoryInstance *memory);
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type expected_data_type);
+
+  // Copies the tensor inside the src_buffer to the tensor of this buffer.
+  void copyFromBuffer(const BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
@@ -220,6 +237,12 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args);
 
 // Implements PJRT_Buffer_IsDeleted API function.
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args);
+
+// Implements PJRT_Buffer_CopyToDevice API function.
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args);
+
+// Implements PJRT_Buffer_CopyToMemory API function.
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args);
 
 // Implements PJRT_Buffer_IsOnCpu API function.
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args);

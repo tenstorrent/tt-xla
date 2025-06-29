@@ -6,7 +6,7 @@ from typing import Dict, Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
 
 from .model_implementation import AlexNetModel
@@ -19,7 +19,7 @@ def create_alexnet_random_input_image() -> jax.Array:
     img = jax.random.randint(
         key=prng_key,
         # B, H, W, C
-        shape=(4, 224, 224, 3),
+        shape=(8, 224, 224, 3),
         # In the original paper inputs are normalized with individual channel
         # values learned from training set.
         minval=-128,
@@ -28,7 +28,7 @@ def create_alexnet_random_input_image() -> jax.Array:
     return img
 
 
-class AlexNetTester(ModelTester):
+class AlexNetTester(JaxModelTester):
     """Tester for AlexNet CNN model."""
 
     def __init__(

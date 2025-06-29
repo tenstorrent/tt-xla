@@ -5,7 +5,7 @@
 from typing import Any, Mapping, Sequence
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode, create_random_input_image
+from infra import ComparisonConfig, JaxModelTester, RunMode, random_image
 from transformers import (
     AutoImageProcessor,
     FlaxPreTrainedModel,
@@ -13,7 +13,7 @@ from transformers import (
 )
 
 
-class RegNetTester(ModelTester):
+class RegNetTester(JaxModelTester):
     """Tester for RegNet model"""
 
     def __init__(
@@ -34,7 +34,7 @@ class RegNetTester(ModelTester):
     # @override
     def _get_input_activations(self) -> jax.Array:
         image_size = 224  # default image size for vision models
-        random_image = create_random_input_image(image_size)
+        random_image = random_image(image_size)
 
         processor = AutoImageProcessor.from_pretrained(self._model_path)
         inputs = processor(images=random_image, return_tensors="jax")

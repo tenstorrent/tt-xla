@@ -12,8 +12,7 @@ from transformers import (
     FlaxBigBirdForQuestionAnswering,
     FlaxPreTrainedModel,
 )
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,

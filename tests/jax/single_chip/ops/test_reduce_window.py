@@ -6,8 +6,7 @@ import flax
 import jax
 import pytest
 from infra import ComparisonConfig, random_tensor, run_op_test
-
-from tests.utils import Category
+from utils import Category
 
 
 @pytest.fixture
