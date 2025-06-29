@@ -20,7 +20,7 @@ VARIANT_NAME = "albert-xxlarge-v2"
 
 # TODO: Change to use ModelInfo from tt-forge-models
 MODEL_NAME = build_model_name(
-    Framework.JAX,
+    Framework.TORCH,
     "albert_v2",
     "xxlarge",
     ModelTask.NLP_MASKED_LM,
