@@ -79,8 +79,25 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _compile(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels.
+
+        Compiles for inductor backend by default.
+        """
+        return self._compile_for_backend(workload, backend="inductor")
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(workload)
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        return self._compile_for_backend(workload, backend="openxla")
+
+    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert isinstance(workload, TorchWorkload) and workload.model is not None
 
-        workload.model.compile(backend="openxla")
+        workload.model.compile(backend=backend)
         return workload

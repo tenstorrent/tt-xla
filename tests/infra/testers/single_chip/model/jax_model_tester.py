@@ -172,3 +172,13 @@ class JaxModelTester(ModelTester):
             workload.executable, static_argnames=workload.static_argnames
         )
         return workload
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(workload)
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        return self._compile(workload)
