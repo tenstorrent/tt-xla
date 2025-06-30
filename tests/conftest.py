@@ -2,8 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import contextmanager
 import ctypes
 import gc
+from loguru import logger
+import psutil
+import pytest
+import sys
+import time
 import threading
 import time
 
@@ -140,6 +146,35 @@ def pytest_addoption(parser):
     )
 
 
+@contextmanager
+def newline_logger():
+    """
+    Context manager to temporarily set the logger to use a newline at the start of each log message.
+    Reverts to the default format after the context exits.
+    """
+    default_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS Z}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
+    )
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format=f"\n{default_format}",
+        level="INFO",
+    )
+    try:
+        yield
+    finally:
+        logger.remove()
+        logger.add(
+            sys.stdout,
+            format=default_format,
+            level="INFO",
+        )
+
+
 @pytest.fixture(autouse=True)
 def memory_usage_tracker(request):
     """
@@ -179,7 +214,9 @@ def memory_usage_tracker(request):
         count += 1
         avg_mem = total_mem / count
         by_test = max_mem - start_mem
-        logger.info(f"Test memory usage:")
+
+        with newline_logger():
+            logger.info(f"Test memory usage:")
         logger.info(f"    By test: {by_test:.2f} MB")
         logger.info(f"    Minimum: {min_mem:.2f} MB")
         logger.info(f"    Maximum: {max_mem:.2f} MB")
