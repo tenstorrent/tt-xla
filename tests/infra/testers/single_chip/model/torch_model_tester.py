@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Sequence
+import collections
+from typing import Any, Dict, Mapping, Sequence
 
 import torch
 from infra.comparators import ComparisonConfig
@@ -20,8 +21,6 @@ class TorchModelTester(ModelTester):
     ```
     _get_model(self) -> Model
     _get_input_activations(self) -> Sequence[Any]
-    _get_forward_method_name(self) -> str # Optional, has default behaviour.
-    # One of or both:
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
     _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
     ```
@@ -46,6 +45,23 @@ class TorchModelTester(ModelTester):
     # --- Overrides ---
 
     # @override
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        self._input_activations = self._get_input_activations()
+
+    # @override
+    def _get_forward_method_args(self) -> Sequence[Any]:
+        if isinstance(self._input_activations, torch.Tensor):
+            return [self._input_activations]
+        return []
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
+        if isinstance(self._input_activations, collections.abc.Mapping):
+            return {**self._input_activations}
+        return {}
+
+    # @override
     def _initialize_workload(self) -> None:
         """Initializes `self._workload`."""
         # Prepack model's forward pass and its arguments into a `Workload.`
@@ -61,11 +77,6 @@ class TorchModelTester(ModelTester):
         )
 
     # @override
-    def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
-        self._input_activations = self._get_input_activations()
-
-    # @override
     @staticmethod
     def _configure_model_for_inference(model: Model) -> None:
         assert isinstance(model, torch.nn.Module)
@@ -79,8 +90,25 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _compile(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels.
+
+        Compiles for inductor backend by default.
+        """
+        return self._compile_for_backend(workload, backend="inductor")
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(workload)
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        return self._compile_for_backend(workload, backend="openxla")
+
+    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert isinstance(workload, TorchWorkload) and workload.model is not None
 
-        workload.model.compile(backend="openxla")
+        workload.model.compile(backend=backend)
         return workload
