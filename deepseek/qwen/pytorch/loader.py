@@ -2,23 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Bloom model loader implementation
+Deepseek-Qwen model loader implementation
 """
 
 
-from ...config import (
+from ....config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
 )
-from ...base import ForgeModel
+from ....base import ForgeModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 class ModelLoader(ForgeModel):
-    """Bloom model loader implementation."""
+    """Deepseek-Qwen model loader implementation."""
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -30,9 +30,9 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "bigscience/bloom-1b1"
+        self.model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
         self.tokenizer = None
-        self.test_input = "This is a sample text from "
+        self.prompt = "What is machine learning?"
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
@@ -47,7 +47,7 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         return ModelInfo(
-            model="bloom",
+            model="deepseek-qwen",
             variant=variant_name,
             group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -56,17 +56,16 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, dtype_override=None):
-        """Load and return the Bloom model instance with default settings.
+        """Load and return the Deepseek-Qwen model instance with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
+                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The Bloom model instance.
+            torch.nn.Module: The Deepseek-Qwen model instance.
         """
-        # Initialize tokenizer first with default or overridden dtype
-        tokenizer_kwargs = {"padding_side": "left"}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
@@ -74,7 +73,6 @@ class ModelLoader(ForgeModel):
             self.model_name, **tokenizer_kwargs
         )
 
-        # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
@@ -84,54 +82,28 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Bloom model with default settings.
+        """Load and return sample inputs for the Deepseek-Qwen model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
+                            If not provided, the model will use its default dtype (typically float32).
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
-
-        # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            self.load_model(
-                dtype_override=dtype_override
-            )  # This will initialize the tokenizer
+            # Ensure tokenizer is initialized
+            self.load_model(dtype_override=dtype_override)
 
-        # Create batch of sample inputs
-        self.test_input = "This is a sample text from "
-
-        inputs = self.tokenizer(
-            self.test_input,
-            return_tensors="pt",
-            max_length=32,
-            padding="max_length",
-            add_special_tokens=True,
-            truncation=True,
+        messages = [{"role": "user", "content": self.prompt}]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
         )
+        inputs = self.tokenizer(text, return_tensors="pt")
 
-        # Replicate tensors for batch size
+        # Create batch
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-
-        Returns:
-            str: Decoded answer text
-        """
-        if self.tokenizer is None:
-            self.load_model()  # This will initialize the tokenizer
-
-        # Get logits for the last token in each batch
-        next_token_logits = outputs.logits[:, -1]
-        next_tokens = next_token_logits.softmax(dim=-1).argmax(dim=-1)
-        return [self.tokenizer.decode([token.item()]) for token in next_tokens]
