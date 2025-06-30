@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .utils import serialize_function_to_binary
+from .tools import serialize_function_to_binary
