@@ -13,7 +13,7 @@ from jax.experimental import serialize_executable
 from jax._src.typing import DTypeLike
 import pickle
 
-from .types import Framework, Tensor
+from infra.utilities import Framework, Tensor
 
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:
@@ -129,7 +129,7 @@ def random_torch_tensor(
     else:
         raise TypeError(f"Unsupported dtype: {dtype_converted}")
 
-@run_on_tt_device
+@run_on_tt_device(Framework.JAX)
 def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
     """
     Serialize a JAX function to binary format.
