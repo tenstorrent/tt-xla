@@ -35,8 +35,10 @@ public:
 
   // Compiles given mlir module code and produces flatbuffer to execute on a
   // given system.
-  tt_pjrt_status buildModule(const std::string_view &mlir_code,
-                             const std::string &system_descriptor_path);
+  tt_pjrt_status buildModule(
+      const std::string_view &mlir_code,
+      const std::string &system_descriptor_path,
+      const std::unordered_map<std::string, std::string> &compile_options);
 
   // Returns compiled flatbuffer binary.
   const tt::runtime::Binary &getFlatbufferBinary() const {

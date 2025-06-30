@@ -11,6 +11,8 @@
 # Static lib containing platform specific logic.
 # Depends on: loguru
 
+find_package(Protobuf REQUIRED)
+
 add_library(TTPJRTCommonDylibPlatform
     "dylib_platform.cc"
 )
@@ -52,6 +54,7 @@ add_dependencies(TTPJRTCommon
 )
 
 target_include_directories(TTPJRTCommon PUBLIC
+    ${Protobuf_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
@@ -62,6 +65,7 @@ target_include_directories(TTPJRTCommon PUBLIC
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
+    protobuf::libprotobuf
     loguru
     coverage_config
     TTPJRTCommonDylibPlatform
