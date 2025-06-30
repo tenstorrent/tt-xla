@@ -4,16 +4,12 @@
 
 from typing import Tuple, Union
 
-import io
 import jax
 import jax.numpy as jnp
 import torch
-from infra.runners import run_on_cpu, run_on_tt_device
-from jax.experimental import serialize_executable
-from jax._src.typing import DTypeLike
-import pickle
-
+from infra.runners import run_on_cpu
 from infra.utilities import Framework, Tensor
+from jax._src.typing import DTypeLike
 
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:
@@ -128,52 +124,3 @@ def random_torch_tensor(
         return torch.randint(0, 2, shape, dtype=torch.bool)
     else:
         raise TypeError(f"Unsupported dtype: {dtype_converted}")
-
-@run_on_tt_device(Framework.JAX)
-def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
-    """
-    Serialize a JAX function to binary format.
-
-    Args:
-        func: The function to serialize
-        binary_file_path: Path to save the serialized binary
-        *args: Sample arguments to trigger compilation
-    """
-
-    def persistent_load(pid):
-        """
-        Custom function used during unpickling of the serialized executable.
-        When JAX serializes a compiled computation (via serialize_executable.serialize()),
-        it stores a set of persistent identifiers (pids) that refer to objects.
-
-        Each pid is typically a tuple where the second element (pid[1]) is the actual
-        object to be reloaded (e.g., device buffers, constants, or compilation artifacts),
-        while the first element (pid[0]) is a fallback identifier.
-
-        Args:
-            pid: Persistent identifier tuple
-
-        Returns:
-            bytes: Object value to be used in deserialization
-        """
-        if len(pid) < 2:
-            return pid[0]
-        return pid[1]
-
-    # JIT compile the function
-    jitted_func = jax.jit(func)
-
-    # Compile with the provided arguments
-    compiled = jitted_func.lower(*args, **kwargs).compile()
-
-    # Serialize the compiled executable
-    payload, _, _ = serialize_executable.serialize(compiled)
-
-    # Extract the binary from the payload
-    payload_io = io.BytesIO(payload)
-    unpickler = pickle.Unpickler(payload_io)
-    unpickler.persistent_load = persistent_load
-    unloaded_executable, _, _ = unpickler.load()
-
-    with open(binary_file_path, "wb") as f:
-        f.write(unloaded_executable.xla_executable)
