@@ -362,8 +362,10 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
-  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+  if (outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Identity ||
+      outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
 

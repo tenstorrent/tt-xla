@@ -392,7 +392,8 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     }
 
     llvm::Expected<bool> error = mesh_sharding.convertSdyShardingToMeshSharding(
-        shardy_attr, shardy_mesh, mlir::tt::MeshShardDirection::FullToShard);
+        shardy_attr, shardy_mesh,
+        mlir::tt::ttcore::MeshShardDirection::FullToShard);
     if (llvm::Error e = error.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
 
@@ -429,9 +430,9 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
 void ModuleBuilder::collectMeshShape(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::tt::MeshesAttr meshes_attr =
-      module.get()->getAttrOfType<mlir::tt::MeshesAttr>(
-          mlir::tt::MeshesAttr::name);
+  mlir::tt::ttcore::MeshesAttr meshes_attr =
+      module.get()->getAttrOfType<mlir::tt::ttcore::MeshesAttr>(
+          mlir::tt::ttcore::MeshesAttr::name);
   if (!meshes_attr || meshes_attr.getMeshes().empty()) {
     // If mesh attribute is not set we can still estimate the mesh based on the
     // input shardings.
@@ -439,7 +440,7 @@ void ModuleBuilder::collectMeshShape(
     return;
   }
 
-  llvm::ArrayRef<mlir::tt::MeshAttr> meshes = meshes_attr.getMeshes();
+  llvm::ArrayRef<mlir::tt::ttcore::MeshAttr> meshes = meshes_attr.getMeshes();
 
   // For now, use the first mesh shape (same as what is used in tt-mlir).
   llvm::ArrayRef<int64_t> mesh_shape = meshes[0].getShape();
@@ -451,7 +452,8 @@ void ModuleBuilder::collectMeshShape(
 void ModuleBuilder::estimateMeshShape() {
   for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
        m_input_shardings) {
-    if (input_sharding.getShardType() == mlir::tt::MeshShardType::Devices) {
+    if (input_sharding.getShardType() ==
+        mlir::tt::ttcore::MeshShardType::Devices) {
       m_devices_mesh_shape =
           std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
                                      input_sharding.getMeshShape().end());
@@ -597,8 +599,10 @@ void ModuleBuilder::checkOutputShardingShapes(
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         m_output_shardings[output_index];
-    if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-        output_sharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+    if (output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Identity ||
+        output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Replicate) {
       continue;
     }
 
