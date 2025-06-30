@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
 
 from ..tester import AlbertV2Tester
@@ -46,7 +47,12 @@ def training_tester() -> AlbertV2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC regressed to 0.98, https://github.com/tenstorrent/tt-xla/issues/739"
+    )
 )
 def test_flax_albert_v2_xlarge_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()
