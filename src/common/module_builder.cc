@@ -91,9 +91,10 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status
-ModuleBuilder::buildModule(const std::string_view &mlir_code,
-                           const std::string &system_descriptor_path) {
+tt_pjrt_status ModuleBuilder::buildModule(
+    const std::string_view &mlir_code,
+    const std::string &system_descriptor_path,
+    const std::unordered_map<std::string, std::string> &compile_options) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
