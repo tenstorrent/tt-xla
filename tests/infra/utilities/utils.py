@@ -8,9 +8,8 @@ import jax
 import jax.numpy as jnp
 import torch
 from infra.runners import run_on_cpu
+from infra.utilities import Framework, Tensor
 from jax._src.typing import DTypeLike
-
-from .types import Framework, Tensor
 
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:

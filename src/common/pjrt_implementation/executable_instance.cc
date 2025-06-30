@@ -16,7 +16,9 @@
 
 // tt-xla includes
 #include "common/module_builder.h"
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/serialized_executable_instance.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -47,6 +49,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onExecutableOutputDimensions;
   api->PJRT_Executable_OutputMemoryKinds =
       internal::onExecutableOutputMemoryKinds;
+  api->PJRT_Executable_Serialize = internal::onExecutableSerialize;
 }
 
 namespace internal {
@@ -209,6 +212,30 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
 
   return nullptr;
 };
+
+PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Serialize");
+
+  const ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+
+  // Make a SerializedExecutableInstance.
+  const ExecutableImage *executable_image =
+      executable_instance->getExecutableImage();
+  std::unique_ptr<SerializedExecutableInstance> serialized_executable =
+      SerializedExecutableInstance::createInstance(executable_image);
+
+  args->serialized_bytes = reinterpret_cast<const char *>(
+      serialized_executable->getSerializedFlatbuffer().data());
+  args->serialized_bytes_size =
+      serialized_executable->getSerializedSizeInBytes();
+  args->serialized_executable_deleter = [](PJRT_SerializedExecutable *exec) {
+    delete SerializedExecutableInstance::unwrap(exec);
+  };
+  args->serialized_executable = *serialized_executable.release();
+
+  return nullptr;
+}
 
 } // namespace internal
 
