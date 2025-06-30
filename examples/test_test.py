@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
-from utils import serialize_function_to_binary
+from tools import serialize_function_to_binary
 import os
 import jax._src.xla_bridge as xb
 import sys
