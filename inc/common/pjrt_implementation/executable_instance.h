@@ -45,8 +45,19 @@ public:
     return reinterpret_cast<ExecutableInstance *>(executable);
   }
 
+  // Casts the const PJRT_Executable pointer to const ExecutableInstance
+  // pointer.
+  static const ExecutableInstance *unwrap(const PJRT_Executable *executable) {
+    return reinterpret_cast<const ExecutableInstance *>(executable);
+  }
+
   // Returns pointer to the underlying executable image.
   ExecutableImage *getExecutableImage() { return m_executable_image.get(); }
+
+  // Returns const pointer to the underlying executable image.
+  const ExecutableImage *getExecutableImage() const {
+    return m_executable_image.get();
+  }
 
 private:
   // Constructs executable instance from the compiled executable image.
@@ -94,6 +105,9 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args);
 // Implements PJRT_Executable_OutputMemoryKinds API function.
 PJRT_Error *
 onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
+
+// Implements PJRT_Executable_Serialize API function.
+PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args);
 
 } // namespace internal
 

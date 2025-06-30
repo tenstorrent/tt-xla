@@ -28,6 +28,7 @@ from .utilities import (
     make_partition_spec,
     random_image,
     random_tensor,
+    serialize_function_to_binary,
 )
 from .workloads import (
     JaxMultichipWorkload,
