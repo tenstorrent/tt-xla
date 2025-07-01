@@ -1,17 +1,19 @@
 # Getting Started with Building from Source
 
-This document describes how to build the TT-XLA project on your local machine. You must build from source if you want to develop for 
+This document describes how to build the TT-XLA project on your local machine. You must build from source if you want to develop for TT-XLA. If you only want to run models, please choose one of the following sets of instructions instead:
+* [Installing a Wheel and Running an Example](getting_started.md) - You should choose this option if you want to run models.
+* [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
 
 ## Build Process
-tt-xla integration with tt-mlir compiler is still in progress. Currently tt-xla it depends on tt-mlir toolchain for build. This build flow provides an easy way to experiment with tt-xla, StableHLO, and the tt-mlir infrastructure. The build process will be updated in the future to enhance the user experience.
+TT-XLA integration with the TT-MLIR compiler is still in progress. Currently TT-XLA depends on the TT-MLIR toolchain to build from source. This build flow provides an easy way to experiment with TT-XLA, StableHLO, and the TT-MLIR infrastructure. The build process will be updated in the future to enhance the user experience.
 
-### tt-mlir toolchain
-Before compiling tt-xla, the tt-mlir toolchain needs to be built:
+### TT-MLIR Toolchain
+Before compiling TT-XLA, the TT-MLIR toolchain needs to be built:
 - Clone [tt-mlir](https://github.com/tenstorrent/tt-mlir) repo
-- Follow tt-mlir [build instructions](https://docs.tenstorrent.com/tt-mlir/getting-started.html) to setup the environment and build the toolchain
+- Follow the TT-MLIR [build instructions](https://docs.tenstorrent.com/tt-mlir/getting-started.html) to set up the environment and build the toolchain
 
-### tt-xla
-Before running these commands to build tt-xla, please ensure that the environtment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the tt-mlir toolchain directory created above as part of tt-mlir environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs.
+### TT-XLA
+Before running these commands to build TT-XLA, please ensure that the environtment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs.
 
 ```bash
 git clone git@github.com:tenstorrent/tt-xla.git
@@ -21,7 +23,7 @@ cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
 cmake --build build
 ```
 
-### Wheel build
+### Wheel Build
 To build a wheel run
 
 ```bash
@@ -29,13 +31,13 @@ To build a wheel run
 >> python setup.py bdist_wheel
 ```
 
-this will output `python_package/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using
+this will output a `python_package/jax_plugins/pjrt_plugin_tt/dist/pjrt_plugin_tt*.whl` file which is self-contained and can be installed using:
 
 ```bash
 pip install pjrt_plugin_tt*.whl
 ```
 
-Wheel has the following structure
+The wheel has the following structure:
 
 ```bash
 jax_plugins
@@ -59,11 +61,9 @@ jax_plugins
                     `-- ...
 ```
 
-It contains custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds recipe (a python function) to register PJRT plugin with `JAX` and `tt-mlir` installation dir, which is needed to
-be able to dynamically link tt-mlir libs in runtime and to resolve various `tt-metal` dependencies
-without which plugin won't work.
+It contains a custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds a python function for registering the PJRT plugin with `JAX` and the `tt-mlir` installation dir. This is needed in order to dynamically link TT-MLIR libs in runtime and to resolve various `tt-metal` dependencies without which the plugin does not work.
 
-Structuring wheel/folders this way allows jax to automatically register plugin upon usage. User just needs to do
+Structuring wheel/folders this way allows JAX to automatically register the plugin upon usage. Do the following:
 
 ```bash
 >> pip install pjrt_plugin_tt*.whl
@@ -74,21 +74,21 @@ Structuring wheel/folders this way allows jax to automatically register plugin u
 ```
 
 ## Testing
-The tt-xla repo contains various tests in the **tests** directory. To run them all, please run `pytest -v tests` from the project root directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
+The TT-XLA repo contains various tests in the **tests** directory. To run them all, please run `pytest -v tests` from the project root directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
 
 ## Common Build Errors
-- Building tt-xla requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
-- Please also see the tt-mlir [docs](https://docs.tenstorrent.com/tt-mlir/getting-started.html#common-build-errors) for common build errors.
+- Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
+- Please also see the TT-MLIR [docs](https://docs.tenstorrent.com/tt-mlir/getting-started.html#common-build-errors) for common build errors.
 
-### Pre-Commit
-Pre-Commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install from the root of the repository using:
+### Pre-commit
+Pre-commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install it from the root of the repository using:
 
 ```bash
 source venv/activate
 pre-commit install
 ```
 
-If you have already committed something locally before installing the pre-commit hooks, you can run this command to "catch up" on all files:
+If you have already committed something locally before installing the pre-commit hooks, you can run this command to check all files:
 
 ```bash
 pre-commit run --all-files
