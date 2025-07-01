@@ -24,6 +24,18 @@ A high-performance JAX/Flax implementation of Mixtral 8x7B with support for both
 └── tests/                            # Testing and validation
     ├── hf_vs_single.py               # Compare HuggingFace vs single-device
     └── multi_vs_single.py            # Compare multi-device vs single-device
+
+├── jax_config.py                     # JAX configuration for multi-device setup
+├── multichip                         # Multi-device implementation
+│   └── multichipmixtral.py           # Distributed Mixtral with sharding
+├── requirements.txt                  # Required dependencies
+├── singlechip                        # Single-device implementation
+│   ├── convert_weights.py
+│   └── flaxmixtral.py                # Core Mixtral model implementation
+└── test                              # Testing and validation
+    ├── hf_vs_multi.py                # Compare HuggingFace vs single-device
+    ├── hf_vs_single.py
+    └── multi_vs_single.py            # Compare multi-device vs single-device
 ```
 
 ## 🛠️ Installation
@@ -82,6 +94,19 @@ This test:
 - Runs the same inputs through both implementations
 - Verifies distributed computation produces identical results
 - Validates sharding strategies work correctly
+
+### Compare HuggingFace vs Multi-Device Implementation
+
+```bash
+python3 test/hf_vs_multi.py
+```
+
+This test:
+
+- Loads a HuggingFace PyTorch model
+- Converts weights to JAX format
+- Compares generation outputs between implementations
+- Validates if sharding strategy works correctly
 
 ## 🏗️ Architecture Details
 

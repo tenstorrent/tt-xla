@@ -8,10 +8,11 @@ import numpy as np
 import jax.numpy as jnp
 import os
 from dotenv import load_dotenv
+from flax import nnx
 
 load_dotenv()
 
-from singlechip.convert_weights import convert_weights
+from multi_chip.multichipmixtral import FlaxMixtralForCausalLM
 
 # need a token
 hf_token = os.getenv("HF_TOKEN")
@@ -54,6 +55,14 @@ def load_pytorch_model_from_hf(model_id, config):
     return model
 
 
+def load_jax_model(config, pt_model):
+    jax_model = FlaxMixtralForCausalLM(config)
+    state = nnx.state(jax_model)
+    new_state = FlaxMixtralForCausalLM.load_hf_params(state, pt_model, config)
+    nnx.update(jax_model, new_state)
+    return jax_model
+
+
 def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
     return pt_model.generate(pt_input_ids, attention_mask=pt_attention_mask)
 
@@ -88,7 +97,7 @@ def run_comparison_test(model_id: str, prompt: str):
 
     max_len = pt_outputs[0].shape[0]
 
-    jax_model = convert_weights(pt_model, config)  # convert_weights
+    jax_model = load_jax_model(config, pt_model)
     jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(
         jax_model, pt_input_ids, pt_attention_mask, max_len
     )

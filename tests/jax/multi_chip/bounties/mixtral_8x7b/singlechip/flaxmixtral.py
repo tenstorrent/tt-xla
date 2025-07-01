@@ -739,7 +739,6 @@ class FlaxMixtralForCausalLM(nnx.Module):
         # Start auto-regressive generation loop
         for i in range(1, max_new_tokens):
             # Early exit if all sequences have reached EOS
-            print(i)  # just to track tokens
             if eos_token_id is not None and jnp.all(has_reached_eos):
                 break
 
