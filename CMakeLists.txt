@@ -44,6 +44,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 set(CMAKE_INSTALL_PREFIX ${TTPJRT_SOURCE_DIR}/install)
 
+option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+
 # ----- coverage_config -----
 
 add_library(coverage_config INTERFACE)
@@ -77,3 +79,4 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(third_party)
+add_subdirectory(docs)

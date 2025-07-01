@@ -15,6 +15,9 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
+
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
@@ -32,8 +35,10 @@ public:
 
   // Compiles given mlir module code and produces flatbuffer to execute on a
   // given system.
-  tt_pjrt_status buildModule(const std::string_view &mlir_code,
-                             const std::string &system_descriptor_path);
+  tt_pjrt_status buildModule(
+      const std::string_view &mlir_code,
+      const std::string &system_descriptor_path,
+      const std::unordered_map<std::string, std::string> &compile_options);
 
   // Returns compiled flatbuffer binary.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -43,6 +48,12 @@ public:
   // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
     return m_is_output_scalar;
+  };
+
+  // Returns a vector of PJRT_Buffer_Type enums corresponding to the data types
+  // of the outputs of the module.
+  const std::vector<PJRT_Buffer_Type> &getOutputDataTypes() const {
+    return m_output_data_types;
   };
 
   // Returns number of partitions defined for the program module.
@@ -193,6 +204,9 @@ private:
 
   // For every output, holds if the type is a scalar or not.
   std::vector<bool> m_is_output_scalar;
+
+  // For every output, stores the expected data type.
+  std::vector<PJRT_Buffer_Type> m_output_data_types;
 
   // Number of partitions defined for the program module.
   size_t m_num_partitions;

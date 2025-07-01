@@ -5,28 +5,20 @@
 import jax
 import pytest
 from infra import random_tensor
-from infra.device_connector import DeviceConnector
-
-from tests.utils import Category
+from utils import Category
 
 # ---------- Fixtures ----------
 
 
 @pytest.fixture(autouse=True)
-def initialize_device():
+def initialize_devices():
     """
-    Initialize available devices by registering PJRT plugin.
+    Initializes available devices by registering PJRT plugin.
 
-    PJRT plugin is registered during DeviceConnector instantiation. By providing global
-    singleton instance of the connector in device_connector.py we solved the problem of
-    automatic plugin registration.
-
-    We can simulate it here by calling the constructor directly.
-
-    NOTE we cannot manually do `xla_bridge.register_plugin` here because it will
-    report `PJRT_Api already exists for device type tt`.
+    Nothing to do since connections are established in
+    `conftest.py::initialize_device_connectors`.
     """
-    DeviceConnector()
+    pass
 
 
 @pytest.fixture

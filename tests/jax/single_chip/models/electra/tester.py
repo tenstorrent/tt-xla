@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxElectraForCausalLM, FlaxPreTrainedModel
 
 
-class ElectraTester(ModelTester):
+class ElectraTester(JaxModelTester):
     """Tester for Electra models for Causal LM task"""
 
     def __init__(

@@ -4,15 +4,14 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    passed,
 )
 
 from ..tester import OPTTester
@@ -47,13 +46,7 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=4121167.75. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_opt_125m_inference(inference_tester: OPTTester):
     inference_tester.test()

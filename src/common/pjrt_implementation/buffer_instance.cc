@@ -14,8 +14,13 @@
 #include <stdexcept>
 #include <thread>
 
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
+
 // tt-mlir includes
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/utils.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
@@ -42,16 +47,19 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
     const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
-    DeviceInstance *device, MemoryInstance *memory) {
+    DeviceInstance *device, MemoryInstance *memory,
+    PJRT_Buffer_Type data_type) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(const tt::runtime::Tensor &tensor,
                         std::vector<std::uint32_t> &&dimensions,
-                        DeviceInstance *device, MemoryInstance *memory)
-        : BufferInstance(tensor, std::move(dimensions), device, memory) {}
+                        DeviceInstance *device, MemoryInstance *memory,
+                        PJRT_Buffer_Type data_type)
+        : BufferInstance(tensor, std::move(dimensions), device, memory,
+                         data_type) {}
   };
 
   return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device, memory);
+                                               device, memory, data_type);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
@@ -65,9 +73,9 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
-                               DeviceInstance *device, MemoryInstance *memory)
-    : m_data_type(tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-          tt::runtime::getTensorDataType(tensor))),
+                               DeviceInstance *device, MemoryInstance *memory,
+                               PJRT_Buffer_Type data_type)
+    : m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
@@ -89,16 +97,19 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_ToHostBuffer = internal::onBufferToHostBuffer;
   api->PJRT_Buffer_Delete = internal::onBufferDelete;
   api->PJRT_Buffer_IsDeleted = internal::onBufferIsDeleted;
+  api->PJRT_Buffer_CopyToDevice = internal::onBufferCopyToDevice;
+  api->PJRT_Buffer_CopyToMemory = internal::onBufferCopyToMemory;
   api->PJRT_Buffer_IsOnCpu = internal::onBufferIsOnCpu;
   api->PJRT_Buffer_Device = internal::onBufferDevice;
   api->PJRT_Buffer_ReadyEvent = internal::onBufferReadyEvent;
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::getRuntimeTensorSize() const {
+size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   std::uint32_t runtime_tensor_size =
       tt::runtime::getTensorVolume(m_runtime_tensor) *
-      tt::runtime::getTensorElementSize(m_runtime_tensor);
+      tt::runtime::utils::dataTypeElementSize(
+          data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
   return static_cast<size_t>(runtime_tensor_size);
 }
@@ -145,6 +156,9 @@ void BufferInstance::copyFromHost(
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
+
+  assert(data_type == m_data_type && "m_data_type and data_type do not match");
+
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
@@ -162,8 +176,15 @@ void BufferInstance::copyFromHost(
   // copying scalars and numpy arrays, so the copy shouldn't take long. We can
   // mark the event as ready since we don't need the original host buffer
   // anymore.
+  //
+  // If the runtime data type which has been inferred from m_data_type is not
+  // supported by runtime/ttnn, then we must create an owned tensor as runtime
+  // must case the data inside the host buffer into a supported data type. Thus,
+  // the buffer cannot be borrowed.
   if (host_buffer_semantics ==
-      PJRT_HostBufferSemantics_kImmutableOnlyDuringCall) {
+          PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
@@ -202,6 +223,26 @@ void BufferInstance::copyFromHost(
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
+}
+
+void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
+          src_buffer->m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape = calculateShape(
+      src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions());
+  std::vector<std::uint32_t> strides = calculateStrides(
+      src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
+
+  m_runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+
+  tt::runtime::memcpy(m_runtime_tensor, src_buffer->m_runtime_tensor);
+  tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
+
+  markAsDataReady();
 }
 
 std::vector<std::uint32_t>
@@ -250,7 +291,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           EventInstance **out_copy_done_event) {
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
-  size_t runtime_tensor_size = getRuntimeTensorSize();
+  size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
   if (runtime_tensor_size > host_buffer_size) {
     DLOG_F(ERROR,
            "Tried to copy device buffer to the host buffer with smaller size "
@@ -270,10 +311,15 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event) {
+         EventInstance *event, PJRT_Buffer_Type data_type,
+         size_t runtime_tensor_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-          tt::runtime::memcpy(host_buffer, runtime_tensor);
+          tt::runtime::memcpy(
+              host_buffer, runtime_tensor,
+              tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
+                  data_type));
+
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -281,7 +327,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, m_runtime_tensor, event.get());
+      host_buffer, m_runtime_tensor, event.get(), m_data_type,
+      runtime_tensor_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
@@ -299,6 +346,28 @@ void BufferInstance::markAsDataReady() {
   if (m_data_ready_event) {
     m_data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
   }
+}
+
+tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
+                                                  MemoryInstance *dst_memory,
+                                                  BufferInstance **dst_buffer) {
+  // PJRT API specification requires returning error in case of copying to same
+  // device/memory space.
+  if (getMemory() == dst_memory || getDevice() == dst_device) {
+    DLOG_F(ERROR, "Cannot copy buffer to the same memory or device");
+    return tt_pjrt_status::kInvalidArgument;
+  }
+
+  std::unique_ptr<BufferInstance> dst_buffer_instance =
+      BufferInstance::createInputBufferInstance(
+          getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
+          dst_device, dst_memory);
+
+  dst_buffer_instance->copyFromBuffer(this);
+
+  *dst_buffer = dst_buffer_instance.release();
+
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
@@ -388,7 +457,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    args->dst_size = buffer->getRuntimeTensorSize();
+    args->dst_size = buffer->getConvertedRuntimeTensorSize();
     return nullptr;
   }
 
@@ -411,6 +480,41 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  DeviceInstance *dst_device = DeviceInstance::unwrap(args->dst_device);
+  MemoryInstance *dst_memory = dst_device->getDefaultMemory();
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
+
+  return nullptr;
+}
+
+PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
+
+  BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
+  MemoryInstance *dst_memory = MemoryInstance::unwrap(args->dst_memory);
+  DeviceInstance *dst_device = dst_memory->getDevice();
+
+  // Copying into to host memory is undefined, since it's not clear
+  // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
+  if (dst_memory->isHostMemory()) {
+    DLOG_F(ERROR, "Copying buffer to host memory is not supported");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  src_buffer->copyToDeviceMemory(
+      dst_device, dst_memory,
+      reinterpret_cast<BufferInstance **>(&args->dst_buffer));
 
   return nullptr;
 }

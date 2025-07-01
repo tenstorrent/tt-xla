@@ -4,8 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -52,8 +51,7 @@ def training_tester() -> AlbertV2Tester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131030.6953125. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+        "PCC regressed to 0.98, https://github.com/tenstorrent/tt-xla/issues/739"
     )
 )
 def test_flax_albert_v2_xlarge_inference(inference_tester: AlbertV2Tester):

@@ -5,7 +5,7 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import (
     BeitImageProcessor,
     FlaxBeitForImageClassification,
@@ -13,7 +13,7 @@ from transformers import (
 )
 
 
-class FlaxBeitForImageClassificationTester(ModelTester):
+class FlaxBeitForImageClassificationTester(JaxModelTester):
     """Tester for Beit family of models on image classification tasks."""
 
     def __init__(

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import jax._src.xla_bridge as xb
 
+TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
+
 
 def initialize():
     # Register bundled PJRT plugin.

@@ -5,7 +5,7 @@
 from typing import Dict, Sequence
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode, create_random_input_image
+from infra import ComparisonConfig, JaxModelTester, RunMode, random_image
 from transformers import (
     AutoImageProcessor,
     AutoTokenizer,
@@ -16,7 +16,7 @@ from transformers import (
 )
 
 
-class VisionTextDualEncoderTester(ModelTester):
+class VisionTextDualEncoderTester(JaxModelTester):
     """Tester for Vision-Text Dual Encoder (VTDE) model."""
 
     def __init__(
@@ -40,7 +40,7 @@ class VisionTextDualEncoderTester(ModelTester):
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         model_config = ViTConfig.from_pretrained(self._vision_model_path)
         image_size = model_config.image_size
-        random_image = create_random_input_image(image_size)
+        random_image = random_image(image_size)
 
         tokenizer = AutoTokenizer.from_pretrained(self._text_model_path)
         image_processor = AutoImageProcessor.from_pretrained(self._vision_model_path)

@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxBartForCausalLM, FlaxPreTrainedModel
 
 
-class FlaxBartForCausalLMTester(ModelTester):
+class FlaxBartForCausalLMTester(JaxModelTester):
     """Tester for BART model variants with a language modeling head on top."""
 
     def __init__(

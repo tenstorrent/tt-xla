@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import FlaxPreTrainedModel, FlaxRoFormerForMaskedLM, RoFormerTokenizer
 
 
-class RoFormerTester(ModelTester):
+class RoFormerTester(JaxModelTester):
     """Tester for RoFormer Models for language Modeling task."""
 
     def __init__(

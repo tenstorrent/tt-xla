@@ -34,17 +34,6 @@
   _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_CopyRawToHost);
 
-  // XLA client is not currently using this, but we should implement it, it
-  // shouldn't be too hard. It should just create the output buffer by copying
-  // the input buffer (its parameters and underlying tensor) and setting given
-  // device.
-  // https://github.com/tenstorrent/tt-xla/issues/467
-  _STUB(PJRT_Buffer_CopyToDevice);
-
-  // PJRT_Buffer_CopyToMemory is not used in JAX or PyTorch client, but should be implemented.
-  // https://github.com/tenstorrent/tt-xla/issues/537
-  _STUB(PJRT_Buffer_CopyToMemory);
-
   // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
   // optimizations (avoids memory copy), but currently all our inputs are
   // transferred to device where computation runs and we can't return the
@@ -86,9 +75,8 @@
   // https://github.com/tenstorrent/tt-xla/issues/496
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
 
-  // Serialization/deserialization of our executable is not yet supported.
+  // Deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
-  _STUB(PJRT_Executable_Serialize);
   _STUB(PJRT_Executable_DeserializeAndLoad);
   // ---------------------------------------------------------------------------
 
@@ -122,5 +110,13 @@
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Client_TopologyDescription);
+  _STUB(PJRT_Client_DmaMap);
+  _STUB(PJRT_Client_DmaUnmap);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_RetrieveBuffer);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferCount);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);

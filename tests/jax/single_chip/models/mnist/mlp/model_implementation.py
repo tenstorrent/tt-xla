@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import jax
 from flax import linen as nn
 
 
@@ -9,7 +10,7 @@ class MNISTMLPModel(nn.Module):
     hidden_sizes: tuple[int]
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: jax.Array):
         x = x.reshape((x.shape[0], -1))
 
         for h in self.hidden_sizes:

@@ -8,7 +8,7 @@ from transformers import (
     FlaxBlenderbotSmallForConditionalGeneration,
     FlaxPreTrainedModel,
 )
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,

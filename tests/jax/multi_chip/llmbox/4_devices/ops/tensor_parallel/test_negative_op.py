@@ -5,12 +5,11 @@
 import jax.numpy as jnp
 import pytest
 from infra import (
-    make_partition_spec,
     ShardingMode,
-    run_multichip_test_with_random_inputs,
+    make_partition_spec,
+    run_jax_multichip_op_test_with_random_inputs,
 )
-
-from tests.utils import failed_fe_compilation, failed_ttmlir_compilation
+from utils import failed_fe_compilation, failed_ttmlir_compilation
 
 
 @pytest.mark.nightly
@@ -63,7 +62,7 @@ def test_unary_eltwise(
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec(axis_names)
 
-    run_multichip_test_with_random_inputs(
+    run_jax_multichip_op_test_with_random_inputs(
         fwd,
         [input_shape],
         mesh_shape,

@@ -47,13 +47,16 @@
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
+
+// tt-xla includes
+#include "common/pjrt_implementation/data_type_utils.h"
 
 namespace tt::pjrt {
 
@@ -88,9 +91,10 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status
-ModuleBuilder::buildModule(const std::string_view &mlir_code,
-                           const std::string &system_descriptor_path) {
+tt_pjrt_status ModuleBuilder::buildModule(
+    const std::string_view &mlir_code,
+    const std::string &system_descriptor_path,
+    const std::unordered_map<std::string, std::string> &compile_options) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
@@ -307,6 +311,7 @@ ModuleBuilder::getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op) {
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_is_output_scalar.clear();
+  m_output_data_types.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
@@ -314,6 +319,8 @@ void ModuleBuilder::collectOutputTypes(
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
+      m_output_data_types.push_back(
+          tt::pjrt::data_type_utils::convertMLIRToPJRTDataType(returnType));
     }
   }
 }
@@ -386,7 +393,8 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     }
 
     llvm::Expected<bool> error = mesh_sharding.convertSdyShardingToMeshSharding(
-        shardy_attr, shardy_mesh, mlir::tt::MeshShardDirection::FullToShard);
+        shardy_attr, shardy_mesh,
+        mlir::tt::ttcore::MeshShardDirection::FullToShard);
     if (llvm::Error e = error.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
 
@@ -423,9 +431,9 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
 void ModuleBuilder::collectMeshShape(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::tt::MeshesAttr meshes_attr =
-      module.get()->getAttrOfType<mlir::tt::MeshesAttr>(
-          mlir::tt::MeshesAttr::name);
+  mlir::tt::ttcore::MeshesAttr meshes_attr =
+      module.get()->getAttrOfType<mlir::tt::ttcore::MeshesAttr>(
+          mlir::tt::ttcore::MeshesAttr::name);
   if (!meshes_attr || meshes_attr.getMeshes().empty()) {
     // If mesh attribute is not set we can still estimate the mesh based on the
     // input shardings.
@@ -433,7 +441,7 @@ void ModuleBuilder::collectMeshShape(
     return;
   }
 
-  llvm::ArrayRef<mlir::tt::MeshAttr> meshes = meshes_attr.getMeshes();
+  llvm::ArrayRef<mlir::tt::ttcore::MeshAttr> meshes = meshes_attr.getMeshes();
 
   // For now, use the first mesh shape (same as what is used in tt-mlir).
   llvm::ArrayRef<int64_t> mesh_shape = meshes[0].getShape();
@@ -445,7 +453,8 @@ void ModuleBuilder::collectMeshShape(
 void ModuleBuilder::estimateMeshShape() {
   for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
        m_input_shardings) {
-    if (input_sharding.getShardType() == mlir::tt::MeshShardType::Devices) {
+    if (input_sharding.getShardType() ==
+        mlir::tt::ttcore::MeshShardType::Devices) {
       m_devices_mesh_shape =
           std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
                                      input_sharding.getMeshShape().end());
@@ -591,8 +600,10 @@ void ModuleBuilder::checkOutputShardingShapes(
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         m_output_shardings[output_index];
-    if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-        output_sharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+    if (output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Identity ||
+        output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Replicate) {
       continue;
     }
 

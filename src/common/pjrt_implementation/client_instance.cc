@@ -17,6 +17,12 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 
+// third-party includes
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/text_format.h>
+#include <google/protobuf/unknown_field_set.h>
+
 // tt-xla includes
 #include "common/module_builder.h"
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -152,14 +158,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
   return tt_pjrt_status::kSuccess;
 }
 
-tt_pjrt_status
-ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
-                                   LoadedExecutableInstance **out_executable) {
+tt_pjrt_status ClientInstance::compileMlirProgram(
+    const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
+    const std::unordered_map<std::string, std::string> &compile_options) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
-  tt_pjrt_status compile_status =
-      m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path);
+  tt_pjrt_status compile_status = m_module_builder->buildModule(
+      mlir_code, m_cached_system_descriptor_path, compile_options);
   if (!tt_pjrt_status_is_ok(compile_status)) {
     return compile_status;
   }
@@ -185,7 +191,8 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
           m_module_builder->getDevicesMeshShape(),
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
-          m_module_builder->getIsOutputScalar());
+          m_module_builder->getIsOutputScalar(),
+          m_module_builder->getOutputDataTypes());
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
@@ -208,6 +215,95 @@ ClientInstance::compileMlirProgram(const PJRT_Program *mlir_program,
   *out_executable = executable.release();
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::unordered_map<std::string, std::string>
+ClientInstance::getCompileOptions(const char *compile_options_data,
+                                  size_t compile_options_size) {
+
+  google::protobuf::io::CodedInputStream cis(
+      reinterpret_cast<const uint8_t *>(compile_options_data),
+      compile_options_size);
+  google::protobuf::UnknownFieldSet unknown_fields;
+
+  if (!unknown_fields.MergeFromCodedStream(&cis)) {
+    return {};
+  }
+  std::unordered_map<std::string, std::string> compile_options_map =
+      ClientInstance::extractCustomProtobufFields(unknown_fields);
+
+  return compile_options_map;
+}
+
+std::unordered_map<std::string, std::string>
+ClientInstance::extractCustomProtobufFields(
+    const google::protobuf::UnknownFieldSet &unknown_fields) {
+  std::unordered_map<std::string, std::string> result;
+
+  // The custom compiler options that are defined in through the jax.jit()
+  // function are stored in the field number 7 in the UnknownFieldSet.
+  constexpr int kCustomCompilerOptionsFieldNumber = 7;
+
+  for (int i = 0; i < unknown_fields.field_count(); ++i) {
+    const google::protobuf::UnknownField &field = unknown_fields.field(i);
+    // Currently, we only support the custom compiler options field that are in
+    // the form of a dictionary, which is represented as a length_delimited
+    // field.
+    // TODO: See if we can support other types of custom fields in the future.
+    if (field.number() != kCustomCompilerOptionsFieldNumber ||
+        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+      continue;
+    }
+
+    google::protobuf::UnknownFieldSet custom_field_set;
+    google::protobuf::io::CodedInputStream input(
+        reinterpret_cast<const uint8_t *>(field.length_delimited().data()),
+        field.length_delimited().size());
+    custom_field_set.ParseFromCodedStream(&input);
+
+    std::string key;
+    std::string value;
+
+    for (int j = 0; j < custom_field_set.field_count(); ++j) {
+      const google::protobuf::UnknownField &inner_field =
+          custom_field_set.field(j);
+      // In the inner field set, first field is the key and second field is the
+      // value. We expect both to be length-delimited fields (coming from a
+      // dictionary).
+      if (inner_field.number() == 1 &&
+          inner_field.type() ==
+              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+        key = inner_field.length_delimited();
+      } else if (inner_field.number() == 2 &&
+                 inner_field.type() ==
+                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+        google::protobuf::UnknownFieldSet custom_nested_set;
+        google::protobuf::io::CodedInputStream nested_input(
+            reinterpret_cast<const uint8_t *>(
+                inner_field.length_delimited().data()),
+            inner_field.length_delimited().size());
+        custom_nested_set.ParseFromCodedStream(&nested_input);
+        if (custom_nested_set.field_count() == 0 ||
+            custom_nested_set.field_count() > 1) {
+          // If the nested set has more than one field or is empty, it is not a
+          // simple key-value pair of strings, so we skip it for now.
+          continue;
+        }
+        const google::protobuf::UnknownField &value_field =
+            custom_nested_set.field(0);
+        if (value_field.type() ==
+            google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+          value = value_field.length_delimited();
+        }
+      }
+    }
+
+    if (!key.empty() && !value.empty()) {
+      result[key] = value;
+    }
+  }
+
+  return result;
 }
 
 namespace internal {
@@ -330,7 +426,9 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-
+  std::unordered_map<std::string, std::string> compile_options_map =
+      ClientInstance::getCompileOptions(args->compile_options,
+                                        args->compile_options_size);
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != ModuleBuilder::c_mlir_format_name) {
@@ -345,7 +443,8 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
 
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
-      reinterpret_cast<LoadedExecutableInstance **>(&args->executable));
+      reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
+      compile_options_map);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

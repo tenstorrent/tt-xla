@@ -18,7 +18,7 @@
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -137,7 +137,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists);
+                      args->output_lists, m_executable_image->getOutputTypes());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
@@ -301,16 +301,23 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
-    // TODO(mrakita): This will not be the case if runtime output tensor does
-    // not have multi-device storage, but I haven't yet encountered situation
-    // where executable is run on multiple devices and we produce a single
-    // device tensor. Leaving this check to help us find those situations.
+    // If the output is a replicated scalar, we expect only one tensor on
+    // output, so we need to fill the rest of the output tensors with the same
+    // tensors, to match the number of devices.
     if (untilized_output.size() != num_devices) {
-      DLOG_F(ERROR,
-             "Untilize to host produced invalid number of output tensors: "
-             "expected %zu, got %zu",
-             num_devices, untilized_output.size());
-      return tt_pjrt_status::kInternal;
+      // If the output is not a scalar throw an error.
+      if (getOutputShape(output_index).size() > 0 ||
+          untilized_output.size() > 1) {
+        DLOG_F(ERROR,
+               "Untilize to host produced invalid number of output tensors: "
+               "expected %zu, got %zu",
+               num_devices, untilized_output.size());
+        return tt_pjrt_status::kInternal;
+      }
+      for (size_t device_index = 1; device_index < num_devices;
+           ++device_index) {
+        untilized_output.emplace_back(untilized_output[0]);
+      }
     }
 
     untilized_output_tensors.emplace_back(std::move(untilized_output));
@@ -322,7 +329,8 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
 void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<std::vector<tt::runtime::Tensor>>
         &untilized_output_tensors,
-    size_t num_devices, PJRT_Buffer **const *output_lists) {
+    size_t num_devices, PJRT_Buffer **const *output_lists,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t num_outputs = untilized_output_tensors.size();
 
   for (int device_index = 0; device_index < num_devices; ++device_index) {
@@ -335,7 +343,8 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
               m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory());
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index]);
 
       output_buffer->markAsDataReady();
 
@@ -353,8 +362,10 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
-  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+  if (outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Identity ||
+      outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
 
