@@ -112,9 +112,9 @@ class DeviceConnector(ABC):
         wheel_plugin_path = self._find_plugin_path_from_wheel()
         build_plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_BUILD_RELPATH)
 
-        if not os.path.exists(wheel_plugin_path) and not os.path.exists(
-            build_plugin_path
-        ):
+        if (
+            wheel_plugin_path is None or not os.path.exists(wheel_plugin_path)
+        ) and not os.path.exists(build_plugin_path):
             raise FileNotFoundError(
                 f"Could not find TT PJRT plugin either from wheel installation or from "
                 f"local build at {build_plugin_path}"
