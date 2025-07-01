@@ -3,6 +3,13 @@ This document walks you through how to set up TT-XLA using a Docker image. There
 * [Installing a Wheel](getting_started.md) - if you do not want to use Docker, and prefer to use a virtual environment by itself instead, use this method.
 * [Building from Source](getting_started_build_from_source.md) - if you plan to develop TT-XLA further, you must build from source, and should use this method.
 
+The following topics are covered:
+
+* [Configuring Hardware](#configuring-hardware)
+* [Setting up the Docker Container](#setting-up-the-docker-container)
+* [Running Models in Docker](#running-models-in-docker)
+* [Where to Go Next](#where-to-go-next)
+
 ## Configuring Hardware
 Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer.
 
@@ -63,3 +70,50 @@ docker run -it --rm \
 ```bash
 docker ps
 ```
+
+## Running Models in Docker
+This section shows you how to run a model using Docker. The provided example is from the TT-Forge repo. Do the following:
+
+1. Inside your running Docker container, clone the TT-Forge repo:
+
+```bash
+git clone https://github.com/tenstorrent/tt-forge.git
+```
+
+2. Activate the virtual environment provided for TT-XLA:
+
+```bash
+source venv-tt-xla/bin/activate
+```
+
+3. Set the path for Python:
+
+```bash
+export PYTHONPATH=/tt-forge:$PYTHONPATH
+```
+
+4. Navigate into TT-Forge and run the following command:
+
+```bash
+git submodule update --init --recursive
+```
+
+5. Navigate back out of the TT-Forge directory.
+
+6. Run a model. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be. For this model, the **demo.py** for **opt_125m** is used. The **requirements.txt** file shows that you need to install **flax** and **transformers**:
+
+```bash
+pip install flax transformers
+```
+
+7. After completing installation, run the following:
+
+```bash
+python tt-forge/demos/tt-xla/opt_125m/demo.py
+```
+
+If all goes well, you should get an example prompt saying 'The capital of France is.' The prediction for the next term is listed, along with the probability it will occur. This is followed by a table of other likely choices.
+
+## Where to Go Next
+
+Now that you have set up TT-XLA, you can compile and run your own models, or try some of the other demos. You can find [TT-XLA demos in the TT-Forge directory](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla).

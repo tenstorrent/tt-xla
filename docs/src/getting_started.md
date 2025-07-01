@@ -14,8 +14,8 @@ The following topics are covered:
 * [Configuring Hardware](#configuring-hardware)
 * [Installing a Wheel and Running an Example](#installing-a-wheel-and-running-an-example)
 * [Other Setup Options](#other-set-up-options)
-   * [Using a Docker Container to Run an Example]
-   * [Building From Source]
+   * [Using a Docker Container to Run an Example](getting_started_docker.md)
+   * [Building From Source](getting_started_build_from_source.md)
 * [Where to Go Next]
 
 > **NOTE:** If you encounter issues, please request assistance on the
@@ -83,7 +83,7 @@ pip install flax transformers
 
 10. If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
 
-## Other Set up Options
+## Other Setup Options
 If you want to keep your environment completely separate in a Docker container, or you want to develop TT-XLA further, this section links you to the pages with those options:
 
 * [Setting up a Docker Container](getting_started_docker.md)
