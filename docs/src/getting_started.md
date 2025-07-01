@@ -24,8 +24,8 @@ The following topics are covered:
 ## Setup Options
 TT-XLA can be used to run JAX models on Tenstorrent's AI hardware. Because TT-XLA is open source, you can also develop and add features to it. Setup instructions differ based on the task. You have the following options, listed in order of difficulty: 
 * [Installing a Wheel and Running an Example](#installing-a-wheel-and-running-an-example) - You should choose this option if you want to run models.
-* [Using a Docker Container to Run an Example] - Choose this option if you want to keep the environment for running models separate from your existing environment.
-* [Building from Source] - This option is best if you want to develop TT-XLA further. It's a more complex process you are unlikely to need if you want to stick with running a model. 
+* [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
+* [Building from Source](getting_started_build_from_source.md) - This option is best if you want to develop TT-XLA further. It's a more complex process you are unlikely to need if you want to stick with running a model. 
 
 ## Configuring Hardware
 Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer. 
