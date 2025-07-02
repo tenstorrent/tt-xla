@@ -71,6 +71,7 @@ class ModelTask(StrEnum):
 class ModelSource(StrEnum):
     HUGGING_FACE = "huggingface"
     CUSTOM = "custom"
+    TORCH_HUB = "torch_hub"
 
 
 class BringupStatus(Enum):
