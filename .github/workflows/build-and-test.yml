@@ -64,6 +64,7 @@ jobs:
     - name: Mark repo as safe for git
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
     - uses: actions/checkout@v4
       with:
