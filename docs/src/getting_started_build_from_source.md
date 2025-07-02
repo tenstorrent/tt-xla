@@ -4,6 +4,15 @@ This document describes how to build the TT-XLA project on your local machine. Y
 * [Installing a Wheel and Running an Example](getting_started.md) - You should choose this option if you want to run models.
 * [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
 
+The following topics are covered:
+
+* [Build Process](#build-process)
+* [Testing](#testing)
+* [Common Build Errors](#common-build-errors)
+
+> **NOTE:** If you encounter issues, please request assistance on the
+>[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
+
 ## Build Process
 TT-XLA integration with the TT-MLIR compiler is still in progress. Currently TT-XLA depends on the TT-MLIR toolchain to build from source. This build flow provides an easy way to experiment with TT-XLA, StableHLO, and the TT-MLIR infrastructure. The build process will be updated in the future to enhance the user experience.
 
