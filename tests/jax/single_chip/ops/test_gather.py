@@ -10,6 +10,16 @@ from infra import run_op_test_with_random_inputs
 from utils import Category
 
 
+def conditionally_skip(start_index_map: tuple):
+    """
+    Helper function which checks test input combinations and xfails if necessary.
+
+    Extracted here in order not to pollute the test function.
+    """
+    if len(start_index_map) > 1:
+        pytest.xfail("Test cases that index multiple dimensions need integer inputs")
+
+
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
@@ -24,16 +34,14 @@ from utils import Category
         ((32000, 3200), (1, 6, 1), (2,), (0,), (1, 3200)),
         ((8, 26, 26, 192), (1,), (0, 1, 2), (3,), (8, 26, 26, 1)),
         ((8, 54, 54, 64), (1,), (0, 1, 2), (3,), (8, 54, 54, 1)),
-        # Fail because of ttnn.embedding bug:
-        # ((732,12),(3880,1),(1,),(0,),(1,12,)),
-        # ((732,16),(3880,1),(1,),(0,),(1,16,)),
-        # Fail because of limitations of test for integer inputs:
-        # ((2,7,512),(2,2),(1,),(0,1,),(1,1,512,)),
-        # ((2,7,768),(2,2),(1,),(0,1,),(1,1,768,)),
+        ((2, 7, 512), (2, 2), (1,), (0, 1), (1, 1, 512)),
+        ((2, 7, 768), (2, 2), (1,), (0, 1), (1, 1, 768)),
     ],
     ids=lambda val: f"shape={val}",
 )
 def test_gather(data_shape, indices_shape, offset_dims, start_index_map, slice_sizes):
+    conditionally_skip(start_index_map)
+
     def gather(data: jnp.ndarray, indices: jnp.ndarray) -> jnp.ndarray:
         # Gather needs these arguments:
         # - offset_dims: which output dims stay unchanged
