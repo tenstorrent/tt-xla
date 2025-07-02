@@ -197,11 +197,11 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        pytest  --log-memory -sv \
-                ${{ matrix.build.dir }}  \
-                -m "${{ inputs.test_mark }}" \
-                --junitxml=${{ steps.strings.outputs.test_report_path }} \
-                2>&1 | tee pytest.log
+        PYTHONPATH=$PYTHONPATH:$(pwd) pytest  --log-memory -sv \
+                                      ${{ matrix.build.dir }}  \
+                                      -m "${{ inputs.test_mark }}" \
+                                      --junitxml=${{ steps.strings.outputs.test_report_path }} \
+                                      2>&1 | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
