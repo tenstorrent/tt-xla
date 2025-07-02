@@ -60,7 +60,6 @@ jobs:
       image: ${{ needs.build-image.outputs.docker-image }}
 
     steps:
-
     - name: Mark repo as safe for git
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
@@ -145,6 +144,11 @@ jobs:
         - /mnt/dockercache:/mnt/dockercache
 
     steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -265,14 +269,15 @@ jobs:
       image: ${{ needs.build-image.outputs.docker-image }}
 
     steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
         lfs: true
-
-    - name: Mark repo as safe for git
-      run: |
-        git config --global --add safe.directory /__w/tt-xla/tt-xla
 
     - name: Override tt-mlir SHA mlir_override is set
       if: ${{ inputs.mlir_override }}
