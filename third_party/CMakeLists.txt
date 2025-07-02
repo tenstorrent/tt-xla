@@ -91,4 +91,5 @@ else()
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
     )
+
 endif()
