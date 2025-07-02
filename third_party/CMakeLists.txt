@@ -92,16 +92,4 @@ else()
         GIT_PROGRESS ON
     )
 
-    # tt-forge-models - Python-only project, no need to build.
-    set(TT_FORGE_MODELS_VERSION "00993ec6823f68f0a2a50ad82868cd4fa40fa67a")
-    ExternalProject_Add(
-        tt_forge_models
-        SOURCE_DIR ${TTPJRT_SOURCE_DIR}/third_party/tt_forge_models
-        GIT_REPOSITORY https://github.com/tenstorrent/tt-forge-models.git
-        GIT_TAG ${TT_FORGE_MODELS_VERSION}
-        GIT_PROGRESS ON
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-    )
 endif()

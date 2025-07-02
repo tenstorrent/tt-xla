@@ -3,7 +3,6 @@ build/
 install/
 third_party/loguru
 third_party/tt-mlir
-third_party/tt_forge_models
 
 # IDE
 .vscode/
