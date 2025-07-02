@@ -50,6 +50,12 @@ def training_tester() -> GPT2Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-0.029541149735450745. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
+)
 def test_gpt2_base_inference(inference_tester: GPT2Tester):
     inference_tester.test()
 

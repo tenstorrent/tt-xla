@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -11,31 +11,34 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import GPTNeoTester
+from ..tester import AlbertV2Tester
 
-MODEL_PATH = "EleutherAI/gpt-neo-125m"
+VARIANT_NAME = "albert-large-v2"
+
+# TODO: Change to use ModelInfo from tt-forge-models
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "gpt_neo",
-    "125m",
-    ModelTask.NLP_CAUSAL_LM,
+    Framework.TORCH,
+    "albert_v2",
+    "large",
+    ModelTask.NLP_MASKED_LM,
     ModelSource.HUGGING_FACE,
 )
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> GPTNeoTester:
-    return GPTNeoTester(MODEL_PATH)
+def inference_tester() -> AlbertV2Tester:
+    return AlbertV2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> GPTNeoTester:
-    return GPTNeoTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> AlbertV2Tester:
+    return AlbertV2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -47,15 +50,15 @@ def training_tester() -> GPTNeoTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.18604311347007751. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379 "
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
     )
 )
-def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
+def test_torch_albert_v2_large_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()
 
 
@@ -67,5 +70,5 @@ def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_gpt_neo_125m_training(training_tester: GPTNeoTester):
+def test_torch_albert_v2_large_training(training_tester: AlbertV2Tester):
     training_tester.test()
