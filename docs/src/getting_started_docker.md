@@ -62,7 +62,7 @@ newgrp docker
 docker run -it --rm \
   --device /dev/tenstorrent \
   -v /dev/hugepages-1G:/dev/hugepages-1G \
-  ghcr.io/tenstorrent/tt-forge/tt-forge-slim:latest
+  ghcr.io/tenstorrent/tt-forge/tt-xla-slim:latest
 ```
 
 5. If you want to check that it is running, open a new tab with the **Same Command** option and run the following:
@@ -80,27 +80,21 @@ This section shows you how to run a model using Docker. The provided example is 
 git clone https://github.com/tenstorrent/tt-forge.git
 ```
 
-2. Activate the virtual environment provided for TT-XLA:
-
-```bash
-source venv-tt-xla/bin/activate
-```
-
-3. Set the path for Python:
+2. Set the path for Python:
 
 ```bash
 export PYTHONPATH=/tt-forge:$PYTHONPATH
 ```
 
-4. Navigate into TT-Forge and run the following command:
+3. Navigate into TT-Forge and run the following command:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-5. Navigate back out of the TT-Forge directory.
+4. Navigate back out of the TT-Forge directory.
 
-6. Run a model. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be. For this model, the **demo.py** for **opt_125m** is used. The **requirements.txt** file shows that you need to install **flax** and **transformers**:
+5. Run a model. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be. For this model, the **demo.py** for **opt_125m** is used. The **requirements.txt** file shows that you need to install **flax** and **transformers**:
 
 ```bash
 pip install flax transformers
