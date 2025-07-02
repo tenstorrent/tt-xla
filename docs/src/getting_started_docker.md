@@ -10,6 +10,9 @@ The following topics are covered:
 * [Running Models in Docker](#running-models-in-docker)
 * [Where to Go Next](#where-to-go-next)
 
+> **NOTE:** If you encounter issues, please request assistance on the
+>[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
+
 ## Configuring Hardware
 Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer.
 
