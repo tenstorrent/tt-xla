@@ -54,31 +54,29 @@ python3 -m venv .xla-venv
 source .xla-venv/bin/activate
 ```
 
-2. Navigate to the [Tenstorrent Nightly Releases](https://github.com/tenstorrent/tt-forge/releases) page.
-
-3. Download the wheel in your active virtual environment:
+2. Download the wheel in your active virtual environment:
 
 ```bash
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
-4. You are now ready to try running a model. Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla).
+3. You are now ready to try running a model. Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla).
 
-5. For this walkthrough, the demo int the **gpt2** folder is used. In the **gpt2** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
+4. For this walkthrough, the [demo in the **gpt2** folder](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla/gpt2) is used. In the **gpt2** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
 
 ```bash
 pip install flax transformers
 ```
 
-6. Download the [**demo.py** file from the **gpt2** folder](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/gpt2/demo.py) inside your activated virtual environment in a place where you can run it. The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
+5. Download the [**demo.py** file from the **gpt2** folder](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/gpt2/demo.py) inside your activated virtual environment in a place where you can run it. The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
 
-7. Run the model:
+6. Run the model:
 
 ```bash
 python demo.py
 ```
 
-8. If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
+7. If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
 
 ## Other Setup Options
 If you want to keep your environment completely separate in a Docker container, or you want to develop TT-XLA further, this section links you to the pages with those options:
