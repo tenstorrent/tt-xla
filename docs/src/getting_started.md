@@ -57,6 +57,7 @@ Before running these commands to build tt-xla, please ensure that the environtme
 ```bash
 git clone git@github.com:tenstorrent/tt-xla.git
 cd tt-xla
+git submodule update --init --recursive
 source venv/activate
 cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
 cmake --build build
