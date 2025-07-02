@@ -19,6 +19,7 @@ from ...config import (
     Framework,
 )
 from ...base import ForgeModel
+from ...tools.utils import print_compiled_model_results
 
 
 class ModelLoader(ForgeModel):
@@ -111,3 +112,6 @@ class ModelLoader(ForgeModel):
             input_batch = input_batch.to(dtype_override)
 
         return input_batch
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

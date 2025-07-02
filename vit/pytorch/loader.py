@@ -63,6 +63,7 @@ class ModelLoader(ForgeModel):
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             model = model.to(dtype_override)
+        self.model = model
 
         return model
 
@@ -84,3 +85,8 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def post_processing(self, co_out):
+        logits = co_out[0]
+        predicted_class_idx = logits.argmax(-1).item()
+        print("Predicted class:", self.model.config.id2label[predicted_class_idx])
