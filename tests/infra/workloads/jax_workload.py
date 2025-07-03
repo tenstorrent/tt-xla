@@ -38,7 +38,7 @@ class JaxWorkload(Workload):
         static_argnames: Optional[Sequence[str]] = None,
     ) -> None:
         super().__init__(args, kwargs)
-
+        print("kwargs=", kwargs)
         self.executable = executable
         self.static_argnames = static_argnames or []
 
