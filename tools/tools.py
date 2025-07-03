@@ -8,7 +8,9 @@ from jax.experimental import serialize_executable
 import pickle
 
 
-def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
+def serialize_function_to_binary(
+    func, binary_file_path, is_jitted=False, *args, **kwargs
+):
     """
     Serialize a JAX function to binary format.
 
@@ -39,7 +41,7 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
         return pid[1]
 
     # JIT compile the function
-    jitted_func = jax.jit(func)
+    jitted_func = jax.jit(func) if is_jitted else func
 
     # Compile with the provided arguments
     compiled = jitted_func.lower(*args, **kwargs).compile()
