@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "cc6bb3dcf9db3fafb127a50731d769231ce0e3e2")
+set(TT_MLIR_VERSION "a44c139bccc6d66f5e729603ac9ce5c8a6fd8c8d")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
