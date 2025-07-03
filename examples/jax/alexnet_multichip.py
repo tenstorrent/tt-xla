@@ -30,7 +30,7 @@ def register_pjrt_plugin():
     """Registers TT PJRT plugin."""
 
     plugin_path = os.path.join(
-        os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
+        os.path.dirname(__file__), "../../build/src/tt/pjrt_plugin_tt.so"
     )
     if not os.path.exists(plugin_path):
         raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
@@ -130,6 +130,10 @@ def run_alexnet():
         ),
         out_shardings=NamedSharding(device_mesh, out_spec),
     )
+    print("num_params_leaves=", len(jax.tree_util.tree_leaves(params)))
+    print("len_device_inputs=", len(device_inputs))
+    print("params=", params)
+    print("device_inputs=", device_inputs)
     results = compiled_apply(params, device_inputs)
 
     print(results)

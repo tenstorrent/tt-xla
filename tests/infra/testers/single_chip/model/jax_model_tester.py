@@ -12,6 +12,7 @@ from infra.workloads import JaxWorkload, Workload, WorkloadFactory
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from .model_tester import ModelTester, RunMode
+import inspect
 
 
 class JaxModelTester(ModelTester):
@@ -123,7 +124,9 @@ class JaxModelTester(ModelTester):
         ), f"Model does not have {forward_method_name} method provided."
 
         forward_pass_method = getattr(self._model, forward_method_name)
-
+        print("forward_pass_method=", forward_pass_method)
+        print("forward_pass_method args:", inspect.signature(forward_pass_method))
+        print("kwargs=", kwargs)
         self._workload = WorkloadFactory.create_workload(
             self._framework,
             executable=forward_pass_method,
