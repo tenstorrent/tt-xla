@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <numeric>
 #include <optional>
+#include <sstream>
+#include <algorithm>
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -47,6 +49,7 @@
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
+#include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
@@ -112,6 +115,30 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
+
+  // Run shardy automatic parallelization pass
+  auto isAutomaticParallelizationEnabled = [&compile_options]() -> bool {
+    if (compile_options.find("automatic_parallelization") != compile_options.end()) {
+      std::string enableStr = compile_options.at("automatic_parallelization");
+      std::transform(enableStr.begin(), enableStr.end(), enableStr.begin(), ::tolower);
+      return enableStr == "true";
+    }
+
+    return false;
+  };
+
+  if (isAutomaticParallelizationEnabled()) {
+    if (compile_options.find("mesh_shape") == compile_options.end()) {
+      DLOG_F(ERROR, "Need to provide 'mesh_shape' when enabling automatic parallelization");
+      m_status = tt_pjrt_status::kInternal;
+      return m_status;
+    }
+
+    runAutomaticShardingPipeline(mlir_module, compile_options.at("mesh_shape"));
+    if (!tt_pjrt_status_is_ok(m_status)) {
+      return m_status;
+    }
+  }
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -407,6 +434,47 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
   return llvm::LogicalResult::success();
 }
 
+
+void ModuleBuilder::runAutomaticShardingPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string mesh_shape_str) {
+  printModule(mlir_module);
+  
+  mlir::PassManager automatic_sharding_pipeline_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
+
+  auto parseMeshShape = [](std::string &mesh_shape_str) -> std::vector<int> {
+    std::vector<int> result;
+    std::stringstream ss(mesh_shape_str);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+      result.push_back(std::stoi(token));
+    }
+
+    return result;
+  };
+
+  std::vector<int> mesh_shape = parseMeshShape(mesh_shape_str);
+  if (mesh_shape.size() != 2) {
+    DLOG_F(ERROR,
+           "Invalid mesh shape size: %zu. Shape must have two dimensions!",
+           mesh_shape.size());
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  mlir::tt::stablehlo::AutomaticShardingPipelineOptions automatic_sharding_pipeline_options;
+  automatic_sharding_pipeline_options.meshShape = {mesh_shape[0], mesh_shape[1]};
+  mlir::tt::stablehlo::createAutomaticShardingPipeline(automatic_sharding_pipeline_pm, automatic_sharding_pipeline_options);
+
+  if (mlir::failed(automatic_sharding_pipeline_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to run automatic sharding pipeline");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  DLOG_F(LOG_DEBUG, "SHLO Automatic Sharding Pipeline Module:");
+  printModule(mlir_module);
+}
+
 void ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
@@ -636,9 +704,9 @@ void ModuleBuilder::checkOutputShardingShapes(
 
 void ModuleBuilder::printModule(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  if (loguru::g_stderr_verbosity < LOG_DEBUG) {
-    return;
-  }
+  //if (loguru::g_stderr_verbosity < LOG_DEBUG) {
+  //  return;
+  //}
 
   mlir_module->dump();
 }

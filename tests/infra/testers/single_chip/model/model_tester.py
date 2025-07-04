@@ -42,6 +42,7 @@ class ModelTester(BaseTester, ABC):
         comparison_config: ComparisonConfig,
         run_mode: RunMode,
         framework: Framework,
+        compiler_options: Dict[str, str] = {}
     ) -> None:
         """Protected constructor for subclasses to use."""
         self._run_mode = run_mode
@@ -51,7 +52,7 @@ class ModelTester(BaseTester, ABC):
         self._model: Model = None
         self._workload: Workload = None
 
-        super().__init__(comparison_config, framework)
+        super().__init__(comparison_config, framework, compiler_options)
 
     # --- For test writer's tester subclasses to override ---
 

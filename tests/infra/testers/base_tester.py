@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Dict
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
@@ -22,6 +22,7 @@ class BaseTester(ABC):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         framework: Optional[Framework] = None,
+        compiler_options: Dict[str, str] = {},
     ) -> None:
         """Protected constructor for subclasses to use."""
         self._comparison_config = comparison_config
@@ -37,6 +38,9 @@ class BaseTester(ABC):
         self._initialize_framework_specific_helpers()
         # Initialize rest of the class.
         self._initialize_all_components()
+
+        # Compiler options to pass to jax.jit()
+        self.compiler_options = compiler_options
 
     def _initialize_framework_specific_helpers(self) -> None:
         """

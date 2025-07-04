@@ -12,21 +12,6 @@ from infra import (
 from utils import failed_ttmlir_compilation
 
 
-def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
-    """
-    Helper function which checks test input combinations and xfails if necessary.
-
-    Extracted here in order not to pollute the test function.
-    """
-    if use_shardy or sharding_mode == ShardingMode.INPUTS:
-        pytest.xfail(
-            failed_ttmlir_compilation(
-                "Sharding constraint not supported in tt-mlir "
-                "(https://github.com/tenstorrent/tt-xla/issues/563)"
-            )
-        )
-
-
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
@@ -53,7 +38,12 @@ def test_reshard(
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
-    conditionally_skip(use_shardy, sharding_mode)
+    compiler_options = {}
+    if use_shardy:
+      compiler_options = {
+        "automatic_parallelization": "true",
+        "mesh_shape": "1,8"
+      }
 
     def fwd(a_block):
         b_block = jax.lax.with_sharding_constraint(
@@ -73,4 +63,5 @@ def test_reshard(
         out_specs,
         use_shardy,
         sharding_mode,
+        compiler_options=compiler_options
     )
