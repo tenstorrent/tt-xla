@@ -175,7 +175,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   // is going to be used for the `PJRT_Executable_DeserializeAndLoad` to
   // recompile the flatbuffer then we need either original program code or
   // VHLO/SHLO module. Passing original program code for now.
-  std::string optimized_mlir_code(mlir_code);
+  std::string optimized_mlir_code(m_module_builder->getTTIRCode());
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.

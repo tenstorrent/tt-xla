@@ -226,9 +226,8 @@ PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
       SerializedExecutableInstance::createInstance(executable_image);
 
   args->serialized_bytes = reinterpret_cast<const char *>(
-      serialized_executable->getSerializedFlatbuffer().data());
-  args->serialized_bytes_size =
-      serialized_executable->getSerializedSizeInBytes();
+      serialized_executable->getTTIRCode().data());
+  args->serialized_bytes_size = serialized_executable->getTTIRCode().size();
   args->serialized_executable_deleter = [](PJRT_SerializedExecutable *exec) {
     delete SerializedExecutableInstance::unwrap(exec);
   };

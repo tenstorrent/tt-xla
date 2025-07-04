@@ -8,9 +8,7 @@ from jax.experimental import serialize_executable
 import pickle
 
 
-def serialize_function_to_binary(
-    func, binary_file_path, is_compiled=True, *args, **kwargs
-):
+def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
     """
     Serialize a JAX function to binary format.
 
@@ -47,12 +45,7 @@ def serialize_function_to_binary(
 
         return data
 
-    if is_compiled:
-        # If the function is already compiled, we can directly use it
-        jitted_func = func
-    else:
-        # Otherwise, we JIT compile the function
-        jitted_func = jax.jit(func)
+    jitted_func = jax.jit(func)
 
     # Compile with the provided arguments
     compiled = jitted_func.lower(*args, **kwargs).compile()
@@ -66,5 +59,7 @@ def serialize_function_to_binary(
     unpickler.persistent_load = persistent_load
     unloaded_executable, _, _ = unpickler.load()
 
-    with open(binary_file_path, "wb") as f:
-        f.write(unloaded_executable.xla_executable)
+    flatbuffer_binary = unloaded_executable.xla_executable
+    decoded_str = flatbuffer_binary.decode("utf-8")
+    with open(binary_file_path, "w") as f:
+        f.write(decoded_str)

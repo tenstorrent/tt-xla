@@ -118,6 +118,13 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  std::string ttir_code_str;
+  {
+    llvm::raw_string_ostream os(ttir_code_str);
+    mlir_module->print(os);
+  }
+  m_ttir_code = ttir_code_str;
+
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
