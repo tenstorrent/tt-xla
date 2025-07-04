@@ -40,7 +40,12 @@ def serialize_function_to_binary(
         """
         if len(pid) < 2:
             return pid[0]
-        return pid[1]
+
+        tag, data = pid[0], pid[1]
+        if tag == "device":
+            return jax.devices("tt")[data]
+
+        return data
 
     if is_compiled:
         # If the function is already compiled, we can directly use it
