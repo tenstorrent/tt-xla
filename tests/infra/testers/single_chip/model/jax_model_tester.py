@@ -37,6 +37,7 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_options: Dict[str, str] = {}
     ) -> None:
         # Placeholders for objects that will be set during
         # `_initialize_all_components`. Easier to spot if located in constructor instead
@@ -44,7 +45,7 @@ class JaxModelTester(ModelTester):
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode, Framework.JAX)
+        super().__init__(comparison_config, run_mode, Framework.JAX, compiler_options)
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """
@@ -169,7 +170,7 @@ class JaxModelTester(ModelTester):
         assert isinstance(workload, JaxWorkload)
 
         workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+            workload.executable, static_argnames=workload.static_argnames, compiler_options=self.compiler_options
         )
         return workload
 

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Dict
 
 import jax
 from infra.comparators import ComparisonConfig
@@ -53,6 +53,7 @@ class JaxMultichipOpTester(BaseTester):
         mesh_shape: tuple,
         axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
+        compiler_options: Dict[str, str] = {},
     ) -> None:
         self._in_specs = in_specs
         self._out_spec = out_spec
@@ -64,7 +65,7 @@ class JaxMultichipOpTester(BaseTester):
         self._device_mesh: jax.sharding.Mesh = None
         self._cpu_mesh: jax.sharding.Mesh = None
 
-        super().__init__(comparison_config, Framework.JAX)
+        super().__init__(comparison_config, Framework.JAX, compiler_options)
 
     def test(
         self, device_workload: JaxMultichipWorkload, cpu_workload: JaxMultichipWorkload
@@ -153,6 +154,7 @@ class JaxMultichipOpTester(BaseTester):
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
+            compiler_options=self.compiler_options
         )
         return workload
 
@@ -194,6 +196,7 @@ def run_jax_multichip_op_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    compiler_options: Dict[str, str] = {},
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -203,7 +206,7 @@ def run_jax_multichip_op_test_with_random_inputs(
     """
     with enable_shardy(use_shardy):
         tester = JaxMultichipOpTester(
-            in_specs, out_specs, mesh_shape, axis_names, comparison_config
+            in_specs, out_specs, mesh_shape, axis_names, comparison_config, compiler_options
         )
         tester.test_with_random_inputs(
             executable, input_shapes, sharding_mode, minval, maxval

@@ -47,6 +47,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_options: Dict[str, str] = {}
     ) -> None:
         self._mesh_shape = mesh_shape
         self._axis_names = axis_names
@@ -63,7 +64,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_options)
 
     # --- For test writer's tester subclasses to override ---
 
@@ -141,6 +142,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
+            compiler_options=self.compiler_options
         )
         return workload
 

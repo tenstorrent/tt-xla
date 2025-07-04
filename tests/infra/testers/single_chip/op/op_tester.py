@@ -68,7 +68,7 @@ class OpTester(BaseTester):
 
         def compile_jax_workload(workload: JaxWorkload) -> Workload:
             workload.executable = jax.jit(
-                workload.executable, static_argnames=workload.static_argnames
+                workload.executable, static_argnames=workload.static_argnames, compiler_options=self.compiler_options
             )
             return workload
 

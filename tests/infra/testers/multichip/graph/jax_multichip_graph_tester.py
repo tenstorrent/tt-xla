@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Dict
 
 import jax
 from infra.comparators import ComparisonConfig
@@ -35,6 +35,7 @@ def run_jax_multichip_graph_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    compiler_options: Dict[str, str] = {},
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -44,7 +45,7 @@ def run_jax_multichip_graph_test_with_random_inputs(
     """
     with enable_shardy(use_shardy):
         tester = JaxMultichipGraphTester(
-            in_specs, out_specs, mesh_shape, axis_names, comparison_config
+            in_specs, out_specs, mesh_shape, axis_names, comparison_config, compiler_options
         )
         tester.test_with_random_inputs(
             executable, input_shapes, sharding_mode, minval, maxval
