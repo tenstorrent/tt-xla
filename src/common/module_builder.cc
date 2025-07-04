@@ -6,6 +6,7 @@
 #include "common/module_builder.h"
 
 // c++ standard library includes
+#include <cctype>
 #include <cstdlib>
 #include <numeric>
 #include <optional>
@@ -118,6 +119,12 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   // Run shardy automatic parallelization pass
   auto isAutomaticParallelizationEnabled = [&compile_options]() -> bool {
+    const char* env_enable_auto = std::getenv("ENABLE_AUTO_PARALLEL");
+    if (env_enable_auto != nullptr) {
+      std::string enableStr = env_enable_auto;
+      std::transform(enableStr.begin(), enableStr.end(), enableStr.begin(), ::tolower);
+      return enableStr == "true";
+    }
     if (compile_options.find("automatic_parallelization") != compile_options.end()) {
       std::string enableStr = compile_options.at("automatic_parallelization");
       std::transform(enableStr.begin(), enableStr.end(), enableStr.begin(), ::tolower);
@@ -128,13 +135,16 @@ tt_pjrt_status ModuleBuilder::buildModule(
   };
 
   if (isAutomaticParallelizationEnabled()) {
-    if (compile_options.find("mesh_shape") == compile_options.end()) {
+    const char* env_mesh_shape = std::getenv("MESH_SHAPE");
+    if (compile_options.find("mesh_shape") == compile_options.end() && env_mesh_shape == nullptr) {
       DLOG_F(ERROR, "Need to provide 'mesh_shape' when enabling automatic parallelization");
       m_status = tt_pjrt_status::kInternal;
       return m_status;
     }
-
-    runAutomaticShardingPipeline(mlir_module, compile_options.at("mesh_shape"));
+    std::string env_mesh_shape_str = env_mesh_shape != nullptr
+                                         ? env_mesh_shape
+                                         : compile_options.at("mesh_shape");
+    runAutomaticShardingPipeline(mlir_module, env_mesh_shape_str);
     if (!tt_pjrt_status_is_ok(m_status)) {
       return m_status;
     }
