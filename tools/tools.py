@@ -8,14 +8,18 @@ from jax.experimental import serialize_executable
 import pickle
 
 
-def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
+def serialize_function_to_binary(
+    func, binary_file_path, is_compiled=True, *args, **kwargs
+):
     """
     Serialize a JAX function to binary format.
 
     Args:
         func: The function to serialize
         binary_file_path: Path to save the serialized binary
-        *args: Sample arguments to trigger compilation
+        is_compiled: Boolean indicating if the function is already compiled
+        *args: Sample arguments for compilation
+        **kwargs: Sample keyword arguments for compilation
     """
 
     def persistent_load(pid):
@@ -38,8 +42,12 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
             return pid[0]
         return pid[1]
 
-    # JIT compile the function
-    jitted_func = jax.jit(func)
+    if is_compiled:
+        # If the function is already compiled, we can directly use it
+        jitted_func = func
+    else:
+        # Otherwise, we JIT compile the function
+        jitted_func = jax.jit(func)
 
     # Compile with the provided arguments
     compiled = jitted_func.lower(*args, **kwargs).compile()
