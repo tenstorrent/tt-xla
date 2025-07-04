@@ -237,6 +237,18 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+
+      // Log input buffer info
+      const std::int64_t *dimensions = buffer->getDimensionsRaw();
+      size_t num_dims = buffer->getNumberOfDimensions();
+      std::vector<std::uint32_t> shape;
+      for (size_t i = 0; i < num_dims; ++i) {
+        shape.push_back(static_cast<std::uint32_t>(dimensions[i]));
+      }
+      std::string operation = "Execute input " + std::to_string(arg_index) +
+                              " on device " + std::to_string(device_index);
+      logBufferInfo(shape, buffer->getDataType(), nullptr, operation);
+
       arg_tensors.push_back(buffer->getRuntimeTensor());
     }
 
@@ -347,6 +359,18 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
               expected_output_data_types[output_index]);
 
       output_buffer->markAsDataReady();
+
+      // Log output buffer info
+      const std::int64_t *dimensions = output_buffer->getDimensionsRaw();
+      size_t num_dims = output_buffer->getNumberOfDimensions();
+      std::vector<std::uint32_t> shape;
+      for (size_t i = 0; i < num_dims; ++i) {
+        shape.push_back(static_cast<std::uint32_t>(dimensions[i]));
+      }
+      std::string operation = "Execute output " + std::to_string(output_index) +
+                              " on device " + std::to_string(device_index);
+      logBufferInfo(shape, expected_output_data_types[output_index], nullptr,
+                    operation);
 
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Buffer_Destroy` on the buffer.

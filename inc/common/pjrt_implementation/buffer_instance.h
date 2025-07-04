@@ -258,6 +258,11 @@ PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args);
 
 } // namespace internal
 
+// Debug utility function for logging buffer information
+void logBufferInfo(const std::vector<std::uint32_t> &shape,
+                   PJRT_Buffer_Type data_type, const void *buffer,
+                   const std::string &operation);
+
 } // namespace tt::pjrt
 
 #endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_BUFFER_INSTANCE_H_

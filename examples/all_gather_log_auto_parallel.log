@@ -454,7 +454,7 @@ backtrace:
  --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x7f5f1520fac3]
  --- /lib/x86_64-linux-gnu/libc.so.6(+0x126850) [0x7f5f152a1850]
 
-ERROR:root:Caught an exception when exiting the process. Exception: 
+ERROR:root:Caught an exception when exiting the process. Exception:
 Traceback (most recent call last):
   File "/localdev/hshah/tt-xla/venv/lib/python3.10/site-packages/torch_xla/__init__.py", line 216, in _prepare_to_exit
     _XLAC._prepare_to_exit()
@@ -479,4 +479,3 @@ backtrace:
  --- /localdev/hshah/tt-xla/venv/lib/python3.10/site-packages/_XLAC.cpython-310-x86_64-linux-gnu.so(+0x119895e1) [0x7f5da55075e1]
  --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x7f5f1520fac3]
  --- /lib/x86_64-linux-gnu/libc.so.6(+0x126850) [0x7f5f152a1850]
-

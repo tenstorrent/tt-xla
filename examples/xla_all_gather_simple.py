@@ -46,37 +46,37 @@ def create_mesh():
 @pytest.mark.parametrize("shard_dim", [0, 1])
 def test_all_gather(shard_dim):
     """Test all_gather operation with sharding on different dimensions.
-    
+
     Args:
         shard_dim: Dimension to shard on (0 for batch, 1 for model)
     """
     setup_tt_environment()
     mesh = create_mesh()
-    
+
     # Random inputs between 0 and 0.1
     t = (torch.rand(8192, 784) - 0.0) * 0.1
     golden = copy.deepcopy(t)
-    
+
     t = t.to(torch_xla.device())
-    
+
     if shard_dim == 0:
         # Shard on batch dimension (dim 0)
         xs.mark_sharding(t, mesh, ("batch", None))
         # Correct replica groups for batch sharding: pair devices across batch rows
-        groups = [[0,4], [1,5], [2,6], [3,7]]
+        groups = [[0, 4], [1, 5], [2, 6], [3, 7]]
         gather_dim = 0
     else:
-        # Shard on model dimension (dim 1) 
+        # Shard on model dimension (dim 1)
         xs.mark_sharding(t, mesh, (None, "model"))
         # For model sharding: two groups of 4 devices each (one group per batch row)
-        groups = [[0,1,2,3], [4,5,6,7]]
+        groups = [[0, 1, 2, 3], [4, 5, 6, 7]]
         gather_dim = 1
-    
+
     y = xm.all_gather(t, gather_dim, groups=groups, pin_layout=False)
-    
+
     y = y.to("cpu")
     print(f"Shard dim: {shard_dim}, Y Shape: {y.shape}")
-    
+
     assert torch.allclose(y, golden, atol=0.001)
 
 
