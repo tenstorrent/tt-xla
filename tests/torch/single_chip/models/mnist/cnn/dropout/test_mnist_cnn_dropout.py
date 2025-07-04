@@ -52,7 +52,9 @@ def training_tester() -> MNISTCNNTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.xfail(reason="XFAILING to avoid blocking tt-mlir uplift PR #4007.")
+@pytest.mark.xfail(
+    reason="This test fails due to torch_xla/csrc/xla_graph_executor.cpp:689 : Check failed: tensor_data."
+)
 def test_torch_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()
 
