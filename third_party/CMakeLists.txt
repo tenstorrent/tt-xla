@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "e4d472afa790bc4a90c1b6d4048b56b66b77ca2a") # TEMPORARY FOR IN_QUEUE tt-mlir uplift
+set(TT_MLIR_VERSION "ef912af9105139ee84f946bd1d9fe17f511baddb")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
