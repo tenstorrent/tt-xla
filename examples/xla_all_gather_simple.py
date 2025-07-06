@@ -18,6 +18,7 @@ def setup_tt_environment():
     """Setup TensorTrent environment and plugin."""
     os.environ["PJRT_DEVICE"] = "TT"
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
     os.environ["MESH_SHAPE"] = "2,4"
     os.environ["LOGGER_LEVEL"] = "DEBUG"
@@ -41,6 +42,61 @@ def create_mesh():
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+
+@pytest.mark.parametrize("shard_dim", [0, 1, 2])
+def test_all_reduce(shard_dim):
+    """Test all_reduce operation with sharding on different dimensions.
+
+    Args:
+        shard_dim: Dimension to shard on (0 for batch, 1 for model)
+    """
+    setup_tt_environment()
+    mesh = create_mesh()
+
+    # Create tensor with values that make reduction easy to verify
+    t = torch.ones(8192, 784) * 2.0  # All values are 2.0
+    golden = copy.deepcopy(t)
+
+    t = t.to(torch_xla.device())
+
+    if shard_dim == 0:
+        # Shard on batch dimension (dim 0)
+        xs.mark_sharding(t, mesh, ("batch", None))
+        # For all_reduce on batch sharding: pair devices across batch rows
+        groups = [[0, 4], [1, 5], [2, 6], [3, 7]]
+        y = xm.all_reduce(xm.REDUCE_SUM, t, groups=groups)
+    elif shard_dim == 1:
+        # Shard on model dimension (dim 1)
+        xs.mark_sharding(t, mesh, (None, "model"))
+        # For all_reduce on model sharding: two groups of 4 devices each
+        groups = [[0, 1, 2, 3], [4, 5, 6, 7]]
+    else:
+        # Shard onall dimensions
+        xs.mark_sharding(t, mesh, ("batch", "model"))
+        # For all_reduce on model sharding: two groups of 4 devices each
+        groups = [[0, 1, 2, 3, 4, 5, 6, 7]]
+
+    # Perform all_reduce sum operation
+    y = xm.all_reduce(xm.REDUCE_SUM, t, groups=groups)
+
+    torch_xla.sync()
+    y = y.cpu()
+    print(f"All-reduce shard dim: {shard_dim}, Y Shape: {y.shape}")
+    breakpoint()
+
+    # All_reduce sums values across the sharded dimension within each group
+    # The result tensor has reduced shape along the sharded dimension
+    if shard_dim == 0:
+        # Sharded on dim 0 (batch): reduces from 8192 to 4096 rows
+        # Each group has 2 devices, so sum = 2.0 + 2.0 = 4.0
+        expected = torch.ones(4096, 784) * 4.0
+    elif shard_dim == 1:
+        # Sharded on dim 1 (model): reduces from 784 to 196 columns
+        # Each group has 4 devices, so sum = 2.0 + 2.0 + 2.0 + 2.0 = 8.0
+        expected = torch.ones(8192, 196) * 8.0
+
+    assert torch.allclose(y, expected, atol=0.001)
 
 
 @pytest.mark.parametrize("shard_dim", [0, 1])
@@ -81,6 +137,12 @@ def test_all_gather(shard_dim):
 
 
 if __name__ == "__main__":
-    test_all_gather(0)
-    test_all_gather(1)
+    # Run all_reduce tests
+    test_all_reduce(0)  # Test batch sharding
+    test_all_reduce(1)  # Test model sharding
+
+    # Run all_gather tests
+    test_all_gather(0)  # Test batch sharding
+    test_all_gather(1)  # Test model sharding
+
     print("All tests passed!")
