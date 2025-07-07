@@ -40,7 +40,7 @@ def main(
     max_gen_len: int = 64,
     temperature: float = 0.0,
     top_p: float = 1.0,
-    n_layers: int = 16,
+    n_layers: int = 32,
     max_seq_length: int = 128
 ):
     print("🚀 Loading LLaMA...")
