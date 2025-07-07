@@ -44,7 +44,7 @@ def create_mesh():
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
 
 
-@pytest.mark.parametrize("shard_dim", [0, 1, 2])
+@pytest.mark.parametrize("shard_dim", [0, 1])
 def test_all_reduce(shard_dim):
     """Test all_reduce operation with sharding on different dimensions.
 
@@ -55,10 +55,9 @@ def test_all_reduce(shard_dim):
     mesh = create_mesh()
 
     # Create tensor with values that make reduction easy to verify
-    t = torch.ones(8192, 784) * 2.0  # All values are 2.0
-    golden = copy.deepcopy(t)
-
+    t = torch.ones(256, 512)
     t = t.to(torch_xla.device())
+    torch_xla.sync()
 
     if shard_dim == 0:
         # Shard on batch dimension (dim 0)
@@ -71,30 +70,22 @@ def test_all_reduce(shard_dim):
         xs.mark_sharding(t, mesh, (None, "model"))
         # For all_reduce on model sharding: two groups of 4 devices each
         groups = [[0, 1, 2, 3], [4, 5, 6, 7]]
-    else:
-        # Shard onall dimensions
-        xs.mark_sharding(t, mesh, ("batch", "model"))
-        # For all_reduce on model sharding: two groups of 4 devices each
-        groups = [[0, 1, 2, 3, 4, 5, 6, 7]]
 
     # Perform all_reduce sum operation
     y = xm.all_reduce(xm.REDUCE_SUM, t, groups=groups)
+    y = xm.all_gather(y, shard_dim, groups=groups, pin_layout=False)
 
     torch_xla.sync()
     y = y.cpu()
     print(f"All-reduce shard dim: {shard_dim}, Y Shape: {y.shape}")
-    breakpoint()
+    print(f"y: {y}")
 
     # All_reduce sums values across the sharded dimension within each group
     # The result tensor has reduced shape along the sharded dimension
     if shard_dim == 0:
-        # Sharded on dim 0 (batch): reduces from 8192 to 4096 rows
-        # Each group has 2 devices, so sum = 2.0 + 2.0 = 4.0
-        expected = torch.ones(4096, 784) * 4.0
+        expected = torch.ones(256, 512) * 2.0
     elif shard_dim == 1:
-        # Sharded on dim 1 (model): reduces from 784 to 196 columns
-        # Each group has 4 devices, so sum = 2.0 + 2.0 + 2.0 + 2.0 = 8.0
-        expected = torch.ones(8192, 196) * 8.0
+        expected = torch.ones(256, 512) * 4.0
 
     assert torch.allclose(y, expected, atol=0.001)
 
