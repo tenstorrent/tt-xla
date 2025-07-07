@@ -319,6 +319,7 @@ class CMakeBuildPy(build_py):
             "-DCMAKE_CXX_COMPILER=clang++-17",
             "-DTTMLIR_ENABLE_RUNTIME=ON",
             "-DTTMLIR_ENABLE_STABLEHLO=ON",
+            "-DTT_RUNTIME_ENABLE_PERF_TRACE=ON",
         ]
         build_command = ["--build", "build"]
 
@@ -352,9 +353,12 @@ setup(
     long_description_content_type="text/markdown",
     long_description=config.long_description,
     name="pjrt-plugin-tt",
-    packages=["jax_plugins.pjrt_plugin_tt"],
+    packages=["jax_plugins.pjrt_plugin_tt", "ttxla_tools"],
     package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME]},
-    package_dir={f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt"},
+    package_dir={
+        f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
+        "ttxla_tools": os.path.join("..", "ttxla_tools"),
+    },
     python_requires=">=3.10, <3.11",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,

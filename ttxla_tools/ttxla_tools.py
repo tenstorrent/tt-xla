@@ -8,14 +8,15 @@ from jax.experimental import serialize_executable
 import pickle
 
 
-def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
+def serialize_function_to_mlir(func, binary_file_path, *args, **kwargs):
     """
     Serialize a JAX function to binary format.
 
     Args:
-        func: The function to serialize
-        binary_file_path: Path to save the serialized binary
-        *args: Sample arguments to trigger compilation
+        func: The function to write mlir for
+        binary_file_path: Path to save the mlir code
+        *args: Sample arguments for compilation
+        **kwargs: Sample keyword arguments for compilation
     """
 
     def persistent_load(pid):
@@ -36,9 +37,13 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
         """
         if len(pid) < 2:
             return pid[0]
-        return pid[1]
 
-    # JIT compile the function
+        tag, data = pid[0], pid[1]
+        if tag == "device":
+            return jax.devices("tt")[data]
+
+        return data
+
     jitted_func = jax.jit(func)
 
     # Compile with the provided arguments
@@ -53,5 +58,7 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
     unpickler.persistent_load = persistent_load
     unloaded_executable, _, _ = unpickler.load()
 
-    with open(binary_file_path, "wb") as f:
-        f.write(unloaded_executable.xla_executable)
+    flatbuffer_binary = unloaded_executable.xla_executable
+    decoded_str = flatbuffer_binary.decode("utf-8")
+    with open(binary_file_path, "w") as f:
+        f.write(decoded_str)
