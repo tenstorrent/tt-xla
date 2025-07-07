@@ -85,12 +85,3 @@ To compare the token outputs from all three models, run:
 ```
 python3 check_outputs.py
 ```
-
-
-
-
-
-
-
-
-

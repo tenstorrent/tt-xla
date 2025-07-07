@@ -1,11 +1,17 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import os
 import numpy as np
+
 
 def load_tokens(file_path):
     return np.loadtxt(file_path, dtype=int).flatten()
 
+
 def tokens_match(a, b):
     return np.array_equal(a, b)
+
 
 def main():
     root = "results"
@@ -27,11 +33,11 @@ def main():
             print(f"✅ Tokens match: {a} == {b}")
         else:
             for i in range(len(outputs[a])):
-                if outputs[a][i]!=outputs[b][i]:
+                if outputs[a][i] != outputs[b][i]:
                     print(f"❌ Missmatch at {i}th token.")
                     print(f"Generation lenght: {len(outputs[a])}")
                     break
-                
+
 
 if __name__ == "__main__":
     main()
