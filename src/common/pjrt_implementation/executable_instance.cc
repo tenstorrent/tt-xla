@@ -112,9 +112,9 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   program->format = ModuleBuilder::c_mlir_format_name.data();
   program->format_size = ModuleBuilder::c_mlir_format_name.size();
 
-  const std::string &optimized_mlir_code =
-      executable_instance->getExecutableImage()->getOptimizedMlirCode();
-  size_t code_size = optimized_mlir_code.size();
+  const std::string &original_mlir_code =
+      executable_instance->getExecutableImage()->getOriginalMlirCode();
+  size_t code_size = original_mlir_code.size();
 
   if (program->code == nullptr) {
     program->code_size = code_size;
@@ -128,7 +128,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
                   .release();
     }
 
-    std::memcpy(program->code, optimized_mlir_code.data(), code_size);
+    std::memcpy(program->code, original_mlir_code.data(), code_size);
   }
 
   return nullptr;

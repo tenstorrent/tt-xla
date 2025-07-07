@@ -28,7 +28,7 @@ SerializedExecutableInstance::createInstance(
 
 SerializedExecutableInstance::SerializedExecutableInstance(
     const ExecutableImage *executable_image)
-    : m_ttir_code(executable_image->getOptimizedMlirCode()) {
+    : m_ttir_code(executable_image->getTTIRMlirCode()) {
   const tt::runtime::Binary &flatbuffer_binary =
       executable_image->getFlatbufferBinary();
   flatbuffer_binary.storeToMemory(m_serialized_flatbuffer);
