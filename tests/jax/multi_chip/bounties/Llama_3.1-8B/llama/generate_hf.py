@@ -12,7 +12,7 @@ def run():
     temperature = 0.0
     top_p = 1.0
     max_seq_len = 128
-    n_layers = 16
+    n_layers = 32
 
     print("📦 Loading model and tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
