@@ -11,37 +11,38 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
-from ..tester import GPT2Tester
+from .tester import DlaTester
 
-MODEL_PATH = "openai-community/gpt2"
+VARIANT_NAME = "dla34"
+
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "gpt2",
-    "base",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
+    Framework.TORCH,
+    "dla",
+    "34",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.TORCH_HUB,
 )
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH)
+def inference_tester() -> DlaTester:
+    return DlaTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> DlaTester:
+    return DlaTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
-@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -50,11 +51,10 @@ def training_tester() -> GPT2Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_gpt2_base_inference(inference_tester: GPT2Tester):
+def test_torch_dla_inference(inference_tester: DlaTester):
     inference_tester.test()
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -63,5 +63,5 @@ def test_gpt2_base_inference(inference_tester: GPT2Tester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_gpt2_base_training(training_tester: GPT2Tester):
+def test_torch_dla_training(training_tester: DlaTester):
     training_tester.test()

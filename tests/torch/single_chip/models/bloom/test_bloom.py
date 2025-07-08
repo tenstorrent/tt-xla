@@ -11,50 +11,57 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import GPT2Tester
+from tester import BloomTester
 
-MODEL_PATH = "openai-community/gpt2"
+VARIANT_NAME = "bloom-1b1"
+
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "gpt2",
-    "base",
+    Framework.TORCH,
+    "bloom",
+    "1b1",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH)
+def inference_tester() -> BloomTester:
+    return BloomTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> BloomTester:
+    return BloomTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
 
 
-@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-def test_gpt2_base_inference(inference_tester: GPT2Tester):
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
+    )
+)
+def test_torch_blooom_inference(inference_tester: BloomTester):
     inference_tester.test()
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -63,5 +70,5 @@ def test_gpt2_base_inference(inference_tester: GPT2Tester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_gpt2_base_training(training_tester: GPT2Tester):
+def test_torch_bloom_training(training_tester: BloomTester):
     training_tester.test()

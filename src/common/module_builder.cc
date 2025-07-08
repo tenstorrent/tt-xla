@@ -118,6 +118,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  collectTTIRCode(mlir_module);
+
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
@@ -323,6 +325,13 @@ void ModuleBuilder::collectOutputTypes(
           tt::pjrt::data_type_utils::convertMLIRToPJRTDataType(returnType));
     }
   }
+}
+
+void ModuleBuilder::collectTTIRCode(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  m_ttir_code.clear();
+  llvm::raw_string_ostream os(m_ttir_code);
+  mlir_module.get()->print(os);
 }
 
 std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
