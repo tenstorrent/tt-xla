@@ -90,6 +90,7 @@ jobs:
     with:
       test_mark: 'push'
       run_id: ${{ github.run_id }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
       build_options: |
         [
           {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
