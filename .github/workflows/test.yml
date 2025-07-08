@@ -1,0 +1,179 @@
+name: Test (call)
+
+on:
+  workflow_call:
+    inputs:
+      test_mark:
+        description: 'Test mark to run'
+        required: false
+        default: 'push'
+        type: string
+      build_options:
+        description: >
+          Build options for each run, like:
+          - machine
+          - directory to run tests on
+          - the name of the run which can be used to differentiate unique runs
+        required: true
+        type: string
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+      run_id:
+        description: 'Run ID to download artifacts from  (or else it will search)'
+        required: false
+        type: string
+
+jobs:
+
+  # # Run tests on TT hardware
+
+  run-tests:
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(inputs.build_options) }}
+
+    runs-on:
+      - in-service
+      - ${{ matrix.build.runs-on }}
+
+    # Keep this name in sync with the fetch-job-id step
+    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+
+    - name: Download build artifacts
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+      with:
+        name: build-artifacts
+        path: build
+        github_token: ${{ github.token }}
+
+    - name: Download wheel
+      if: ${{ inputs.run_id }}
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+      with:
+        name: xla-whl-codecov
+        run_id: ${{ inputs.run_id }}
+        github_token: ${{ github.token }}
+
+    - name: Find and download forge wheel
+      if: ${{ !inputs.run_id }}
+      uses: dawidd6/action-download-artifact@v9
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        workflow_conclusion: success
+        workflow_search: true
+        workflow: on-push.yml
+        name: xla-whl-codecov
+        repo: tenstorrent/tt-xla
+        check_artifacts: true
+        search_artifacts: true
+
+    - name: Install wheel
+      shell: bash
+      run: |
+        source venv/activate
+        pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
+
+    - name: Run tests
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+      shell: bash
+      run: |
+        source venv/activate
+        pytest  --log-memory -sv \
+                ${{ matrix.build.dir }}  \
+                -m "${{ inputs.test_mark }}" \
+                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+                2>&1 | tee pytest.log
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: pytest.log
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-reports-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Show Test Report
+      continue-on-error: true
+      uses: mikepenz/action-junit-report@v5
+      if: success() || failure()
+      with:
+        report_paths: ${{ steps.strings.outputs.test_report_path }}
+        check_name: TT-XLA Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
+        token: ${{ github.token }}
+
+    - name: Prepare code coverage report
+      if: matrix.build.runs-on == 'n300' && (success() || failure())
+      run: |
+        lcov --directory build --capture --output-file coverage.info
+        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage reports to Codecov
+      if: matrix.build.runs-on == 'n300' && (success() || failure())
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload test results to Codecov
+      if: success() || failure()
+      uses: codecov/test-results-action@v1
+      with:
+        files: ${{ steps.strings.outputs.test_report_path }}
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}

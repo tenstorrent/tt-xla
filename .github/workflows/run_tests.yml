@@ -1,0 +1,56 @@
+name: Run Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild_xla:
+        description: 'Rebuild XLA'
+        required: false
+        type: boolean
+      test_mark:
+        description: 'Test mark to run (push, nightly, your_own_mark)'
+        required: true
+        default: 'push'
+        type: string
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+
+  build-xla:
+    if: inputs.rebuild_xla == 'true'
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: true
+      enable_artifact_upload: true
+
+  build-resolution:
+    runs-on: ubuntu-latest
+    needs: build-xla
+    if: always()
+    outputs:
+      run_id: ${{ steps.set_run_id.outputs.run_id }}
+    steps:
+      - id: set_run_id
+        run: echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
+
+  test:
+    uses: ./.github/workflows/test.yml
+    needs: [build-image,build-resolution]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: ${{ inputs.test_mark }}
+      run_id: ${{ needs.build-resolution.outputs.run_id }}
+      build_options: |
+        [
+          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
+          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
+          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
+        ]
