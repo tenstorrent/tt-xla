@@ -6,7 +6,34 @@ from typing import Any, Dict, Sequence, Type
 
 import torch
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+from jax.extend import core
 
+# -----------------------------
+# Primitive: mark_weight
+# -----------------------------
+mark_weight_p = core.Primitive("mark_weight")
+
+def mark_weight(x):
+    return mark_weight_p.bind(x)
+
+mark_weight_p.def_impl(lambda x: x)
+mark_weight_p.def_abstract_eval(lambda x: x)
+
+def lowering_mark_weight(ctx, x):
+    x_type = ir.RankedTensorType(x.type)
+    with ir.Location.current:
+        op = ir.Operation.create(
+            "stablehlo.custom_call",
+            results=[x_type],
+            operands=[x],
+            attributes={
+                "call_target_name": ir.StringAttr.get("tt.mark"),
+                "tt.role": ir.StringAttr.get("weight")
+                },
+        )
+    return [op.result]
+
+register_lowering(mark_weight_p, lowering_mark_weight)
 
 class MNISTCNNTester(TorchModelTester):
     """Tester for MNIST CNN model."""
