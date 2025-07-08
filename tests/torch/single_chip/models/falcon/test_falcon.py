@@ -54,8 +54,8 @@ def training_tester() -> FalconTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
+        "error: Failed to legalize operation 'stablehlo.reduce_window' "
+        "https://github.com/tenstorrent/tt-xla/issues/783"
     )
 )
 def test_torch_falcon_inference(inference_tester: FalconTester):

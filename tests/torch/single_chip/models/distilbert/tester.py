@@ -8,7 +8,7 @@ from third_party.tt_forge_models.distilbert.pytorch import ModelLoader
 
 
 class DistilBertTester(TorchModelTester):
-    """Tester for codegen model."""
+    """Tester for distilbert model."""
 
     def __init__(
         self,
