@@ -14,15 +14,15 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from tester import BloomTester
+from .tester import FalconTester
 
-VARIANT_NAME = "bloom-1b1"
+VARIANT_NAME = "base"
 
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bloom",
-    "1b1",
+    "falcon",
+    "base",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
@@ -32,13 +32,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> BloomTester:
-    return BloomTester(VARIANT_NAME)
+def inference_tester() -> FalconTester:
+    return FalconTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BloomTester:
-    return BloomTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> FalconTester:
+    return FalconTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -58,7 +58,7 @@ def training_tester() -> BloomTester:
         "https://github.com/tenstorrent/tt-xla/issues/735"
     )
 )
-def test_torch_blooom_inference(inference_tester: BloomTester):
+def test_torch_falcon_inference(inference_tester: FalconTester):
     inference_tester.test()
 
 
@@ -70,5 +70,5 @@ def test_torch_blooom_inference(inference_tester: BloomTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bloom_training(training_tester: BloomTester):
+def test_torch_falcon_training(training_tester: FalconTester):
     training_tester.test()
