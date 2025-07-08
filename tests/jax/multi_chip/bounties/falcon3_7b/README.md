@@ -13,15 +13,16 @@ A high-performance JAX/Flax implementation of the Falcon3-7B model with tensor p
 
 ## 📋 Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Model Architecture](#model-architecture)
-- [Tensor Parallelism](#tensor-parallelism)
-- [Usage Examples](#usage-examples)
-- [Testing](#testing)
-- [Configuration](#configuration)
-- [Performance](#performance)
+- [Architecture Overview](#🏗️-architecture-overview)
+- [Installation](#🛠️-installation)
+- [Quick Start](#🚀-quick-start)
+- [Model Architecture](#🏛️-model-architecture)
+- [Tensor Parallelism](#⚡-tensor-parallelism)
+- [Usage Examples](#📚-usage-examples)
+- [Testing](#🧪-testing)
+- [Performance and Development](#📊-performance-and-development)
+- [Licence](#📄-license)
+- [Acknowledgments](#🙏-acknowledgments)
 
 ## 🏗️ Architecture Overview
 
@@ -303,7 +304,7 @@ The tests verify:
 - ✅ Generation quality and consistency
 - ✅ Performance with jax JIT compilation
 
-## 📊 Perfomance and Development
+## 📊 Performance and Development
 
 ### Benchmarks
 
