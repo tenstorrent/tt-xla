@@ -4,11 +4,11 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.bloom.pytorch.loader import ModelLoader
+from third_party.tt_forge_models.falcon.pytorch import ModelLoader
 
 
-class BloomTester(TorchModelTester):
-    """Tester for Bloom model."""
+class FalconTester(TorchModelTester):
+    """Tester for falcon model."""
 
     def __init__(
         self,
