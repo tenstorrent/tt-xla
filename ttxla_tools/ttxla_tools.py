@@ -5,6 +5,7 @@
 import io
 import jax
 from jax.experimental import serialize_executable
+import os
 import pickle
 
 
@@ -60,5 +61,7 @@ def serialize_function_to_mlir(func, binary_file_path, *args, **kwargs):
 
     flatbuffer_binary = unloaded_executable.xla_executable
     decoded_str = flatbuffer_binary.decode("utf-8")
+
+    os.makedirs(os.path.dirname(binary_file_path), exist_ok=True)
     with open(binary_file_path, "w") as f:
         f.write(decoded_str)
