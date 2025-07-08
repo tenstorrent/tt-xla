@@ -57,7 +57,6 @@ def test_all_reduce(shard_dim):
     # Create tensor with values that make reduction easy to verify
     t = torch.ones(256, 512)
     t = t.to(torch_xla.device())
-    torch_xla.sync()
 
     if shard_dim == 0:
         # Shard on batch dimension (dim 0)
