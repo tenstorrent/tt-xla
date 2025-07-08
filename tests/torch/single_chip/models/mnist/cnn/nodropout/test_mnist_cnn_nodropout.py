@@ -59,6 +59,7 @@ def training_tester() -> MNISTCNNTester:
     )
 )
 def test_torch_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
+    inference_tester.get_model_inputs_and_parameters()
     inference_tester.test()
 
 

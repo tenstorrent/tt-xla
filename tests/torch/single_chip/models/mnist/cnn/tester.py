@@ -19,6 +19,13 @@ class MNISTCNNTester(TorchModelTester):
     ) -> None:
         self._model_class = model_class
         super().__init__(comparison_config, run_mode)
+        
+        
+    def get_model_inputs_and_parameters(self):
+        model = self._model_class()
+        # Example input: batch size 1, 1 channel, 28x28 image
+        parameters = {name: param for name, param in model.named_parameters()}
+        print(f"Model parameters:", parameters)
 
     # @override
     def _get_model(self) -> Model:
