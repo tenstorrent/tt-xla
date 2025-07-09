@@ -287,7 +287,7 @@ monkeypatches = [
     )
 ]
 
-
+# Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
 @pytest.fixture(autouse=True)
 def monkeypatch_import(request):
     for patch_config in monkeypatches:
