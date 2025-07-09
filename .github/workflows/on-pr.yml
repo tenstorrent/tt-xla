@@ -60,22 +60,39 @@ jobs:
             echo "> Build is required."
           fi
 
-  build-and-test:
-    needs: [pre-commit, spdx, check-files]
+  build-image:
+    needs: [ pre-commit, spdx, check-files ]
     if: needs.check-files.outputs.skip == 'false'
-    uses: ./.github/workflows/build-and-test.yml
+    uses: ./.github/workflows/build-image.yml
     secrets: inherit
     with:
-      mlir_override: ${{ inputs.mlir_override }}
+      mlir_override: ${{ inputs.mlir_override}}
+
+  build-ttxla:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    secrets: inherit
+    needs: [ check-files, build-image ]
+    if: needs.check-files.outputs.skip == 'false'
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+      enable_artifact_upload: ${{ matrix.build_type }}
+
+  test:
+    needs: [ check-files, build-image, build-ttxla ]
+    if: needs.check-files.outputs.skip == 'false'
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    with:
+      codecov: true
       test_mark: 'push'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
+      run_id: ${{ github.run_id }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   check-all-green:
     if: always()
@@ -83,11 +100,13 @@ jobs:
       - pre-commit
       - spdx
       - check-files
-      - build-and-test
+      - build-image
+      - build-ttxla
+      - test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-and-test
+        allowed-skips: build-image, build-ttxla, test
         jobs: ${{ toJSON(needs) }}

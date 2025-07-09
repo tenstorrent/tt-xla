@@ -1,0 +1,46 @@
+name: Run Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild_xla:
+        description: 'Rebuild XLA'
+        required: false
+        type: boolean
+      test_mark:
+        description: 'Test mark to run (push, nightly, your_own_mark)'
+        required: true
+        default: 'push'
+        type: string
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+
+  build-xla:
+    if: inputs.rebuild_xla == 'true'
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  build-resolution:
+    runs-on: ubuntu-latest
+    needs: build-xla
+    if: always()
+    outputs:
+      run_id: ${{ steps.set_run_id.outputs.run_id }}
+    steps:
+      - id: set_run_id
+        run: echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
+
+  test:
+    uses: ./.github/workflows/test.yml
+    needs: [build-image,build-resolution]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: ${{ inputs.test_mark }}
+      run_id: ${{ needs.build-resolution.outputs.run_id }}

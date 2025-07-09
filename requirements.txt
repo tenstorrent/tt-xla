@@ -22,6 +22,7 @@ sentencepiece
 setuptools
 soundfile
 tabulate
+timm
 torch==2.7.0
 torch_xla==2.7.0
 torchvision

@@ -25,6 +25,9 @@ build_and_push() {
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
         echo "Image $image_name:$DOCKER_TAG already exists"
     else
+        echo "Docker build neccessary, ensure dependencies for toolchain build..."
+        sudo apt-get update && sudo apt-get install -y cmake build-essential
+
         echo "Building image $image_name:$DOCKER_TAG"
         docker build \
             --progress=plain \
