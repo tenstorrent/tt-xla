@@ -39,7 +39,6 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       debug_build: ${{ matrix.build_type }}
-      enable_artifact_upload: ${{ matrix.build_type }}
 
   test:
     needs: [ build-image, build-ttxla ]
