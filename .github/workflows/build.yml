@@ -85,20 +85,20 @@ jobs:
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
       - name: Archive Build Directory
-        if: inputs.enable_artifact_upload == 'true'
+        if: inputs.enable_artifact_upload
         shell: bash
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: tar cf artifact.tar .
 
       - name: Upload Build Folder
-        if: inputs.enable_artifact_upload == 'true'
+        if: inputs.enable_artifact_upload
         uses: actions/upload-artifact@v4
         with:
             name: build-artifacts
             path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
       - name: Remove tar archive
-        if: inputs.enable_artifact_upload == 'true'
+        if: inputs.enable_artifact_upload
         shell: bash
         run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
