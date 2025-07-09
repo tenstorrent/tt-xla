@@ -2,30 +2,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import ctypes
+import gc
+import sys
+import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import Any
-import pytest
-import ctypes
-import gc
-from loguru import logger
+
+import jax
 import psutil
 import pytest
-import sys
-import time
-import threading
-import time
-import jax
-from sympy import Dict
 import transformers
 import transformers.modeling_flax_utils
-
-import psutil
-import pytest
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
+from sympy import Dict
 
 
 def pytest_configure(config: pytest.Config):
