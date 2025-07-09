@@ -7,10 +7,17 @@ on:
         description: 'Rebuild XLA'
         required: false
         type: boolean
+      preset:
+        description: 'Preset to use for the tests'
+        type: choice
+        default: 'nightly'
+        options:
+          - 'push'
+          - 'nightly'
+          - 'Custom'
       test_mark:
-        description: 'Test mark to run (push, nightly, your_own_mark)'
+        description: 'Test mark to run (if preset is Custom)'
         required: true
-        default: 'push'
         type: string
 
 jobs:
@@ -31,10 +38,17 @@ jobs:
     needs: build-xla
     if: always() && !cancelled()
     outputs:
-      run_id: ${{ steps.set_run_id.outputs.run_id }}
+      run_id: ${{ steps.set_inputs.outputs.run_id }}
+      test_mark: ${{ steps.set_inputs.outputs.test_mark }}
     steps:
-      - id: set_run_id
-        run: echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
+      - id: set_inputs
+        run: |
+          echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
+          if [ '${{ inputs.preset }}' == 'Custom' ]; then
+            echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
+          else
+            echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
+          fi
 
   test:
     if: always() && !cancelled()
@@ -43,5 +57,5 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: ${{ inputs.test_mark }}
+      test_mark: ${{ needs.build-resolution.outputs.test_mark }}
       run_id: ${{ needs.build-resolution.outputs.run_id }}
