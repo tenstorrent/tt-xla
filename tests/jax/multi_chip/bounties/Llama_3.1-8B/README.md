@@ -30,7 +30,7 @@ Llama3.1-8B-paralel
 Clone the repo (if you haven’t), switch to the branch, and enter the main working directory:
 
 ```
-cd Llama_3.1-8B
+cd tests/jax/multi_chip/bounties/Llama_3.1-8B
 ```
 
 
