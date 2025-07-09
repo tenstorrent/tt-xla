@@ -598,6 +598,17 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
 
+  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
+    auto parser =
+        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
+    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+        argEnumMap;
+
+    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
+                 argEnumMap);
+    options.argumentTypeMap = argEnumMap;
+  }
+
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
            "Invalid mesh shape size: %zu. Shape must have two dimensions!",
