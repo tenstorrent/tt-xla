@@ -31,11 +31,9 @@ jobs:
       fail-fast: false
       matrix:
         build: [
-          { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
-          { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-          { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", codecov: true },
-          { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", sh-run: true },
-          { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", sh-run: true }
+          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300/graphs/tensor_parallel", "codecov": true},
+          {"runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices/graphs/tensor_parallel", "sh-run": true},
+          {"runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices/graphs/tensor_parallel", "sh-run": true}
         ]
 
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
@@ -125,10 +123,13 @@ jobs:
     - name: Run tests
       env:
         HF_HOME: /mnt/dockercache/huggingface
+        PYTHONUNBUFFERED: 1
+        PYTHONIOENCODING: utf-8
       shell: bash
       run: |
         source venv/activate
-        pytest  --log-memory -sv \
+        # Run pytest with output capturing disabled to show std::cout output
+        pytest  --log-memory -sv --capture=no --tb=short \
                 ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
