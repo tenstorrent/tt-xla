@@ -17,7 +17,6 @@ on:
           - 'Custom'
       test_mark:
         description: 'Test mark to run (if preset is Custom)'
-        required: true
         type: string
 
 jobs:
