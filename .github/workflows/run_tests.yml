@@ -37,6 +37,7 @@ jobs:
         run: echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
 
   test:
+    if: success() || failure()
     uses: ./.github/workflows/test.yml
     needs: [build-image,build-resolution]
     secrets: inherit
