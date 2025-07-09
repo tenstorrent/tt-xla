@@ -39,7 +39,7 @@ jobs:
   test:
     if: success() || failure()
     uses: ./.github/workflows/test.yml
-    needs: [build-image,build-resolution]
+    needs: [build-image,build-xla,build-resolution]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
