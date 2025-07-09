@@ -126,7 +126,6 @@ jobs:
         build: ${{ fromJson(inputs.build_options) }}
 
     runs-on:
-      - in-service
       - ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step
