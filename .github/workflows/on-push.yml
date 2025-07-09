@@ -30,9 +30,9 @@ jobs:
       test_mark: 'push'
       build_options: |
         [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
+          {"runs-on": "n150", sh-run: false, "name": "run_jax", "dir": "./tests/jax/single_chip"},
+          {"runs-on": "n150", sh-run: false, "name": "run_torch", "dir": "./tests/torch/single_chip"},
+          {"runs-on": "n300", sh-run: false, "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
+          {"runs-on": "n300-llmbox", sh-run: true, "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
+          {"runs-on": "n300-llmbox", sh-run: true, "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
         ]
