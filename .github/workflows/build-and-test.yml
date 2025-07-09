@@ -252,7 +252,7 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Upload test results to Codecov
-      if: success() || failure()
+      if: matrix.build.sh-run == false && (success() || failure())
       uses: codecov/test-results-action@v1
       with:
         files: ${{ steps.strings.outputs.test_report_path }}
