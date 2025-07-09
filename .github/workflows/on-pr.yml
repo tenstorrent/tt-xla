@@ -89,6 +89,7 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
     with:
+      codecov: true
       test_mark: 'push'
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
