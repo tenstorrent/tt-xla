@@ -10,41 +10,50 @@ permissions:
   checks: write
 
 jobs:
-  nightly_tests:
-    uses: ./.github/workflows/build-and-test.yml
+  build-image:
+    uses: ./.github/workflows/build-image.yml
     secrets: inherit
+
+  build-ttxla:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    secrets: inherit
+    needs: build-image
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+
+  nightly_tests:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
       test_mark: 'nightly'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
 
   test_full_model:
-    uses: ./.github/workflows/build-and-test.yml
+    uses: ./.github/workflows/test.yml
     secrets: inherit
-    needs: nightly_tests
-    if: always()  # This ensures the job runs regardless of success or failure of `nightly_tests`
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
       test_mark: 'model_test'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
 
   fail-notify:
     if: always()
     needs:
       - nightly_tests
       - test_full_model
+      - build-image
+      - build-ttxla
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
