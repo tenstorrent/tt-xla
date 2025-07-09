@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Callable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import partial
+from typing import Any
 import pytest
 import ctypes
 import gc
@@ -15,6 +18,7 @@ import time
 import threading
 import time
 import jax
+from sympy import Dict
 import transformers
 import transformers.modeling_flax_utils
 
@@ -251,34 +255,47 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-real_gelu = None
+@dataclass
+class MonkeyPatchConfig:
+    """Configuration for monkey patching operations."""
+
+    target_module: Any
+    target_function: str
+    replacement_factory: Callable
+    post_patch: Callable = lambda: None
+    backup: Any = None
+
+    def patch(self):
+        """Apply the monkey patch if not already applied."""
+        if self.backup is None:
+            self.backup = getattr(self.target_module, self.target_function)
+
+            replacement = self.replacement_factory(self)
+            setattr(self.target_module, self.target_function, replacement)
+
+            self.post_patch()
+
+
+monkeypatches = [
+    MonkeyPatchConfig(
+        target_module=jax.nn,
+        target_function="gelu",
+        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
+            lambda x: config.backup(x, approximate=approximate),
+            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+        )(
+            x
+        ),
+        post_patch=lambda: transformers.modeling_flax_utils.ACT2FN.update(
+            {"gelu": partial(jax.nn.gelu, approximate=False)}
+        ),
+    )
+]
 
 
 @pytest.fixture(autouse=True)
 def monkeypatch_import(request):
-    global real_gelu
-    if real_gelu is None:
-
-        real_gelu = jax.nn.gelu
-
-    def mygelu(x, approximate=True):
-        if approximate:
-            return jax.lax.composite(
-                lambda x: real_gelu(x, approximate=True),
-                "tenstorrent.gelu_tanh",
-            )(x)
-        else:
-            return jax.lax.composite(
-                lambda x: real_gelu(x, approximate=False),
-                "tenstorrent.gelu",
-            )(x)
-
-    jax.nn.gelu = mygelu
-
-    transformers.modeling_flax_utils.ACT2FN["gelu"] = partial(
-        mygelu, approximate=False
-    )  # I am not sure why I need to patch ACT2FN too when it pulls jax.nn.gelu
+    for patch_config in monkeypatches:
+        patch_config.patch()
 
     yield
-
-    pass
