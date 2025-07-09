@@ -20,6 +20,7 @@ jobs:
       matrix:
         build_type: [true , false]
     uses: ./.github/workflows/build.yml
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
     needs: build-image
     with:
@@ -35,14 +36,6 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
 
   test_full_model:
     uses: ./.github/workflows/test.yml
@@ -54,14 +47,6 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
 
   fail-notify:
     if: always()

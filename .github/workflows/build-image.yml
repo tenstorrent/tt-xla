@@ -16,11 +16,15 @@ jobs:
   build-image:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
-    runs-on: n300
+    runs-on: ubuntu-latest
+    name: "Build Docker Image"
     steps:
       - name: Fix permissions
         shell: bash
         run: sudo chown ubuntu:ubuntu -R $(pwd)
+
+      - name: Maximize space
+        uses: tenstorrent/tt-github-actions/.github/actions/maximize_space@main
 
       - name: Checkout repository
         uses: actions/checkout@v4
