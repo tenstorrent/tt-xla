@@ -87,6 +87,7 @@ class SetupConfig:
         List of requirements needed for plugin to actually work.
 
         requirements.txt is parsed and only JAX requirements are pulled from it.
+        Adds newest requests version as well.
         """
         reqs = []
         requirements_path = REPO_DIR / "requirements.txt"
@@ -104,6 +105,9 @@ class SetupConfig:
 
                 pin_version = pin_versions[pin_name]
                 reqs.append(f"{pin_name}>={pin_version}")
+
+        # # Add newest requests version
+        reqs.append("requests")
 
         return reqs
 
