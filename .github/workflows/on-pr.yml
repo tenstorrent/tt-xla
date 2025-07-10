@@ -80,6 +80,7 @@ jobs:
     if: needs.check-files.outputs.skip == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override}}
       debug_build: ${{ matrix.build_type }}
       enable_artifact_upload: ${{ matrix.build_type }}
 
