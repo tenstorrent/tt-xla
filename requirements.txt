@@ -18,6 +18,7 @@ pre-commit
 psutil
 pybind11
 pytest
+rjieba
 sentencepiece
 setuptools
 soundfile

@@ -65,7 +65,7 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
     inference_tester.test()

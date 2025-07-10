@@ -46,7 +46,7 @@ def training_tester() -> XGLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_xglm_564m_inference(inference_tester: XGLMTester):
     inference_tester.test()
