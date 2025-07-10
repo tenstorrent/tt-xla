@@ -48,7 +48,7 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_vit_base_patch16_384_inference(
     inference_tester: ViTTester,

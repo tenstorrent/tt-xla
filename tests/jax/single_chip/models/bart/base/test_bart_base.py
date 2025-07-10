@@ -47,7 +47,7 @@ def training_tester() -> FlaxBartForCausalLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):
     inference_tester.test()
