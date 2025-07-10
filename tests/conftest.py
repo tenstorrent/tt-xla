@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-import gc
-import sys
-import threading
-import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
+import gc
+import sys
+import threading
+import time
 from typing import Any
 
 import jax
