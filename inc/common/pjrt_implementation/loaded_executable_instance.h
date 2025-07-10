@@ -111,7 +111,8 @@ private:
   // tensors, depending on the strategy.
   static tt::runtime::Tensor getTensorFromStrategy(
       const std::vector<tt::runtime::Tensor> &arg_tensors,
-      const std::unordered_map<std::string, std::string> &strategy);
+      const std::unordered_map<std::string, std::string> &strategy,
+      const std::vector<uint32_t> &mesh_shape);
 
   // Converts input tensor to desired layout. This might move it on device.
   tt::runtime::Tensor
