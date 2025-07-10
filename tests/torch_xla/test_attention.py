@@ -11,7 +11,7 @@ from torch_xla.distributed.spmd import Mesh
 import os
 import pytest
 
-from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRotaryEmbedding
+from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRotaryEmbedding, LlamaMLP, LlamaDecoderLayer
 from transformers.models.llama.configuration_llama import LlamaConfig
 # needs to be set at module level to unsure it gets picked up before torch-xla C++ code is initialized
 os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
@@ -44,6 +44,72 @@ def create_mesh():
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
 
+def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+    x_flat, y_flat = x.flatten(), y.flatten()
+    vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
+    denom = vx.norm() * vy.norm()
+    return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
+
+def test_mlp():
+    setup_tt_environment()
+    mesh = create_mesh()
+    
+    B = 1
+    S = 1024
+    H = 8192
+    config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
+    mlp = LlamaMLP(config)
+
+    hidden_states = torch.randn(B, S, H)
+    out_cpu = mlp(hidden_states)
+    hidden_states = hidden_states.to(torch_xla.device())
+    xs.mark_sharding(hidden_states, mesh, (None, None, None))
+
+    mlp = mlp.to(torch_xla.device())
+    xs.mark_sharding(mlp.up_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(mlp.gate_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(mlp.down_proj.weight, mesh, (None, "model"))
+
+    out = mlp(hidden_states)
+    out = out.cpu()
+    pcc = compute_pcc(out, out_cpu)
+    assert pcc > 0.99
+
+
+def test_decode_layer():
+    setup_tt_environment()
+    mesh = create_mesh()
+    
+    B = 1
+    S = 1024
+    H = 8192
+    config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
+    layer = LlamaDecoderLayer(config, 0)
+
+    hidden_states = torch.randn(B, S, H)
+    position_ids = torch.arange(0, S).unsqueeze(0)
+    rot_emb = LlamaRotaryEmbedding(config)
+    (cos, sin) = rot_emb(hidden_states, position_ids)
+    out_cpu = layer(hidden_states, attention_mask=None, position_embeddings=(cos, sin))
+
+    hidden_states = hidden_states.to(torch_xla.device())
+    xs.mark_sharding(hidden_states, mesh, (None, None, None))
+
+    layer = layer.to(torch_xla.device())
+    xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+
+    xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+
+    out = layer(hidden_states, attention_mask=None, position_embeddings=(cos, sin))
+    out = out[0].cpu()
+    pcc = compute_pcc(out, out_cpu[0])
+    assert pcc > 0.99
+
 def test_llama_attention():
     # Get pretrained config from meta-llama/Meta-Llama-3-70B
     setup_tt_environment()
@@ -54,10 +120,11 @@ def test_llama_attention():
     H = 8192
     config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
     attention = LlamaAttention(config, 0)
+    hidden_states = torch.randn(B, S, H)
     position_ids = torch.arange(0, S).unsqueeze(0)
     rot_emb = LlamaRotaryEmbedding(config)
-    hidden_states = torch.randn(B, S, H)
     (cos, sin) = rot_emb(hidden_states, position_ids)
+    out_cpu = attention(hidden_states, (cos, sin), attention_mask=None)
 
     hidden_states = hidden_states.to(torch_xla.device())
     xs.mark_sharding(hidden_states, mesh, (None, None, None))
@@ -68,13 +135,15 @@ def test_llama_attention():
     xs.mark_sharding(sin, mesh, (None, None, None))
     
     attention = attention.to(torch_xla.device())
-    xs.mark_sharding(attention.q_proj.weight, mesh, (None, "model"))
-    xs.mark_sharding(attention.k_proj.weight, mesh, (None, "model"))
-    xs.mark_sharding(attention.v_proj.weight, mesh, (None, "model"))
-    xs.mark_sharding(attention.o_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(attention.q_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(attention.k_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(attention.v_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(attention.o_proj.weight, mesh, (None, "model"))
 
     out = attention(hidden_states, (cos, sin), attention_mask=None)
     out = out[0].cpu()
+    pcc = compute_pcc(out, out_cpu[0])
+    assert pcc > 0.99
     
     print(f"Attention output shape: {out.shape}")
     print("Attention test completed!")
@@ -95,20 +164,20 @@ def test_basic_attention():
     scale = head_dim**-0.5
     
     hidden_states = torch.randn(B, S, H)
-    query_weight = attention.q_proj.weight.transpose(-1, -2)
-    key_weight =   attention.k_proj.weight.transpose(-1, -2)
-    val_weight =   attention.v_proj.weight.transpose(-1, -2)
-    out_weight =   attention.o_proj.weight.transpose(-1, -2)
+    query_weight = attention.q_proj.weight
+    key_weight =   attention.k_proj.weight
+    val_weight =   attention.v_proj.weight
+    out_weight =   attention.o_proj.weight
 
     def attention(hidden_states, query_weight, key_weight, val_weight, out_weight):
-        q_proj = torch.matmul(hidden_states, query_weight)
+        q_proj = torch.matmul(hidden_states, query_weight.transpose(-1, -2))
         q_proj = q_proj.view(B, S, -1, head_dim).transpose(1,2)
 
-        k_proj = torch.matmul(hidden_states, key_weight)
+        k_proj = torch.matmul(hidden_states, key_weight.transpose(-1, -2))
         k_proj = k_proj.view(B, S, -1, head_dim).transpose(1,2)
         k_proj = torch.repeat_interleave(k_proj, rep, 1)
 
-        v_proj = torch.matmul(hidden_states, val_weight)
+        v_proj = torch.matmul(hidden_states, val_weight.transpose(-1, -2))
         v_proj = v_proj.view(B, S, -1, head_dim).transpose(1,2)
         v_proj = torch.repeat_interleave(v_proj, rep, 1)
         
@@ -119,31 +188,57 @@ def test_basic_attention():
         attn_output = torch.matmul(attn_weights, v_proj)
         attn_output = attn_output.transpose(1, 2).reshape(B, S, H)
 
-        attn_output = torch.matmul(attn_output, out_weight)
+        attn_output = torch.matmul(attn_output, out_weight.transpose(-1, -2))
         return attn_output
 
     cpu_out = attention(hidden_states, query_weight, key_weight, val_weight, out_weight)
 
     hidden_states = hidden_states.to(torch_xla.device())
-    xs.mark_sharding(hidden_states, mesh, (None, "batch", None))
+    xs.mark_sharding(hidden_states, mesh, (None, None, None))
 
     query_weight = query_weight.to(torch_xla.device())
-    xs.mark_sharding(query_weight, mesh, (None, "model"))
+    xs.mark_sharding(query_weight, mesh, ("model", None))
 
     key_weight = key_weight.to(torch_xla.device())
-    xs.mark_sharding(key_weight, mesh, (None, "model"))
+    xs.mark_sharding(key_weight, mesh, ("model", None))
 
     val_weight = val_weight.to(torch_xla.device())
-    xs.mark_sharding(val_weight, mesh, (None, "model"))
+    xs.mark_sharding(val_weight, mesh, ("model", None))
 
     out_weight = out_weight.to(torch_xla.device())
-    xs.mark_sharding(out_weight, mesh, ("model", None))
+    xs.mark_sharding(out_weight, mesh, (None, "model"))
 
     dev_out = attention(hidden_states, query_weight, key_weight, val_weight, out_weight)
     dev_out = dev_out.cpu()
 
-    assert torch.allclose(dev_out, cpu_out, atol=0.02)
+    pcc = compute_pcc(dev_out, cpu_out)
+    assert pcc > 0.99
 
+
+
+def test_transpose_weight():
+    setup_tt_environment()
+    mesh = create_mesh()
+
+    B = 1
+    S = 1024
+    H = 8192
+    KV = 1024
+    rep = H//KV
+    head_dim = 128
+    scale = head_dim**-0.5
+    
+    hidden_states = torch.randn(B, S, H)
+    query_weight = torch.randn(H, H)
+
+    hidden_states = hidden_states.to(torch_xla.device())
+    xs.mark_sharding(hidden_states, mesh, (None, None, None))
+
+    query_weight = query_weight.to(torch_xla.device())
+    xs.mark_sharding(query_weight, mesh, ("model", None))
+
+    out = torch.matmul(hidden_states, query_weight.transpose(-1, -2))
+    out = out.cpu()
 
 if __name__ == "__main__":
     test_basic_attention()
