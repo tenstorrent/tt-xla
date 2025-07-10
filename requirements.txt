@@ -20,6 +20,7 @@ pybind11
 pytest
 pytest-forked
 rjieba
+pytest-split
 sentencepiece
 setuptools
 soundfile
