@@ -90,22 +90,22 @@ jobs:
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
             name='run_single_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            echo "test_matrix='[$(make_json_array $dir)]'" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'n300' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
             runson='n300'
             name='run_2chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            echo "test_matrix='[$(make_json_array $dir)]'" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_4_8_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            echo "test_matrix='[$(make_json_array $dir)]'" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'multichip' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_multi_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            echo "test_matrix='[$(make_json_array $dir)]'" >> $GITHUB_OUTPUT
           else
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
@@ -114,7 +114,7 @@ jobs:
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_multi_chip'
-            echo "test_matrix=[$sc,$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            echo "test_matrix='[$sc,$(make_json_array $dir)]'" >> $GITHUB_OUTPUT
           fi
       - name: Create job summary
         run: |
