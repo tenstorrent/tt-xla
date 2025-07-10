@@ -25,11 +25,8 @@ jobs:
   set-inputs:
     runs-on: ubuntu-latest
     outputs:
-      rebuild: ${{ steps.set-inputs.outputs.rebuild }}
       test_group_cnt: ${{ steps.set-inputs.outputs.test_group_cnt }}
       test_group_ids: ${{ steps.set-inputs.outputs.test_group_ids }}
-      test_group_ids_os: ${{ steps.set-inputs.outputs.test_group_ids_os }}
-      run_ops_sweeps: ${{ steps.set-inputs.outputs.run_ops_sweeps }}
     steps:
       - name: Set Inputs
         id: set-inputs

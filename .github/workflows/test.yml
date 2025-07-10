@@ -154,6 +154,8 @@ jobs:
     - name: Run tests
       env:
         HF_HOME: /mnt/dockercache/huggingface
+        TEST_GROUP_CNT: ${{ matrix.test_group_id && inputs.test_group_cnt || 1}}
+        TEST_GROUP_ID: ${{ matrix.test_group_id || 1}}
       shell: bash
       run: |
         source venv/activate
@@ -173,8 +175,8 @@ jobs:
 =======
         pytest  --log-memory -sv \
                 ${{ matrix.build.dir }}  \
-                --splits ${{ inputs.test_group_cnt }} \
-                --group ${{ matrix.test_group_id }} \
+                --splits $TEST_GROUP_CNT \
+                --group $TEST_GROUP_ID \
                 --splitting-algorithm least_duration \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
