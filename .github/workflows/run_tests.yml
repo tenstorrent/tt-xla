@@ -43,7 +43,7 @@ permissions:
   packages: write
   checks: write
 
-run-name: "Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - ${{ inputs.run_on }} - ${{ inputs.dir }}"
+run-name: 'Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}"'
 
 jobs:
   build-image:
@@ -127,7 +127,7 @@ jobs:
           echo "- Directory: ${{ inputs.dir }}" >> $GITHUB_STEP_SUMMARY
           echo "### Evaluated run parameters" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB
+          echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
