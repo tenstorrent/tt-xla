@@ -134,6 +134,8 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
+        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         if [[ "${{ matrix.build.name }}" == "run_torch" ]]; then
           PYTEST_FORKED="--forked"
         else
