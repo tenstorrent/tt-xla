@@ -67,7 +67,7 @@ jobs:
   test_full_model:
     uses: ./.github/workflows/test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla ]
+    needs: [ build-image, build-ttxla, set-inputs ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
