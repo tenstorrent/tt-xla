@@ -100,13 +100,13 @@ jobs:
             shrun=0
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_4_8_chip'
             shrun=1
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'multichip' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_multi_chip'
             shrun=1
@@ -116,7 +116,7 @@ jobs:
             runson='n150'
             name='run_single_chip'
             sc=$(make_json_array $dir)
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
             name='run_multi_chip'
             shrun=1
