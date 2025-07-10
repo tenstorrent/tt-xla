@@ -30,14 +30,14 @@ on:
           - 'multichip'
           - 'All'
       dir:
-        description: 'Directory to run tests in'
+        description: |
+          Directory to run tests. Defaults:
+            - 'n150': './tests/jax/single_chip ./tests/torch/single_chip'
+            - 'n300': './tests/jax/multi_chip/n300'
+            - 'llmbox': './tests/jax/multi_chip/llmbox'
+            - 'multichip': './tests/jax/multi_chip'
+            - 'All': run on n150 all singlechip, on llmbox all multichip
         type: string
-        # defaults:
-        # - 'n150': './tests/jax/single_chip ./tests/torch/single_chip'
-        # - 'n300': './tests/jax/multi_chip/n300'
-        # - 'llmbox': './tests/jax/multi_chip/llmbox'
-        # - 'multichip': './tests/jax/multi_chip'
-        # - 'All': run on n150 all singlechip, on llmbox all multichip
 
 permissions:
   packages: write
@@ -80,7 +80,7 @@ jobs:
             local result=""
             local counter=1
             for arg in "$@"; do
-                result+="{ \"runs-on\": \"$runson\",\"name\": \"${name}-${counter}\", \"dir\": \"$arg\" },"
+                result+="{ \"runs-on\": \"$runson\", \"name\": \"${name}-${counter}\", \"dir\": \"$arg\" },"
                 ((counter++))
             done
             echo "${result%,}"
@@ -129,6 +129,7 @@ jobs:
           echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Matrix:" >> $GITHUB_STEP_SUMMARY
+          echo "Matrix: ${{ steps.set_inputs.outputs.test_matrix }}"
           echo "${{ steps.set_inputs.outputs.test_matrix }}" | jq '.' >> $GITHUB_STEP_SUMMARY
 
   test:
