@@ -39,6 +39,12 @@ on:
         # - 'multichip': './tests/jax/multi_chip'
         # - 'All': run on n150 all singlechip, llmbox all multichip
 
+permissions:
+  packages: write
+  checks: write
+
+run-name: "Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - ${{ inputs.run_on }} - ${{ inputs.dir }}"
+
 jobs:
   build-image:
     uses: ./.github/workflows/build-image.yml
@@ -69,23 +75,60 @@ jobs:
           else
             echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
           fi
+
+          make_json_array() {
+            local result=""
+            local counter=1
+            for arg in "$@"; do
+                result+="{ \"runs-on\": \"$runson\",\"name\": \"$name_$counter\", \"dir\": \"$arg\" },"
+                ((counter++))
+            done
+            echo "${result%,}"
+          }
+
           if [ '${{ inputs.run_on }}' == 'n150' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
-            echo "test_matrix=[{\"runs-on\":\"n150\",\"name\":\"run_single_chip\",\"dir\":\"$dir\"}]" >> $GITHUB_OUTPUT
+            runson='n150'
+            name='run_single_chip'
+            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'n300' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
-            echo "test_matrix=[{\"runs-on\":\"n300\",\"name\":\"run_jax_2\",\"dir\":\"$dir\"}]" >> $GITHUB_OUTPUT
+            runson='n300'
+            name='run_2chip'
+            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
-            echo "test_matrix=[{\"runs-on\":\"n300-llmbox\",\"name\":\"run_jax_4_8\",\"dir\":\"$dir\",\"sh-run\":\"true\"}]" >> $GITHUB_OUTPUT
+            runson='n300-llmbox'
+            name='run_4_8_chip'
+            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'multichip' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
-            echo "test_matrix=[{\"runs-on\":\"n300-llmbox\",\"name\":\"run_jax_multichip\",\"dir\":\"$dir\",\"sh-run\":\"true\"}]" >> $GITHUB_OUTPUT
+            runson='n300-llmbox'
+            name='run_multi_chip'
+            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           else
-            dir1=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
-            dir2=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
-            echo "test_matrix=[{\"runs-on\":\"n150\",\"name\":\"run_single_chip\",\"dir\":\"$dir1\"},{\"runs-on\":\"n300-llmbox\",\"name\":\"run_jax_multichip\",\"dir\":\"$dir2\",\"sh-run\":\"true\"}]" >> $GITHUB_OUTPUT
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
+            runson='n150'
+            name='run_single_chip'
+            sc=$(make_json_array $dir)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
+            runson='n300-llmbox'
+            name='run_multi_chip'
+            echo "test_matrix=[$sc,$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           fi
+      - name: Create job summary
+        run: |
+          echo "## Input Parameters" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Rebuild: ${{ inputs.rebuild_xla }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Preset: ${{ inputs.preset }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Mark: ${{ inputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Run On: ${{ inputs.run_on }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Directory: ${{ inputs.dir }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Evaluated run parameters" >> $GITHUB_STEP_SUMMARY
+          echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB
+          echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
     if: always() && !cancelled()
