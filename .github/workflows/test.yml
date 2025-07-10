@@ -70,7 +70,7 @@ jobs:
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }})"
+    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
 
     container:
       image: ${{ matrix.build.sh-run && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
