@@ -80,8 +80,9 @@ jobs:
             local result=""
             local counter=1
             for arg in "$@"; do
-                result+="{ \"runs-on\": \"$runson\", \"name\": \"${name}-${counter}\", \"dir\": \"$arg\"$(if [ "$shrun" -ne 0 ]; then echo ', \"sh-run\": \"true\"'; fi) },"
-                ((counter++))
+              local shr=$(if [ "$shrun" -ne 0 ]; then echo ", \"sh-run\": \"true\""; fi)
+              result+="{ \"runs-on\": \"$runson\", \"name\": \"${name}-${counter}\", \"dir\": \"$arg\"$shr },"
+              ((counter++))
             done
             echo "${result%,}"
           }
