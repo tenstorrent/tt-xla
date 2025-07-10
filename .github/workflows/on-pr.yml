@@ -90,7 +90,7 @@ jobs:
     secrets: inherit
     with:
       codecov: true
-      test_mark: 'push'
+      test_mark: 'model_test'
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 

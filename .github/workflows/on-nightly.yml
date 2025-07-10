@@ -68,6 +68,11 @@ jobs:
         with:
           jobs: ${{ toJSON(needs) }}
 
+
+          # pytest  --log-memory -sv \
+          #       ./tests/torch/single_chip/models/dla
+
+
   fail-send-msg:
     if: always()
     needs:
