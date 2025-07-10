@@ -11,7 +11,7 @@ from torch_xla.distributed.spmd import Mesh
 import os
 import pytest
 
-from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRotaryEmbedding, LlamaMLP, LlamaDecoderLayer
+from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRotaryEmbedding, LlamaMLP, LlamaDecoderLayer, LlamaModel
 from transformers.models.llama.configuration_llama import LlamaConfig
 # needs to be set at module level to unsure it gets picked up before torch-xla C++ code is initialized
 os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
@@ -111,7 +111,6 @@ def test_decode_layer():
     assert pcc > 0.99
 
 def test_llama_attention():
-    # Get pretrained config from meta-llama/Meta-Llama-3-70B
     setup_tt_environment()
     mesh = create_mesh()
     
@@ -214,7 +213,39 @@ def test_basic_attention():
     pcc = compute_pcc(dev_out, cpu_out)
     assert pcc > 0.99
 
+def test_llama():
+    setup_tt_environment()
+    mesh = create_mesh()
 
+    B = 1
+    S = 1024
+    H = 8192
+    config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
+    config.num_hidden_layers = 20
+    llama = LlamaModel(config)
+
+    input_ids = torch.randint(0, config.vocab_size, (B, S))
+    out_cpu = llama(input_ids=input_ids, attention_mask=None)
+    llama = llama.to(torch.bfloat16)
+    input_ids = input_ids.to("xla")
+    llama = llama.to("xla")
+
+
+    for layer in llama.layers:
+        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+
+        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+
+    out = llama(input_ids=input_ids, attention_mask=None)
+    out = out.last_hidden_state.cpu().float()
+    pcc = compute_pcc(out, out_cpu.last_hidden_state)
+    print(f"LLAMA PCC: {pcc}")
+    # assert pcc > 0.95
 
 def test_transpose_weight():
     setup_tt_environment()
