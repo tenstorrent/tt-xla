@@ -134,10 +134,10 @@ jobs:
   test:
     if: always() && !cancelled()
     uses: ./.github/workflows/test.yml
-    needs: [build-image,build-resolution]
+    needs: [build-image,test-setup]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: ${{ needs.build-resolution.outputs.test_mark }}
-      run_id: ${{ needs.build-resolution.outputs.run_id }}
-      test_matrix: ${{ needs.build-resolution.outputs.test_matrix }}
+      test_mark: ${{ needs.test-setup.outputs.test_mark }}
+      run_id: ${{ needs.test-setup.outputs.run_id }}
+      test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
