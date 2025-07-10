@@ -252,7 +252,22 @@ def initialize_device_connectors():
 
 @dataclass
 class MonkeyPatchConfig:
-    """Configuration for monkey patching operations."""
+    """Configuration class for managing monkey patching operations.
+
+    This class provides a structured way to temporarily replace functions or methods
+    in modules with custom implementations. We primarily use this to wrap JAX operations
+    in StableHLO CompositeOps, for easier matching in the compiler.
+
+    Attributes:
+        target_module (Any): The module object containing the function to be patched.
+        target_function (str): The name of the function/method to be replaced.
+        replacement_factory (Callable): A factory function that creates the replacement
+            function. Should accept this config instance as a parameter.
+        post_patch (Callable): Optional callback function executed after the patch
+            is applied. Defaults to a no-op lambda function.
+        backup (Any): Storage for the original function before patching. Used to
+            restore the original implementation later. Initially None.
+    """
 
     target_module: Any
     target_function: str
