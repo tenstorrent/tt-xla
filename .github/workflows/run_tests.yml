@@ -33,10 +33,10 @@ on:
         description: 'Directory to run tests in'
         type: string
         # defaults:
-        # - 'n150': 'jax/single_chip torch/single_chip'
-        # - 'n300': 'jax/multi_chip/n300'
-        # - 'llmbox': 'jax/multi_chip/llmbox'
-        # - 'multichip': 'jax/multi_chip'
+        # - 'n150': './tests/jax/single_chip ./tests/torch/single_chip'
+        # - 'n300': './tests/jax/multi_chip/n300'
+        # - 'llmbox': './tests/jax/multi_chip/llmbox'
+        # - 'multichip': './tests/jax/multi_chip'
         # - 'All': ignored
 
 jobs:
@@ -70,16 +70,16 @@ jobs:
             echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
           fi
           if [ '${{ inputs.run_on }}' == 'n150' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo 'jax/single_chip torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             echo "test_matrix=[{\"runs-on\":\"n150\",\"name\":\"run_single_chip\",\"dir\":\"$dir\"}]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'n300' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo 'jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
             echo "test_matrix=[{\"runs-on\":\"n300\",\"name\":\"run_jax_2\",\"dir\":\"$dir\"}]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo 'jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
             echo "test_matrix=[{\"runs-on\":\"n300-llmbox\",\"name\":\"run_jax_4_8\",\"dir\":\"$dir\",\"sh-run\":\"true\"}]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'multichip' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo 'jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip'; else echo '${{ inputs.dir }}'; fi)
             echo "test_matrix=[{\"runs-on\":\"n300-llmbox\",\"name\":\"run_jax_4_8\",\"dir\":\"$dir\",\"sh-run\":\"true\"}]" >> $GITHUB_OUTPUT
           # else do nothiing, leave test_matrix empty and do test default
           fi

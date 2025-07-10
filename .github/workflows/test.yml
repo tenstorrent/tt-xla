@@ -26,11 +26,11 @@ on:
         type: string
         default: |
           [
-            { "runs-on": "n150",        "name": "run_jax",           "dir": "jax/single_chip" },
-            { "runs-on": "n150",        "name": "run_torch",         "dir": "torch/single_chip" },
-            { "runs-on": "n300",        "name": "run_jax",           "dir": "jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
+            { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
+            { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
+            { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
           ]
 
 jobs:
@@ -135,7 +135,7 @@ jobs:
       run: |
         source venv/activate
         pytest  --log-memory -sv \
-                ./tests/${{ matrix.build.dir }}  \
+                ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
