@@ -90,13 +90,11 @@ jobs:
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
             name='run_single_chip'
-            echo "[$(make_json_array $dir)]"
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'n300' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
             runson='n300'
             name='run_2chip'
-            echo "[$(make_json_array $dir)]"
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox'; else echo '${{ inputs.dir }}'; fi)
@@ -130,9 +128,7 @@ jobs:
           echo "### Evaluated run parameters" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Test Matrix:" >> $GITHUB_STEP_SUMMARY
-          echo "Matrix: ${{ steps.set_inputs.outputs.test_matrix }}"
-          echo "${{ steps.set_inputs.outputs.test_matrix }}" | jq '.' >> $GITHUB_STEP_SUMMARY
+          echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
     if: always() && !cancelled()
