@@ -135,7 +135,7 @@ jobs:
       run: |
         source venv/activate
         pytest  --log-memory -sv \
-                .tests/${{ matrix.build.dir }}  \
+                ./tests/${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
