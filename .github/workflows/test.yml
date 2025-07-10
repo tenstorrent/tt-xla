@@ -127,13 +127,13 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
       shell: bash
       run: |
-        sed -i '76i\\t\tprint("image file is: ")' third_party/tt_forge_models/densenet/pytorch/loader.py
-        sed -i '76i\\t\tprint(image_file)' third_party/tt_forge_models/densenet/pytorch/loader.py
-        cat third_party/tt_forge_models/densenet/pytorch/loader.py
+        # sed -i '76i\\t\tprint("image file is: ")' third_party/tt_forge_models/densenet/pytorch/loader.py
+        # sed -i '76i\\t\tprint(image_file)' third_party/tt_forge_models/densenet/pytorch/loader.py
+        # cat third_party/tt_forge_models/densenet/pytorch/loader.py
+        # # allow_redirects=True
+        # # sed -i '76i\\t\tprint(image_file)' third_party/tt_forge_models/tools/utils.py
+        # # sed -i '78s/.*/                    response = requests.get(path, stream=True, timeout=(15, 60))/' third_party/tt_forge_models/tools/utils.py
         # allow_redirects=True
-        # sed -i '76i\\t\tprint(image_file)' third_party/tt_forge_models/tools/utils.py
-        # sed -i '78s/.*/                    response = requests.get(path, stream=True, timeout=(15, 60))/' third_party/tt_forge_models/tools/utils.py
-        allow_redirects=True
         source venv/activate
         pytest  --log-memory -sv \
                 ${{ matrix.build.dir }}  \
