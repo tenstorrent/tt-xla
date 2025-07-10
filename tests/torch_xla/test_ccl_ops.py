@@ -28,7 +28,7 @@ def setup_tt_environment():
     class TTPjrtPlugin(plugins.DevicePlugin):
         def library_path(self):
             return os.path.join(
-                os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
+                os.path.dirname(__file__), "../../build/src/tt/pjrt_plugin_tt.so"
             )
 
     plugins.register_plugin("TT", TTPjrtPlugin())

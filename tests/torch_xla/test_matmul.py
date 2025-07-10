@@ -9,6 +9,7 @@ import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import os
+import pytest
 
 # needs to be set at module level to unsure it gets picked up before torch-xla C++ code is initialized
 os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
@@ -26,7 +27,7 @@ def setup_tt_environment():
     class TTPjrtPlugin(plugins.DevicePlugin):
         def library_path(self):
             return os.path.join(
-                os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
+                os.path.dirname(__file__), "../../build/src/tt/pjrt_plugin_tt.so"
             )
 
     plugins.register_plugin("TT", TTPjrtPlugin())
@@ -40,7 +41,6 @@ def create_mesh():
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
-
 
 def test_matmul():
     """Test distributed matmul operation with sharded inputs and CCL collectives.
@@ -57,8 +57,8 @@ def test_matmul():
     M, N, K = 2048, 1024, 512
     
     # Create random input matrices
-    a = (torch.rand(M, K) - 0.0) * 0.1
-    b = (torch.rand(K, N) - 0.0) * 0.1
+    a = (torch.rand(M, K) - 1.0) * 0.1
+    b = (torch.rand(K, N) - 1.0) * 0.1
     
     # Compute reference output on CPU
     expected = torch.matmul(a, b)
