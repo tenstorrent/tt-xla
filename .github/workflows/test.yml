@@ -98,7 +98,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }})"
+        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
 
     - name: Set reusable strings
       id: strings
