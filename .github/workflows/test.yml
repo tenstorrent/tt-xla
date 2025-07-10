@@ -20,6 +20,10 @@ on:
         description: 'Enable codecov upload'
         required: false
         type: boolean
+      test_matrix:
+        description: 'Test job matrix to use'
+        required: false
+        type: string
 
 jobs:
 
@@ -30,13 +34,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [
-          { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
-          { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-          { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", codecov: true },
-          { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", sh-run: true },
-          { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", sh-run: true }
-        ]
+        build: |
+          ${{ inputs.test_matrix && fromJson(inputs.test_matrix) ||
+          '[
+            { "runs-on": "n150",        "name": "run_jax",           "dir": "jax/single_chip" },
+            { "runs-on": "n150",        "name": "run_torch",         "dir": "torch/single_chip" },
+            { "runs-on": "n300",        "name": "run_jax",           "dir": "jax/multi_chip/n300", codecov: true },
+            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "jax/multi_chip/llmbox/4_devices", sh-run: true },
+            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "jax/multi_chip/llmbox/8_devices", sh-run: true }
+          ]' }}
 
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
@@ -129,7 +135,7 @@ jobs:
       run: |
         source venv/activate
         pytest  --log-memory -sv \
-                ${{ matrix.build.dir }}  \
+                .tests/${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log

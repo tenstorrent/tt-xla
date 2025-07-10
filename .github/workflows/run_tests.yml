@@ -14,6 +14,7 @@ on:
         options:
           - 'push'
           - 'nightly'
+          - 'model_test'
           - 'Custom'
       test_mark:
         description: 'Test mark to run (if preset is Custom)'
