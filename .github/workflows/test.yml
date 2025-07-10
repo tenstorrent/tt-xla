@@ -52,20 +52,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-<<<<<<< HEAD
         build: ${{ fromJson(inputs.test_matrix) }}
-=======
-        build: [
-          { "runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300", codecov: true }
-        ]
-        test_group_id: ${{ fromJSON(inputs.test_group_ids) }}
+        # build: [ 
+        #   { "runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300", codecov: true }
+        # ]
+        # test_group_id: ${{ fromJSON(inputs.test_group_ids) }}
 
-        include:
-          - build: { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" }
-          - build: { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" }
-          - build: { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", sh-run: true }
-          - build: { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", sh-run: true }
->>>>>>> 4e6c54a (initial split test jobs draft)
+        # include:
+        #   - build: { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" }
+        #   - build: { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" }
+        #   - build: { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", sh-run: true }
+        #   - build: { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", sh-run: true }
 
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
@@ -160,6 +157,7 @@ jobs:
       run: |
         source venv/activate
 <<<<<<< HEAD
+<<<<<<< HEAD
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         if [[ "${{ matrix.build.name }}" == "run_torch" ]]; then
@@ -173,6 +171,9 @@ jobs:
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 =======
+=======
+        pip freeze
+>>>>>>> b9147d1 (log out)
         pytest  --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 --splits $TEST_GROUP_CNT \
