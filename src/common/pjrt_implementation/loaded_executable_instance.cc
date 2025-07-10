@@ -248,8 +248,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       return tt_pjrt_status::kInternal;
     }
 
-    tt::runtime::Tensor input_tensor =
-        getTensorFromStrategy(arg_tensors, *strategy);
+    tt::runtime::Tensor input_tensor = getTensorFromStrategy(
+        arg_tensors, *strategy, m_executable_image->getDevicesMeshShape());
 
     tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
         input_tensor, program_index, arg_index, runtime_device);
@@ -271,13 +271,14 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::vector<tt::runtime::Tensor> &arg_tensors,
-    const std::unordered_map<std::string, std::string> &strategy) {
+    const std::unordered_map<std::string, std::string> &strategy,
+    const std::vector<uint32_t> &mesh_shape) {
   if (strategy.at("strategy") == "identity") {
     return arg_tensors.front();
   }
 
-  tt::runtime::Tensor tensor =
-      tt::runtime::createMultiDeviceHostTensor(arg_tensors, strategy);
+  tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
+      arg_tensors, strategy, mesh_shape);
   tt::runtime::setTensorRetain(tensor, /*retain=*/false);
 
   return tensor;
