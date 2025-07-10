@@ -80,7 +80,7 @@ jobs:
             local result=""
             local counter=1
             for arg in "$@"; do
-                result+="{ \"runs-on\": \"$runson\",\"name\": \"$name_$counter\", \"dir\": \"$arg\" },"
+                result+="{ \"runs-on\": \"$runson\",\"name\": \"${name}-${counter}\", \"dir\": \"$arg\" },"
                 ((counter++))
             done
             echo "${result%,}"
