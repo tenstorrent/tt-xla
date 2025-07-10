@@ -32,11 +32,11 @@ on:
       dir:
         description: |
           Directory to run tests. Defaults:
-            - 'n150': './tests/jax/single_chip ./tests/torch/single_chip'
-            - 'n300': './tests/jax/multi_chip/n300'
-            - 'llmbox': './tests/jax/multi_chip/llmbox'
-            - 'multichip': './tests/jax/multi_chip'
-            - 'All': run on n150 all singlechip, on llmbox all multichip
+            - n150: 'jax/single_chip torch/single_chip'
+            - n300: 'jax/multi_chip/n300'
+            - llmbox: 'jax/multi_chip/llmbox'
+            - multichip: 'jax/multi_chip'
+            - All: run on n150 all singlechip, on llmbox all multichip
         type: string
 
 permissions:
