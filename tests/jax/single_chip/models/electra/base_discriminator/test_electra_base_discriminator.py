@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import ElectraTester
@@ -48,12 +47,6 @@ def training_tester() -> ElectraTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131015.0. Required: atol=0.16 "
-        "(https://github.com/tenstorrent/tt-xla/issues/379)"
-    )
 )
 def test_electra_base_discriminator_inference(inference_tester: ElectraTester):
     inference_tester.test()

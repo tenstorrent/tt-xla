@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import XLMRobertaTester
@@ -48,12 +47,6 @@ def training_tester() -> XLMRobertaTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131074.375. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
 )
 def test_xlm_roberta_base_inference(inference_tester: XLMRobertaTester):
     inference_tester.test()
