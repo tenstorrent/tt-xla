@@ -65,6 +65,8 @@ docker run -it --rm \
   ghcr.io/tenstorrent/tt-forge/tt-xla-slim:latest
 ```
 
+>**NOTE:** You cannot isolate devices in containers. You must pass through all devices even if you are only using one. You can do this by passing ```--device /dev/tenstorrent```. Do not try to pass ```--device /dev/tenstorrent/1``` or similar, as this type of device-in-container isolation will result in fatal errors later on during execution.
+
 5. If you want to check that it is running, open a new tab with the **Same Command** option and run the following:
 
 ```bash
