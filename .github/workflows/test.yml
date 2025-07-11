@@ -30,10 +30,10 @@ on:
               { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" }
             ],
             "include": [
-              { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
-              { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-              { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
-              { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
+              { "build": { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" } },
+              { "build": { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" } },
+              { "build": { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" } },
+              { "build": { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" } }
             ]
           }
       test_group_cnt:
@@ -189,8 +189,8 @@ jobs:
                 # --splits $TEST_GROUP_CNT \
                 # --group $TEST_GROUP_ID \
                 # --splitting-algorithm least_duration \
-                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 --store-durations \
+                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
 
     - name: Upload store durations
