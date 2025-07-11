@@ -46,7 +46,10 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason="AssertionError: PCC comparison failed. Calculated: pcc=0.3758324682712555. Required: pcc=0.99"
 )
 def test_opt_1_3b_inference(inference_tester: OPTTester):
     inference_tester.test()

@@ -276,8 +276,8 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     return arg_tensors.front();
   }
 
-  tt::runtime::Tensor tensor =
-      tt::runtime::createMultiDeviceHostTensor(arg_tensors, strategy);
+  tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
+      arg_tensors, strategy, m_executable_image->getDevicesMeshShape());
   tt::runtime::setTensorRetain(tensor, /*retain=*/false);
 
   return tensor;
