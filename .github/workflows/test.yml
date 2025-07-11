@@ -186,7 +186,7 @@ jobs:
         pytest $PYTEST_FORKED --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
-                --store-durations
+                --store-durations \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
 
