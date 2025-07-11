@@ -109,7 +109,7 @@ private:
 
   // Either returns single tensor or creates multi-device host tensor from arg
   // tensors, depending on the strategy.
-  static tt::runtime::Tensor getTensorFromStrategy(
+  tt::runtime::Tensor getTensorFromStrategy(
       const std::vector<tt::runtime::Tensor> &arg_tensors,
       const std::unordered_map<std::string, std::string> &strategy);
 
