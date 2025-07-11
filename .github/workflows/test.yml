@@ -186,17 +186,11 @@ jobs:
         pytest $PYTEST_FORKED --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
-                --store-durations \
+                --splits $TEST_GROUP_CNT \
+                --group $TEST_GROUP_ID \
+                --splitting-algorithm least_duration \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
-
-    - name: Upload store durations
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
-        path: .test_durations
-        include-hidden-files: true
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
