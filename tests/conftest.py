@@ -198,10 +198,11 @@ def memory_usage_tracker(request):
         def track_memory():
             nonlocal min_mem, max_mem, total_mem, count
             while tracking:
-                current_mem = process.memory_info().rss / (1024 * 1024)
-                min_mem = min(min_mem, current_mem)
-                max_mem = max(max_mem, current_mem)
-                total_mem += current_mem
+                vm = psutil.virtual_memory()
+                used = (vm.total - vm.available) / (1024 * 1024)
+                min_mem = min(min_mem, used)
+                max_mem = max(max_mem, used)
+                total_mem += used
                 count += 1
                 time.sleep(0.1)
 
