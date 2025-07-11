@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "2a010ddcf317e3efedb9d7dc4bfadd1b4b3ab717")
+set(TT_MLIR_VERSION "sgligorijevic/remove-reductions-workaround")
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
