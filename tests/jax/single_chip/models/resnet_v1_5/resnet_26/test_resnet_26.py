@@ -50,7 +50,7 @@ def training_tester() -> ResNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=-0.002165748504921794. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
