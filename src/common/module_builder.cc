@@ -144,7 +144,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
     std::string env_mesh_shape_str = env_mesh_shape != nullptr
                                          ? env_mesh_shape
                                          : compile_options.at("mesh_shape");
-    runAutomaticShardingPipeline(mlir_module, env_mesh_shape_str);
+    runStableHLOPipeline(mlir_module, env_mesh_shape_str);
     if (!tt_pjrt_status_is_ok(m_status)) {
       return m_status;
     }
@@ -445,10 +445,10 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
 }
 
 
-void ModuleBuilder::runAutomaticShardingPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string mesh_shape_str) {
+void ModuleBuilder::runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string mesh_shape_str) {
   printModule(mlir_module);
   
-  mlir::PassManager automatic_sharding_pipeline_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
+  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
 
   auto parseMeshShape = [](std::string &mesh_shape_str) -> std::vector<int> {
     std::vector<int> result;
@@ -471,17 +471,17 @@ void ModuleBuilder::runAutomaticShardingPipeline(mlir::OwningOpRef<mlir::ModuleO
     return;
   }
 
-  mlir::tt::stablehlo::AutomaticShardingPipelineOptions automatic_sharding_pipeline_options;
-  automatic_sharding_pipeline_options.meshShape = {mesh_shape[0], mesh_shape[1]};
-  mlir::tt::stablehlo::createAutomaticShardingPipeline(automatic_sharding_pipeline_pm, automatic_sharding_pipeline_options);
+  mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
+  stablehlo_pipeline_options.meshShape = {mesh_shape[0], mesh_shape[1]};
+  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm, stablehlo_pipeline_options);
 
-  if (mlir::failed(automatic_sharding_pipeline_pm.run(mlir_module.get()))) {
-    DLOG_F(ERROR, "Failed to run automatic sharding pipeline");
+  if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
 
-  DLOG_F(LOG_DEBUG, "SHLO Automatic Sharding Pipeline Module:");
+  DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
   printModule(mlir_module);
 }
 

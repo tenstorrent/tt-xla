@@ -221,7 +221,7 @@ def test_llama():
     S = 1024
     H = 8192
     config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
-    config.num_hidden_layers = 20
+    config.num_hidden_layers = 30
     llama = LlamaModel(config)
 
     input_ids = torch.randint(0, config.vocab_size, (B, S))
