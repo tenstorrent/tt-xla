@@ -49,7 +49,6 @@ on:
 
 jobs:
 
-  # "test_group_id": ${{ fromJSON(inputs.test_group_ids) }},
   prepare-test-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -72,17 +71,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare-test-matrix.outputs.modified_test_matrix) }}
-        # build: ${{ fromJson(inputs.test_matrix) }}
-        # build: [
-        #   { "runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300", codecov: true }
-        # ]
-        # test_group_id: ${{ fromJSON(inputs.test_group_ids) }}
-
-        # include:
-        #   - build: { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" }
-        #   - build: { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" }
-        #   - build: { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", sh-run: true }
-        #   - build: { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", sh-run: true }
 
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
