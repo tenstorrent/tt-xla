@@ -183,6 +183,7 @@ jobs:
         else
           PYTEST_FORKED=""
         fi
+        pip freeze
         pytest $PYTEST_FORKED --store-durations --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 -m "${{ inputs.test_mark }}" \
