@@ -49,13 +49,10 @@ def training_tester() -> WhisperTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
-)
+@pytest.mark.large
+@pytest.mark.skip(reason="Can't load the model for 'openai/whisper-large-v3'")
 def test_whisper_large_v3_inference(inference_tester: WhisperTester):
     inference_tester.test()
 

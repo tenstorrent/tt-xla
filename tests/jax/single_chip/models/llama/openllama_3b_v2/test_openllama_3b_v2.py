@@ -48,12 +48,11 @@ def training_tester() -> LLamaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason="AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99."
 )
 def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()

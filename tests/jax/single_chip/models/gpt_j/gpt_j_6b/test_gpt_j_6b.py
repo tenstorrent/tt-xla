@@ -46,17 +46,7 @@ def training_tester() -> GPTJTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-# @pytest.mark.xfail(
-#     reason=failed_ttmlir_compilation(
-#         "failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-#         "https://github.com/tenstorrent/tt-xla/issues/318 "
-#     )
-# )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
-)
+@pytest.mark.large
 def test_gpt_j_6b_inference(inference_tester: GPTJTester):
     inference_tester.test()
 

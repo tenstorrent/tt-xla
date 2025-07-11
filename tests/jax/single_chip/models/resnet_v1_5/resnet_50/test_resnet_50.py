@@ -51,10 +51,9 @@ def training_tester() -> ResNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
-    )
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason="AssertionError: PCC comparison failed. Calculated: pcc=-0.06640016287565231. Required: pcc=0.99."
 )
 def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
     inference_tester.test()
