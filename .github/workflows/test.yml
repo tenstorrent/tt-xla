@@ -25,35 +25,56 @@ on:
         required: false
         type: string
         default: |
-          [
-            { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
-            { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-            { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
-          ]
+          {
+            "build": [
+              { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
+            ],
+            "include": [
+              { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
+              { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
+              { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
+              { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
+            ]
+          }
       test_group_cnt:
         description: 'Test group count'
         required: false
-        default: "3"
+        default: "1"
         type: string
       test_group_ids:
         description: 'Test group ids'
         required: false
-        default: '[1,2,3]'
+        default: '[1]'
         type: string
 
 jobs:
 
-  # # Run tests on TT hardware
+  # "test_group_id": ${{ fromJSON(inputs.test_group_ids) }},
+  prepare-test-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      modified_test_matrix: ${{ steps.modify-matrix.outputs.modified_test_matrix }}
+    steps:
+      - name: Modify test matrix
+        id: modify-matrix
+        run: |
+          test_matrix='${{ inputs.test_matrix }}'
+          test_group_ids='${{ inputs.test_group_ids }}'
 
+          # Add the test_group_id field to the matrix
+          modified_matrix=$(echo "$test_matrix" | jq --argjson test_group_id "$test_group_ids" '. + { "test_group_id": $test_group_id }')
+          echo "modified_test_matrix=$modified_matrix" >> $GITHUB_OUTPUT
+
+
+  # Run tests on TT hardware
   run-tests:
     timeout-minutes: 120
+    needs: prepare-test-matrix
     strategy:
       fail-fast: false
-      matrix:
-        build: ${{ fromJson(inputs.test_matrix) }}
-        # build: [ 
+      matrix: ${{ fromJson(needs.prepare-test-matrix.outputs.modified_test_matrix) }}
+        # build: ${{ fromJson(inputs.test_matrix) }}
+        # build: [
         #   { "runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300", codecov: true }
         # ]
         # test_group_id: ${{ fromJSON(inputs.test_group_ids) }}
@@ -156,8 +177,6 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-<<<<<<< HEAD
-<<<<<<< HEAD
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         if [[ "${{ matrix.build.name }}" == "run_torch" ]]; then
@@ -166,23 +185,13 @@ jobs:
           PYTEST_FORKED=""
         fi
         pytest $PYTEST_FORKED --log-memory -sv \
-               ${{ matrix.build.dir }}  \
-               -m "${{ inputs.test_mark }}" \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               2>&1 | tee pytest.log
-=======
-=======
-        pip freeze
->>>>>>> b9147d1 (log out)
-        pytest  --log-memory -sv \
                 ${{ matrix.build.dir }}  \
+                -m "${{ inputs.test_mark }}" \
                 --splits $TEST_GROUP_CNT \
                 --group $TEST_GROUP_ID \
                 --splitting-algorithm least_duration \
-                -m "${{ inputs.test_mark }}" \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
->>>>>>> 4e6c54a (initial split test jobs draft)
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
