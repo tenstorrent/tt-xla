@@ -1,0 +1,21 @@
+# Core ML frameworks
+jax==0.6.0
+flax==0.10.6
+optax==0.2.4
+gemma==3.0.2
+
+# Hugging Face for reference comparison
+transformers==4.51.3
+accelerate==1.7.0
+huggingface-hub==0.31.2
+safetensors==0.5.3
+tokenizers==0.21.1
+
+# Essential utilities
+numpy==2.2.5
+tqdm==4.67.1
+PyYAML==6.0.2
+requests==2.32.3
+
+# Environment management
+python-dotenv==1.1.0
