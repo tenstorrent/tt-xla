@@ -196,6 +196,7 @@ jobs:
       with:
         name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
         path: .test_durations
+        include-hidden-files: true
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
