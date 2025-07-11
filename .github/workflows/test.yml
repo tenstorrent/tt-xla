@@ -63,7 +63,7 @@ jobs:
 
           # Add the test_group_id field to the matrix
           modified_matrix=$(jq --argjson test_group_id "$test_group_ids" '. + {test_group_id: $test_group_id}' <<<"$test_matrix")
-          echo "modified_test_matrix=$modified_matrix" >> $GITHUB_OUTPUT
+          echo "modified_test_matrix=$(echo $modified_matrix | jq -c)" >> $GITHUB_OUTPUT
 
   # Run tests on TT hardware
   run-tests:
