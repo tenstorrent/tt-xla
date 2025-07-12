@@ -15,12 +15,12 @@ from utils import (
 
 from .tester import EfficientNetTester
 
-VARIANT_NAME = "base"
+VARIANT_NAME = "efficientnet_b0"
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
     "efficientnet",
-    "base",
+    "b0",
     ModelTask.CV_IMAGE_CLS,
     ModelSource.TORCH_HUB,
 )
