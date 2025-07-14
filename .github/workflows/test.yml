@@ -176,7 +176,6 @@ jobs:
                 -m "${{ inputs.test_mark }}" \
                 --splits $TEST_GROUP_CNT \
                 --group $TEST_GROUP_ID \
-                --splitting-algorithm duration_based_chunks \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
 
