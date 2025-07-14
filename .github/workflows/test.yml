@@ -27,10 +27,10 @@ on:
         default: |
           {
             "build": [
-              { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" }
+              { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" }
             ],
             "include": [
-              { "build": { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" } },
+              { "build": { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" } },
               { "build": { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" } },
               { "build": { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" } },
               { "build": { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" } }
@@ -176,6 +176,7 @@ jobs:
                 -m "${{ inputs.test_mark }}" \
                 --splits $TEST_GROUP_CNT \
                 --group $TEST_GROUP_ID \
+                --splitting-algorithm least_duration \
                 --junitxml=${{ steps.strings.outputs.test_report_path }} \
                 2>&1 | tee pytest.log
 
