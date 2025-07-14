@@ -64,6 +64,9 @@ class SqueezeBertTester(JaxModelTester):
 
         return self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
 
+    def _get_forward_method_args(self) -> list:
+        return []
+
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         return {
@@ -99,13 +102,7 @@ def training_tester() -> SqueezeBertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=11.5. Required: atol=0.1 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()
