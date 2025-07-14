@@ -19,6 +19,7 @@ psutil
 pybind11
 pytest
 pytest-forked
+pytorchcv
 rjieba
 sentencepiece
 setuptools
