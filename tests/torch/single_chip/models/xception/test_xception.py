@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,
@@ -11,32 +12,29 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import XceptionTester
 
-MODEL_VARIANT = ResNetVariant.RESNET_26
+VARIANT_NAME = "xception65"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "26",
+    Framework.TORCH,
+    "xception",
+    "65",
     ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+    ModelSource.TORCH_HUB,
 )
 
 
-# ----- Fixtures -----
+@pytest.fixture
+def inference_tester() -> XceptionTester:
+    return XceptionTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
-
-
-@pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> XceptionTester:
+    return XceptionTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,14 +46,9 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
-    )
-)
-def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
+def test_torch_xception_inference(inference_tester: XceptionTester):
     inference_tester.test()
 
 
@@ -67,5 +60,5 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_26_training(training_tester: ResNetTester):
+def test_torch_xception_training(training_tester: XceptionTester):
     training_tester.test()

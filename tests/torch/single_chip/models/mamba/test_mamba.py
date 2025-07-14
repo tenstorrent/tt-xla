@@ -11,17 +11,18 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import MambaTester
 
-MODEL_VARIANT = ResNetVariant.RESNET_26
+VARIANT_NAME = "state-spaces/mamba-790m-hf"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "26",
-    ModelTask.CV_IMAGE_CLS,
+    Framework.TORCH,
+    "mamba",
+    "790m-hf",
+    ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
 
@@ -30,13 +31,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+def inference_tester() -> MambaTester:
+    return MambaTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> MambaTester:
+    return MambaTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,14 +49,15 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
+        "https://github.com/tenstorrent/tt-xla/issues/795"
     )
 )
-def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
+def test_torch_mamba_inference(inference_tester: MambaTester):
     inference_tester.test()
 
 
@@ -67,5 +69,5 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_26_training(training_tester: ResNetTester):
+def test_torch_mamba_training(training_tester: MambaTester):
     training_tester.test()

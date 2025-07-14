@@ -11,18 +11,20 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import MLPMixerTester
 
-MODEL_VARIANT = ResNetVariant.RESNET_26
+VARIANT_NAME = "mixer_s32_224"
+
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "26",
+    Framework.TORCH,
+    "mlp_mixer",
+    "s32_224",
     ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+    ModelSource.TORCH_HUB,
 )
 
 
@@ -30,13 +32,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+def inference_tester() -> MLPMixerTester:
+    return MLPMixerTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> MLPMixerTester:
+    return MLPMixerTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,14 +50,15 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
     )
 )
-def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
+def test_torch_mlp_mixer_inference(inference_tester: MLPMixerTester):
     inference_tester.test()
 
 
@@ -67,5 +70,5 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_26_training(training_tester: ResNetTester):
+def test_torch_mlp_mixer_training(training_tester: MLPMixerTester):
     training_tester.test()

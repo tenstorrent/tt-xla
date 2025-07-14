@@ -11,18 +11,18 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import WideResNetTester
 
-MODEL_VARIANT = ResNetVariant.RESNET_26
+VARIANT_NAME = "wide_resnet50_2"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "26",
+    Framework.TORCH,
+    "wide_resnet",
+    "50-2",
     ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+    ModelSource.TORCH_HUB,
 )
 
 
@@ -30,13 +30,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+def inference_tester() -> WideResNetTester:
+    return WideResNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> WideResNetTester:
+    return WideResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,14 +48,9 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Test killed in CI https://github.com/tenstorrent/tt-xla/issues/714"
-    )
-)
-def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
+def test_torch_wide_resnet_inference(inference_tester: WideResNetTester):
     inference_tester.test()
 
 
@@ -67,5 +62,5 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_26_training(training_tester: ResNetTester):
+def test_torch_wide_resnet_training(training_tester: WideResNetTester):
     training_tester.test()
