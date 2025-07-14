@@ -93,6 +93,13 @@ jobs:
           echo "build=release" >> "$GITHUB_OUTPUT"
         fi
 
+    - name: Debug log free memory
+      shell: bash      
+      run: |
+        free -h
+        top -b -o %MEM | head -n 17
+        df -h
+
     - name: Download build artifacts
       if: steps.strings.outputs.do_codecov
       uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
