@@ -1,0 +1,51 @@
+name: Build Torch and Torch/XLA Wheels
+
+on:
+  workflow_call:
+    inputs:
+      torch_version:
+        description: 'Torch version to build (default: 2.7.0)'
+        required: false
+        type: string
+        default: '2.7.0'
+    outputs:
+      artifact_name:
+        description: 'Name of uploaded wheels artifact'
+        value: ${{ jobs.build-wheels.outputs.artifact_name }}
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    container:
+      image: us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/development:tpu
+      options: --user root
+    outputs:
+      artifact_name: ${{ steps.upload.outputs.artifact_name }}
+    steps:
+      - name: "Build Torch and Torch/XLA Wheels"
+        id: build_wheels
+        run: |
+          cd /tmp
+          git clone --recursive --branch v${{ inputs.torch_version }} https://github.com/pytorch/pytorch.git
+          cd pytorch/
+          git clone --recursive https://github.com/tenstorrent/pytorch-xla.git xla
+
+          # Build PyTorch
+          python setup.py bdist_wheel
+          python setup.py develop
+
+          # Build PyTorch/XLA
+          cd xla/
+          python setup.py bdist_wheel
+
+          # Collect wheels
+          mkdir -p /dist
+          cp ../dist/*.whl /dist/
+          cp dist/*.whl /dist/
+
+      - name: "Upload Wheels Artifact"
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-wheels-${{ github.run_id }}
+          path: /dist/*.whl
