@@ -71,7 +71,7 @@ def process_directory(directory):
 def main():
     if len(sys.argv) != 3:
         print(
-            "Usage: python .github/workflows/get_test_duration_from_junit_xmls.py <directory> <json_output>"
+            "Usage: python .github/scripts/get_test_duration_from_junit_xmls.py <directory> <json_output>"
         )
         sys.exit(1)
 
