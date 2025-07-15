@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ set-inputs ]
     outputs:
-      test_full_model_matrix: ${{ steps.set-matrix.outputs.test-full-model-matrix}}
+      test_full_model_matrix: ${{ steps.generate-matrix.outputs.test-full-model-matrix}}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
