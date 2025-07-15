@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_group_cnt: ${{ steps.set-inputs.outputs.test_group_cnt }}
-      test_group_ids: ${{ steps.set-inputs.outputs.test_group_ids }}
     steps:
       - name: Set Inputs
         id: set-inputs
