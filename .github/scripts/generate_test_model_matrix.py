@@ -27,7 +27,7 @@ def modify_by_test_case(test_matrix, test_to_parallelize, test_group_cnt):
         test_matrix.append(new_object)
 
 
-def modify_test_matrix(file_path, test_group_cnt, tests_to_parallelize):
+def modify_test_matrix(file_path, tests_to_parallelize, test_group_cnt):
     with open(file_path, "r") as f:
         test_matrix = json.load(f)
 
@@ -39,7 +39,9 @@ def modify_test_matrix(file_path, test_group_cnt, tests_to_parallelize):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python modify_test_matrix.py <file_path> <test_group_cnt>")
+        print(
+            "Usage: python modify_test_matrix.py <file_path> <tests_to_parallize> <test_group_cnt>"
+        )
         sys.exit(1)
 
     file_path = sys.argv[1]
