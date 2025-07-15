@@ -69,7 +69,7 @@ jobs:
       test_full_model_matrix: ${{ steps.set-matrix.outputs.test-full-model-matrix}}
     steps:
       - name: Checkout repository
-        uses: action/checkout@v4
+        uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
