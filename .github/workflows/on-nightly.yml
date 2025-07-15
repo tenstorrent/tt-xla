@@ -84,7 +84,7 @@ jobs:
           TEST_MATRIX_PATH: ".github/workflows/test-full-model-matrix.json"
         run: |
           python $SCRIPT_PATH $TEST_MATRIX_PATH $TEST_GROUP_CNT > modified-matrix.json
-          echo "test-full-model-matrix=$(cat modified-matrix.json)" >> $GITHUB_OUTPUT
+          echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test_full_model:
     uses: ./.github/workflows/test.yml
