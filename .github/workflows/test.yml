@@ -25,57 +25,28 @@ on:
         required: false
         type: string
         default: |
-          {
-            "build": [
-              { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" }
-            ],
-            "include": [
-              { "build": { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" } },
-              { "build": { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" } },
-              { "build": { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" } },
-              { "build": { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" } }
-            ]
-          }
-      test_group_cnt:
-        description: 'Test group count'
-        required: false
-        default: "1"
-        type: string
-      test_group_ids:
-        description: 'Test group ids'
-        required: false
-        default: '[1]'
-        type: string
+          [
+            { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip" },
+            { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
+            { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
+          ]
 
 jobs:
-
-  prepare-test-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      modified_test_matrix: ${{ steps.modify-matrix.outputs.modified_test_matrix }}
-    steps:
-      - name: Modify test matrix
-        id: modify-matrix
-        run: |
-          test_matrix='${{ inputs.test_matrix }}'
-          test_group_ids='${{ inputs.test_group_ids }}'
-
-          # Add the test_group_id field to the matrix
-          modified_matrix=$(jq --argjson test_group_id "$test_group_ids" '. + {test_group_id: $test_group_id}' <<<"$test_matrix")
-          echo "modified_test_matrix=$(echo $modified_matrix | jq -c)" >> $GITHUB_OUTPUT
 
   # Run tests on TT hardware
   run-tests:
     timeout-minutes: 120
-    needs: prepare-test-matrix
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.prepare-test-matrix.outputs.modified_test_matrix) }}
+      matrix:
+        build: ${{ fromJson(inputs.test_matrix) }}
 
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
+    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     container:
       image: ${{ matrix.build.sh-run && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -103,7 +74,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.test_group_id }})"
+        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     - name: Set reusable strings
       id: strings
@@ -159,8 +130,8 @@ jobs:
     - name: Run tests
       env:
         HF_HOME: /mnt/dockercache/huggingface
-        TEST_GROUP_CNT: ${{ matrix.test_group_id && inputs.test_group_cnt || 1}}
-        TEST_GROUP_ID: ${{ matrix.test_group_id || 1}}
+        TEST_GROUP_CNT: ${{ matrix.build.test_group_cnt && matrix.build.test_group_cnt || 1}}
+        TEST_GROUP_ID: ${{ matrix.build.test_group_id || 1}}
       shell: bash
       run: |
         source venv/activate
