@@ -4,34 +4,38 @@
 import json
 import sys
 
+TESTS_TO_PARALLELIZE = [{"runs-on": "n150", "name": "run_jax"}]
 
-def modify_test_matrix(file_path, test_group_cnt):
-    # Load the JSON file
-    with open(file_path, "r") as f:
-        test_matrix = json.load(f)
 
-    # Find the object to duplicate
+def modify_by_test_case(test_matrix, test_to_parallelize, test_group_cnt):
     target_object = None
     for obj in test_matrix:
-        if obj.get("runs-on") == "n150" and obj.get("name") == "run_jax":
+        if obj.get("runs-on") == test_to_parallelize.get("runs-on") and obj.get(
+            "name"
+        ) == test_to_parallelize.get("name"):
             target_object = obj
             break
 
     if not target_object:
-        print("Target object not found in the JSON file.")
+        print("Test to parallelize not found")
         return
 
-    # Remove the original object
-    test_matrix = [obj for obj in test_matrix if obj != target_object]
+    test_matrix[:] = [obj for obj in test_matrix if obj != target_object]
 
-    # Create new objects based on TEST_GROUP_CNT
     for i in range(1, test_group_cnt + 1):
         new_object = target_object.copy()
         new_object["test_group_cnt"] = test_group_cnt
         new_object["test_group_id"] = i
         test_matrix.append(new_object)
 
-    # Return the modified matrix as JSON
+
+def modify_test_matrix(file_path, test_group_cnt):
+    with open(file_path, "r") as f:
+        test_matrix = json.load(f)
+
+    for test_to_parallelize in TESTS_TO_PARALLELIZE:
+        modify_by_test_case(test_matrix, test_to_parallelize, test_group_cnt)
+
     return json.dumps(test_matrix, indent=4)
 
 

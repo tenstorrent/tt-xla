@@ -80,8 +80,10 @@ jobs:
         shell: bash
         env:
           TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
+          SCRIPT_PATH: ".github/scripts/generate_test_model_matrix.py"
+          TEST_MATRIX_PATH: ".github/workflows/test-full-model-matrix.json"
         run: |
-          python .github/scripts/generate_test_model_matrix.py test-full-model-matrix.json $TEST_GROUP_CNT > modified-matrix.json
+          python $SCRIPT_PATH $TEST_MATRIX_PATH $TEST_GROUP_CNT > modified-matrix.json
           echo "test-full-model-matrix=$(cat modified-matrix.json)" >> $GITHUB_OUTPUT
 
   test_full_model:
