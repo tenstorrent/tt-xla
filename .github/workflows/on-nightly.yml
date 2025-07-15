@@ -84,6 +84,7 @@ jobs:
           TEST_MATRIX_PATH: ".github/workflows/test-full-model-matrix.json"
           TESTS_TO_PARALLELIZE: '[{\"runs-on\": \"n150\", \"name\": \"run_jax\"}]'
         run: |
+          echo $TESTS_TO_PARALLELIZE
           python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT > modified-matrix.json
           echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
