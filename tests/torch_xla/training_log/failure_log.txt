@@ -1,0 +1,174 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.4.1, pluggy-1.6.0 -- /localdev/sshon/tt-xla/venv/bin/python3.10
+cachedir: .pytest_cache
+rootdir: /localdev/sshon/tt-xla
+configfile: pytest.ini
+plugins: jaxtyping-0.3.2
+collecting ... collected 1 item
+
+tests/torch_xla/test_training.py::test_mnist_ttxla [32m                 Always[0m | [1m[38;5;240m   DEBUG[0m | Device grid size = { 8, 8 }
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Test input shape: torch.Size([1, 1, 28, 28]), Target shape: torch.Size([1])
+Running on 8 devices
+Mesh shape: (8, 1, 1, 1), Device IDs: [[[[0]]]
+
+
+ [[[1]]]
+
+
+ [[[2]]]
+
+
+ [[[3]]]
+
+
+ [[[4]]]
+
+
+ [[[5]]]
+
+
+ [[[6]]]
+
+
+ [[[7]]]]
+Partition Spec:  ('data', None, None, None)
+Translated partition spec: (0, None, None, None)
+Dims:  [8, 1, 1, 1, 1, 1, 1]
+Reshape Dims:  [8, 1, 1, 1]
+Transpose Perm:  [0, 1, 2, 3]
+----------OP SHARDING----------
+Tile Assignment Dimensions:  [8, 1, 1, 1, 1, 1]
+Tile Assignment Devices:  []
+Iota Reshape Dims:  [8]
+Iota Transpose Perm:  [0]
+---------\OP SHARDING----------
+FAILED
+
+=================================== FAILURES ===================================
+_______________________________ test_mnist_ttxla _______________________________
+
+    def test_mnist_ttxla():
+        # training_on_single_device()
+>       training_on_multiple_devices()
+
+tests/torch_xla/test_training.py:369: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/torch_xla/test_training.py:269: in training_on_multiple_devices
+    xs.mark_sharding(input_xla, mesh, ("data", None, None, None))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+t = tensor([[[[0., 0., 0.,  ..., 0., 0., 0.],
+          [0., 0., 0.,  ..., 0., 0., 0.],
+          [0., 0., 0.,  ..., 0., 0...., 0., 0.,  ..., 0., 0., 0.],
+          [0., 0., 0.,  ..., 0., 0., 0.]]]], device='xla:0',
+       dtype=torch.bfloat16)
+mesh = <torch_xla.distributed.spmd.xla_sharding.Mesh object at 0x7f5864315030>
+partition_spec = ('data', None, None, None)
+
+    def mark_sharding(t: Union[torch.Tensor, XLAShardedTensor], mesh: Mesh,
+                      partition_spec: PartitionSpec) -> XLAShardedTensor:
+      """
+        Annotates the tensor provided with XLA partition spec. Internally,
+        it annotates the corresponding XLATensor as sharded for the XLA SpmdPartitioner pass.
+    
+        Args:
+            t (Union[torch.Tensor, XLAShardedTensor]): input tensor to be annotated with partition_spec.
+    
+            mesh (Mesh): describes the logical XLA device topology and the underlying device IDs.
+    
+            partition_spec (PartitionSpec): A tuple of one or more device mesh axes that describes how
+                to shard the input tensor. Each element can be:
+    
+                - an int: refer to a mesh axis by index
+                - str: refer to a mesh axis by name
+                - a tuple of the above: refer to multiple mesh axes
+                - None: the corresponding tensor dimension will be replicated over all devices
+    
+                This specifies how each input rank is sharded (index to mesh_shape) or replicated (None).
+                When a tuple is specified, the corresponding input tensor axis will be sharded along all
+                mesh axes in the tuple. Note that the order the mesh axes are specified in the tuple
+                will impact the resulting sharding.
+    
+        Example:
+    
+          >>> import torch_xla.runtime as xr
+          >>> import torch_xla.distributed.spmd as xs
+          >>> mesh_shape = (4, 2)
+          >>> num_devices = xr.global_runtime_device_count()
+          >>> device_ids = np.array(range(num_devices))
+          >>> mesh = Mesh(device_ids, mesh_shape, ('x', 'y'))
+          >>> input = torch.randn(8, 32).to('xla')
+          >>> xs.mark_sharding(input, mesh, (0, None)) # 4-way data parallel
+          >>> linear = nn.Linear(32, 10).to('xla')
+          >>> xs.mark_sharding(linear.weight, mesh, (None, 1)) # 2-way model parallel
+      """
+      # We only allow fully specified `partition_spec` to be applicable, as opposed
+      # to filling in the unspecified replicated dims. Fully specified `partition_spec`
+      # should be of the same rank as `t`. This is to support partial replication
+      # where the group assignment may vary with different input ranks.
+      assert len(t.shape) == len(partition_spec), \
+        f"Partition spec length ({len(partition_spec)}) should be equal to the input rank ({len(t.shape)})."
+    
+      tx = maybe_get_torchax()
+      if tx is not None and isinstance(t, tx.tensor.Tensor):
+        from jax.sharding import PartitionSpec as P, NamedSharding
+        jmesh = mesh.get_jax_mesh()
+        t.shard_(NamedSharding(jmesh, P(*partition_spec)))
+        return t
+    
+      # op_sharding = mesh.get_op_sharding(partition_spec)
+      op_sharding = mesh.get_op_sharding_v2(partition_spec)
+      print_op_sharding(op_sharding)
+      annotate_func = torch_xla._XLAC._xla_mark_sharding
+>     annotate_func(unwrap_sharded_tensor(t), op_sharding)
+E     IndexError: too many indices for tensor of dimension 4
+
+venv/lib/python3.10/site-packages/torch_xla/distributed/spmd/xla_sharding.py:736: IndexError
+=============================== warnings summary ===============================
+venv/lib/python3.10/site-packages/torchvision/io/image.py:14
+  /localdev/sshon/tt-xla/venv/lib/python3.10/site-packages/torchvision/io/image.py:14: UserWarning: Failed to load image Python extension: 'libc10_cuda.so: cannot open shared object file: No such file or directory'If you don't plan on using image functionality from `torchvision.io`, you can ignore this warning. Otherwise, there might be something wrong with your environment. Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
+    warn(
+
+tests/torch_xla/test_training.py: 32 warnings
+  /localdev/sshon/tt-xla/venv/lib/python3.10/site-packages/torchvision/datasets/mnist.py:143: DeprecationWarning: 'mode' parameter is deprecated and will be removed in Pillow 13 (2026-10-15)
+    img = Image.fromarray(img.numpy(), mode="L")
+
+tests/torch_xla/test_training.py::test_mnist_ttxla
+  /localdev/sshon/tt-xla/venv/lib/python3.10/site-packages/torch_xla/runtime.py:213: UserWarning: XLA_USE_SPMD is being deprecated. Use torch_xla.runtime.use_spmd() without setting XLA_USE_SPMD env-var.
+    warnings.warn("XLA_USE_SPMD is being deprecated. "
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch_xla/test_training.py::test_mnist_ttxla - IndexError: too many indices for tensor of dimension 4
+======================== 1 failed, 34 warnings in 5.20s ========================
