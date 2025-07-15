@@ -88,4 +88,8 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
+        # T5 requires decoder input ids also an input
+        decoder_input_ids = torch.tensor([[self.tokenizer.pad_token_id]])
+        inputs["decoder_input_ids"] = decoder_input_ids
+
         return inputs

@@ -89,5 +89,10 @@ class ModelLoader(ForgeModel):
         sample = ds[0]["audio"]
         inputs = self.processor(
             sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
-        ).input_features
+        )
+
+        # Whisper requires decoder input ids also an input
+        decoder_input_ids = torch.tensor([[self.processor.tokenizer.pad_token_id]])
+        inputs["decoder_input_ids"] = decoder_input_ids
+
         return inputs
