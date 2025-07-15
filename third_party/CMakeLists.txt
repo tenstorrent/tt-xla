@@ -29,6 +29,8 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
     set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
+    set(TT_RUNTIME_DEBUG OFF CACHE BOOL "Enable ttmlir runtime debugging")
+    message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
         tt-mlir
@@ -46,6 +48,7 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
+          -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
