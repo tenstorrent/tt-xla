@@ -16,7 +16,17 @@ from ....config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
+
+
+class ModelVariant(StrEnum):
+    """Available ALBERT model variants."""
+
+    BASE = "albert-base-v2"
+    LARGE = "albert-large-v2"
+    XLARGE = "albert-xlarge-v2"
+    XXLARGE = "albert-xxlarge-v2"
 
 
 class ModelLoader(ForgeModel):
@@ -24,54 +34,54 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        "albert-base-v2": LLMModelConfig(
+        ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="albert/albert-base-v2",
             max_length=128,
         ),
-        "albert-large-v2": LLMModelConfig(
+        ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="albert/albert-large-v2",
             max_length=128,
         ),
-        "albert-xlarge-v2": LLMModelConfig(
+        ModelVariant.XLARGE: LLMModelConfig(
             pretrained_model_name="albert/albert-xlarge-v2",
             max_length=128,
         ),
-        "albert-xxlarge-v2": LLMModelConfig(
+        ModelVariant.XXLARGE: LLMModelConfig(
             pretrained_model_name="albert/albert-xxlarge-v2",
-            max_length=128,  # Added default max length
+            max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = "albert-base-v2"
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     # Shared configuration parameters
     sample_text = "The capital of [MASK] is Paris."
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: Optional[str]) -> ModelInfo:
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant.
 
         Args:
-            variant_name: Validated variant name string (or None if model has no variants).
-                         For models that support variants, this will never be None.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
             model="albert_v2",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,

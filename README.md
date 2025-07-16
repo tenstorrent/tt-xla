@@ -76,12 +76,23 @@ When adding a new model to the repository, follow these guidelines:
 7. Use the standardized enum values from `config.py`:
    - `ModelSource` - Use `HUGGING_FACE` for HuggingFace models, `TORCHVISION` for TorchVision models, etc.
    - `ModelTask` - Use standardized task enums like `NLP_CAUSAL_LM`, `CV_IMAGE_CLS`, `AUDIO_ASR`, etc.
-   - `ModelGroup` - Use `PRIORITY` for high-priority models, `GENERALITY` for others
+   - `ModelGroup` - Use `RED` for customer requested models, `GENERALITY` for others
 
-8. Always use "base" as the default variant name:
+8. Always use a dedicated `ModelVariant` enum class with a `DEFAULT_VARIANT` class attribute:
    ```python
-   if variant_name is None:
-       variant_name = "base"  # Previously "default" - now standardized across all loaders
+   class ModelVariant(StrEnum):
+       """Available model variants."""
+       BASE = "base"
+       LARGE = "large"
+
+   # Dictionary of available model variants
+   _VARIANTS = {
+       ModelVariant.BASE: ModelConfig(...),
+       ModelVariant.LARGE: ModelConfig(...),
+   }
+
+   # Default variant to use
+   DEFAULT_VARIANT = ModelVariant.BASE
    ```
 
 Example implementation of a model loader:
@@ -99,23 +110,36 @@ from ...config import (
 from ...base import ForgeModel
 from .src.model import MyModel
 
+class ModelVariant(StrEnum):
+    """Available model variants."""
+    BASE = "base"
+
 class ModelLoader(ForgeModel):
+    # Dictionary of available model variants
+    _VARIANTS = {
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="my_model_pretrained",
+        )
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.BASE
+
     # Shared configuration parameters as class variables
     param1 = "default_value"
     param2 = 42
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
         """
-        if variant_name is None:
-            variant_name = "base"
         return ModelInfo(
             model="my_model",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.PRIORITY,  # Use appropriate enum
             task=ModelTask.CV_IMAGE_CLS,  # Use appropriate enum
             source=ModelSource.HUGGING_FACE,  # Use appropriate enum
@@ -152,7 +176,7 @@ class ModelLoader(ForgeModel):
 
 ```python
 # mymodel/pytorch/__init__.py
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant
 ```
 
 ```python
@@ -187,37 +211,40 @@ class ModelLoader(ForgeModel):
     """BERT model loader implementation for question answering tasks."""
 
     # Dictionary of available model variants
+    class ModelVariant(StrEnum):
+        """Available model variants."""
+        BASE = "base"
+        LARGE = "large"
+
     _VARIANTS = {
-        "base": LLMModelConfig(
+        ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="phiyodr/bert-base-finetuned-squad2",
             max_length=256,
         ),
-        "large": LLMModelConfig(
+        ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="phiyodr/bert-large-finetuned-squad2",
             max_length=256,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = "large"
+    DEFAULT_VARIANT = ModelVariant.LARGE
 
     # Sample inputs for inference
     context = 'Johann Joachim Winckelmann was a German art historian and archaeologist...'
     question = "What discipline did Winkelmann create?"
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: Optional[str]) -> ModelInfo:
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant."""
-        if variant_name is None:
-            variant_name = "base"  # Previously "default" - now standardized
         return ModelInfo(
             model="bert",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.PRIORITY,
             task=ModelTask.NLP_QA,  # Standardized task enum
             source=ModelSource.HUGGING_FACE,  # Standardized source enum
@@ -284,8 +311,8 @@ from third_party.tt_forge_models.yolov4.pytorch import ModelLoader
 from third_party.tt_forge_models.bert.pytorch import ModelLoader
 
 # To use multiple models in the same file, use aliases
-from third_party.tt_forge_models.yolov4.pytorch import ModelLoader as YOLOv4Loader
-from third_party.tt_forge_models.bert.pytorch import ModelLoader as BertLoader
+from third_party.tt_forge_models.yolov4.pytorch import ModelLoader as YOLOv4Loader, ModelVariant as YOLOv4Variant
+from third_party.tt_forge_models.bert.pytorch import ModelLoader as BertLoader, ModelVariant as BertVariant
 
 # For base classes and utilities
 from third_party.tt_forge_models.base import ForgeModel

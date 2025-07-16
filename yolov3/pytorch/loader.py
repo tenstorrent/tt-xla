@@ -9,48 +9,66 @@ Reference: https://github.com/tenstorrent/tt-buda-demos/blob/main/model_demos/cv
 import torch
 from PIL import Image
 from torchvision import transforms
+from typing import Optional
 
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
 from ...base import ForgeModel
 from .src.yolov3 import Yolov3
 from ...tools.utils import get_file
 
 
+class ModelVariant(StrEnum):
+    """Available YOLOv3 model variants."""
+
+    BASE = "base"
+
+
 class ModelLoader(ForgeModel):
     """YOLOv3 model loader implementation."""
 
+    # Dictionary of available model variants
+    _VARIANTS = {
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="https://www.ollihuotari.com/data/yolov3_pytorch/yolov3_coco_01.h5",
+        )
+    }
+
+    DEFAULT_VARIANT = ModelVariant.BASE
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+
         return ModelInfo(
             model="yolov3",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
@@ -66,9 +84,7 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The YOLOv3 model instance.
         """
         num_classes = 80
-        weights_file = get_file(
-            "https://www.ollihuotari.com/data/yolov3_pytorch/yolov3_coco_01.h5"
-        )
+        weights_file = get_file(self._variant_config.pretrained_model_name)
 
         # Create model and load weights
         model = Yolov3(num_classes=num_classes)

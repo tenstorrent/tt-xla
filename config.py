@@ -95,11 +95,18 @@ class ModelInfo:
     """
 
     model: str
-    variant: str
+    variant: StrEnum
     group: ModelGroup
     task: ModelTask
     source: ModelSource
     framework: Framework
+
+    def __post_init__(self):
+        if not isinstance(self.variant, StrEnum):
+            # TODO - Change to raise TypeError once all models updated.
+            print(
+                f"Warning: ModelInfo.variant should be a StrEnum, not {type(self.variant).__name__}"
+            )
 
     @property
     def name(self) -> str:
@@ -113,7 +120,7 @@ class ModelInfo:
             "source": str(self.source),
             "framework": str(self.framework),
             "model_arch": self.model,
-            "variant_name": self.variant,
+            "variant_name": str(self.variant),
         }
 
 

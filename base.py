@@ -9,7 +9,7 @@ for loading models, inputs, etc.
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Union, Type, Any
 
-from .config import ModelConfig, ModelInfo
+from .config import ModelConfig, ModelInfo, StrEnum
 import torch
 
 
@@ -17,9 +17,9 @@ class ForgeModel(ABC):
     """Base class for all TT-Forge model loaders."""
 
     # This is intended to be overridden by subclasses to define available model variants
-    # Format: {"variant_name": ModelConfig(...), ...}
+    # Format: {ModelVariant: ModelConfig(...), ...}
     _VARIANTS: Dict[
-        str, ModelConfig
+        StrEnum, ModelConfig
     ] = {}  # Empty by default for models without variants
     DEFAULT_VARIANT = None
 
@@ -27,7 +27,7 @@ class ForgeModel(ABC):
         """Initialize a ForgeModel instance.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional StrEnum value specifying which variant to use.
                     If None, the default variant will be used.
         """
         # Validate and store the variant for this instance
@@ -37,30 +37,35 @@ class ForgeModel(ABC):
         self._variant_config = self.get_variant_config(variant)
 
     @classmethod
-    def query_available_variants(cls):
+    def query_available_variants(cls) -> Dict[StrEnum, ModelConfig]:
         """Returns a dictionary of available model variants and their configs.
 
         Returns:
-            dict: Dictionary mapping variant names to their configuration objects, or empty dict if
-                  the model doesn't support variants.
+            Dict[StrEnum, ModelConfig]:
+                Mapping of variant enum members to their ModelConfig,
+                or an empty dict if the model doesn't support variants.
+
         """
         if not cls._VARIANTS:
             return {}
         return cls._VARIANTS
 
     @classmethod
-    def _validate_variant(cls, variant=None):
+    def _validate_variant(cls, variant: Optional[StrEnum] = None) -> Optional[StrEnum]:
         """Validates and returns the variant to use.
 
         Args:
-            variant: Optional string specifying which variant to validate.
+            variant: Optional StrEnum specifying which variant to validate.
 
         Returns:
-            str or None: Validated variant name, or None for models without variants.
+            StrEnum or None: Validated variant, or None for models without variants.
 
         Raises:
+            TypeError: If caller passed something other than StrEnum/Variants
             ValueError: If the specified variant doesn't exist.
+
         """
+
         # If model doesn't support variants, return None
         if not cls._VARIANTS:
             return None
@@ -69,9 +74,15 @@ class ForgeModel(ABC):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        # Enforce user provided correct variant type (same as default variant)
+        if not isinstance(variant, type(cls.DEFAULT_VARIANT)):
+            raise TypeError(
+                f"variant must be a {type(cls.DEFAULT_VARIANT).__name__}, not {type(variant).__name__}"
+            )
+
         # Validate the variant exists
         if variant not in cls._VARIANTS:
-            valid_variants = list(cls._VARIANTS.keys())
+            valid_variants = [v.value for v in cls._VARIANTS.keys()]
             raise ValueError(
                 f"Invalid variant '{variant}'. Available variants: {valid_variants}"
             )
@@ -79,11 +90,13 @@ class ForgeModel(ABC):
         return variant
 
     @classmethod
-    def get_variant_config(cls, variant=None) -> Optional[ModelConfig]:
+    def get_variant_config(
+        cls, variant: Optional[StrEnum] = None
+    ) -> Optional[ModelConfig]:
         """Get configuration for a specific variant after validation.
 
         Args:
-            variant: Optional string specifying which variant to get config for.
+            variant: Optional StrEnum specifying which variant to get config for.
 
         Returns:
             ModelConfig or None: Variant configuration object, or None for models without variants.
@@ -95,25 +108,27 @@ class ForgeModel(ABC):
         return cls._VARIANTS[variant]
 
     @classmethod
-    def get_model_info(cls, variant=None) -> ModelInfo:
+    def get_model_info(cls, variant: Optional[StrEnum] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant: Optional string specifying which variant to get info for.
+            variant: Optional StrEnum specifying which variant to get info for.
+                     If None, DEFAULT_VARIANT is used.
+
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        variant_name = cls._validate_variant(variant)
-        return cls._get_model_info(variant_name)
+        variant_enum = cls._validate_variant(variant)
+        return cls._get_model_info(variant_enum)
 
     @classmethod
     @abstractmethod
-    def _get_model_info(cls, variant_name: Optional[str]) -> ModelInfo:
+    def _get_model_info(cls, variant: Optional[StrEnum] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant.
 
         Args:
-            variant_name: Validated variant name string (or None if model has no variants).
+            variant: Optional StrEnum specifying which variant to get info for.
 
         Returns:
             ModelInfo: Information about the model and variant
