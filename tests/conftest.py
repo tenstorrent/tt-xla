@@ -166,6 +166,9 @@ def newline_logger():
         sys.stdout,
         format=f"\n{default_format}",
         level="INFO",
+        enqueue=True,
+        backtrace=True,
+        diagnose=True,
     )
     try:
         yield
@@ -175,6 +178,9 @@ def newline_logger():
             sys.stdout,
             format=default_format,
             level="INFO",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True,
         )
 
 
@@ -237,6 +243,9 @@ def memory_usage_tracker(request):
         after_gc = process.memory_info().rss / (1024 * 1024)
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
 
+def pytest_sessionstart(session):
+    logger.remove()
+    logger.add(sys.stdout, level="INFO", enqueue=True, backtrace=True, diagnose=True)
 
 @pytest.fixture(scope="session", autouse=True)
 def initialize_device_connectors():
