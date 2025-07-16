@@ -5,6 +5,7 @@
 T5 model loader implementation
 """
 
+import torch
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 from ...config import (
     ModelInfo,

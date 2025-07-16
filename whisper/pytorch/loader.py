@@ -5,6 +5,7 @@
 Whisper model loader implementation
 """
 
+import torch
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from ...config import (
     ModelInfo,
