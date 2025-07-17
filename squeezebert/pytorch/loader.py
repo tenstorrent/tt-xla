@@ -77,7 +77,7 @@ class ModelLoader(ForgeModel):
         model.eval()
         return model
 
-    def load_inputs(self):
+    def load_inputs(self, batch_size=1):
         """Generate sample inputs for SqueezeBERT model."""
 
         # Ensure tokenizer is initialized
@@ -92,6 +92,8 @@ class ModelLoader(ForgeModel):
             truncation=True,
             return_tensors="pt",
         )
+
+        inputs = inputs.repeat_interleave(batch_size, dim=0)
 
         return inputs
 

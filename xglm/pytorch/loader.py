@@ -5,40 +5,63 @@
 XGLM model loader implementation
 """
 
+import torch
 from transformers import AutoTokenizer, XGLMForCausalLM
+from typing import Optional
 from ...config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
+    ModelConfig,
     ModelSource,
     Framework,
+    StrEnum,
 )
 from ...base import ForgeModel
 
 
+class ModelVariant(StrEnum):
+    """Available XGLM model variants."""
+
+    XGLM_564M = "xglm-564M"
+    XGLM_1_7B = "xglm-1.7B"
+
+
 class ModelLoader(ForgeModel):
+
+    # Dictionary of available model variants
+    _VARIANTS = {
+        ModelVariant.XGLM_564M: ModelConfig(
+            pretrained_model_name="facebook/xglm-564M",
+        ),
+        ModelVariant.XGLM_1_7B: ModelConfig(
+            pretrained_model_name="facebook/xglm-1.7B",
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.XGLM_1_7B
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
         return ModelInfo(
             model="xglm",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Initialize ModelLoader with specified variant.
 
         Args:
@@ -48,7 +71,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "facebook/xglm-1.7B"
+        self.model_name = self._variant_config.pretrained_model_name
         self.text = "My name is Thomas and my main"
         self.max_length = 256
         self.tokenizer = None
@@ -76,7 +99,7 @@ class ModelLoader(ForgeModel):
         model.eval()
         return model
 
-    def load_inputs(self):
+    def load_inputs(self, batch_size=1):
         """Generate sample inputs for XGLM model."""
 
         # Ensure tokenizer is initialized
@@ -91,5 +114,9 @@ class ModelLoader(ForgeModel):
             truncation=True,
             return_tensors="pt",
         )
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs

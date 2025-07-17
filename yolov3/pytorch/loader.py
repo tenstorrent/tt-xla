@@ -101,12 +101,13 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the YOLOv3 model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
                            If not provided, inputs will use the default dtype (typically float32).
+            batch_size: Number of samples in the batch. Default is 1.
 
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
@@ -127,8 +128,7 @@ class ModelLoader(ForgeModel):
             ]
         )
 
-        img_tensor = [transform(image).unsqueeze(0)]
-        batch_tensor = torch.cat(img_tensor, dim=0)
+        batch_tensor = torch.stack([transform(image)] * batch_size)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

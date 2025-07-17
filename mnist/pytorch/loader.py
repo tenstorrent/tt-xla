@@ -61,10 +61,10 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Prepare sample input for MNIST model"""
 
-        inputs = load_input()
+        inputs = load_input(batch_size)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

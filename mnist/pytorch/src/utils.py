@@ -40,11 +40,11 @@ def load_model():
     return model
 
 
-def load_input():
+def load_input(batch_size=1):
     transform = transforms.Compose([transforms.ToTensor()])
     test_dataset = datasets.MNIST(
         root="./data", train=False, transform=transform, download=True
     )
-    dataloader = DataLoader(test_dataset, batch_size=1)
+    dataloader = DataLoader(test_dataset, batch_size=batch_size)
     test_input, _ = next(iter(dataloader))
     return test_input
