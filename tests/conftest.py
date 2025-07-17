@@ -297,7 +297,10 @@ monkeypatches = [
             x
         ),
         post_patch=lambda: transformers.modeling_flax_utils.ACT2FN.update(
-            {"gelu": partial(jax.nn.gelu, approximate=False)}
+            {
+                "gelu": partial(jax.nn.gelu, approximate=False),
+                "gelu_new": partial(jax.nn.gelu, approximate=True),
+            }
         ),
     )
 ]
