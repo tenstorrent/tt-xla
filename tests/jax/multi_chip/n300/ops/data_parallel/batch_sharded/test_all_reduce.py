@@ -23,8 +23,7 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (1, 8), ("batch", "model")),
-        ((8192, 784), (2, 4), ("batch", "model")),
+        ((8192, 784), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
@@ -80,8 +79,7 @@ def test_all_reduce_sum(
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (1, 8), ("batch", "model")),
-        ((8192, 784), (2, 4), ("batch", "model")),
+        ((8192, 784), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
@@ -137,8 +135,7 @@ def test_all_reduce_max(
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (1, 8), ("batch", "model")),
-        ((8192, 784), (2, 4), ("batch", "model")),
+        ((8192, 784), (1, 2), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
