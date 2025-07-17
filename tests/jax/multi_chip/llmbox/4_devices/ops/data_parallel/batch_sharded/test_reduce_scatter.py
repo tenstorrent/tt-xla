@@ -24,7 +24,7 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (1, 4), ("batch", "model")),
+        ((128, 256, 512, 1024), (1, 4), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
