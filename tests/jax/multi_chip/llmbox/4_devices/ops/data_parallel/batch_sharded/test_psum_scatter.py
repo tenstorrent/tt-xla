@@ -7,7 +7,7 @@ import pytest
 from infra import (
     ShardingMode,
     make_partition_spec,
-    run_jax_multichip_op_test_with_random_inputs,
+    run_jax_multichip_graph_test_with_random_inputs,
 )
 from utils import failed_fe_compilation
 
@@ -22,7 +22,10 @@ from utils import failed_fe_compilation
     ],
 )
 @pytest.mark.parametrize(
-    ("x_shape", "mesh_shape", "axis_names"), [((128, 256, 512, 1024), (1, 2), ("batch", "model"))]
+    ("x_shape", "mesh_shape", "axis_names"),
+    [
+        ((8192, 512), (1, 4), ("batch", "model")),
+    ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
@@ -55,7 +58,7 @@ def test_psum_scatter(
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec(axis_names)
 
-    run_jax_multichip_op_test_with_random_inputs(
+    run_jax_multichip_graph_test_with_random_inputs(
         fwd,
         [x_shape],
         mesh_shape,
