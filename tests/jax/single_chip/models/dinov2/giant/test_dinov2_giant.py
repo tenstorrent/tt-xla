@@ -48,12 +48,11 @@ def training_tester() -> Dinov2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason="tt-metal error: input_tensor_a.padded_shape().rank() == this->slice_start.rank() && this->slice_start.rank() == this->slice_end.rank()"
 )
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
     inference_tester.test()
@@ -66,6 +65,7 @@ def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_dinov2_giant_training(training_tester: Dinov2Tester):
     training_tester.test()
