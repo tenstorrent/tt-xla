@@ -52,9 +52,9 @@ from utils import failed_fe_compilation, failed_runtime
     ],
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Coordinate MeshCoordinate([1, 0]) is out of bounds for shape MeshShape([1, 2]) "
-        "(https://github.com/tenstorrent/tt-xla/issues/381)"
+    reason=failed_runtime(
+        "No support for rank 2 tensors in reduce scatter: "
+        "https://github.com/tenstorrent/tt-metal/issues/15010"
     )
 )
 def test_dot_psum_scatter(
