@@ -527,6 +527,9 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  options.enableFusing = true;
+  options.optimizerPassEnabled = true;
+  options.memoryLayoutAnalysisEnabled = false;
   options.systemDescPath = system_descriptor_path.data();
 
   if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
