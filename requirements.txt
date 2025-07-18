@@ -11,6 +11,7 @@ jaxtyping
 librosa
 lit
 loguru
+matplotlib
 ml_collections
 ninja
 pillow
