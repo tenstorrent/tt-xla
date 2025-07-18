@@ -17,7 +17,7 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes

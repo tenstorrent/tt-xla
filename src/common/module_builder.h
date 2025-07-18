@@ -22,7 +22,7 @@
 #include "tt/runtime/types.h"
 
 #define TTMLIR_ENABLE_STABLEHLO 1
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
 #include "status.h"
