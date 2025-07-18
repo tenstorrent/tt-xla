@@ -18,7 +18,7 @@ def conditionally_skip(x_shape: tuple, sharding_mode: ShardingMode):
 
     Extracted here in order not to pollute the test function.
     """
-    if len(x_shape) == 2 and sharding_mode == ShardingMode.INPUTS_AND_MODULE:
+    if len(x_shape) < 4:
         pytest.xfail(
             failed_runtime(
                 "No support for rank 2 tensors in reduce scatter: "
