@@ -147,6 +147,11 @@ private:
 
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
+
+  // Runtime device handle  
+  std::optional<tt::runtime::Device> m_runtime_device;
+
+  bool m_runtime_device_opened = false;
 };
 
 namespace internal {
