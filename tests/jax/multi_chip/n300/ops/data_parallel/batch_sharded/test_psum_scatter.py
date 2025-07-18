@@ -12,6 +12,21 @@ from infra import (
 from utils import failed_fe_compilation, failed_runtime
 
 
+def conditionally_skip(x_shape: tuple, sharding_mode: ShardingMode):
+    """
+    Helper function which checks test input combinations and xfails if necessary.
+
+    Extracted here in order not to pollute the test function.
+    """
+    if len(x_shape) == 2 and sharding_mode == ShardingMode.INPUTS_AND_MODULE:
+        pytest.xfail(
+            failed_runtime(
+                "No support for rank 2 tensors in reduce scatter: "
+                "https://github.com/tenstorrent/tt-metal/issues/15010"
+            )
+        )
+
+
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
@@ -20,20 +35,15 @@ from utils import failed_fe_compilation, failed_runtime
 )
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
-    [((8192, 512), (1, 2), ("batch", "model"))],
+    [
+        ((8192, 512), (1, 2), ("batch", "model")),
+        ((1, 1, 8192, 512), (1, 2), ("batch", "model")),
+    ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "No support for rank 2 tensors in reduce scatter: "
-                    "https://github.com/tenstorrent/tt-metal/issues/15010"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
@@ -52,14 +62,17 @@ def test_psum_scatter(
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
+    conditionally_skip(x_shape, sharding_mode)
+
     def fwd(batch):
         act = jax.lax.psum_scatter(
-            batch, axis_names[1], scatter_dimension=1, tiled=True
+            batch, axis_names[1], scatter_dimension=len(x_shape) - 1, tiled=True
         )
         return act
 
-    in_specs = (make_partition_spec(axis_names),)
-    out_specs = make_partition_spec(axis_names)
+    partition_spec = (None,) * (len(x_shape) - 2) + axis_names
+    in_specs = (make_partition_spec(partition_spec),)
+    out_specs = make_partition_spec(partition_spec)
 
     run_jax_multichip_op_test_with_random_inputs(
         fwd,
