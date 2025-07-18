@@ -9,7 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, failed_runtime
 
 
 @pytest.mark.nightly
@@ -30,7 +30,15 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        ShardingMode.INPUTS_AND_MODULE,
+        pytest.param(
+            ShardingMode.INPUTS_AND_MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_runtime(
+                    "No support for rank 2 tensors in reduce scatter: "
+                    "https://github.com/tenstorrent/tt-metal/issues/15010"
+                )
+            ),
+        ),
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
