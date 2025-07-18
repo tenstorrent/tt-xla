@@ -8,6 +8,7 @@ import torch
 import cv2
 import numpy as np
 from typing import Optional
+import os
 from ...tools.utils import get_file
 
 from ...config import (
@@ -21,6 +22,12 @@ from ...config import (
 )
 from ...base import ForgeModel
 from .src.yolov4 import Yolov4
+from .src.post_processing import (
+    gen_yolov4_boxes_confs,
+    get_region_boxes,
+    post_processing,
+    plot_boxes_cv2,
+)
 
 
 class ModelVariant(StrEnum):
@@ -81,9 +88,19 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOv4 model instance.
         """
+        weights_pth = get_file("test_files/pytorch/yolov4/yolov4.pth")
+
+        # Load weights checkpoint
+        state_dict = torch.load(weights_pth, map_location="cpu")
+
         model = Yolov4()
 
-        # Only convert dtype if explicitly requested
+        # Align keys and load weights
+        new_state_dict = dict(zip(model.state_dict().keys(), state_dict.values()))
+        model.load_state_dict(new_state_dict)
+        model.eval()
+
+        # Apply dtype override if needed
         if dtype_override is not None:
             model = model.to(dtype_override)
 
@@ -114,3 +131,34 @@ class ModelLoader(ForgeModel):
             batch_tensor = batch_tensor.to(dtype_override)
 
         return batch_tensor
+
+    def post_processing(self, co_out):
+        y1, y2, y3 = gen_yolov4_boxes_confs(co_out)
+        output = get_region_boxes([y1, y2, y3])
+        results = post_processing(0.3, 0.4, output)
+        coco_names_path = get_file(
+            "https://raw.githubusercontent.com/AlexeyAB/darknet/master/data/coco.names"
+        )
+        with open(coco_names_path, "r") as f:
+            class_names = [line.strip() for line in f.readlines()]
+
+        # Print detected boxes info
+        print("Detected boxes:")
+        for box in results[0]:
+            if len(box) >= 6:
+                *coords, score, class_id = box[:6]  # in case there are more than 6
+                x1, y1, x2, y2 = coords
+                class_name = class_names[int(class_id)]
+                print(
+                    f"Class: {class_name}, Score: {score:.2f}, Box: [{x1:.1f}, {y1:.1f}, {x2:.1f}, {y2:.1f}]"
+                )
+
+        image_path = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
+        img_cv = cv2.imread(str(image_path))
+        output_dir = "yolov4_predictions"
+        os.makedirs(output_dir, exist_ok=True)
+        output_filename = f"yolov4_predicted.jpg"
+        output_path = os.path.join(output_dir, output_filename)
+        plot_boxes_cv2(img_cv, results[0], output_path, class_names)
+
+        return output_path
