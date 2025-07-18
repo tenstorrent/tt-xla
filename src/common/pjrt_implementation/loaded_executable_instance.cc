@@ -241,7 +241,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
-        mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
+        LoadedExecutableInstance::fillStrategyMapFromSharding(
             m_executable_image->getInputSharding(arg_index), num_devices);
     if (mlir::failed(strategy)) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
@@ -380,6 +380,35 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   }
 
   return outputShape;
+}
+
+mlir::FailureOr<std::unordered_map<std::string, std::string>>
+LoadedExecutableInstance::fillStrategyMapFromSharding(
+    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+    size_t num_devices) {
+  std::unordered_map<std::string, std::string> strategy;
+  mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
+  if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
+    // If there is only one device, the output will be replicated, but there is
+    // no need to replicate.
+    if (num_devices == 1) {
+      strategy["strategy"] = "identity";
+    } else {
+      strategy["strategy"] = "replicate";
+      strategy["replication_factor"] = std::to_string(num_devices);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
+    llvm::ArrayRef<int64_t> meshShape = meshSharding.getMeshShape();
+    assert(meshShape.size() == 2);
+    strategy["strategy"] = "shard_2d";
+    strategy["mesh_shape_y"] = std::to_string(meshShape[0]);
+    strategy["mesh_shape_x"] = std::to_string(meshShape[1]);
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
+    strategy["strategy"] = "identity";
+  } else {
+    return mlir::failure();
+  }
+  return strategy;
 }
 
 namespace internal {

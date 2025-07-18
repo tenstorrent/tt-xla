@@ -135,6 +135,12 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
+  // Fills strategy map from sharding configuration.
+  static mlir::FailureOr<std::unordered_map<std::string, std::string>>
+  fillStrategyMapFromSharding(
+      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+      size_t num_devices);
+
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;
