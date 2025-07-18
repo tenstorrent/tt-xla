@@ -592,9 +592,10 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
-  options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
-  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
+  options.optimizerPassEnabled = false;
+  options.memoryLayoutAnalysisEnabled = false;
+  options.enableBfp8Conversion = false;
+  options.enableFusing = true;
   options.systemDescPath = system_descriptor_path.data();
 
   if (m_devices_mesh_shape.size() != 2) {

@@ -58,6 +58,11 @@ bool LoadedExecutableInstance::isDeleted() {
 }
 
 void LoadedExecutableInstance::releaseResources() {
+  if (m_runtime_device_opened) {
+    tt::runtime::closeMeshDevice(*m_runtime_device);
+    m_runtime_device_opened = false;
+  }
+
   if (m_deleted) {
     return;
   }
@@ -96,13 +101,15 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
+  if (!m_runtime_device_opened) {
+    m_runtime_device = openDevices(args->argument_lists, args->num_args, args->num_devices,
                   args->execute_device);
-  if (!runtime_device) {
-    // Logging is done inside `openDevices`.
-    return tt_pjrt_status::kInternal;
+    if (!m_runtime_device) {
+      return tt_pjrt_status::kInternal;
+    }
+    m_runtime_device_opened = true;
   }
+  std::optional<tt::runtime::Device> runtime_device = m_runtime_device;
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -156,9 +163,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
           *device_complete_event.release();
     }
   }
-
-  tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
 
   return tt_pjrt_status::kSuccess;
 }
