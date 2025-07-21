@@ -93,6 +93,10 @@ public:
     return m_runtime_tensor;
   }
 
+  void setRuntimeTensor(tt::runtime::Tensor &runtime_tensor) {
+    m_runtime_tensor = runtime_tensor;
+  }
+
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
@@ -140,6 +144,8 @@ public:
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
+
+  bool needsLayoutConversion = true;
 
 private:
   // Constructor used for the input buffers.
