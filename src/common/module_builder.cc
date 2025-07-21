@@ -114,15 +114,15 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  collectInputShardings(mlir_module);
+  collectOutputShardings(mlir_module);
+  collectOutputTypes(mlir_module);
+
   // Run StableHLO pipeline with default mesh shape (you can customize this)
   runStableHLOPipeline(mlir_module, "1,2");
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
-
-  collectInputShardings(mlir_module);
-  collectOutputShardings(mlir_module);
-  collectOutputTypes(mlir_module);
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -349,7 +349,7 @@ void ModuleBuilder::collectOutputShardingsShardy(
               result_index, mlir::sdy::kShardingAttr));
     }
   }
-
+  std::cerr << "output_shardings" << std::endl;
   mlir::LogicalResult result = createShardingsFromShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
@@ -454,6 +454,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     // If there is no sharding attribute, we put the default sharding, marked
     // as "identity", which means there is no sharding.
     if (!shardy_attr) {
+      std::cerr << "HEREEE" << std::endl;
       mlir::tt::sharding_utils::MeshSharding mesh_sharding(
           mlir::tt::ttcore::MeshShardDirection::FullToShard,
           mlir::tt::ttcore::MeshShardType::Identity,
