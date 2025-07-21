@@ -59,7 +59,6 @@ jobs:
         with:
           branch: uplift
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          # author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           author: "ajakovljevicTT <ajakovljevic@tenstorrent.com>"
           base: main
           commit-message: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
