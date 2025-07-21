@@ -291,8 +291,9 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // offset. We need to keep track of opened devices in Client and map the
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
-
-  return tt::runtime::openMeshDevice(devices_mesh_shape);
+  tt::runtime::MeshDeviceOptions options;
+  options.enableProgramCache = true;
+  return tt::runtime::openMeshDevice(devices_mesh_shape, options);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
