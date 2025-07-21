@@ -37,7 +37,7 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
-            pretrained_model_name="https://www.ollihuotari.com/data/yolov3_pytorch/yolov3_coco_01.h5",
+            pretrained_model_name="test_files/pytorch/yolov3/yolov3_coco_01.h5",
         )
     }
 
