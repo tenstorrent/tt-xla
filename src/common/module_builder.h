@@ -87,9 +87,6 @@ public:
   // MLIR program format name. This would ideally be defined in PJRT API header.
   static const std::string c_mlir_format_name;
 
-  // Returns TTIR code of the module.
-  const std::string &getTTIRCode() const { return m_ttir_code; }
-
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -166,9 +163,6 @@ private:
   void
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Collect the mlir code of the module in TTIR format.
-  void collectTTIRCode(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
   // Checks if the StableHLO code is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
@@ -233,9 +227,6 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
-
-  // Hold the ttir code of the module.
-  std::string m_ttir_code;
 };
 
 } // namespace tt::pjrt
