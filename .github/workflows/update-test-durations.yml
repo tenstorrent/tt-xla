@@ -1,62 +1,105 @@
 name: Update Test Durations
 
+description: |
+  This workflow updates test durations based on the latest nightly and push workflow runs.
+  It processes the JUnit XML reports from the last successful nightly and push workflows,
+  calculates the test durations, and creates a pull request to update the `.test_durations` file.
+
 on:
   workflow_dispatch:
-    inputs:
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
-      same_branch:
-        description: 'Run on the branch with same name in tt-forge as the current workflow'
-        required: false
-        type: boolean
-      tt_forge_branch:
-        description: 'Branch of tt-forge to run the benchmarks on (empty=main)'
-        required: false
-        type: string
-      test_filter:
-        description: "Only run tests with name that contains"
-        required: false
-        type: string
 
 permissions:
   packages: write
   checks: write
-  contents: write
 
 jobs:
-  docker-build:
-    uses: ./.github/workflows/build-image.yml
-    secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override }}
-  build:
-    needs: docker-build
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override }}
-      docker_image: ${{ needs.docker-build.outputs.docker-image }}
-  run-perf-benchmarks:
-    needs: build
+  update_test_durations:
     runs-on: ubuntu-latest
     steps:
-      - id: set-inputs
-        run: |
-          if [ "${{ inputs.same_branch }}" == 'true' ]; then
-            echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          else
-            if [ -z "${{ inputs.tt_forge_branch }}" ]; then
-              echo "ref=main" >> $GITHUB_OUTPUT
-            else
-              echo "ref=${{ inputs.tt_forge_branch }}" >> $GITHUB_OUTPUT
-            fi
-          fi
-      - name: Trigger Perf Benchmark workflow
-        uses: peter-evans/repository-dispatch@v2
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+          # ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Process nightly test durations
+        id: get-test-durations
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          repo="tenstorrent/tt-xla"
+
+          get_test_results_from_wf() {
+            local wf_name="$1"
+            local conclusions="$2"
+            local num=5
+
+            # get json of the last $num workflow runs
+            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+
+            counter=0
+            while true; do
+              # Check the status of 'conclusion'
+              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+
+              if echo "$conclusions" | grep -q -w "$conclusion"; then
+                break
+              else
+                ((counter++))
+
+                # Exit if the counter reaches $num
+                if [ $counter -ge $num ]; then
+                  echo "ERROR: Did not found good workflow within last $num. Exiting."
+                  exit 1
+                fi
+              fi
+            done
+            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
+            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
+            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
+            rm -f runs.json
+
+            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
+          }
+
+          # get test results from the last nightly that was success or failure
+          get_test_results_from_wf "on-nightly.yml" "success,failure" "nightly"
+
+          # get test results from the last successful push
+          get_test_results_from_wf "on-push.yml" "success" "push"
+
+          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
+          echo "" >> .test_durations
+          echo "----- NEW DURATIONS"
+          cat .test_durations
+
+          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        id: create-pr
+        with:
+          branch: test-durations-update
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          base: main
+          commit-message: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
+          title: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          labels: tooling
+          delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
-          repository: tenstorrent/tt-forge
-          event-type: trigger-workflow
-          client-payload: '{"project": "tt-xla", "run_id": "${{ github.run_id }}", "ref": "${{ steps.set-inputs.outputs.ref }}", "test_filter": "${{ inputs.test_filter }}"}'
+
+      - name: Enable Pull Request Automerge
+        if: ${{ steps.create-pr.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Generate Summary
+        run: |
+          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
+          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
