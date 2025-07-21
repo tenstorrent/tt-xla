@@ -93,15 +93,34 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
            "Requested number of arguments to provide to the executable (%zu) "
            "doesn't match the compiler estimated number of inputs (%zu)",
            args->num_args, m_executable_image->getNumInputs());
+    // Profiling: record end time and print
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    DLOG_F(LOG_DEBUG,
+           "[PROFILE] execute: early exit (arg count mismatch) after %f s",
+           elapsed.count());
     return tt_pjrt_status::kInternal;
   }
 
-  std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  args->execute_device);
-  if (!runtime_device) {
-    // Logging is done inside `openDevices`.
-    return tt_pjrt_status::kInternal;
+  if (!m_runtime_device_opened) {
+    auto t0 = std::chrono::high_resolution_clock::now();
+    m_runtime_device = openDevices(args->argument_lists, args->num_args,
+                                   args->num_devices, args->execute_device);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> open_dev_time = t1 - t0;
+    DLOG_F(LOG_DEBUG, "[PROFILE] execute: openDevices took %f s",
+           open_dev_time.count());
+    if (!m_runtime_device) {
+      // Logging is done inside `openDevices`.
+      // Profiling: record end time and print
+      auto end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = end - start;
+      DLOG_F(LOG_DEBUG,
+             "[PROFILE] execute: early exit (openDevices failed) after %f s",
+             elapsed.count());
+      return tt_pjrt_status::kInternal;
+    }
+    m_runtime_device_opened = true;
   }
 
   // Assuming only one program per flatbuffer for now.
@@ -112,19 +131,42 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
+  auto t_get_inputs_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> get_inputs_time =
+      t_get_inputs_end - t_get_inputs_start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: getInputRuntimeTensors took %f s",
+         get_inputs_time.count());
+
   if (!tt_pjrt_status_is_ok(status)) {
+    // Profiling: record end time and print
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    DLOG_F(LOG_DEBUG,
+           "[PROFILE] execute: early exit (getInputRuntimeTensors failed) "
+           "after %f s",
+           elapsed.count());
     return status;
   }
 
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
       *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
       input_tensors);
+  auto t_submit_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> submit_time = t_submit_end - t_submit_start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: tt::runtime::submit took %f s",
+         submit_time.count());
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
     DLOG_F(ERROR,
            "Runtime produced different number of output tensors (%zu) than the "
            "compiler estimated number of outputs (%zu)",
            output_tensors.size(), m_executable_image->getNumOutputs());
+    // Profiling: record end time and print
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    DLOG_F(LOG_DEBUG,
+           "[PROFILE] execute: early exit (output count mismatch) after %f s",
+           elapsed.count());
     return tt_pjrt_status::kInternal;
   }
 
@@ -132,17 +174,39 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   untilized_output_tensors.reserve(output_tensors.size());
   status = untilizeToHost(output_tensors, args->num_devices,
                           untilized_output_tensors);
+  auto t_untilize_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> untilize_time =
+      t_untilize_end - t_untilize_start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: untilizeToHost took %f s",
+         untilize_time.count());
+
   if (!tt_pjrt_status_is_ok(status)) {
+    // Profiling: record end time and print
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    DLOG_F(LOG_DEBUG,
+           "[PROFILE] execute: early exit (untilizeToHost failed) after %f s",
+           elapsed.count());
     return status;
   }
 
   fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
                       args->output_lists, m_executable_image->getOutputTypes());
+  auto t_fill_outputs_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> fill_outputs_time =
+      t_fill_outputs_end - t_fill_outputs_start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: fillPJRTOutputLists took %f s",
+         fill_outputs_time.count());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
     tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
   }
+  auto t_dealloc_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> dealloc_time = t_dealloc_end - t_dealloc_start;
+  DLOG_F(LOG_DEBUG,
+         "[PROFILE] execute: deallocateTensor (all outputs) took %f s",
+         dealloc_time.count());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
@@ -156,8 +220,17 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
           *device_complete_event.release();
     }
   }
+  auto t_events_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> events_time = t_events_end - t_events_start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: device_complete_events took %f s",
+         events_time.count());
 
-  tt::runtime::closeMeshDevice(*runtime_device);
+  // Profiling: record end time and print
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> elapsed = end - start;
+  DLOG_F(LOG_DEBUG, "[PROFILE] execute: total time %f s", elapsed.count());
+
+  // flush the output buffer (no longer needed with DLOG_F)
 
   return tt_pjrt_status::kSuccess;
 }
@@ -232,12 +305,14 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<tt::runtime::Tensor> arg_tensors;
+    std::map<void *, BufferInstance *> buffer_map;
     arg_tensors.reserve(num_devices);
 
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       arg_tensors.push_back(buffer->getRuntimeTensor());
+      buffer_map[buffer->getRuntimeTensor().handle.get()] = buffer;
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
@@ -251,8 +326,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor input_tensor =
         getTensorFromStrategy(arg_tensors, *strategy);
 
-    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-        input_tensor, program_index, arg_index, runtime_device);
+    tt::runtime::Tensor laid_out_tensor = input_tensor;
+    if (buffer_map[input_tensor.handle.get()]->needsLayoutConversion) {
+      laid_out_tensor = convertTensorLayout(input_tensor, program_index,
+                                            arg_index, runtime_device);
+      buffer_map[input_tensor.handle.get()]->needsLayoutConversion = false;
+      buffer_map[input_tensor.handle.get()]->setRuntimeTensor(laid_out_tensor);
+    }
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
