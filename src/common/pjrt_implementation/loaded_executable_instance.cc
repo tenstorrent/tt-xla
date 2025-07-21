@@ -24,6 +24,8 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
+#include <iostream>
+
 namespace tt::pjrt {
 
 std::unique_ptr<LoadedExecutableInstance>
@@ -174,7 +176,8 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
-
+  std::cerr << "Device ids:" << device_ids.size()
+            << ", mesh shape num devices: " << mesh_shape_num_devices << "\n";
   if (device_ids.size() != mesh_shape_num_devices) {
     DLOG_F(ERROR,
            "Input buffers are placed on a different number of devices (%zu) "
@@ -338,7 +341,11 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-
+      std::cerr << "Output shape: " << output_shape.size() << " [";
+      for (const auto &dim : output_shape) {
+        std::cerr << dim << " ";
+      }
+      std::cerr << "]\n";
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
@@ -368,7 +375,7 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-
+  std::cerr << "AAAAAAAAAAAAAAA" << std::endl;
   llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
   assert(shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");

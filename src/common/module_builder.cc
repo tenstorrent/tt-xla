@@ -115,7 +115,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
   }
 
   // Run StableHLO pipeline with default mesh shape (you can customize this)
-  runStableHLOPipeline(mlir_module, "1,1");
+  runStableHLOPipeline(mlir_module, "1,2");
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
