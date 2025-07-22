@@ -1,5 +1,5 @@
 # Getting Started
-This document walks you through how to set up TT-XLA. TT-XLA is a front end for TT-Forge that is primarily used to ingest JAX models via jit compile, providing a StableHLO (SHLO) graph to the TT-MLIR compiler. TT-XLA leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX, [tt-mlir](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about PJRT project. This project is a fork of [iree-pjrt](https://github.com/stellaraccident/iree-pjrt).
+This document walks you through how to set up TT-XLA. TT-XLA is a front end for TT-Forge that is primarily used to ingest JAX models via jit compile, providing a StableHLO (SHLO) graph to the TT-MLIR compiler. TT-XLA leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX, [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about PJRT project. This project started as a fork of [iree-pjrt](https://github.com/stellaraccident/iree-pjrt), but has since been refactored and diverged.
 
 > **NOTE:** Currently, only Tenstorrent Nebula boards are supported.
 
@@ -13,7 +13,7 @@ The following topics are covered:
 * [Other Setup Options](#other-set-up-options)
    * [Using a Docker Container to Run an Example](getting_started_docker.md)
    * [Building From Source](getting_started_build_from_source.md)
-* [Where to Go Next]
+* [Where to Go Next](#where-to-go-next)
 
 > **NOTE:** If you encounter issues, please request assistance on the
 >[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
@@ -21,17 +21,17 @@ The following topics are covered:
 ## Setup Options
 TT-XLA can be used to run JAX models on Tenstorrent's AI hardware. Because TT-XLA is open source, you can also develop and add features to it. Setup instructions differ based on the task. You have the following options, listed in order of difficulty:
 * [Installing a Wheel and Running an Example](#installing-a-wheel-and-running-an-example) - You should choose this option if you want to run models.
-* [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
-* [Building from Source](getting_started_build_from_source.md) - This option is best if you want to develop TT-XLA further. It's a more complex process you are unlikely to need if you want to stick with running a model.
+* [Using a Docker Container to Run an Example](https://docs.tenstorrent.com/tt-xla/getting_started_docker.html) - Choose this option if you want to keep the environment for running models separate from your existing environment.
+* [Building from Source](https://docs.tenstorrent.com/tt-xla/getting_started_build_from_source.html) - This option is best if you want to develop TT-XLA further. It's a more complex process you are unlikely to need if you want to stick with running a model.
 
 ## Configuring Hardware
 Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer.
 
-1. Configure your hardware with TT-Installer using the [Quick Installation section here.](https://docs.tenstorrent.com/getting-started/README.html#quick-installation)
+1. Configure your hardware with TT-Installer using the [Software Installation section here.](https://docs.tenstorrent.com/getting-started/README.html#software-installation)
 
 2. Reboot your machine.
 
-3. Please ensure that after you run this script, after you complete reboot, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
+3. Please ensure that after you run the TT-Installer script, after you complete reboot, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
 
 4. After your environment is running, to check that everything is configured, type the following:
 
@@ -45,7 +45,7 @@ You should see the Tenstorrent System Management Interface. It allows you to vie
 
 ## Installing a Wheel and Running an Example
 
-This section walks you through downloading and installing a wheel. You can install the wheel wherever you would like if it is for running a model.
+To install a wheel and run an example model, do the following:
 
 1. Make sure you are in an active virtual environment. This walkthrough uses the same environment you activated to look at TT-SMI in the [Configuring Hardware](#configuring-hardware) section. If you are using multiple TT-Forge front ends to run models, you may want to set up a separate virtual environment instead. For example:
 
@@ -54,7 +54,7 @@ python3 -m venv .xla-venv
 source .xla-venv/bin/activate
 ```
 
-2. Download the wheel in your active virtual environment:
+2. Install the wheel in your active virtual environment:
 
 ```bash
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/

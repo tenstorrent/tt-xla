@@ -1,37 +1,22 @@
 # Getting Started with Building from Source
 
 This document describes how to build the TT-XLA project on your local machine. You must build from source if you want to develop for TT-XLA. If you only want to run models, please choose one of the following sets of instructions instead:
-* [Installing a Wheel and Running an Example](getting_started.md) - You should choose this option if you want to run models.
-* [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
+* [Installing a Wheel and Running an Example](https://docs.tenstorrent.com/tt-xla/#installing-a-wheel-and-running-an-example) - You should choose this option if you want to run models.
+* [Using a Docker Container to Run an Example](https://docs.tenstorrent.com/tt-xla/getting_started_docker.html) - Choose this option if you want to keep the environment for running models separate from your existing environment.
 
 The following topics are covered:
 
 * [Configuring Hardware](#configuring-hardware)
 * [System Dependencies](#system-dependencies)
-* [Installing Dependencies](#installing-dependencies)
-* [Running a Test Model](#running-a-test-model)
+* [Build Process](#build-process)
+* [Testing](#testing)
+* [Common Build Errors](#common-build-errors)
 
 > **NOTE:** If you encounter issues, please request assistance on the
 >[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
 
 ## Configuring Hardware
-Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer.
-
-1. Configure your hardware with TT-Installer using the [Quick Installation section here.](https://docs.tenstorrent.com/getting-started/README.html#quick-installation)
-
-2. Reboot your machine.
-
-3. Please ensure that after you run this script, after you complete reboot, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
-
-4. After your environment is running, to check that everything is configured, type the following:
-
-```bash
-tt-smi
-```
-
-You should see the Tenstorrent System Management Interface. It allows you to view real-time stats, diagnostics, and health info about your Tenstorrent device.
-
-![TT-SMI](./imgs/tt_smi.png)
+Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](https://docs.tenstorrent.com/tt-xla/getting_started.html#configuring-hardware).
 
 ## System Dependencies
 
@@ -45,7 +30,7 @@ TT-XLA has the following system dependencies:
 * CMake 3.20 or higher
 
 ### Installing Python
-If your system already has Python installed, make sure it is Python 3.10 or higher:
+If your system already has Python installed, make sure it is Python 3.10:
 
 ```bash
 python3 --version
@@ -54,11 +39,11 @@ python3 --version
 If not, install Python:
 
 ```bash
-sudo apt install python3
+sudo apt install python3.10
 ```
 
 ### Installing CMake 4.0.3
-This section walks you through installing CMake 4 or higher.
+To install CMake 4 or higher, do the following:
 
 1. Install CMake 4.0.3:
 
@@ -75,7 +60,7 @@ cmake --version
 If you see ```cmake version 4.0.3``` you are ready for the next section.
 
 ### Installing Clang 17
-This section walks you through installing Clang 17.
+To install Clang 17, do the following:
 
 1. Install Clang 17:
 
@@ -120,7 +105,7 @@ To install OpenMPI, do the following:
 sudo wget -q https://github.com/dmakoviichuk-tt/mpi-ulfm/releases/download/v5.0.7-ulfm/openmpi-ulfm_5.0.7-1_amd64.deb -O /tmp/openmpi-ulfm.deb && sudo apt install /tmp/openmpi-ulfm.deb
 ```
 
-### Installing Addditional Dependencies
+### Installing Additional Dependencies
 
 TT-XLA additionally requires the following libraries:
 
@@ -185,12 +170,13 @@ The above command outputs a `python_package/dist/pjrt_plugin_tt*.whl` file which
 pip install dist/pjrt_plugin_tt*.whl
 ```
 
-3. Open Python in the terminal and do the following:
+3. This step is not required, these are just example commands to test if the wheel is working. Open Python in the terminal and do the following:
 
 ```bash
 python
 import jax
 tt_device = jax.devices("tt") # This will trigger plugin registration.
+print(tt_device) # This prints the Tenstorrent device info if everything is OK. 
 ```
 
 The wheel has the following structure:
@@ -219,10 +205,10 @@ jax_plugins
 
 It contains a custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds a Python function for registering the PJRT plugin with `JAX` and the `tt-mlir` installation dir. This is needed in order to dynamically link TT-MLIR libs in runtime and to resolve various `tt-metal` dependencies without which the plugin does not work.
 
-Structuring wheel/folders this way allows JAX to automatically register the plugin upon usage.
+Structuring wheel/folders this way allows JAX to automatically register the plugin upon usage (explained on OpenXLA's [Develop a New JPRT Plugin page here](https://openxla.org/xla/pjrt/pjrt_integration#step_2_use_jax_plugins_namespace_or_set_up_entry_point)).
 
 ## Testing
-The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
+The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`. 
 
 ## Common Build Errors
 - Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.

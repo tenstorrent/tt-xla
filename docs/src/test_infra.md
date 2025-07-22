@@ -1,13 +1,13 @@
-# Test infra
+# Test Infra
 
 Test infra consists of main "tester" classes and a few helper ones. Its main goal is making test
 writing easy.
 
 Here is a brief class diagram of the infra:
 
-![infra](../public/images/test_infra.png)
+![infra](./imgs/test_infra.png)
 
-## Op and graph tests
+## Op and Graph Tests
 Op tester exposes easy to use functions:
 
 ```python
@@ -37,14 +37,14 @@ run_graph_test_with_random_inputs(...)
 
 which are meant to be used in the same way as for op tests.
 
-## Model tests
+## Model Tests
 
 Models are tested by inheriting one of `*ModelTester` classes and overriding required methods.
 Please read docstring of appropriate class you want to inherit for more information.
 
-### Jax model example
+### Jax Model Example
 
-First, we define a model
+First, you define a model:
 
 ```python
 class MNISTMLPModel(nn.Module):
@@ -64,7 +64,7 @@ class MNISTMLPModel(nn.Module):
         return x
 ```
 
-Then we define a tester by inheriting `JaxModelTester`
+Then you define a tester by inheriting `JaxModelTester`:
 
 ```python
 class MNISTMLPTester(JaxModelTester):
@@ -99,7 +99,7 @@ class MNISTMLPTester(JaxModelTester):
         return [parameters, inp]
 ```
 
-and finally, we run the test
+Finally, you run the test:
 
 ```python
 @pytest.fixture
