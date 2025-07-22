@@ -171,7 +171,7 @@ class ModelLoader(ForgeModel):
             inputs = self.load_inputs()
 
         # Get the prediction for the masked token
-        logits = outputs.logits
+        logits = outputs[0]
         mask_token_index = (inputs.input_ids == self.tokenizer.mask_token_id)[
             0
         ].nonzero(as_tuple=True)[0]

@@ -5,9 +5,18 @@
 """
 YOLOX model loader implementation
 """
+import subprocess
+
+subprocess.run(
+    ["pip", "install", "yolox==0.3.0", "--no-deps"]
+)  # Install yolox==0.3.0 without installing its dependencies
+
 import torch
-from PIL import Image
-from torchvision import transforms
+import cv2
+import os
+
+os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+from yolox.data.data_augment import preproc as preprocess
 
 from ...config import (
     ModelInfo,
@@ -18,10 +27,8 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
+from .src.utils import print_detection_results
 import subprocess
-
-
-subprocess.run(["pip", "install", "yolox==0.3.0", "--no-deps"])
 
 
 class ModelLoader(ForgeModel):
@@ -59,6 +66,7 @@ class ModelLoader(ForgeModel):
 
         # Configuration parameters
         self.model_variant = "yolox-tiny"
+        self.input_shape = (416, 416)
 
     def load_model(self, dtype_override=None):
         """Load and return the YOLOX model instance with default settings.
@@ -70,13 +78,19 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOX model instance.
         """
-        variant = self.model_variant
         from yolox.exp import get_exp
 
-        exp = get_exp(
-            exp_name=variant
-        )  # yolox-tiny could be replaced by yolox-nano/s/m and so on
-        model = exp.get_model()  # now you get yolox-tiny model
+        model_name = self.model_variant.replace("-", "_")
+        weight_url = f"https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/{model_name}.pth"
+
+        # Use the utility to download/cache the model weights
+        weight_path = get_file(weight_url)
+
+        # Load model
+        exp = get_exp(exp_name=model_name)
+        model = exp.get_model()
+        ckpt = torch.load(weight_path, map_location="cpu")
+        model.load_state_dict(ckpt["model"])
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -95,27 +109,18 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
-        # Original image used in test
-        image_file = get_file(
-            "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
-        )
-
-        # Download and load image
-        image = Image.open(image_file)
-
-        # Preprocess the image
-        transform = transforms.Compose(
-            [
-                transforms.Resize((512, 512)),
-                transforms.ToTensor(),
-            ]
-        )
-
-        img_tensor = [transform(image).unsqueeze(0)]
-        batch_tensor = torch.cat(img_tensor, dim=0)
+        image_path = get_file("http://images.cocodataset.org/val2017/000000397133.jpg")
+        img = cv2.imread(str(image_path))
+        img_tensor, ratio = preprocess(img, self.input_shape)
+        self.ratio = ratio
+        img_tensor = torch.from_numpy(img_tensor)
+        batch_tensor = img_tensor.unsqueeze(0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             batch_tensor = batch_tensor.to(dtype_override)
 
         return batch_tensor
+
+    def post_processing(self, co_out):
+        print_detection_results(co_out, self.ratio, self.input_shape)

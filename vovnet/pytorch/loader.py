@@ -4,9 +4,8 @@
 """
 Vovnet model loader implementation for question answering
 """
-import torch
 from pytorchcv.model_provider import get_model as ptcv_get_model
-import requests
+from torchvision import transforms
 from PIL import Image
 
 from ...config import (
@@ -18,6 +17,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import print_compiled_model_results
+from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -69,8 +69,20 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None):
         """Generate sample inputs for Vovnet models."""
 
-        # Create a random input tensor with the correct shape, using default dtype
-        inputs = torch.rand(1, *self.input_shape)
+        file_path = get_file("https://github.com/pytorch/hub/raw/master/images/dog.jpg")
+        input_image = Image.open(file_path).convert("RGB")
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+        img_tensor = preprocess(input_image)
+        inputs = img_tensor.unsqueeze(0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
