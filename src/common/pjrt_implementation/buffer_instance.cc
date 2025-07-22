@@ -45,6 +45,9 @@ void logBufferInfo(const std::vector<std::uint32_t> &shape,
   // Get dtype string
   std::string dtype_str = "";
   switch (data_type) {
+  case PJRT_Buffer_Type_BF16:
+    dtype_str = "bf16";
+    break;
   case PJRT_Buffer_Type_F32:
     dtype_str = "f32";
     break;

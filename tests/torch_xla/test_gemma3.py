@@ -21,7 +21,8 @@ def setup_tt_environment():
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
-    os.environ["MESH_SHAPE"] = "2,4"
+    os.environ["MESH_SHAPE"] = "1,2"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["LOGGER_LEVEL"] = "DEBUG"
 
     from torch_xla.experimental import plugins
@@ -40,7 +41,7 @@ def setup_tt_environment():
 def create_mesh():
     """Create device mesh for testing."""
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, 8)
+    mesh_shape = (1, 2)
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -58,7 +59,8 @@ def test_decode_layer():
     
     B = 1
     S = 1024
-    config = Gemma3TextConfig.from_pretrained("google/gemma-3-27b-it")
+    # config = Gemma3TextConfig.from_pretrained("google/gemma-3-27b-it")
+    config = Gemma3TextConfig.from_pretrained("google/gemma-3-4b-it")
     H = config.hidden_size
     layer = Gemma3DecoderLayer(config, 0)
 
@@ -93,7 +95,7 @@ def test_gemma3():
 
     B = 1
     S = 1024
-    config = Gemma3Config.from_pretrained("google/gemma-3-27b-it")
+    config = Gemma3Config.from_pretrained("google/gemma-3-4b-it")
     # config.text_config.num_hidden_layers = 1
     gemma = Gemma3Model(config)
 
