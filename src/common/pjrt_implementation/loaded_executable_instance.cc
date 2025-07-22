@@ -176,8 +176,6 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
-  std::cerr << "Device ids:" << device_ids.size()
-            << ", mesh shape num devices: " << mesh_shape_num_devices << "\n";
   if (device_ids.size() != mesh_shape_num_devices) {
     DLOG_F(ERROR,
            "Input buffers are placed on a different number of devices (%zu) "
@@ -341,11 +339,6 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-      std::cerr << "Output shape: " << output_shape.size() << " [";
-      for (const auto &dim : output_shape) {
-        std::cerr << dim << " ";
-      }
-      std::cerr << "]\n";
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
@@ -375,8 +368,8 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-  std::cerr << "AAAAAAAAAAAAAAA" << std::endl;
-  llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
+  std::vector<uint32_t> shard_shape_vec(outputSharding.getShardShape().begin(), outputSharding.getShardShape().end());
+  llvm::ArrayRef<uint32_t> shard_shape = shard_shape_vec;
   assert(shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
 
@@ -405,11 +398,12 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["replication_factor"] = std::to_string(num_devices);
     }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
-    llvm::ArrayRef<int64_t> meshShape = meshSharding.getMeshShape();
-    assert(meshShape.size() == 2);
+    std::vector<int64_t> mesh_shape_vec(meshSharding.getMeshShape().begin(), meshSharding.getMeshShape().end());
+    llvm::ArrayRef<int64_t> mesh_shape = mesh_shape_vec;
+    assert(mesh_shape.size() == 2);
     strategy["strategy"] = "shard_2d";
-    strategy["mesh_shape_y"] = std::to_string(meshShape[0]);
-    strategy["mesh_shape_x"] = std::to_string(meshShape[1]);
+    strategy["mesh_shape_y"] = std::to_string(mesh_shape[0]);
+    strategy["mesh_shape_x"] = std::to_string(mesh_shape[1]);
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
     strategy["strategy"] = "identity";
   } else {

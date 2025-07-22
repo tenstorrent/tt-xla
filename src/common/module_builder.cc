@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <iostream>
 #include <numeric>
 #include <optional>
 #include <sstream>
@@ -48,7 +49,7 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-#include "ttmlir/Dialect/StableHLO/Utils/GspmdUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardyUtils.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
@@ -119,7 +120,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectOutputTypes(mlir_module);
 
   // Run StableHLO pipeline with default mesh shape (you can customize this)
-  runStableHLOPipeline(mlir_module, "1,2");
+  size_t num_devices = tt::runtime::getNumAvailableDevices();
+  runStableHLOPipeline(mlir_module, "1,"+std::to_string(num_devices));
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -175,29 +177,6 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
-  // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
-  // from openXLA. Once openXLA natively supports Shardy, we can remove
-  // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
-  // Detect Shardy by looking at the meshes attribute in module.
-  if (isUsingShardy(mlir_module)) {
-    mlir::PassManager shardy_pm(mlir_module.get()->getName());
-    mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
-    // The following Shardy passes are only needed for automatic computation,
-    // since manual computation already has propagated shardings, leading to an
-    // error in that case.
-    if (!isUsingShardyManualComputation(mlir_module)) {
-      shardy_pm.addPass(mlir::createInlinerPass());
-      shardy_pm.addPass(mlir::sdy::createBasicPropagationPass());
-      shardy_pm.addPass(mlir::sdy::createCloseShardingsPass());
-    }
-    if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
-      DLOG_F(ERROR,
-             "Failed to convert from Shardy roundtrip import pass module");
-      m_status = tt_pjrt_status::kInternal;
-      return;
-    }
-  }
-
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
 }
@@ -219,12 +198,16 @@ void ModuleBuilder::runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.meshShape = {mesh_shape[0], mesh_shape[1]};
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm, stablehlo_pipeline_options);
-
+  std::cerr << "---------------------" << std::endl;
+  mlir_module->dump();
+  std::cerr << "---------------------" << std::endl;
+  std::cerr << "PIPELINE END" << std::endl;
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
+  std::cerr << "PIPELINE END" << std::endl;
 
   DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
   printModule(mlir_module);
@@ -349,7 +332,6 @@ void ModuleBuilder::collectOutputShardingsShardy(
               result_index, mlir::sdy::kShardingAttr));
     }
   }
-  std::cerr << "output_shardings" << std::endl;
   mlir::LogicalResult result = createShardingsFromShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
@@ -425,9 +407,6 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
       shardings.push_back(mesh_sharding);
       continue;
     }
-    std::cerr << "-----------------------" << std::endl;
-    gspmd_attr.dump();
-    std::cerr << "-----------------------" << std::endl;
     llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding> mesh_sharding_result =
         mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
             gspmd_attr.getValue(),
@@ -454,7 +433,6 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     // If there is no sharding attribute, we put the default sharding, marked
     // as "identity", which means there is no sharding.
     if (!shardy_attr) {
-      std::cerr << "HEREEE" << std::endl;
       mlir::tt::sharding_utils::MeshSharding mesh_sharding(
           mlir::tt::ttcore::MeshShardDirection::FullToShard,
           mlir::tt::ttcore::MeshShardType::Identity,

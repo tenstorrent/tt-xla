@@ -18,6 +18,7 @@ from utils import failed_fe_compilation
     "use_shardy",
     [
         True,
+        False,
     ],
 )
 @pytest.mark.parametrize(
@@ -27,6 +28,16 @@ from utils import failed_fe_compilation
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "Cannot get sharding information through the protobuf "
+                    "(https://github.com/tenstorrent/tt-xla/issues/277)"
+                )
+            ),
+        ),
+        ShardingMode.INPUTS,
     ],
 )
 def test_negative_op(
