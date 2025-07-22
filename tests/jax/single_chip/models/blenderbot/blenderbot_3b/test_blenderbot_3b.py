@@ -47,13 +47,10 @@ def training_tester() -> BlenderBotTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
-)
+@pytest.mark.large
+@pytest.mark.xfail(reason="Failed to legalize operation 'ttir.scatter'")
 def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
     inference_tester.test()
 
@@ -65,6 +62,7 @@ def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_blenderbot_3b_training(training_tester: BlenderBotTester):
     training_tester.test()

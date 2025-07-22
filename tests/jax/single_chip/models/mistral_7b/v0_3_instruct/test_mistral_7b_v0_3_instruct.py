@@ -50,10 +50,9 @@ def training_tester() -> Mistral7BV02Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
+@pytest.mark.large
 @pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
+    reason="Not enough space to allocate 117440512 B DRAM buffer across 12 banks, where each bank needs to store 9805824 B"
 )
 def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BV02Tester):
     inference_tester.test()
@@ -66,6 +65,7 @@ def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BV02Tester
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mistral_7b_v0_3_instruct_training(training_tester: Mistral7BV02Tester):
     training_tester.test()
