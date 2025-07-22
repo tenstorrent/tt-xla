@@ -97,10 +97,17 @@ multihost_computation = jax.jit(
 
 # Print the StableHLO/HLO representation
 if proc_id == 0:  # Only print from process 0 to avoid duplication
-    print("\n=== StableHLO Code ===")
+    print("\n=== StableHLO Code 0 ===")
     lowered = multihost_computation.lower(global_array)
     print("Lowered representation:")
     print(lowered.as_text())
+
+if proc_id == 1:  # Only print from process 0 to avoid duplication
+    print("\n=== StableHLO Code 1 ===")
+    lowered = multihost_computation.lower(global_array)
+    print("Lowered representation:")
+    print(lowered.as_text())
+
 
 print("\n=== Executing Computation ===")
 
