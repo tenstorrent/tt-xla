@@ -90,7 +90,9 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
+  //std::cerr << "111111111" << std::endl;
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  //std::cerr << "2222222" << std::endl;
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,
@@ -98,7 +100,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
            m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
-
+  std::cerr << "I AM HEREEEE" << std::endl;
   size_t devices_count = tt::runtime::getNumAvailableDevices();
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);

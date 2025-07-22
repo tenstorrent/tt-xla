@@ -306,8 +306,7 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     // tensors, to match the number of devices.
     if (untilized_output.size() != num_devices) {
       // If the output is not a scalar throw an error.
-      if (getOutputShape(output_index).size() > 0 ||
-          untilized_output.size() > 1) {
+      if (untilized_output.size() > 1) {
         DLOG_F(ERROR,
                "Untilize to host produced invalid number of output tensors: "
                "expected %zu, got %zu",
