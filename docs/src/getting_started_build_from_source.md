@@ -176,7 +176,7 @@ pip install dist/pjrt_plugin_tt*.whl
 python
 import jax
 tt_device = jax.devices("tt") # This will trigger plugin registration.
-print(tt_device) # This prints the Tenstorrent device info if everything is OK. 
+print(tt_device) # This prints the Tenstorrent device info if everything is OK.
 ```
 
 The wheel has the following structure:
@@ -208,7 +208,7 @@ It contains a custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file
 Structuring wheel/folders this way allows JAX to automatically register the plugin upon usage (explained on OpenXLA's [Develop a New JPRT Plugin page here](https://openxla.org/xla/pjrt/pjrt_integration#step_2_use_jax_plugins_namespace_or_set_up_entry_point)).
 
 ## Testing
-The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`. 
+The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`.
 
 ## Common Build Errors
 - Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
