@@ -1,11 +1,12 @@
 # Global
-* @ajakovljevicTT @kmitrovicTT @mrakitaTT
+* @ajakovljevicTT @mrakitaTT
 
 # Source
-/src/ @sdjukicTT
+/inc/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
+/src/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
 
 # CI
-/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @kmitrovicTT @mrakitaTT
+/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT
 
 # Tests
-/tests/ @ajakovljevicTT @kmitrovicTT @mrakitaTT @sgligorijevicTT
+/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT

@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import GPTNeoTester
@@ -41,19 +40,16 @@ def training_tester() -> GPTNeoTester:
 # ----- Tests -----
 
 
+# This test specifically is somewhat flaky, it failed and then returned to passing
+# without any apparent reason for that.
+@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.18604311347007751. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379 "
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
     inference_tester.test()

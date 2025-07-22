@@ -2,19 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from contextlib import contextmanager
 import ctypes
+from collections.abc import Callable
+from contextlib import contextmanager
+from dataclasses import dataclass
+from functools import partial
 import gc
-from loguru import logger
-import psutil
-import pytest
 import sys
-import time
 import threading
 import time
+from typing import Any
 
+import jax
 import psutil
 import pytest
+import transformers
+import transformers.modeling_flax_utils
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
@@ -194,10 +197,11 @@ def memory_usage_tracker(request):
         def track_memory():
             nonlocal min_mem, max_mem, total_mem, count
             while tracking:
-                current_mem = process.memory_info().rss / (1024 * 1024)
-                min_mem = min(min_mem, current_mem)
-                max_mem = max(max_mem, current_mem)
-                total_mem += current_mem
+                vm = psutil.virtual_memory()
+                used = (vm.total - vm.available) / (1024 * 1024)
+                min_mem = min(min_mem, used)
+                max_mem = max(max_mem, used)
+                total_mem += used
                 count += 1
                 time.sleep(0.1)
 
@@ -244,3 +248,67 @@ def initialize_device_connectors():
     """
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
+
+
+@dataclass
+class MonkeyPatchConfig:
+    """Configuration class for managing monkey patching operations.
+
+    This class provides a structured way to temporarily replace functions or methods
+    in modules with custom implementations. We primarily use this to wrap JAX operations
+    in StableHLO CompositeOps, for easier matching in the compiler.
+
+    Attributes:
+        target_module (Any): The module object containing the function to be patched.
+        target_function (str): The name of the function/method to be replaced.
+        replacement_factory (Callable): A factory function that creates the replacement
+            function. Should accept this config instance as a parameter.
+        post_patch (Callable): Optional callback function executed after the patch
+            is applied. Defaults to a no-op lambda function.
+        backup (Any): Storage for the original function before patching. Used to
+            restore the original implementation later. Initially None.
+    """
+
+    target_module: Any
+    target_function: str
+    replacement_factory: Callable
+    post_patch: Callable = lambda: None
+    backup: Any = None
+
+    def patch(self):
+        """Apply the monkey patch if not already applied."""
+        if self.backup is None:
+            self.backup = getattr(self.target_module, self.target_function)
+
+            replacement = self.replacement_factory(self)
+            setattr(self.target_module, self.target_function, replacement)
+
+            self.post_patch()
+
+
+monkeypatches = [
+    MonkeyPatchConfig(
+        target_module=jax.nn,
+        target_function="gelu",
+        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
+            lambda x: config.backup(x, approximate=approximate),
+            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+        )(
+            x
+        ),
+        post_patch=lambda: transformers.modeling_flax_utils.ACT2FN.update(
+            {
+                "gelu": partial(jax.nn.gelu, approximate=False),
+                "gelu_new": partial(jax.nn.gelu, approximate=True),
+            }
+        ),
+    )
+]
+
+# Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
+@pytest.fixture(autouse=True)
+def monkeypatch_import(request):
+    for patch_config in monkeypatches:
+        patch_config.patch()
+
+    yield

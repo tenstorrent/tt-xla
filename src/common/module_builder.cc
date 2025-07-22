@@ -529,6 +529,26 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
 
+  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
+  //    - determine a more rigorous approach to retrieving the argument
+  //      types
+  // The argument type map is used in tt-mlir so that consteval
+  // can determine which graph inputs are allowed to be used as
+  // consteval graph inputs. Also, so EIO may know which paths
+  // of the graph will end up in a consteval graph as some of its
+  // commute conditions depend on whether this is the case for
+  // a given op.
+  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
+    auto parser =
+        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
+    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+        argEnumMap;
+
+    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
+                 argEnumMap);
+    options.argumentTypeMap = argEnumMap;
+  }
+
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
            "Invalid mesh shape size: %zu. Shape must have two dimensions!",

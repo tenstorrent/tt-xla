@@ -22,17 +22,29 @@ jobs:
     uses: ./.github/workflows/spdx.yml
     secrets: inherit
 
-  build-and-test:
-    needs: [pre-commit, spdx]
-    uses: ./.github/workflows/build-and-test.yml
+  build-image:
+    needs: [ pre-commit, spdx ]
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+
+  build-ttxla:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+
+  test:
+    needs: [ build-image, build-ttxla ]
+    uses: ./.github/workflows/test.yml
     secrets: inherit
     with:
       test_mark: 'push'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
+      run_id: ${{ github.run_id }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}

@@ -2,6 +2,18 @@ name: On nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      test_group_cnt:
+        description: 'Test group count'
+        required: false
+        default: "3"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "8"
   schedule:
     - cron: '0 0 * * *'
 
@@ -10,41 +22,89 @@ permissions:
   checks: write
 
 jobs:
-  nightly_tests:
-    uses: ./.github/workflows/build-and-test.yml
+  set-inputs:
+    runs-on: ubuntu-latest
+    outputs:
+      test_group_cnt: ${{ steps.set-inputs.outputs.test_group_cnt }}
+    steps:
+      - name: Set Inputs
+        id: set-inputs
+        run: |
+          default_test_group_cnt=3
+
+          tgc=$(if [ -z "${{ inputs.test_group_cnt }}" ]; then echo $default_test_group_cnt; else echo ${{ inputs.test_group_cnt }}; fi)
+          echo "test_group_cnt=$tgc" >> $GITHUB_OUTPUT
+
+  build-image:
+    uses: ./.github/workflows/build-image.yml
     secrets: inherit
+
+  build-ttxla:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    secrets: inherit
+    needs: build-image
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+
+  nightly_tests:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
       test_mark: 'nightly'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
+
+  generate-matrix:
+    runs-on: ubuntu-latest
+    needs: [ set-inputs ]
+    outputs:
+      test-full-model-matrix: ${{ steps.generate-matrix.outputs.test-full-model-matrix}}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Generate matrix
+        id: generate-matrix
+        shell: bash
+        env:
+          TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
+        run: |
+          SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
+          TEST_MATRIX_PATH=".github/workflows/test-full-model-matrix.json"
+          TESTS_TO_PARALLELIZE='[{"runs-on": "n150", "name": "run_jax"}]'
+          python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT > modified-matrix.json
+          echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test_full_model:
-    uses: ./.github/workflows/build-and-test.yml
+    uses: ./.github/workflows/test.yml
     secrets: inherit
-    needs: nightly_tests
-    if: always()  # This ensures the job runs regardless of success or failure of `nightly_tests`
+    needs: [ build-image, build-ttxla, generate-matrix ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
       test_mark: 'model_test'
-      build_options: |
-        [
-          {"runs-on": "n150", "name": "run_jax", "dir": "./tests/jax/single_chip"},
-          {"runs-on": "n150", "name": "run_torch", "dir": "./tests/torch/single_chip"},
-          {"runs-on": "n300", "name": "run_jax", "dir": "./tests/jax/multi_chip/n300"},
-          {"runs-on": "llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices"},
-          {"runs-on": "llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices"}
-        ]
+      test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
 
   fail-notify:
     if: always()
     needs:
       - nightly_tests
       - test_full_model
+      - build-image
+      - build-ttxla
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
