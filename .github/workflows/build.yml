@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
             submodules: recursive
+            repository: 'tenstorrent/tt-xla'
             lfs: true
 
       - name: Override tt-mlir SHA mlir_override is set
