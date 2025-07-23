@@ -71,9 +71,7 @@ class ModelLoader(ForgeModel):
         """Prepare sample input for MobilenetV2 model"""
 
         # Get the Image
-        image_file = get_file(
-            "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
-        )
+        image_file = get_file("test_images/mobilenetv2.jpg")
         image = Image.open(image_file)
 
         # Preprocess image
