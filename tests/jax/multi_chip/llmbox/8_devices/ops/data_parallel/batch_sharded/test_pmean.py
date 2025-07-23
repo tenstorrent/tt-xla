@@ -46,8 +46,7 @@ def test_pmean(
     sharding_mode: ShardingMode,
 ):
     def fwd(batch):
-        act = jax.lax.pmean(batch, axis_names[1])
-        return act
+        return jax.lax.pmean(batch, axis_names[1])
 
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec(axis_names)
