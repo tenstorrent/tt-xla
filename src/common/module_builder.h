@@ -103,8 +103,7 @@ private:
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Runs StableHLO pipeline with mesh shape configuration.
-  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                            std::string mesh_shape_str);
+  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Parses mesh shape string into vector of integers.
   std::vector<int> parseMeshShape(const std::string &mesh_shape_str);

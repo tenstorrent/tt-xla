@@ -48,11 +48,11 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/runtime.h"
-#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-#include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
-#include "ttmlir/Dialect/StableHLO/Utils/ShardyUtils.h"
-#include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
+#include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
+#include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardyUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
@@ -119,9 +119,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
 
-  // Run StableHLO pipeline with default mesh shape (you can customize this)
-  size_t num_devices = tt::runtime::getNumAvailableDevices();
-  runStableHLOPipeline(mlir_module, "1,"+std::to_string(num_devices));
+  runStableHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -177,27 +175,34 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
+  // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
+  // from openXLA. Once openXLA natively supports Shardy, we can remove
+  // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
+  // Detect Shardy by looking at the meshes attribute in module.
+  if (isUsingShardy(mlir_module)) {
+    mlir::PassManager shardy_pm(mlir_module.get()->getName());
+    mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
+    if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
+      DLOG_F(ERROR,
+             "Failed to convert from Shardy roundtrip import pass module");
+      m_status = tt_pjrt_status::kInternal;
+      return;
+    }
+  }
+
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
 }
 
-void ModuleBuilder::runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string mesh_shape_str) {
+void ModuleBuilder::runStableHLOPipeline(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   printModule(mlir_module);
 
-  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(), mlir::PassManager::Nesting::Implicit);
-
-  std::vector<int> mesh_shape = parseMeshShape(mesh_shape_str);
-  if (mesh_shape.size() != 2) {
-    DLOG_F(ERROR,
-           "Invalid mesh shape size: %zu. Shape must have two dimensions!",
-           mesh_shape.size());
-    m_status = tt_pjrt_status::kInternal;
-    return;
-  }
-
+  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
+                                          mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
-  stablehlo_pipeline_options.meshShape = {mesh_shape[0], mesh_shape[1]};
-  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm, stablehlo_pipeline_options);
+  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
+                                               stablehlo_pipeline_options);
   std::cerr << "---------------------" << std::endl;
   mlir_module->dump();
   std::cerr << "---------------------" << std::endl;
@@ -213,17 +218,19 @@ void ModuleBuilder::runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir
   printModule(mlir_module);
 }
 
-std::vector<int> ModuleBuilder::parseMeshShape(const std::string &mesh_shape_str) {
+std::vector<int>
+ModuleBuilder::parseMeshShape(const std::string &mesh_shape_str) {
   std::vector<int> mesh_shape;
   size_t pos = 0;
   size_t comma_pos;
-  
+
   while ((comma_pos = mesh_shape_str.find(',', pos)) != std::string::npos) {
-    mesh_shape.push_back(std::stoi(mesh_shape_str.substr(pos, comma_pos - pos)));
+    mesh_shape.push_back(
+        std::stoi(mesh_shape_str.substr(pos, comma_pos - pos)));
     pos = comma_pos + 1;
   }
   mesh_shape.push_back(std::stoi(mesh_shape_str.substr(pos)));
-  
+
   return mesh_shape;
 }
 
@@ -297,9 +304,8 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
   std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
-      gspmd_attributes.push_back(
-          llvm::dyn_cast_if_present<mlir::StringAttr>(func_op.getResultAttr(
-              i, mlir::sdy::kXlaShardingAttr)));
+      gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
+          func_op.getResultAttr(i, mlir::sdy::kXlaShardingAttr)));
     }
   }
 
@@ -338,7 +344,6 @@ void ModuleBuilder::collectOutputShardingsShardy(
     m_status = tt_pjrt_status::kInternal;
   }
 }
-
 
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
@@ -402,17 +407,17 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
           /*shardShape=*/{},
           /*shardDims=*/{},
           /*meshShape=*/{},
-          /*deviceIds=*/{},
-          mlir::tt::ttcore::ShardStatus::Unsharded);
+          /*deviceIds=*/{}, mlir::tt::ttcore::ShardStatus::Unsharded);
       shardings.push_back(mesh_sharding);
       continue;
     }
-    llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding> mesh_sharding_result =
-        mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
-            gspmd_attr.getValue(),
-            /*operandShardingStr=*/gspmd_attr.getValue(),
-            mlir::tt::ttcore::ShardStatus::Unsharded,
-            mlir::tt::ttcore::MeshShardDirection::FullToShard);
+    llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
+        mesh_sharding_result =
+            mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
+                gspmd_attr.getValue(),
+                /*operandShardingStr=*/gspmd_attr.getValue(),
+                mlir::tt::ttcore::ShardStatus::Unsharded,
+                mlir::tt::ttcore::MeshShardDirection::FullToShard);
     if (llvm::Error e = mesh_sharding_result.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
       return llvm::LogicalResult::failure();
@@ -439,18 +444,17 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
           /*shardShape=*/{},
           /*shardDims=*/{},
           /*meshShape=*/{},
-          /*deviceIds=*/{},
-          mlir::tt::ttcore::ShardStatus::Unsharded);
+          /*deviceIds=*/{}, mlir::tt::ttcore::ShardStatus::Unsharded);
       shardings.push_back(mesh_sharding);
       continue;
     }
 
-    llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding> mesh_sharding_result =
-        mlir::tt::shardy_utils::ShardyMeshSharding::generate(
-            shardy_mesh,
-            shardy_attr,
-            mlir::tt::ttcore::ShardStatus::Unsharded,
-            mlir::tt::ttcore::MeshShardDirection::FullToShard);
+    llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
+        mesh_sharding_result =
+            mlir::tt::shardy_utils::ShardyMeshSharding::generate(
+                shardy_mesh, shardy_attr,
+                mlir::tt::ttcore::ShardStatus::Unsharded,
+                mlir::tt::ttcore::MeshShardDirection::FullToShard);
     if (llvm::Error e = mesh_sharding_result.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
       return llvm::LogicalResult::failure();

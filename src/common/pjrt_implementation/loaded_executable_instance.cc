@@ -368,7 +368,10 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-  std::vector<uint32_t> shard_shape_vec(outputSharding.getShardShape().begin(), outputSharding.getShardShape().end());
+  auto output_sharding_shard_shape =
+      outputSharding.getShardShape();
+  size_t output_sharding_shard_shape_size = outputSharding.getShardShape().size();
+  std::vector<uint32_t> shard_shape_vec(output_sharding_shard_shape.begin(), output_sharding_shard_shape.begin()+output_sharding_shard_shape_size);
   llvm::ArrayRef<uint32_t> shard_shape = shard_shape_vec;
   assert(shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
@@ -398,7 +401,9 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["replication_factor"] = std::to_string(num_devices);
     }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
-    std::vector<int64_t> mesh_shape_vec(meshSharding.getMeshShape().begin(), meshSharding.getMeshShape().end());
+    auto mesh_shape_data = meshSharding.getMeshShape();
+    size_t mesh_shape_size = mesh_shape_data.size();
+    std::vector<int64_t> mesh_shape_vec(mesh_shape_data.begin(), mesh_shape_data.begin() + mesh_shape_size);
     llvm::ArrayRef<int64_t> mesh_shape = mesh_shape_vec;
     assert(mesh_shape.size() == 2);
     strategy["strategy"] = "shard_2d";
