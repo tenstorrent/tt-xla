@@ -91,12 +91,14 @@ class TrainTestBase:
         xm.optimizer_step(self.optimizer)
         torch_xla.sync()
 
-    def run_step(self, test_input, target_output):
+    def run_step(self, test_input, target_output, output_sharding=None):
         # Run forward pass
         self.test_input = test_input
         self.update_target(target_output)
         self.optimizer.zero_grad()
         result = self.run_forward()
+        if output_sharding is not None:
+            xs.mark_sharding(self.target, self.mesh, output_sharding)
 
         # Run backward pass
         loss = self.run_backward(result, self.target)
@@ -105,8 +107,8 @@ class TrainTestBase:
         self.step_optimizer()
         return loss
 
-    def run(self, test_input, target_output):
-        loss = self.compiled_step_fn(test_input, target_output)
+    def run(self, test_input, target_output, output_sharding=None):
+        loss = self.compiled_step_fn(test_input, target_output, output_sharding)
         # xm.mark_step()
         return loss
 
@@ -117,15 +119,22 @@ class TrainTestBase:
             if param.requires_grad
         }
 
-    def set_device_loader(self, loader, mesh):
+    def set_device_loader(self, loader, mesh, input_sharding_spec=None):
         import torch_xla.distributed.parallel_loader as pl
         import torch_xla.distributed.spmd as xs
 
         self.mesh = mesh
+        input_sharding = None
+        if mesh is not None:
+            if input_sharding_spec is not None:
+                input_sharding = xs.ShardingSpec(mesh, input_sharding_spec)
+            else:
+                # Default to sharding the batch dimension
+                input_sharding = xs.ShardingSpec(mesh, ("data", None, None, None))
         self.train_device_loader = pl.MpDeviceLoader(
             loader,
             self.device,
-            input_sharding=xs.ShardingSpec(mesh, ("data", None, None, None)),
+            input_sharding=input_sharding,
         )
         # Shard the input's batch dimension along the `data` axis, no sharding along other dimensions
 
@@ -151,6 +160,7 @@ def setup_tt_environment():
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
     os.environ["MESH_SHAPE"] = "2,4"
     os.environ["LOGGER_LEVEL"] = "DEBUG"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
     from torch_xla.experimental import plugins
 
@@ -220,6 +230,7 @@ def training_on_single_device():
 
 def training_on_multiple_devices():
     num_steps = 32
+    batch_size = 2
     setup_tt_environment()
     torch.manual_seed(1)
     model = SimplifiedMnistModel()
@@ -231,7 +242,7 @@ def training_on_multiple_devices():
     test_dataset = datasets.MNIST(
         root="./data", train=True, transform=transform, download=True
     )
-    dataloader = DataLoader(test_dataset, batch_size=1)
+    dataloader = DataLoader(test_dataset, batch_size=batch_size)
     data_iterator = iter(dataloader)
     inputs = []
     targets = []
@@ -243,7 +254,7 @@ def training_on_multiple_devices():
         targets.append(target)
         inputs_and_targets.append((test_input, target))
 
-    xr.use_spmd(True)
+    # xr.use_spmd(True)
     num_devices = xr.global_runtime_device_count()
     print(f"Running on {num_devices} devices")
     mesh_shape = (num_devices, 1, 1, 1)
@@ -255,29 +266,29 @@ def training_on_multiple_devices():
     inputs = torch.cat(inputs, dim=0)
     targets = torch.cat(targets, dim=0)
     dataset = torch.utils.data.TensorDataset(inputs, targets)
-    loader = DataLoader(dataset, batch_size=num_steps)
+    loader = DataLoader(dataset, batch_size=num_steps * batch_size, shuffle=True)
 
     xla_ddp = TrainTestXLA(
         device=torch_xla.device(), model=model, optimizer=None, loss_fn=nn.NLLLoss()
     )
-    xla_ddp.set_device_loader(loader, mesh)
-    # for step, (input, target) in enumerate(xla_ddp.train_device_loader):
-    #     xla_ddp.run(input.to(torch_xla.device()), target.to(torch_xla.device()))
-    for step, (input, target) in enumerate(loader):
-        input_xla = input.to(torch_xla.device())
-        target_xla = target.to(torch_xla.device())
-        xs.mark_sharding(input_xla, mesh, ("data", None, None, None))
-        xs.mark_sharding(target_xla, mesh, ("data",))
-        xla_ddp.run(input_xla, target_xla)
+    xla_ddp.set_device_loader(
+        loader, mesh, input_sharding_spec=("data", None, None, None)
+    )
+    for step, (input, target) in enumerate(xla_ddp.train_device_loader):
+        xla_ddp.run(
+            input.to(torch_xla.device()),
+            target.to(torch_xla.device()),
+            output_sharding=("data",),
+        )
 
     print("Training complete. Saving model parameters.")
     params = xla_ddp.get_parameters()
     params = {
         name: param.to("cpu") for name, param in params.items() if param.requires_grad
     }
-    # print(f'params = {params}')
 
     cpu_runner = TrainTestCpu(model=model, optimizer=None, loss_fn=nn.NLLLoss())
+    xla_ddp.set_device_loader(loader, mesh=None, input_sharding_spec=None)
     for input, target in inputs_and_targets:
         cpu_runner.run(input, target)
 
@@ -285,7 +296,6 @@ def training_on_multiple_devices():
     params_cpu = {
         name: param for name, param in params_cpu.items() if param.requires_grad
     }
-    # print(f'params cpu = {params_cpu}')
 
     for name, param_xla in params.items():
         param_cpu = params_cpu[name]
