@@ -25,6 +25,8 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
                 "(https://github.com/tenstorrent/tt-xla/issues/563)"
             )
         )
+    if not use_shardy:
+        pytest.xfail(failed_ttmlir_compilation("Resharding not supported in GSPMD"))
 
 
 @pytest.mark.nightly
@@ -33,7 +35,6 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
     "use_shardy",
     [
         True,
-        False,
     ],
 )
 @pytest.mark.parametrize(
