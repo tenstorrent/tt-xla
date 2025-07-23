@@ -1,0 +1,14 @@
+transformers
+torch
+torchvision
+accelerate
+pillow
+flax
+sentencepiece
+tiktoken
+fairscale
+fire
+jax
+blobfile
+scikit-learn
+jaxtyping
