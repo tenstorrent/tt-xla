@@ -47,6 +47,7 @@ def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
         ((1, 1, 1024, 1024), (1, 8), ("batch", "model")),
     ],
 )
+# Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.psum_scatter
 @pytest.mark.parametrize(
     "sharding_mode",
     [
