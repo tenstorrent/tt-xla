@@ -11,10 +11,10 @@
 #include <string>
 
 // llvm mlir includes
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -117,7 +117,6 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);

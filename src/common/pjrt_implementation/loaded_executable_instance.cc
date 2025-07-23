@@ -368,10 +368,12 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-  auto output_sharding_shard_shape =
-      outputSharding.getShardShape();
-  size_t output_sharding_shard_shape_size = outputSharding.getShardShape().size();
-  std::vector<uint32_t> shard_shape_vec(output_sharding_shard_shape.begin(), output_sharding_shard_shape.begin()+output_sharding_shard_shape_size);
+  auto output_sharding_shard_shape = outputSharding.getShardShape();
+  size_t output_sharding_shard_shape_size =
+      outputSharding.getShardShape().size();
+  std::vector<uint32_t> shard_shape_vec(output_sharding_shard_shape.begin(),
+                                        output_sharding_shard_shape.begin() +
+                                            output_sharding_shard_shape_size);
   llvm::ArrayRef<uint32_t> shard_shape = shard_shape_vec;
   assert(shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
@@ -403,12 +405,19 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
     auto mesh_shape_data = meshSharding.getMeshShape();
     size_t mesh_shape_size = mesh_shape_data.size();
-    std::vector<int64_t> mesh_shape_vec(mesh_shape_data.begin(), mesh_shape_data.begin() + mesh_shape_size);
+    std::vector<int64_t> mesh_shape_vec(
+        mesh_shape_data.begin(), mesh_shape_data.begin() + mesh_shape_size);
     llvm::ArrayRef<int64_t> mesh_shape = mesh_shape_vec;
-    assert(mesh_shape.size() == 2);
-    strategy["strategy"] = "shard_2d";
-    strategy["mesh_shape_y"] = std::to_string(mesh_shape[0]);
-    strategy["mesh_shape_x"] = std::to_string(mesh_shape[1]);
+    assert(mesh_shape.size() <= 2 && mesh_shape.size() >= 1);
+    if (mesh_shape.size() == 1) {
+      strategy["strategy"] = "shard";
+      strategy["shard_dim"] = std::to_string(mesh_shape[0]);
+    }
+    if (mesh_shape.size() == 2) {
+      strategy["strategy"] = "shard_2d";
+      strategy["mesh_shape_y"] = std::to_string(mesh_shape[0]);
+      strategy["mesh_shape_x"] = std::to_string(mesh_shape[1]);
+    }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
     strategy["strategy"] = "identity";
   } else {
