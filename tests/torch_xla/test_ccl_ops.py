@@ -130,10 +130,10 @@ def test_all_gather(shard_dim):
 if __name__ == "__main__":
     # Run all_reduce tests
     test_all_reduce(0)  # Test batch sharding
-    # test_all_reduce(1)  # Test model sharding
+    test_all_reduce(1)  # Test model sharding
 
     # # Run all_gather tests
-    # test_all_gather(0)  # Test batch sharding
-    # test_all_gather(1)  # Test model sharding
+    test_all_gather(0)  # Test batch sharding
+    test_all_gather(1)  # Test model sharding
 
     print("All tests passed!")

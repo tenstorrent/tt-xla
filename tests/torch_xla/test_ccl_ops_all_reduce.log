@@ -1,0 +1,437 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+2025-07-24 00:40:59.067 (   0.000s) [         E30C480]      dylib_platform.cc:47       1| DylibPlatform::SubclassInitialize
+2025-07-24 00:40:59.068 (   0.001s) [         E30C480]     client_instance.cc:38       1| ClientInstance::ClientInstance
+2025-07-24 00:40:59.068 (   0.001s) [         E30C480]              client.cc:18       1| TTClientInstance::TTClientInstance
+2025-07-24 00:40:59.068 (   0.001s) [         E30C480]     client_instance.cc:59       1| ClientInstance::Initialize
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:40:59.818 | critical |          Always | Read unexpected run_mailbox value from core (x=22,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:40:59.874 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:40:59.929 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:40:59.984 | critical |          Always | Read unexpected run_mailbox value from core (x=22,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:41:00.041 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:41:00.157 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:41:00.273 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-07-24 00:41:00.395 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:107)
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]              stubs.inc:112   WARN| STUB: PJRT_Client_TopologyDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]      error_instance.cc:49       1| ErrorInstance::PJRT_Error_Message
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]      error_instance.cc:58       1| ErrorInstance::PJRT_Error_GetCode
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]      error_instance.cc:43       1| ErrorInstance::PJRT_Error_Destroy
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     client_instance.cc:342      1| ClientInstance::PJRT_Client_PlatformVersion
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     client_instance.cc:322      1| ClientInstance::PJRT_Client_PlatformName
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     client_instance.cc:354      1| ClientInstance::PJRT_Client_Devices
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.569 (   4.502s) [         E30C480]     device_instance.cc:44       1| DeviceInstance::PJRT_Device_GetDescription
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:63       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     client_instance.cc:367      1| ClientInstance::PJRT_Client_AddressableDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     client_instance.cc:417      1| ClientInstance::PJRT_Client_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     device_instance.cc:71       1| DeviceInstance::PJRT_Device_AddressableMemories
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]     memory_instance.cc:124      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]        api_bindings.cc:76       1| PJRT_Plugin_Attributes
+2025-07-24 00:41:03.570159: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.502s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:99       1| DeviceDescription::PJRT_DeviceDescription_ToString
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.570 (   4.503s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.766 (   4.699s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.767 (   4.699s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.699s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.699s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.767 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.700s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]  device_description.cc:44       1| DeviceDescription::PJRT_DeviceDescription_Id
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.768 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]     device_instance.cc:82       1| DeviceInstance::PJRT_Device_DefaultMemory
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]     client_instance.cc:468      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]     memory_instance.cc:57       1| MemoryInstance::getDevice
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]      event_instance.cc:222      1| EventInstance::PJRT_Event_OnReady
+2025-07-24 00:41:03.769 (   4.701s) [         E30C480]      event_instance.cc:171      1| EventInstance::PJRT_Event_Destroy
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.769 (   4.702s) [         E30C480]     buffer_instance.cc:480      1| BufferInstance::PJRT_Buffer_IsDeleted
+2025-07-24 00:41:03.776 (   4.708s) [         E30C480]     client_instance.cc:430      1| ClientInstance::PJRT_Client_Compile
+2025-07-24 00:41:03.776 (   4.708s) [         E30C480]      module_builder.cc:104      1| ModuleBuilder::buildModule
+2025-07-24 00:41:03.777 (   4.709s) [         E30C480]      module_builder.cc:160      1| VHLO Module:
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.frontend_attributes = {xla.sdy.meshes = "{mesh = #sdy.mesh<[\22_axis_0\22=2, \22_axis_1\22=4]>}"}, mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<!vhlo.f32_v1>, %arg1: !vhlo.tensor_v1<256x512x!vhlo.f32_v1>) -> (!vhlo.tensor_v1<512x512x!vhlo.f32_v1>) {
+    %0:2 = "vhlo.all_reduce_v2"(%arg1, %arg0) <{channel_id = #vhlo.integer_v1<0 : i64>, replica_groups = #vhlo.tensor_v1<dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>>, use_global_device_ids = #vhlo.bool_v1<false>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.f32_v1>, %arg3: !vhlo.tensor_v1<!vhlo.f32_v1>):
+      %5 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>) -> !vhlo.tensor_v1<!vhlo.f32_v1>
+      "vhlo.return_v1"(%5) : (!vhlo.tensor_v1<!vhlo.f32_v1>) -> ()
+    }) : (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>) -> (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>)
+    %1:2 = "vhlo.all_reduce_v2"(%arg1, %0#1) <{channel_id = #vhlo.integer_v1<0 : i64>, replica_groups = #vhlo.tensor_v1<dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>>, use_global_device_ids = #vhlo.bool_v1<false>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.f32_v1>, %arg3: !vhlo.tensor_v1<!vhlo.f32_v1>):
+      %5 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>) -> !vhlo.tensor_v1<!vhlo.f32_v1>
+      "vhlo.return_v1"(%5) : (!vhlo.tensor_v1<!vhlo.f32_v1>) -> ()
+    }) : (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>) -> (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>, !vhlo.tensor_v1<!vhlo.f32_v1>)
+    %2 = "vhlo.broadcast_in_dim_v1"(%1#1) <{broadcast_dimensions = #vhlo.tensor_v1<dense<> : tensor<0xi64>>}> : (!vhlo.tensor_v1<!vhlo.f32_v1>) -> !vhlo.tensor_v1<256x512x!vhlo.f32_v1>
+    %3 = "vhlo.add_v1"(%1#0, %2) : (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>, !vhlo.tensor_v1<256x512x!vhlo.f32_v1>) -> !vhlo.tensor_v1<256x512x!vhlo.f32_v1>
+    %4 = "vhlo.all_gather_v2"(%3) <{all_gather_dim = #vhlo.integer_v1<0 : i64>, channel_id = #vhlo.integer_v1<0 : i64>, replica_groups = #vhlo.tensor_v1<dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>>, use_global_device_ids = #vhlo.bool_v1<false>}> : (!vhlo.tensor_v1<256x512x!vhlo.f32_v1>) -> !vhlo.tensor_v1<512x512x!vhlo.f32_v1>
+    "vhlo.return_v1"(%4) : (!vhlo.tensor_v1<512x512x!vhlo.f32_v1>) -> ()
+  } {arg_attrs = #vhlo.array_v1<[#vhlo.dict_v1<{#vhlo.string_v1<"mhlo.frontend_attributes"> = #vhlo.dict_v1<{#vhlo.string_v1<"xla.sdy.sharding"> = #vhlo.string_v1<"#sdy.sharding<@mesh, []>">}>, #vhlo.string_v1<"mhlo.sharding"> = #vhlo.string_v1<"{replicated}">}>, #vhlo.dict_v1<{#vhlo.string_v1<"mhlo.frontend_attributes"> = #vhlo.dict_v1<{#vhlo.string_v1<"xla.sdy.sharding"> = #vhlo.string_v1<"#sdy.sharding<@mesh, [{\22_axis_0\22}, {}]>">}>, #vhlo.string_v1<"mhlo.sharding"> = #vhlo.string_v1<"{devices=[2,1,4]<=[8] last_tile_dim_replicate}">}>]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">}
+}
+2025-07-24 00:41:03.780 (   4.713s) [         E30C480]      module_builder.cc:193      1| SHLO Module:
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=2, "_axis_1"=4]>
+  func.func @main(%arg0: tensor<f32> {sdy.sharding = #sdy.sharding<@mesh, []>}, %arg1: tensor<256x512xf32> {sdy.sharding = #sdy.sharding<@mesh, [{"_axis_0"}, {}]>}) -> tensor<512x512xf32> {
+    %0:2 = "stablehlo.all_reduce"(%arg1, %arg0) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %1:2 = "stablehlo.all_reduce"(%arg1, %0#1) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %2 = stablehlo.broadcast_in_dim %1#1, dims = [] : (tensor<f32>) -> tensor<256x512xf32>
+    %3 = stablehlo.add %1#0, %2 : tensor<256x512xf32>
+    %4 = "stablehlo.all_gather"(%3) <{all_gather_dim = 0 : i64, replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> : (tensor<256x512xf32>) -> tensor<512x512xf32>
+    return %4 : tensor<512x512xf32>
+  }
+}
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=2, "_axis_1"=4]>
+  func.func @main(%arg0: tensor<f32> {sdy.sharding = #sdy.sharding<@mesh, []>}, %arg1: tensor<256x512xf32> {sdy.sharding = #sdy.sharding<@mesh, [{"_axis_0"}, {}]>}) -> tensor<512x512xf32> {
+    %0:2 = "stablehlo.all_reduce"(%arg1, %arg0) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %1:2 = "stablehlo.all_reduce"(%arg1, %0#1) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %2 = stablehlo.broadcast_in_dim %1#1, dims = [] : (tensor<f32>) -> tensor<256x512xf32>
+    %3 = stablehlo.add %1#0, %2 : tensor<256x512xf32>
+    %4 = "stablehlo.all_gather"(%3) <{all_gather_dim = 0 : i64, replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> : (tensor<256x512xf32>) -> tensor<512x512xf32>
+    return %4 : tensor<512x512xf32>
+  }
+}
+---------------------
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=2, "_axis_1"=4]>
+  func.func @main(%arg0: tensor<f32> {sdy.sharding = #sdy.sharding<@mesh, []>}, %arg1: tensor<256x512xf32> {sdy.sharding = #sdy.sharding<@mesh, [{"_axis_0"}, {}]>}) -> tensor<512x512xf32> {
+    %0:2 = "stablehlo.all_reduce"(%arg1, %arg0) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %1:2 = "stablehlo.all_reduce"(%arg1, %0#1) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+    ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32>):
+      %5 = stablehlo.add %arg2, %arg3 : tensor<f32>
+      stablehlo.return %5 : tensor<f32>
+    }) : (tensor<256x512xf32>, tensor<f32>) -> (tensor<256x512xf32>, tensor<f32>)
+    %2 = stablehlo.broadcast_in_dim %1#1, dims = [] : (tensor<f32>) -> tensor<256x512xf32>
+    %3 = stablehlo.add %1#0, %2 : tensor<256x512xf32>
+    %4 = "stablehlo.all_gather"(%3) <{all_gather_dim = 0 : i64, replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> : (tensor<256x512xf32>) -> tensor<512x512xf32>
+    return %4 : tensor<512x512xf32>
+  }
+}
+---------------------
+PIPELINE END
+PIPELINE END
+2025-07-24 00:41:03.785 (   4.717s) [         E30C480]      module_builder.cc:217      1| SHLO StableHLO Pipeline Module:
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=2, "_axis_1"=4]>
+  func.func @main(%arg0: tensor<f32> {ttcore.shard_status = #ttcore.shard_status<presharded>}, %arg1: tensor<256x512xf32> {ttcore.shard_status = #ttcore.shard_status<presharded>}) -> (tensor<512x512xf32> {ttcore.shard_status = #ttcore.shard_status<unsharded>}) {
+    %0 = sdy.manual_computation(%arg0, %arg1) in_shardings=[<@mesh, []>, <@mesh, [{"_axis_0"}, {}]>] out_shardings=[<@mesh, [{"_axis_0"}, {}]>] manual_axes={"_axis_0", "_axis_1"} (%arg2: tensor<f32>, %arg3: tensor<128x512xf32>) {
+      %1:2 = "stablehlo.all_reduce"(%arg3, %arg2) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+      ^bb0(%arg4: tensor<f32>, %arg5: tensor<f32>):
+        %6 = stablehlo.add %arg4, %arg5 : tensor<f32>
+        stablehlo.return %6 : tensor<f32>
+      }) : (tensor<128x512xf32>, tensor<f32>) -> (tensor<128x512xf32>, tensor<f32>)
+      %2:2 = "stablehlo.all_reduce"(%arg3, %1#1) <{replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> ({
+      ^bb0(%arg4: tensor<f32>, %arg5: tensor<f32>):
+        %6 = stablehlo.add %arg4, %arg5 : tensor<f32>
+        stablehlo.return %6 : tensor<f32>
+      }) : (tensor<128x512xf32>, tensor<f32>) -> (tensor<128x512xf32>, tensor<f32>)
+      %3 = stablehlo.broadcast_in_dim %2#1, dims = [] : (tensor<f32>) -> tensor<128x512xf32>
+      %4 = stablehlo.add %2#0, %3 : tensor<128x512xf32>
+      %5 = "stablehlo.all_gather"(%4) <{all_gather_dim = 0 : i64, replica_groups = dense<[[0, 4], [1, 5], [2, 6], [3, 7]]> : tensor<4x2xi64>}> : (tensor<128x512xf32>) -> tensor<256x512xf32>
+      sdy.return %5 : tensor<256x512xf32>
+    } : (tensor<f32>, tensor<256x512xf32>) -> tensor<512x512xf32>
+    return %0 : tensor<512x512xf32>
+  }
+}
+2025-07-24 00:41:03.786 (   4.719s) [         E30C480]      module_builder.cc:487      1| TTIR Module:
+module @SyncTensorsGraph.31 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 2x4>]>} {
+  func.func @main(%arg0: tensor<f32> {ttcore.shard_status = #ttcore.shard_status<presharded>}, %arg1: tensor<256x512xf32> {ttcore.shard_status = #ttcore.shard_status<presharded>}) -> (tensor<512x512xf32> {ttcore.shard_status = #ttcore.shard_status<unsharded>}) {
+    %0 = ttir.empty() : tensor<f32>
+    %1 = "ttir.mesh_shard"(%arg0, %0) <{shard_dims = array<i64: -1>, shard_direction = #ttcore.shard_direction<full_to_shard>, shard_shape = array<i64: 1>, shard_type = #ttcore.shard_type<identity>}> : (tensor<f32>, tensor<f32>) -> tensor<f32>
+    %2 = ttir.empty() : tensor<128x512xf32>
+    %3 = "ttir.mesh_shard"(%arg1, %2) <{shard_dims = array<i64: 0, -1>, shard_direction = #ttcore.shard_direction<full_to_shard>, shard_shape = array<i64: 2, 1>, shard_type = #ttcore.shard_type<identity>}> : (tensor<256x512xf32>, tensor<128x512xf32>) -> tensor<128x512xf32>
+    %4 = ttir.empty() : tensor<128x512xf32>
+    %5 = "ttir.all_reduce"(%3, %4) <{cluster_axis = 0 : ui32, reduce_type = #ttcore.reduce_type<sum>}> : (tensor<128x512xf32>, tensor<128x512xf32>) -> tensor<128x512xf32>
+    %6 = ttir.empty() : tensor<f32>
+    %7 = "ttir.all_reduce"(%1, %6) <{cluster_axis = 0 : ui32, reduce_type = #ttcore.reduce_type<sum>}> : (tensor<f32>, tensor<f32>) -> tensor<f32>
+    %8 = ttir.empty() : tensor<128x512xf32>
+    %9 = "ttir.all_reduce"(%3, %8) <{cluster_axis = 0 : ui32, reduce_type = #ttcore.reduce_type<sum>}> : (tensor<128x512xf32>, tensor<128x512xf32>) -> tensor<128x512xf32>
+    %10 = ttir.empty() : tensor<f32>
+    %11 = "ttir.all_reduce"(%7, %10) <{cluster_axis = 0 : ui32, reduce_type = #ttcore.reduce_type<sum>}> : (tensor<f32>, tensor<f32>) -> tensor<f32>
+    %12 = ttir.empty() : tensor<1x1xf32>
+    %13 = "ttir.reshape"(%11, %12) <{shape = [1 : i32, 1 : i32]}> : (tensor<f32>, tensor<1x1xf32>) -> tensor<1x1xf32>
+    %14 = ttir.empty() : tensor<128x512xf32>
+    %15 = "ttir.broadcast"(%13, %14) <{broadcast_dimensions = array<i64: 128, 512>}> : (tensor<1x1xf32>, tensor<128x512xf32>) -> tensor<128x512xf32>
+    %16 = ttir.empty() : tensor<128x512xf32>
+    %17 = "ttir.add"(%9, %15, %16) : (tensor<128x512xf32>, tensor<128x512xf32>, tensor<128x512xf32>) -> tensor<128x512xf32>
+    %18 = ttir.empty() : tensor<256x512xf32>
+    %19 = "ttir.all_gather"(%17, %18) <{all_gather_dim = 0 : si32, cluster_axis = 0 : ui32}> : (tensor<128x512xf32>, tensor<256x512xf32>) -> tensor<256x512xf32>
+    %20 = ttir.empty() : tensor<512x512xf32>
+    %21 = "ttir.mesh_shard"(%19, %20) <{shard_dims = array<i64: 0, -1>, shard_direction = #ttcore.shard_direction<shard_to_full>, shard_shape = array<i64: 2, 1>, shard_type = #ttcore.shard_type<devices>}> : (tensor<256x512xf32>, tensor<512x512xf32>) -> tensor<512x512xf32>
+    return %21 : tensor<512x512xf32>
+  }
+}
+2025-07-24 00:41:03.787 (   4.720s) [         E30C480]      module_builder.cc:538   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2025-07-24 00:41:03.787 (   4.720s) [         E30C480]      module_builder.cc:552   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2025-07-24 00:41:03.787 (   4.720s) [         E30C480]      module_builder.cc:562   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+python: /opt/ttmlir-toolchain/include/llvm/ADT/SmallVector.h:291: reference llvm::SmallVectorTemplateCommon<long>::operator[](size_type) [T = long]: Assertion `idx < size()' failed.
+[wh-lb-46-special-hshah-for-reservation-30014:76188] *** Process received signal ***
+[wh-lb-46-special-hshah-for-reservation-30014:76188] Signal: Aborted (6)
+[wh-lb-46-special-hshah-for-reservation-30014:76188] Signal code:  (-6)
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x42520)[0x7f1a0e34f520]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 1] /lib/x86_64-linux-gnu/libc.so.6(pthread_kill+0x12c)[0x7f1a0e3a39fc]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 2] /lib/x86_64-linux-gnu/libc.so.6(raise+0x16)[0x7f1a0e34f476]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 3] /lib/x86_64-linux-gnu/libc.so.6(abort+0xd3)[0x7f1a0e3357f3]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 4] /lib/x86_64-linux-gnu/libc.so.6(+0x2871b)[0x7f1a0e33571b]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 5] /lib/x86_64-linux-gnu/libc.so.6(+0x39e96)[0x7f1a0e346e96]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 6] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x82c8f87)[0x7f182cd31f87]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 7] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0xae9e80e)[0x7f182f90780e]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 8] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir17PatternApplicator15matchAndRewriteEPNS_9OperationERNS_15PatternRewriterEN4llvm12function_refIFbRKNS_7PatternEEEENS6_IFvS9_EEENS6_IFNS5_13LogicalResultES9_EEE+0x33a)[0x7f182f9053fa]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [ 9] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0xae8702b)[0x7f182f8f002b]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [10] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0xae86623)[0x7f182f8ef623]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [11] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir21applyPatternsGreedilyERNS_6RegionERKNS_23FrozenRewritePatternSetENS_19GreedyRewriteConfigEPb+0x338)[0x7f182f8edee0]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [12] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x82c5e05)[0x7f182cd2ee05]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [13] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x82c574a)[0x7f182cd2e74a]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [14] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x8a679b2)[0x7f182d4d09b2]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [15] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor3runEPNS_4PassEPNS_9OperationENS_15AnalysisManagerEbj+0x181)[0x7f182d4cd239]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [16] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor11runPipelineERNS_13OpPassManagerEPNS_9OperationENS_15AnalysisManagerEbjPNS_16PassInstrumentorEPKNS_19PassInstrumentation18PipelineParentInfoE+0xa7)[0x7f182d4cd621]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [17] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x8a68c09)[0x7f182d4d1c09]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [18] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor23runOnOperationAsyncImplEb+0x769)[0x7f182d4ce507]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [19] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x8a679a4)[0x7f182d4d09a4]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [20] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor3runEPNS_4PassEPNS_9OperationENS_15AnalysisManagerEbj+0x181)[0x7f182d4cd239]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [21] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor11runPipelineERNS_13OpPassManagerEPNS_9OperationENS_15AnalysisManagerEbjPNS_16PassInstrumentorEPKNS_19PassInstrumentation18PipelineParentInfoE+0xa7)[0x7f182d4cd621]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [22] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x8a68c09)[0x7f182d4d1c09]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [23] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor23runOnOperationAsyncImplEb+0x769)[0x7f182d4ce507]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [24] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(+0x8a679a4)[0x7f182d4d09a4]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [25] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor3runEPNS_4PassEPNS_9OperationENS_15AnalysisManagerEbj+0x181)[0x7f182d4cd239]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [26] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir6detail17OpToOpPassAdaptor11runPipelineERNS_13OpPassManagerEPNS_9OperationENS_15AnalysisManagerEbjPNS_16PassInstrumentorEPKNS_19PassInstrumentation18PipelineParentInfoE+0xa7)[0x7f182d4cd621]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [27] /localdev/hshah/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRCompiler.so(_ZN4mlir11PassManager3runEPNS_9OperationE+0x20e)[0x7f182d4cef72]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [28] /localdev/hshah/tt-xla/tests/torch_xla/../../build/src/tt/pjrt_plugin_tt.so(_ZN2tt4pjrt13ModuleBuilder21convertFromTTIRToTTNNERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERN4mlir11OwningOpRefINSA_8ModuleOpEEE+0x366)[0x7f18c4726524]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] [29] /localdev/hshah/tt-xla/tests/torch_xla/../../build/src/tt/pjrt_plugin_tt.so(_ZN2tt4pjrt13ModuleBuilder11buildModuleERKSt17basic_string_viewIcSt11char_traitsIcEERKNSt7__cxx1112basic_stringIcS4_SaIcEEERKSt13unordered_mapISB_SB_St4hashISB_ESt8equal_toISB_ESaISt4pairISC_SB_EEE+0x1c5)[0x7f18c472399b]
+[wh-lb-46-special-hshah-for-reservation-30014:76188] *** End of error message ***
