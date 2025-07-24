@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # test_all_reduce(1)  # Test model sharding
 
     # # Run all_gather tests
-    # test_all_gather(0)  # Test batch sharding
+    test_all_gather(0)  # Test batch sharding
     # test_all_gather(1)  # Test model sharding
 
     print("All tests passed!")
