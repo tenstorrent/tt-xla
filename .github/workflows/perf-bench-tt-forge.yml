@@ -65,4 +65,4 @@ jobs:
         run_id_source: tt-xla
         ref: ${{ needs.set-inputs.outputs.ref }}
         docker-image: "ghcr.io/tenstorrent/tt-forge/tt-forge-slim:latest"
-        test_filter: ${{ inputs.test_filter }}
+        test-filter: ${{ inputs.test_filter }}
