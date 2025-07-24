@@ -45,6 +45,22 @@ def create_mesh():
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
 
 
+def test_all_reduce_simple():
+    setup_tt_environment()
+    mesh = create_mesh() # Creates a [2,4] mesh
+    # xs.set_global_mesh(mesh)
+    x = torch.ones(256, 256).to(torch_xla.device())
+    x = xs.enable_manual_sharding(x, (None, None), mesh=mesh).global_tensor
+    x = xm.all_reduce(xm.REDUCE_SUM, x, groups=[[0, 1, 2, 3, 4, 5, 6, 7]])
+    x = xs.disable_manual_sharding(x, (None, None), x.shape, mesh=mesh).global_tensor
+    # x = x.to("cpu")
+    shlo = xm.get_stablehlo([x])
+    # hlo = torch_xla._XLAC._get_xla_tensors_hlo([x])
+    print("SHLO for all_reduce:")
+    print(shlo)
+    expected = torch.ones(256, 256) * 8
+    assert torch.allclose(x.cpu(), expected, atol=0.001)
+
 @pytest.mark.parametrize("shard_dim", [0, 1])
 def test_all_reduce(shard_dim):
     """Test all_reduce operation with sharding on different dimensions.
@@ -128,12 +144,13 @@ def test_all_gather(shard_dim):
 
 
 if __name__ == "__main__":
+    test_all_reduce_simple()
     # Run all_reduce tests
-    test_all_reduce(0)  # Test batch sharding
+    # test_all_reduce(0)  # Test batch sharding
     # test_all_reduce(1)  # Test model sharding
 
     # # Run all_gather tests
-    test_all_gather(0)  # Test batch sharding
+    # test_all_gather(0)  # Test batch sharding
     # test_all_gather(1)  # Test model sharding
 
     print("All tests passed!")
