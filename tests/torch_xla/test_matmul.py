@@ -19,6 +19,7 @@ def setup_tt_environment():
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["MESH_SHAPE"] = "2,4"
     os.environ["LOGGER_LEVEL"] = "DEBUG"
 

@@ -22,6 +22,7 @@ def setup_tt_environment():
     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
     os.environ["MESH_SHAPE"] = "2,4"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["LOGGER_LEVEL"] = "DEBUG"
 
     from torch_xla.experimental import plugins
