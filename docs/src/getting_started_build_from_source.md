@@ -1,8 +1,8 @@
 # Getting Started with Building from Source
 
 This document describes how to build the TT-XLA project on your local machine. You must build from source if you want to develop for TT-XLA. If you only want to run models, please choose one of the following sets of instructions instead:
-* [Installing a Wheel and Running an Example](https://docs.tenstorrent.com/tt-xla/#installing-a-wheel-and-running-an-example) - You should choose this option if you want to run models.
-* [Using a Docker Container to Run an Example](https://docs.tenstorrent.com/tt-xla/getting_started_docker.html) - Choose this option if you want to keep the environment for running models separate from your existing environment.
+* [Installing a Wheel and Running an Example](getting_started.md#installing-a-wheel-and-running-an-example) - You should choose this option if you want to run models.
+* [Using a Docker Container to Run an Example](getting_started_docker.md) - Choose this option if you want to keep the environment for running models separate from your existing environment.
 
 The following topics are covered:
 
@@ -16,7 +16,7 @@ The following topics are covered:
 >[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
 
 ## Configuring Hardware
-Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](https://docs.tenstorrent.com/tt-xla/getting_started.html#configuring-hardware).
+Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](getting_started.md#configuring-hardware).
 
 ## System Dependencies
 
@@ -123,7 +123,7 @@ TT-XLA integration with the TT-MLIR compiler is still in progress. Currently TT-
 ### Building the TT-MLIR Toolchain
 Before compiling TT-XLA, the TT-MLIR toolchain needs to be built:
 - Clone the [tt-mlir](https://github.com/tenstorrent/tt-mlir) repo.
-- Follow the TT-MLIR [build instructions](https://docs.tenstorrent.com/tt-mlir/getting-started.html) to set up the environment and build the toolchain.
+- Follow the TT-MLIR [build instructions](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md) to set up the environment and build the toolchain.
 
 ### Building TT-XLA
 Before running these commands to build TT-XLA, please ensure that the environment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs. To build TT-XLA do the following:
@@ -212,7 +212,7 @@ The TT-XLA repo contains various tests in the **tests** directory. To run an ind
 
 ## Common Build Errors
 - Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
-- Please also see the TT-MLIR [docs](https://docs.tenstorrent.com/tt-mlir/getting-started.html#common-build-errors) for common build errors.
+- Please also see the TT-MLIR [docs](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md#common-build-errors) for common build errors.
 
 ### Pre-commit
 Pre-commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install it from the root of the repository using:

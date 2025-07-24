@@ -19,7 +19,7 @@ TT-XLA leverages a PJRT interface to integrate JAX (and in the future other fram
 
 -----
 # Quick Links
-- [Getting Started / How to Run a Model](https://docs.tenstorrent.com/tt-xla/getting_started.html)
+- [Getting Started / How to Run a Model](docs/src/getting_started.md)
 
 -----
 # What is This Repo?
@@ -29,15 +29,15 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
 # Current AI Framework Front End Projects
 - [TT-Forge-FE](https://github.com/tenstorrent/tt-forge-fe)
   - A TVM based graph compiler designed to optimize and transform computational graphs for deep learning models. Supports ingestion of PyTorch, ONNX, TensorFlow, PaddlePaddle and similar ML frameworks via TVM ([TT-TVM](https://github.com/tenstorrent/tt-tvm)).
-  - See [docs pages](https://docs.tenstorrent.com/tt-forge-fe/getting-started.html) for an overview and getting started guide.
+  - See [docs pages](https://github.com/tenstorrent/tt-forge-fe/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
 - [TT-Torch](https://github.com/tenstorrent/tt-torch)
   - A MLIR-native, open-source, PyTorch 2.X and torch-mlir based front-end. It provides stableHLO (SHLO) graphs to `tt-mlir`. Supports ingestion of PyTorch models via PT2.X compile and ONNX models via torch-mlir (ONNX->SHLO)
-  - See [docs pages](https://docs.tenstorrent.com/tt-torch) for an overview and getting started guide.
+  - See [docs pages](https://github.com/tenstorrent/tt-torch/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
 - [TT-XLA](https://github.com/tenstorrent/tt-xla)
-  - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), `tt-mlir` and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to `tt-mlir` compiler
-  - See [docs pages](https://docs.tenstorrent.com/tt-xla/) for an overview and getting started guide.
+  - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR, and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to TT-MLIR compiler
+  - See [docs pages](https://github.com/tenstorrent/tt-xla/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
 -----
 # Related Tenstorrent Projects

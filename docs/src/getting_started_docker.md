@@ -11,7 +11,7 @@ The following topics are covered:
 * [Where to Go Next](#where-to-go-next)
 
 ## Configuring Hardware
-Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](https://docs.tenstorrent.com/tt-xla/getting_started.html#configuring-hardware).
+Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](getting_started.md#configuring-hardware).
 
 ## Setting up the Docker Container
 This section walks through the installation steps for using a Docker container for your project.
