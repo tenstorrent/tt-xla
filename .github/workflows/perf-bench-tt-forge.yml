@@ -57,7 +57,8 @@ jobs:
           fi
   perf-benchmark:
     needs: set-inputs
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmarks.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
     with:
         project: tt-xla
         run_id: ${{ github.run_id }}
