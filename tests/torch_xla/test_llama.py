@@ -273,5 +273,5 @@ def test_transpose_weight():
     out = out.cpu()
 
 if __name__ == "__main__":
-    test_basic_attention()
+    test_llama()
     print("All tests passed!")
