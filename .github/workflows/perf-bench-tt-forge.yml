@@ -1,4 +1,4 @@
-name: Performance Benchmark in TT-Forge
+name: Performance Benchmark
 
 on:
   workflow_dispatch:
@@ -64,5 +64,4 @@ jobs:
         run_id: ${{ github.run_id }}
         run_id_source: tt-xla
         ref: ${{ needs.set-inputs.outputs.ref }}
-        docker-image: "ghcr.io/tenstorrent/tt-forge/tt-forge-slim:latest"
         test-filter: ${{ inputs.test_filter }}
