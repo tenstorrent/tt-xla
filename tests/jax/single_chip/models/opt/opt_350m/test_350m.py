@@ -48,7 +48,13 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.44071146845817566. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_opt_350m_inference(inference_tester: OPTTester):
     inference_tester.test()

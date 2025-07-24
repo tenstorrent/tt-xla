@@ -9,7 +9,24 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, failed_runtime
+
+
+def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
+    """
+    Helper function which checks test input combinations and xfails if necessary.
+
+    Extracted here in order not to pollute the test function.
+    """
+    if len(x_shape) < 4:
+        pytest.xfail(
+            failed_runtime(
+                "No support for rank 2 tensors in reduce scatter: "
+                "https://github.com/tenstorrent/tt-metal/issues/15010"
+            )
+        )
+    if mesh_shape[0] == 1 and mesh_shape[1] == 8:
+        pytest.skip(failed_runtime("Floating point exception"))
 
 
 @pytest.mark.nightly
@@ -24,11 +41,11 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (1, 8), ("batch", "model")),
-        ((8192, 784), (2, 4), ("batch", "model")),
+        ((8192, 512), (1, 4), ("batch", "model")),
+        ((1, 1, 8192, 512), (1, 4), ("batch", "model")),
     ],
 )
-# Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.all_gather
+# Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.psum_scatter
 @pytest.mark.parametrize(
     "sharding_mode",
     [
@@ -44,19 +61,24 @@ from utils import failed_fe_compilation
         ),
     ],
 )
-def test_all_gather(
+def test_psum_scatter(
     use_shardy: bool,
     x_shape: tuple,
     mesh_shape: tuple,
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
+    conditionally_skip(x_shape, mesh_shape)
+
     def fwd(batch):
-        act = jax.lax.all_gather(batch, axis_names[1], axis=0, tiled=True)
+        act = jax.lax.psum_scatter(
+            batch, axis_names[1], scatter_dimension=len(x_shape) - 1, tiled=True
+        )
         return act
 
-    in_specs = (make_partition_spec(axis_names),)
-    out_specs = make_partition_spec(axis_names)
+    partition_spec = (None,) * (len(x_shape) - 2) + axis_names
+    in_specs = (make_partition_spec(partition_spec),)
+    out_specs = make_partition_spec(partition_spec)
 
     run_jax_multichip_graph_test_with_random_inputs(
         fwd,
