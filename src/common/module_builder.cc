@@ -203,16 +203,11 @@ void ModuleBuilder::runStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
-  std::cerr << "---------------------" << std::endl;
-  mlir_module->dump();
-  std::cerr << "---------------------" << std::endl;
-  std::cerr << "PIPELINE END" << std::endl;
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
-  std::cerr << "PIPELINE END" << std::endl;
 
   DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
   printModule(mlir_module);
