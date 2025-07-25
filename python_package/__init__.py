@@ -2,6 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Tenstorrent JAX Plugin
+
+This module provides JAX plugin functionality for Tenstorrent hardware, including:
+- PJRT plugin registration
+- Custom JAX primitives for hardware optimization
+- Monkey patching for framework compatibility
+"""
+
 import os
 from pathlib import Path
 from dataclasses import dataclass
@@ -15,32 +24,6 @@ from jax.interpreters.mlir import ir, register_lowering
 
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
-# -----------------------------
-# Primitive: mark_weight
-# -----------------------------
-mark_weight_p = core.Primitive("mark_weight")
-
-def mark_weight(x):
-    return mark_weight_p.bind(x)
-
-mark_weight_p.def_impl(lambda x: x)
-mark_weight_p.def_abstract_eval(lambda x: x)
-
-def lowering_mark_weight(ctx, x):
-    x_type = ir.RankedTensorType(x.type)
-    with ir.Location.current:
-        op = ir.Operation.create(
-            "stablehlo.custom_call",
-            results=[x_type],
-            operands=[x],
-            attributes={
-                "call_target_name": ir.StringAttr.get("tt.mark"),
-                "tt.role": ir.StringAttr.get("weight")
-                },
-        )
-    return [op.result]
-
-register_lowering(mark_weight_p, lowering_mark_weight)
 
 # -----------------------------
 # MonkeyPatch Configuration
@@ -62,36 +45,21 @@ class MonkeyPatchConfig:
             setattr(self.target_module, self.target_function, replacement)
             self.post_patch()
 
-# Define monkeypatches for the plugin
-monkeypatches = [
-    MonkeyPatchConfig(
-        target_module=jax.nn,
-        target_function="gelu",
-        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-            lambda x: config.backup(x, approximate=approximate),
-            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-        )(
-            x
-        ),
-        post_patch=lambda: None,  # Skip transformers update since it may not be available
-    ),
-    MonkeyPatchConfig(
-        target_module=nn.Module,
-        target_function="apply",
-        replacement_factory=lambda config: jax.jit(
-            lambda self, variables, *args, **kwargs: config.backup(
-                self, jax.tree.map(mark_weight, variables), *args, **kwargs
-            ),
-            static_argnums=0
-        ),
-    )
-]
 
-
-def initialize():
-    # Register bundled PJRT plugin.
+def _register_plugin():
+    """
+    Register the Tenstorrent PJRT plugin with JAX.
+    
+    This function:
+    - Locates the PJRT plugin shared library
+    - Registers it with JAX's XLA bridge
+    - Sets up the TT_METAL_HOME environment variable
+    
+    Raises:
+        FileNotFoundError: If the PJRT plugin library is not found
+    """
     plugin_dir = Path(__file__).resolve().parent
-    plugin_path = plugin_dir / "pjrt_plugin_tt.so"
+    plugin_path = plugin_dir / TT_PJRT_PLUGIN_NAME
 
     if not os.path.exists(plugin_path):
         raise FileNotFoundError(
@@ -110,7 +78,85 @@ def initialize():
     # Export path to metal so it is accessible by bundled tt-metal installation.
     tt_metal_path = plugin_dir / "tt-mlir/install/tt-metal"
     os.environ["TT_METAL_HOME"] = str(tt_metal_path)
+
+
+def _setup_monkey_patches():
+    """
+    Set up and apply monkey patches for JAX and Flax compatibility.
     
+    This function:
+    - Registers the mark_weight JAX primitive
+    - Applies monkey patches to jax.nn.gelu for Tenstorrent optimization
+    - Applies monkey patches to flax.linen.Module.apply for weight marking
+    """
+    # -----------------------------
+    # Primitive: mark_weight
+    # -----------------------------
+    mark_weight_p = core.Primitive("mark_weight")
+
+    def mark_weight(x):
+        """Mark a tensor as a weight for hardware optimization."""
+        return mark_weight_p.bind(x)
+
+    def lowering_mark_weight(ctx, x):
+        """MLIR lowering for mark_weight primitive."""
+        x_type = ir.RankedTensorType(x.type)
+        with ir.Location.current:
+            op = ir.Operation.create(
+                "stablehlo.custom_call",
+                results=[x_type],
+                operands=[x],
+                attributes={
+                    "call_target_name": ir.StringAttr.get("tt.mark"),
+                    "tt.role": ir.StringAttr.get("weight")
+                    },
+            )
+        return [op.result]
+
+    mark_weight_p.def_impl(lambda x: x)
+    mark_weight_p.def_abstract_eval(lambda x: x)
+    register_lowering(mark_weight_p, lowering_mark_weight)
+
+    # Define monkeypatches for the plugin
+    monkeypatches = [
+        MonkeyPatchConfig(
+            target_module=jax.nn,
+            target_function="gelu",
+            replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
+                lambda x: config.backup(x, approximate=approximate),
+                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+            )(
+                x
+            ),
+            post_patch=lambda: None,  # Skip transformers update since it may not be available
+        ),
+        MonkeyPatchConfig(
+            target_module=nn.Module,
+            target_function="apply",
+            replacement_factory=lambda config: jax.jit(
+                lambda self, variables, *args, **kwargs: config.backup(
+                    self, jax.tree.map(mark_weight, variables), *args, **kwargs
+                ),
+                static_argnums=0
+            ),
+        )
+    ]
+
     # Apply monkeypatches
     for patch_config in monkeypatches:
         patch_config.patch()
+
+
+def initialize():
+    """
+    Initialize the Tenstorrent JAX plugin.
+    
+    This is the main entry point that should be called to set up the plugin.
+    It performs the following operations:
+    1. Registers the PJRT plugin with JAX
+    2. Sets up monkey patches for framework compatibility
+    
+    This function should be called once before using JAX with Tenstorrent hardware.
+    """
+    _register_plugin()
+    _setup_monkey_patches()
