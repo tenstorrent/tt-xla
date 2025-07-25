@@ -12,7 +12,6 @@ import jax._src.xla_bridge as xb
 from flax import linen as nn
 from jax.extend import core
 from jax.interpreters.mlir import ir, register_lowering
-from functools import partial
 
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
