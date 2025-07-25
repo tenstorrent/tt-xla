@@ -2,15 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Ghostnet model loader implementation
+GoogleNet model loader implementation
 """
 
-import timm
 import torch
 from typing import Optional
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
 from PIL import Image
+from torchvision import models, transforms
 
 from ...config import (
     ModelConfig,
@@ -22,35 +20,27 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import get_file, print_compiled_model_results
 
 
 class ModelVariant(StrEnum):
-    """Available GhostNet model variants."""
+    """Available GoogleNet model variants."""
 
-    GHOSTNET_100 = "ghostnet_100"
-    GHOSTNET_100_IN1K = "ghostnet_100.in1k"
-    GHOSTNETV2_100_IN1K = "ghostnetv2_100.in1k"
+    GOOGLENET = "googlenet"
 
 
 class ModelLoader(ForgeModel):
-    """GhostNet model loader implementation."""
+    """GoogleNet model loader implementation."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GHOSTNET_100: ModelConfig(
-            pretrained_model_name="ghostnet_100",
-        ),
-        ModelVariant.GHOSTNET_100_IN1K: ModelConfig(
-            pretrained_model_name="ghostnet_100.in1k",
-        ),
-        ModelVariant.GHOSTNETV2_100_IN1K: ModelConfig(
-            pretrained_model_name="ghostnetv2_100.in1k",
+        ModelVariant.GOOGLENET: ModelConfig(
+            pretrained_model_name="googlenet",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.GHOSTNET_100
+    DEFAULT_VARIANT = ModelVariant.GOOGLENET
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -60,6 +50,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        # Configuration parameters
+        self.input_shape = (3, 224, 224)
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -75,42 +67,43 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="ghostnet",
+            model="googlenet",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TIMM,
+            source=ModelSource.TORCHVISION,
             framework=Framework.TORCH,
         )
 
     def load_model(self, dtype_override=None):
-        """Load pretrained GhostNet model for this instance's variant.
+        """Load and return the GoogleNet model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The GhostNet model instance.
+            torch.nn.Module: The GoogleNet model instance.
         """
         # Get the pretrained model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
 
-        # Load model using timm
-        model = timm.create_model(model_name, pretrained=True)
+        # Load GoogleNet model from torchvision
+        if model_name == "googlenet":
+            model = models.googlenet(pretrained=True)
+        else:
+            raise ValueError(f"Unsupported GoogleNet variant: {model_name}")
+
         model.eval()
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             model = model.to(dtype_override)
 
-        # Store model for use in load_inputs (to avoid reloading)
-        self._cached_model = model
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Prepare sample input for GhostNet model with this instance's variant settings.
+        """Load and return sample inputs for the GoogleNet model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -118,24 +111,27 @@ class ModelLoader(ForgeModel):
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for GhostNet.
+            torch.Tensor: Preprocessed input tensor suitable for GoogleNet.
         """
         # Get the Image
         image_file = get_file(
             "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
         )
-        image = Image.open(image_file)
+        image = Image.open(image_file).convert("RGB")
 
-        # Use cached model if available, otherwise load it
-        if hasattr(self, "_cached_model") and self._cached_model is not None:
-            model_for_config = self._cached_model
-        else:
-            model_for_config = self.load_model(dtype_override)
+        # Preprocess image following GoogleNet requirements
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
 
-        # Preprocess image using model's data config
-        data_config = resolve_data_config({}, model=model_for_config)
-        transforms = create_transform(**data_config)
-        inputs = transforms(image).unsqueeze(0)
+        inputs = preprocess(image).unsqueeze(0)
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)
@@ -146,23 +142,10 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def post_processing(self, co_out, top_k=5):
-        """Post-process the model outputs.
+    def print_cls_results(self, compiled_model_out):
+        """Print classification results.
 
         Args:
-            co_out: Compiled model outputs
-            top_k: Number of top predictions to show
-
-        Returns:
-            None: Prints the top-k predicted classes
+            compiled_model_out: Output from the compiled model
         """
-        probabilities = torch.nn.functional.softmax(co_out[0][0], dim=0)
-        class_file_path = get_file(
-            "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-        )
-
-        with open(class_file_path, "r") as f:
-            categories = [s.strip() for s in f.readlines()]
-        topk_prob, topk_catid = torch.topk(probabilities, top_k)
-        for i in range(topk_prob.size(0)):
-            print(categories[topk_catid[i]], topk_prob[i].item())
+        print_compiled_model_results(compiled_model_out)

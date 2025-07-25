@@ -68,6 +68,8 @@ class ModelSource(StrEnum):
     HUGGING_FACE = "huggingface"
     TORCH_HUB = "torch_hub"
     CUSTOM = "custom"
+    TORCHVISION = "torchvision"
+    TIMM = "timm"
 
 
 class Framework(StrEnum):

@@ -9,6 +9,7 @@ import torch
 from tabulate import tabulate
 import json
 from pathlib import Path
+from torch.hub import load_state_dict_from_url
 
 
 def get_file(path):
@@ -155,3 +156,8 @@ def print_compiled_model_results(compiled_model_out, use_1k_labels: bool = True)
         ["Top 1 Predicted Class Probability", compiled_model_top1_class_prob],
     ]
     print(tabulate(table, headers="firstrow", tablefmt="grid"))
+
+
+def get_state_dict(self, *args, **kwargs):
+    kwargs.pop("check_hash")
+    return load_state_dict_from_url(self.url, *args, **kwargs)
