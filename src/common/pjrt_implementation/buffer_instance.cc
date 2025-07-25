@@ -31,6 +31,135 @@
 
 namespace tt::pjrt {
 
+void logBufferInfo(const std::vector<std::uint32_t> &shape,
+                   PJRT_Buffer_Type data_type, const void *buffer,
+                   const std::string &operation) {
+  std::string shape_str = "<";
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (i > 0)
+      shape_str += ", ";
+    shape_str += std::to_string(shape[i]);
+  }
+  shape_str += ">";
+
+  // Get dtype string
+  std::string dtype_str = "";
+  switch (data_type) {
+  case PJRT_Buffer_Type_BF16:
+    dtype_str = "bf16";
+    break;
+  case PJRT_Buffer_Type_F32:
+    dtype_str = "f32";
+    break;
+  case PJRT_Buffer_Type_F64:
+    dtype_str = "f64";
+    break;
+  case PJRT_Buffer_Type_S32:
+    dtype_str = "s32";
+    break;
+  case PJRT_Buffer_Type_S64:
+    dtype_str = "s64";
+    break;
+  case PJRT_Buffer_Type_U32:
+    dtype_str = "u32";
+    break;
+  case PJRT_Buffer_Type_U64:
+    dtype_str = "u64";
+    break;
+  case PJRT_Buffer_Type_S16:
+    dtype_str = "s16";
+    break;
+  case PJRT_Buffer_Type_U16:
+    dtype_str = "u16";
+    break;
+  case PJRT_Buffer_Type_S8:
+    dtype_str = "s8";
+    break;
+  case PJRT_Buffer_Type_U8:
+    dtype_str = "u8";
+    break;
+  default:
+    dtype_str = "unknown";
+    break;
+  }
+
+  // Check if buffer is a single element and print its value
+  size_t total_elements = 1;
+  for (size_t i = 0; i < shape.size(); ++i) {
+    total_elements *= shape[i];
+  }
+  bool is_single_element = (total_elements == 1);
+
+  if (is_single_element && buffer) {
+    std::string value_str = "";
+    switch (data_type) {
+    case PJRT_Buffer_Type_BF16: {
+      float value = *static_cast<const float *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_F32: {
+      float value = *static_cast<const float *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_F64: {
+      double value = *static_cast<const double *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_S32: {
+      int32_t value = *static_cast<const int32_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_S64: {
+      int64_t value = *static_cast<const int64_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_U32: {
+      uint32_t value = *static_cast<const uint32_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_U64: {
+      uint64_t value = *static_cast<const uint64_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_S16: {
+      int16_t value = *static_cast<const int16_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_U16: {
+      uint16_t value = *static_cast<const uint16_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_S8: {
+      int8_t value = *static_cast<const int8_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    case PJRT_Buffer_Type_U8: {
+      uint8_t value = *static_cast<const uint8_t *>(buffer);
+      value_str = std::to_string(value);
+      break;
+    }
+    default:
+      value_str = "<unsupported type>";
+      break;
+    }
+    DLOG_F(INFO, "%s, shape %s, dtype %s, value %s", operation.c_str(),
+           shape_str.c_str(), dtype_str.c_str(), value_str.c_str());
+  } else {
+    DLOG_F(INFO, "%s, shape %s, dtype %s", operation.c_str(), shape_str.c_str(),
+           dtype_str.c_str());
+  }
+}
+
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
     DeviceInstance *device, MemoryInstance *memory) {

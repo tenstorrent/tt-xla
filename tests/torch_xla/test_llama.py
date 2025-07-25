@@ -222,7 +222,7 @@ def test_llama():
     S = 1024
     H = 8192
     # config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-70B")
-    config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3-8B")
+    config = LlamaConfig.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
     # config.num_hidden_layers = 30
     llama = LlamaModel(config)
 
@@ -232,36 +232,36 @@ def test_llama():
     input_ids = input_ids.to("xla")
     llama = llama.to("xla")
 
-    print(f"[HET DEBUG] Number of layers: {len(llama.layers)}")
-    for end in range(len(llama.layers)):
-        for layer in llama.layers[:end+1]:
-            xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
-            xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
-            xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+    # print(f"[HET DEBUG] Number of layers: {len(llama.layers)}")
+    # for end in range(len(llama.layers)):
+    #     for layer in llama.layers[:end+1]:
+    #         xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
+    #         xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
+    #         xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
 
-            xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-            xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-            xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-            xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
-        out = llama(input_ids=input_ids, attention_mask=None)
-        out = out.last_hidden_state.cpu().float()
-        pcc = compute_pcc(out, out_cpu.last_hidden_state)
-        print(f"LLAMA PCC after {end+1} layers: {pcc}")
+    #         xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+    #         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+    #         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+    #         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+    #     out = llama(input_ids=input_ids, attention_mask=None)
+    #     out = out.last_hidden_state.cpu().float()
+    #     pcc = compute_pcc(out, out_cpu.last_hidden_state)
+    #     print(f"LLAMA PCC after {end+1} layers: {pcc}")
 
-    # for layer in llama.layers:
-    #     xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
-    #     xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
-    #     xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+    for layer in llama.layers:
+        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
 
-    #     xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-    #     xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-    #     xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-    #     xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
-    # out = llama(input_ids=input_ids, attention_mask=None)
-    # out = out.last_hidden_state.cpu().float()
-    # pcc = compute_pcc(out, out_cpu.last_hidden_state)
-    # print(f"LLAMA PCC: {pcc}")
+    out = llama(input_ids=input_ids, attention_mask=None)
+    out = out.last_hidden_state.cpu().float()
+    pcc = compute_pcc(out, out_cpu.last_hidden_state)
+    print(f"LLAMA PCC: {pcc}")
     # assert pcc > 0.95
 
 def test_transpose_weight():
