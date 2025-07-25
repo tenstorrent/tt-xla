@@ -14,8 +14,8 @@ import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import numpy as np
-from typing import Optional, Tuple
-from transformers import LlamaModel, LlamaConfig
+from typing import List, Optional, Tuple
+from transformers import AutoTokenizer, LlamaModel, LlamaConfig
 
 
 def setup_xla_environment():
@@ -150,6 +150,27 @@ def prepare_inputs(config: LlamaConfig, mesh: Mesh,
     
     return input_ids
 
+def generate():
+    pass
+
+
+def generate_from_str(
+    tokenizer: AutoTokenizer,
+    prompts: List[str],
+    max_gen_len: int = 64,
+    top_p: float = 1.0,
+):
+    prompt_tokens = [
+        [tokenizer.bos_token_id] + tokenizer.encode(x, add_special_tokens=False)
+        for x in prompts
+    ]
+    max_prompt_size = max([len(t) for t in prompt_tokens])
+    tokens = torch.full(
+        (len(prompts), max_prompt_size), tokenizer.pad_token_id, dtype=torch.int32)
+    
+    for i, t in enumerate(prompt_tokens):
+            tokens = tokens.at[i, -len(t) :].set(t)  # left pad
+        attention_mask = (tokens != tokenizer.eos_token_id).astype(torch.int32)
 
 def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     """
@@ -167,6 +188,8 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     # Load model and configuration
     print("Loading model...")
     config = LlamaConfig.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token_id = tokenizer.eos_token_id 
     
     # For demonstration, let's use a smaller model or reduce layers
     # Uncomment this to use fewer layers for faster testing
