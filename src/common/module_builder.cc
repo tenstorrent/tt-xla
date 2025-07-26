@@ -549,6 +549,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
+  options.enableFusing = true;
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the pass manager.
