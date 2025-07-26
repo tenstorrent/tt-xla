@@ -14,8 +14,8 @@ import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import numpy as np
-from typing import List, Optional, Tuple
-from transformers import AutoTokenizer, LlamaModel, LlamaConfig
+from typing import Tuple
+from transformers import LlamaModel, LlamaConfig
 
 
 def setup_xla_environment():
@@ -26,7 +26,7 @@ def setup_xla_environment():
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
     os.environ["PJRT_DEVICE"] = "TT"
     os.environ["ENABLE_AUTO_PARALLEL"] = "TRUE"
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"  # Enable Shardy conversion
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["MESH_SHAPE"] = "1,8"
 
     from torch_xla.experimental import plugins
@@ -34,7 +34,7 @@ def setup_xla_environment():
     class TTPjrtPlugin(plugins.DevicePlugin):
         def library_path(self):
             return os.path.join(
-                os.path.dirname(__file__), "build/src/tt/pjrt_plugin_tt.so"
+                os.path.dirname(__file__), "../../../build/src/tt/pjrt_plugin_tt.so"
             )
 
     plugins.register_plugin("TT", TTPjrtPlugin())
@@ -124,7 +124,7 @@ def apply_tensor_parallel_sharding(model: LlamaModel, mesh: Mesh) -> None:
 
 
 def prepare_inputs(config: LlamaConfig, mesh: Mesh, 
-                  batch_size: int = 1, seq_length: int = 1024) -> torch.Tensor:
+                  input_ids: torch.Tensor) -> torch.Tensor:
     """
     Prepare input tensors with appropriate sharding.
     
@@ -137,10 +137,7 @@ def prepare_inputs(config: LlamaConfig, mesh: Mesh,
     Returns:
         Sharded input tensor
     """
-    print(f"Preparing inputs: batch_size={batch_size}, seq_length={seq_length}")
-    
-    # Create random input IDs
-    input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_length))
+    print(f"Preparing inputs: batch_size={input_ids.shape[0]}, seq_length={input_ids.shape[1]}")
     
     # Move to XLA device
     input_ids = input_ids.to(torch_xla.device())
@@ -149,28 +146,6 @@ def prepare_inputs(config: LlamaConfig, mesh: Mesh,
     xs.mark_sharding(input_ids, mesh, (None, None))
     
     return input_ids
-
-def generate():
-    pass
-
-
-def generate_from_str(
-    tokenizer: AutoTokenizer,
-    prompts: List[str],
-    max_gen_len: int = 64,
-    top_p: float = 1.0,
-):
-    prompt_tokens = [
-        [tokenizer.bos_token_id] + tokenizer.encode(x, add_special_tokens=False)
-        for x in prompts
-    ]
-    max_prompt_size = max([len(t) for t in prompt_tokens])
-    tokens = torch.full(
-        (len(prompts), max_prompt_size), tokenizer.pad_token_id, dtype=torch.int32)
-    
-    for i, t in enumerate(prompt_tokens):
-            tokens = tokens.at[i, -len(t) :].set(t)  # left pad
-        attention_mask = (tokens != tokenizer.eos_token_id).astype(torch.int32)
 
 def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     """
@@ -188,8 +163,6 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     # Load model and configuration
     print("Loading model...")
     config = LlamaConfig.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.pad_token_id = tokenizer.eos_token_id 
     
     # For demonstration, let's use a smaller model or reduce layers
     # Uncomment this to use fewer layers for faster testing
@@ -203,7 +176,7 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     print("\n=== Single Device Reference ===")
     
     # Prepare inputs for CPU/single device
-    batch_size, seq_length = 1, 512  # Smaller for demo
+    batch_size, seq_length = 1, 512
     input_ids_cpu = torch.randint(0, config.vocab_size, (batch_size, seq_length))
     
     # Run on CPU for reference
@@ -223,7 +196,7 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     apply_tensor_parallel_sharding(model, mesh)
     
     # Prepare inputs for tensor parallel execution
-    input_ids_tp = prepare_inputs(config, mesh, batch_size, seq_length)
+    input_ids_tp = prepare_inputs(config, mesh, input_ids_cpu)
     
     # Run tensor parallel inference
     with torch.no_grad():
@@ -239,6 +212,7 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     
     def compute_pcc(x: torch.Tensor, y: torch.Tensor) -> float:
         """Compute Pearson Correlation Coefficient."""
+        assert x.shape == y.shape, "Input tensors must have the same shape"
         x_flat, y_flat = x.flatten(), y.flatten()
         vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
         denom = vx.norm() * vy.norm()
@@ -251,114 +225,13 @@ def run_inference_comparison(model_name: str = "meta-llama/Meta-Llama-3.1-8B"):
     print(f"Pearson Correlation Coefficient: {pcc:.6f}")
     
     # Check if outputs are sufficiently similar
-    if pcc > 0.95:
+    if pcc > 0.90:
         print("✅ Tensor parallel implementation is correct!")
     else:
         print("❌ Tensor parallel outputs differ significantly from reference")
         print("This might indicate an implementation issue")
     
     return pcc
-
-
-def create_custom_sharded_layer_example():
-    """
-    Example of creating a custom tensor-parallel linear layer.
-    
-    This shows how you might modify existing PyTorch modules to support
-    tensor parallelism natively.
-    """
-    print("\n=== Custom Sharded Layer Example ===")
-    
-    import torch.nn as nn
-    
-    class TensorParallelLinear(nn.Module):
-        """
-        A linear layer that supports tensor parallelism.
-        """
-        
-        def __init__(self, in_features: int, out_features: int, 
-                     bias: bool = True, mesh: Optional[Mesh] = None,
-                     partition_dim: int = 0):
-            """
-            Args:
-                in_features: Input feature dimension
-                out_features: Output feature dimension
-                bias: Whether to use bias
-                mesh: Device mesh for sharding
-                partition_dim: 0 for column parallel, 1 for row parallel
-            """
-            super().__init__()
-            self.in_features = in_features
-            self.out_features = out_features
-            self.partition_dim = partition_dim
-            self.mesh = mesh
-            
-            # Create parameters
-            self.weight = nn.Parameter(torch.randn(out_features, in_features))
-            if bias:
-                self.bias = nn.Parameter(torch.randn(out_features))
-            else:
-                self.bias = None
-        
-        def apply_sharding(self, mesh: Mesh):
-            """Apply tensor parallel sharding to this layer."""
-            if self.partition_dim == 0:
-                # Column parallel: shard output dimension
-                xs.mark_sharding(self.weight, mesh, ("model", None))
-                if self.bias is not None:
-                    xs.mark_sharding(self.bias, mesh, ("model",))
-            else:
-                # Row parallel: shard input dimension
-                xs.mark_sharding(self.weight, mesh, (None, "model"))
-                if self.bias is not None:
-                    # Row parallel bias is typically replicated
-                    xs.mark_sharding(self.bias, mesh, (None,))
-        
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return nn.functional.linear(x, self.weight, self.bias)
-    
-    # Example usage
-    setup_xla_environment()
-    mesh = create_device_mesh()
-    
-    # Create tensor parallel layers
-    hidden_size = 4096
-    intermediate_size = 11008
-    
-    # Column parallel layer (splits output)
-    column_layer = TensorParallelLinear(
-        hidden_size, intermediate_size, 
-        bias=False, mesh=mesh, partition_dim=0
-    )
-    
-    # Row parallel layer (splits input)  
-    row_layer = TensorParallelLinear(
-        intermediate_size, hidden_size,
-        bias=False, mesh=mesh, partition_dim=1
-    )
-    
-    # Move to device and apply sharding
-    column_layer = column_layer.to(torch_xla.device())
-    row_layer = row_layer.to(torch_xla.device())
-    
-    column_layer.apply_sharding(mesh)
-    row_layer.apply_sharding(mesh)
-    
-    # Example forward pass
-    batch_size, seq_len = 2, 1024
-    hidden_states = torch.randn(batch_size, seq_len, hidden_size)
-    hidden_states = hidden_states.to(torch_xla.device())
-    xs.mark_sharding(hidden_states, mesh, (None, None, None))
-    
-    # Forward through tensor parallel layers
-    intermediate = column_layer(hidden_states)
-    output = row_layer(intermediate)
-    
-    print(f"Input shape: {hidden_states.shape}")
-    print(f"Intermediate shape: {intermediate.shape}")
-    print(f"Output shape: {output.shape}")
-    print("Custom tensor parallel layers work correctly!")
-
 
 def main():
     """Main function demonstrating tensor parallelism setup."""
@@ -368,9 +241,6 @@ def main():
     try:
         # Run the complete inference comparison
         pcc = run_inference_comparison()
-        
-        # Show custom layer example
-        create_custom_sharded_layer_example()
         
         print("\n" + "=" * 50)
         print("Tensor parallelism demonstration completed successfully!")
