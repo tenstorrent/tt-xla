@@ -549,6 +549,10 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
+  // TODO(@LPanosTT): When fusing is enabled by default in tt-mlir, we can
+  // remove this line. The reason it is disabled by defualt currently is because
+  // it has caused OOM errors.
+  // https://github.com/tenstorrent/tt-forge-fe/issues/2454
   options.enableFusing = true;
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
