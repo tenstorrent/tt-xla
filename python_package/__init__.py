@@ -31,6 +31,7 @@ TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 @dataclass
 class MonkeyPatchConfig:
     """Configuration class for managing monkey patching operations."""
+
     target_module: Any
     target_function: str
     replacement_factory: Callable
@@ -49,12 +50,12 @@ class MonkeyPatchConfig:
 def _register_plugin():
     """
     Register the Tenstorrent PJRT plugin with JAX.
-    
+
     This function:
     - Locates the PJRT plugin shared library
     - Registers it with JAX's XLA bridge
     - Sets up the TT_METAL_HOME environment variable
-    
+
     Raises:
         FileNotFoundError: If the PJRT plugin library is not found
     """
@@ -83,7 +84,7 @@ def _register_plugin():
 def _setup_monkey_patches():
     """
     Set up and apply monkey patches for JAX and Flax compatibility.
-    
+
     This function:
     - Registers the mark_weight JAX primitive
     - Applies monkey patches to jax.nn.gelu for Tenstorrent optimization
@@ -102,14 +103,51 @@ def _setup_monkey_patches():
         """MLIR lowering for mark_weight primitive."""
         x_type = ir.RankedTensorType(x.type)
         with ir.Location.current:
+            # Get the current module from the insertion point
+            current_op = ir.InsertionPoint.current.block.owner
+            while current_op and current_op.name != "builtin.module":
+                current_op = current_op.parent
+
+            if current_op:
+                tt_mark_defined_attr = "tt.mark_function_defined"
+
+                if tt_mark_defined_attr not in current_op.attributes:
+                    # Define tt.mark function once per MLIR module as a nop
+                    func_type = ir.FunctionType.get([x_type], [x_type])
+
+                    # Insert function at module level
+                    with ir.InsertionPoint.at_block_begin(
+                        current_op.regions[0].blocks[0]
+                    ):
+                        func_op = ir.Operation.create(
+                            "func.func",
+                            attributes={
+                                "sym_name": ir.StringAttr.get("tt.mark"),
+                                "function_type": ir.TypeAttr.get(func_type),
+                                "sym_visibility": ir.StringAttr.get("private"),
+                            },
+                            regions=1,
+                        )
+
+                        # Add function body that returns input unchanged
+                        entry_block = func_op.regions[0].blocks.append(x_type)
+                        with ir.InsertionPoint(entry_block):
+                            ir.Operation.create(
+                                "func.return", operands=[entry_block.arguments[0]]
+                            )
+
+                    # Mark that tt.mark function has been defined in this module
+                    current_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+
+            # Create the custom call to tt.mark
             op = ir.Operation.create(
                 "stablehlo.custom_call",
                 results=[x_type],
                 operands=[x],
                 attributes={
                     "call_target_name": ir.StringAttr.get("tt.mark"),
-                    "tt.role": ir.StringAttr.get("weight")
-                    },
+                    "tt.role": ir.StringAttr.get("weight"),
+                },
             )
         return [op.result]
 
@@ -137,9 +175,9 @@ def _setup_monkey_patches():
                 lambda self, variables, *args, **kwargs: config.backup(
                     self, jax.tree.map(mark_weight, variables), *args, **kwargs
                 ),
-                static_argnums=0
+                static_argnums=0,
             ),
-        )
+        ),
     ]
 
     # Apply monkeypatches
@@ -150,12 +188,12 @@ def _setup_monkey_patches():
 def initialize():
     """
     Initialize the Tenstorrent JAX plugin.
-    
+
     This is the main entry point that should be called to set up the plugin.
     It performs the following operations:
     1. Registers the PJRT plugin with JAX
     2. Sets up monkey patches for framework compatibility
-    
+
     This function should be called once before using JAX with Tenstorrent hardware.
     """
     _register_plugin()

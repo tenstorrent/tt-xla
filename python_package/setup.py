@@ -94,7 +94,7 @@ class SetupConfig:
         with requirements_path.open() as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     reqs.append(line)
 
         return reqs
