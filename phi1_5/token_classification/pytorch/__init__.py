@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Phi1_5 PyTorch model implementation for Tenstorrent projects.
+PHI1_5 token classification PyTorch implementation.
 """
 from .loader import ModelLoader

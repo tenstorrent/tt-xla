@@ -26,13 +26,6 @@ from torchvision import transforms
 class ModelVariant(StrEnum):
     """Available VGG model variants."""
 
-    VGG11 = "vgg11"
-    VGG11_BN = "vgg11_bn"
-    VGG13 = "vgg13"
-    VGG13_BN = "vgg13_bn"
-    VGG16 = "vgg16"
-    VGG16_BN = "vgg16_bn"
-    VGG19 = "vgg19"
     VGG19_BN = "vgg19_bn"
 
 
@@ -41,27 +34,6 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.VGG11: ModelConfig(
-            pretrained_model_name="vgg11",
-        ),
-        ModelVariant.VGG11_BN: ModelConfig(
-            pretrained_model_name="vgg11_bn",
-        ),
-        ModelVariant.VGG13: ModelConfig(
-            pretrained_model_name="vgg13",
-        ),
-        ModelVariant.VGG13_BN: ModelConfig(
-            pretrained_model_name="vgg13_bn",
-        ),
-        ModelVariant.VGG16: ModelConfig(
-            pretrained_model_name="vgg16",
-        ),
-        ModelVariant.VGG16_BN: ModelConfig(
-            pretrained_model_name="vgg16_bn",
-        ),
-        ModelVariant.VGG19: ModelConfig(
-            pretrained_model_name="vgg19",
-        ),
         ModelVariant.VGG19_BN: ModelConfig(
             pretrained_model_name="vgg19_bn",
         ),
