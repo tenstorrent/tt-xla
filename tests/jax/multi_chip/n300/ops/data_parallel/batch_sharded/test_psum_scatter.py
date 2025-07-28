@@ -12,16 +12,6 @@ from infra import (
 from utils import failed_fe_compilation, failed_runtime
 
 
-def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
-    """
-    Helper function which checks test input combinations and xfails if necessary.
-
-    Extracted here in order not to pollute the test function.
-    """
-    if mesh_shape[0] == 1 and mesh_shape[1] == 8:
-        pytest.skip(failed_runtime("Floating point exception"))
-
-
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
@@ -58,8 +48,6 @@ def test_psum_scatter(
     axis_names: tuple,
     sharding_mode: ShardingMode,
 ):
-    conditionally_skip(x_shape, mesh_shape)
-
     def fwd(batch):
         act = jax.lax.psum_scatter(
             batch, axis_names[1], scatter_dimension=len(x_shape) - 1, tiled=True

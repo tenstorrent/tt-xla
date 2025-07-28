@@ -25,21 +25,14 @@ from utils import failed_fe_compilation, failed_runtime
 @pytest.mark.parametrize(
     ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
     [
+        ((8192, 784), (784, 2048), (2048,), (2, 4), ("batch", "model")),
         ((8192, 784), (784, 2048), (2048,), (1, 8), ("batch", "model")),
     ],
 )
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "No support for rank 2 tensors in reduce scatter: "
-                    "https://github.com/tenstorrent/tt-metal/issues/15010"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
