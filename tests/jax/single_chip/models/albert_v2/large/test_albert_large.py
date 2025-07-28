@@ -4,7 +4,6 @@
 
 import pytest
 from infra import Framework, RunMode
-from tests.infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from utils import (
     BringupStatus,
     Category,
@@ -32,9 +31,7 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(
-        MODEL_PATH, ComparisonConfig(pcc=PccConfig(required_pcc=0.982))
-    )
+    return AlbertV2Tester(MODEL_PATH)
 
 
 @pytest.fixture
