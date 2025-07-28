@@ -81,6 +81,44 @@ def _register_plugin():
     os.environ["TT_METAL_HOME"] = str(tt_metal_path)
 
 
+def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> None:
+    """
+    Create a tt.mark function definition in the MLIR module if it doesn't exist.
+
+    This function creates a nop function that takes a tensor argument and returns
+    it unchanged. The function is only created once per MLIR module.
+
+    Args:
+        module_op: The MLIR module operation to add the function to
+        tensor_type: The tensor type for the function signature
+    """
+    tt_mark_defined_attr = "tt.mark_function_defined"
+
+    if tt_mark_defined_attr not in module_op.attributes:
+        # Define tt.mark function once per MLIR module as a nop
+        func_type = ir.FunctionType.get([tensor_type], [tensor_type])
+
+        # Insert function at module level
+        with ir.InsertionPoint.at_block_begin(module_op.regions[0].blocks[0]):
+            func_op = ir.Operation.create(
+                "func.func",
+                attributes={
+                    "sym_name": ir.StringAttr.get("tt.mark"),
+                    "function_type": ir.TypeAttr.get(func_type),
+                    "sym_visibility": ir.StringAttr.get("private"),
+                },
+                regions=1,
+            )
+
+            # Add function body that returns input unchanged
+            entry_block = func_op.regions[0].blocks.append(tensor_type)
+            with ir.InsertionPoint(entry_block):
+                ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
+
+        # Mark that tt.mark function has been defined in this module
+        module_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+
+
 def _setup_monkey_patches():
     """
     Set up and apply monkey patches for JAX and Flax compatibility.
@@ -99,7 +137,7 @@ def _setup_monkey_patches():
         """Mark a tensor as a weight for hardware optimization."""
         return mark_weight_p.bind(x)
 
-    def lowering_mark_weight(ctx, x):
+    def lowering_mark_weight(_, x):
         """MLIR lowering for mark_weight primitive."""
         x_type = ir.RankedTensorType(x.type)
         with ir.Location.current:
@@ -109,35 +147,7 @@ def _setup_monkey_patches():
                 current_op = current_op.parent
 
             if current_op:
-                tt_mark_defined_attr = "tt.mark_function_defined"
-
-                if tt_mark_defined_attr not in current_op.attributes:
-                    # Define tt.mark function once per MLIR module as a nop
-                    func_type = ir.FunctionType.get([x_type], [x_type])
-
-                    # Insert function at module level
-                    with ir.InsertionPoint.at_block_begin(
-                        current_op.regions[0].blocks[0]
-                    ):
-                        func_op = ir.Operation.create(
-                            "func.func",
-                            attributes={
-                                "sym_name": ir.StringAttr.get("tt.mark"),
-                                "function_type": ir.TypeAttr.get(func_type),
-                                "sym_visibility": ir.StringAttr.get("private"),
-                            },
-                            regions=1,
-                        )
-
-                        # Add function body that returns input unchanged
-                        entry_block = func_op.regions[0].blocks.append(x_type)
-                        with ir.InsertionPoint(entry_block):
-                            ir.Operation.create(
-                                "func.return", operands=[entry_block.arguments[0]]
-                            )
-
-                    # Mark that tt.mark function has been defined in this module
-                    current_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+                _create_tt_mark_function(current_op, x_type)
 
             # Create the custom call to tt.mark
             op = ir.Operation.create(
@@ -154,6 +164,14 @@ def _setup_monkey_patches():
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
+
+    # Register CPU lowering for mark_weight that just returns identity
+    def cpu_lowering_mark_weight(_, x):
+        """CPU lowering for mark_weight - just return input unchanged."""
+        return [x]
+
+    # Register CPU-specific lowering
+    register_lowering(mark_weight_p, cpu_lowering_mark_weight, platform="cpu")
 
     # Define monkeypatches for the plugin
     monkeypatches = [

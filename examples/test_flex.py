@@ -30,6 +30,44 @@ def initialize():
 
 initialize()
 
+
+def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> None:
+    """
+    Create a tt.mark function definition in the MLIR module if it doesn't exist.
+
+    This function creates a nop function that takes a tensor argument and returns
+    it unchanged. The function is only created once per MLIR module.
+
+    Args:
+        module_op: The MLIR module operation to add the function to
+        tensor_type: The tensor type for the function signature
+    """
+    tt_mark_defined_attr = "tt.mark_function_defined"
+    if tt_mark_defined_attr not in module_op.attributes:
+        # Define tt.mark function once per MLIR module as a nop
+        func_type = ir.FunctionType.get([tensor_type], [tensor_type])
+
+        # Insert function at module level
+        with ir.InsertionPoint.at_block_begin(module_op.regions[0].blocks[0]):
+            func_op = ir.Operation.create(
+                "func.func",
+                attributes={
+                    "sym_name": ir.StringAttr.get("tt.mark"),
+                    "function_type": ir.TypeAttr.get(func_type),
+                    "sym_visibility": ir.StringAttr.get("private"),
+                },
+                regions=1,
+            )
+
+            # Add function body that returns input unchanged
+            entry_block = func_op.regions[0].blocks.append(tensor_type)
+            with ir.InsertionPoint(entry_block):
+                ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
+
+        # Mark that tt.mark function has been defined in this module
+        module_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+
+
 # -----------------------------
 # Primitive: mark_weight
 # -----------------------------
@@ -50,40 +88,11 @@ def lowering_mark_weight(ctx, x):
     with ir.Location.current:
         # Get the current module from the insertion point
         current_op = ir.InsertionPoint.current.block.owner
-        print("Current module1:", current_op)
         while current_op and current_op.name != "builtin.module":
-            print("Current module3:", current_op)
             current_op = current_op.parent
-        print("Current module2:", current_op)
+
         if current_op:
-            tt_mark_defined_attr = "tt.mark_function_defined"
-
-            if tt_mark_defined_attr not in current_op.attributes:
-                print("ADDING STUFF HEREEE")
-                # Define tt.mark function once per MLIR module as a nop
-                func_type = ir.FunctionType.get([x_type], [x_type])
-
-                # Insert function at module level
-                with ir.InsertionPoint.at_block_begin(current_op.regions[0].blocks[0]):
-                    func_op = ir.Operation.create(
-                        "func.func",
-                        attributes={
-                            "sym_name": ir.StringAttr.get("tt.mark"),
-                            "function_type": ir.TypeAttr.get(func_type),
-                            "sym_visibility": ir.StringAttr.get("private"),
-                        },
-                        regions=1,
-                    )
-
-                    # Add function body that returns input unchanged
-                    entry_block = func_op.regions[0].blocks.append(x_type)
-                    with ir.InsertionPoint(entry_block):
-                        ir.Operation.create(
-                            "func.return", operands=[entry_block.arguments[0]]
-                        )
-
-                # Mark that tt.mark function has been defined in this module
-                current_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+            _create_tt_mark_function(current_op, x_type)
 
         # Create the custom call to tt.mark
         op = ir.Operation.create(
@@ -99,6 +108,18 @@ def lowering_mark_weight(ctx, x):
 
 
 register_lowering(mark_weight_p, lowering_mark_weight)
+
+# Register CPU lowering for tt.mark that just returns identity
+from jax.interpreters import xla
+
+
+def cpu_lowering_mark_weight(ctx, x):
+    """CPU lowering for mark_weight - just return input unchanged."""
+    return [x]
+
+
+# Register CPU-specific lowering
+register_lowering(mark_weight_p, cpu_lowering_mark_weight, platform="cpu")
 
 # -----------------------------
 # Primitive: mark_input
