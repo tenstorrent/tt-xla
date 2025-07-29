@@ -151,12 +151,12 @@ def setup_mark_weight_primitive():
     register_lowering(mark_weight_p, lowering_mark_weight)
 
     # Register CPU lowering for mark_weight that just returns identity
-    def cpu_lowering_mark_weight(_, x):
+    def lowering_mark_weight_cpu(_, x):
         """CPU lowering for mark_weight - just return input unchanged."""
         return [x]
 
     # Register CPU-specific lowering
-    register_lowering(mark_weight_p, cpu_lowering_mark_weight, platform="cpu")
+    register_lowering(mark_weight_p, lowering_mark_weight_cpu, platform="cpu")
     
     return mark_weight
 
@@ -166,7 +166,7 @@ def create_gelu_patch_config():
     Create a MonkeyPatchConfig for patching jax.nn.gelu.
     
     Returns:
-        MonkeyPatchConfig: Configuration for gelu patching.
+        list[MonkeyPatchConfig]: List containing gelu patch config.
     """
     def post_patch_func():
         if is_module_imported('transformers') and is_module_imported('transformers.modeling_flax_utils'):
@@ -178,7 +178,7 @@ def create_gelu_patch_config():
                 }
             )
 
-    return MonkeyPatchConfig(
+    return [MonkeyPatchConfig(
         target_module=jax.nn,
         target_function="gelu",
         replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
@@ -188,7 +188,7 @@ def create_gelu_patch_config():
             x
         ),
         post_patch=post_patch_func,
-    )
+    )]
 
 
 def create_flax_apply_patch_config(mark_weight_func):
@@ -199,10 +199,13 @@ def create_flax_apply_patch_config(mark_weight_func):
         mark_weight_func: The mark_weight function to use for marking weights.
     
     Returns:
-        MonkeyPatchConfig: Configuration for flax apply patching.
+        list[MonkeyPatchConfig]: List containing flax patch config, or empty list if flax not available.
     """
+    if not (is_module_imported('flax') and is_module_imported('flax.linen')):
+        return []
+        
     from flax import linen as nn
-    return MonkeyPatchConfig(
+    return [MonkeyPatchConfig(
         target_module=nn.Module,
         target_function="apply",
         replacement_factory=lambda config: jax.jit(
@@ -211,7 +214,7 @@ def create_flax_apply_patch_config(mark_weight_func):
             ),
             static_argnums=0,
         ),
-    )
+    )]
 
 
 def get_monkeypatches():
@@ -223,13 +226,12 @@ def get_monkeypatches():
     """
     patches = []
     
-    # Always add gelu patch since jax.nn is always available
-    patches.append(create_gelu_patch_config())
+    # Add gelu patches
+    patches.extend(create_gelu_patch_config())
     
-    # Only add flax patch if flax is available
-    if is_module_imported('flax') and is_module_imported('flax.linen'):
-        mark_weight = setup_mark_weight_primitive()
-        patches.append(create_flax_apply_patch_config(mark_weight))
+    # Add flax patches
+    mark_weight = setup_mark_weight_primitive()
+    patches.extend(create_flax_apply_patch_config(mark_weight))
     
     return patches
 
