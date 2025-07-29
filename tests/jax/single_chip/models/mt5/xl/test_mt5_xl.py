@@ -11,7 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
 
 from ..tester import MT5Tester
@@ -44,11 +44,12 @@ def training_tester() -> MT5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.009299473837018013. Required: pcc=0.99"
     )
 )
 def test_mt5_xl_inference(inference_tester: MT5Tester):
@@ -62,6 +63,7 @@ def test_mt5_xl_inference(inference_tester: MT5Tester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mt5_xl_training(training_tester: MT5Tester):
     training_tester.test()
