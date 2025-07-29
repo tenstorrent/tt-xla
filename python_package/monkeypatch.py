@@ -9,6 +9,7 @@ This module provides centralized monkeypatching functionality used across
 the codebase, including configuration classes and common patch operations.
 """
 
+import sys
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable
@@ -16,9 +17,21 @@ from typing import Any, Callable
 import jax
 import jax.lax
 import jax.nn
-from flax import linen as nn
 from jax.extend import core
 from jax.interpreters.mlir import ir, register_lowering
+
+
+def is_module_imported(module_name: str) -> bool:
+    """
+    Check if a module is already imported in sys.modules.
+    
+    Args:
+        module_name: The name of the module to check.
+        
+    Returns:
+        bool: True if the module is imported, False otherwise.
+    """
+    return module_name in sys.modules
 
 
 @dataclass
@@ -148,30 +161,22 @@ def setup_mark_weight_primitive():
     return mark_weight
 
 
-def create_gelu_patch_config(with_transformers_update=False):
+def create_gelu_patch_config():
     """
     Create a MonkeyPatchConfig for patching jax.nn.gelu.
-    
-    Args:
-        with_transformers_update: Whether to update transformers.modeling_flax_utils.ACT2FN
-                                 in the post_patch callback.
     
     Returns:
         MonkeyPatchConfig: Configuration for gelu patching.
     """
     def post_patch_func():
-        if with_transformers_update:
-            try:
-                import transformers.modeling_flax_utils
-                transformers.modeling_flax_utils.ACT2FN.update(
-                    {
-                        "gelu": partial(jax.nn.gelu, approximate=False),
-                        "gelu_new": partial(jax.nn.gelu, approximate=True),
-                    }
-                )
-            except ImportError:
-                # transformers is not available, skip the update
-                pass
+        if is_module_imported('transformers') and is_module_imported('transformers.modeling_flax_utils'):
+            import transformers.modeling_flax_utils
+            transformers.modeling_flax_utils.ACT2FN.update(
+                {
+                    "gelu": partial(jax.nn.gelu, approximate=False),
+                    "gelu_new": partial(jax.nn.gelu, approximate=True),
+                }
+            )
 
     return MonkeyPatchConfig(
         target_module=jax.nn,
@@ -196,6 +201,7 @@ def create_flax_apply_patch_config(mark_weight_func):
     Returns:
         MonkeyPatchConfig: Configuration for flax apply patching.
     """
+    from flax import linen as nn
     return MonkeyPatchConfig(
         target_module=nn.Module,
         target_function="apply",
@@ -208,31 +214,24 @@ def create_flax_apply_patch_config(mark_weight_func):
     )
 
 
-def get_plugin_monkeypatches():
+def get_monkeypatches():
     """
-    Get the list of monkey patches used by the plugin initialization.
-    
-    Returns:
-        list[MonkeyPatchConfig]: List of monkey patch configurations for plugin use.
-    """
-    mark_weight = setup_mark_weight_primitive()
-    
-    return [
-        create_gelu_patch_config(with_transformers_update=False),
-        create_flax_apply_patch_config(mark_weight),
-    ]
+    Get the list of monkey patches for the Tenstorrent JAX plugin.
 
-
-def get_test_monkeypatches():
-    """
-    Get the list of monkey patches used by the test infrastructure.
-    
     Returns:
-        list[MonkeyPatchConfig]: List of monkey patch configurations for test use.
+        list[MonkeyPatchConfig]: List of monkey patch configurations.
     """
-    return [
-        create_gelu_patch_config(with_transformers_update=True),
-    ]
+    patches = []
+    
+    # Always add gelu patch since jax.nn is always available
+    patches.append(create_gelu_patch_config())
+    
+    # Only add flax patch if flax is available
+    if is_module_imported('flax') and is_module_imported('flax.linen'):
+        mark_weight = setup_mark_weight_primitive()
+        patches.append(create_flax_apply_patch_config(mark_weight))
+    
+    return patches
 
 
 def apply_patches(patch_configs):

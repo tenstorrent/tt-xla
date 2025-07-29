@@ -16,7 +16,7 @@ from pathlib import Path
 
 import jax
 import jax._src.xla_bridge as xb
-from .monkeypatch import apply_patches, get_plugin_monkeypatches
+from .monkeypatch import apply_patches, get_monkeypatches
 
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
@@ -66,8 +66,8 @@ def _setup_monkey_patches():
     This function applies monkey patches to jax.nn.gelu for Tenstorrent optimization
     and flax.linen.Module.apply for weight marking.
     """
-    # Get and apply plugin-specific monkey patches
-    monkeypatches = get_plugin_monkeypatches()
+    # Get and apply monkey patches
+    monkeypatches = get_monkeypatches()
     apply_patches(monkeypatches)
 
 

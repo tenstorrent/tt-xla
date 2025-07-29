@@ -13,7 +13,7 @@ import psutil
 import pytest
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
-from python_package.monkeypatch import apply_patches, get_test_monkeypatches
+from python_package.monkeypatch import apply_patches, get_monkeypatches
 
 
 def pytest_configure(config: pytest.Config):
@@ -250,7 +250,7 @@ def initialize_device_connectors():
 # Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
 @pytest.fixture(autouse=True)
 def monkeypatch_import(request):
-    monkeypatches = get_test_monkeypatches()
+    monkeypatches = get_monkeypatches()
     apply_patches(monkeypatches)
 
     yield
