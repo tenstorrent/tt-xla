@@ -1,0 +1,246 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Monkeypatching utilities for Tenstorrent JAX Plugin
+
+This module provides centralized monkeypatching functionality used across
+the codebase, including configuration classes and common patch operations.
+"""
+
+from dataclasses import dataclass
+from functools import partial
+from typing import Any, Callable
+
+import jax
+import jax.lax
+import jax.nn
+from flax import linen as nn
+from jax.extend import core
+from jax.interpreters.mlir import ir, register_lowering
+
+
+@dataclass
+class MonkeyPatchConfig:
+    """Configuration class for managing monkey patching operations.
+
+    This class provides a structured way to temporarily replace functions or methods
+    in modules with custom implementations. We primarily use this to wrap JAX operations
+    in StableHLO CompositeOps, for easier matching in the compiler.
+
+    Attributes:
+        target_module (Any): The module object containing the function to be patched.
+        target_function (str): The name of the function/method to be replaced.
+        replacement_factory (Callable): A factory function that creates the replacement
+            function. Should accept this config instance as a parameter.
+        post_patch (Callable): Optional callback function executed after the patch
+            is applied. Defaults to a no-op lambda function.
+        backup (Any): Storage for the original function before patching. Used to
+            restore the original implementation later. Initially None.
+    """
+
+    target_module: Any
+    target_function: str
+    replacement_factory: Callable
+    post_patch: Callable = lambda: None
+    backup: Any = None
+
+    def patch(self):
+        """Apply the monkey patch if not already applied."""
+        if self.backup is None:
+            self.backup = getattr(self.target_module, self.target_function)
+            replacement = self.replacement_factory(self)
+            setattr(self.target_module, self.target_function, replacement)
+            self.post_patch()
+
+
+def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> None:
+    """
+    Create a tt.mark function definition in the MLIR module if it doesn't exist.
+
+    This function creates a nop function that takes a tensor argument and returns
+    it unchanged. The function is only created once per MLIR module.
+
+    Args:
+        module_op: The MLIR module operation to add the function to
+        tensor_type: The tensor type for the function signature
+    """
+    tt_mark_defined_attr = "tt.mark_function_defined"
+
+    if tt_mark_defined_attr not in module_op.attributes:
+        # Define tt.mark function once per MLIR module as a nop
+        func_type = ir.FunctionType.get([tensor_type], [tensor_type])
+
+        # Insert function at module level
+        with ir.InsertionPoint.at_block_begin(module_op.regions[0].blocks[0]):
+            func_op = ir.Operation.create(
+                "func.func",
+                attributes={
+                    "sym_name": ir.StringAttr.get("tt.mark"),
+                    "function_type": ir.TypeAttr.get(func_type),
+                    "sym_visibility": ir.StringAttr.get("private"),
+                },
+                regions=1,
+            )
+
+            # Add function body that returns input unchanged
+            entry_block = func_op.regions[0].blocks.append(tensor_type)
+            with ir.InsertionPoint(entry_block):
+                ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
+
+        # Mark that tt.mark function has been defined in this module
+        module_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+
+
+def setup_mark_weight_primitive():
+    """
+    Set up the mark_weight JAX primitive and its lowerings.
+    
+    Returns:
+        Callable: The mark_weight function that can be used to mark tensors as weights.
+    """
+    # -----------------------------
+    # Primitive: mark_weight
+    # -----------------------------
+    mark_weight_p = core.Primitive("mark_weight")
+
+    def mark_weight(x):
+        """Mark a tensor as a weight for hardware optimization."""
+        return mark_weight_p.bind(x)
+
+    def lowering_mark_weight(_, x):
+        """MLIR lowering for mark_weight primitive."""
+        x_type = ir.RankedTensorType(x.type)
+        with ir.Location.current:
+            # Get the current module from the insertion point
+            current_op = ir.InsertionPoint.current.block.owner
+            while current_op and current_op.name != "builtin.module":
+                current_op = current_op.parent
+
+            if current_op:
+                _create_tt_mark_function(current_op, x_type)
+
+            # Create the custom call to tt.mark
+            op = ir.Operation.create(
+                "stablehlo.custom_call",
+                results=[x_type],
+                operands=[x],
+                attributes={
+                    "call_target_name": ir.StringAttr.get("tt.mark"),
+                    "tt.role": ir.StringAttr.get("weight"),
+                },
+            )
+        return [op.result]
+
+    mark_weight_p.def_impl(lambda x: x)
+    mark_weight_p.def_abstract_eval(lambda x: x)
+    register_lowering(mark_weight_p, lowering_mark_weight)
+
+    # Register CPU lowering for mark_weight that just returns identity
+    def cpu_lowering_mark_weight(_, x):
+        """CPU lowering for mark_weight - just return input unchanged."""
+        return [x]
+
+    # Register CPU-specific lowering
+    register_lowering(mark_weight_p, cpu_lowering_mark_weight, platform="cpu")
+    
+    return mark_weight
+
+
+def create_gelu_patch_config(with_transformers_update=False):
+    """
+    Create a MonkeyPatchConfig for patching jax.nn.gelu.
+    
+    Args:
+        with_transformers_update: Whether to update transformers.modeling_flax_utils.ACT2FN
+                                 in the post_patch callback.
+    
+    Returns:
+        MonkeyPatchConfig: Configuration for gelu patching.
+    """
+    def post_patch_func():
+        if with_transformers_update:
+            try:
+                import transformers.modeling_flax_utils
+                transformers.modeling_flax_utils.ACT2FN.update(
+                    {
+                        "gelu": partial(jax.nn.gelu, approximate=False),
+                        "gelu_new": partial(jax.nn.gelu, approximate=True),
+                    }
+                )
+            except ImportError:
+                # transformers is not available, skip the update
+                pass
+
+    return MonkeyPatchConfig(
+        target_module=jax.nn,
+        target_function="gelu",
+        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
+            lambda x: config.backup(x, approximate=approximate),
+            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+        )(
+            x
+        ),
+        post_patch=post_patch_func,
+    )
+
+
+def create_flax_apply_patch_config(mark_weight_func):
+    """
+    Create a MonkeyPatchConfig for patching flax.linen.Module.apply.
+    
+    Args:
+        mark_weight_func: The mark_weight function to use for marking weights.
+    
+    Returns:
+        MonkeyPatchConfig: Configuration for flax apply patching.
+    """
+    return MonkeyPatchConfig(
+        target_module=nn.Module,
+        target_function="apply",
+        replacement_factory=lambda config: jax.jit(
+            lambda self, variables, *args, **kwargs: config.backup(
+                self, jax.tree.map(mark_weight_func, variables), *args, **kwargs
+            ),
+            static_argnums=0,
+        ),
+    )
+
+
+def get_plugin_monkeypatches():
+    """
+    Get the list of monkey patches used by the plugin initialization.
+    
+    Returns:
+        list[MonkeyPatchConfig]: List of monkey patch configurations for plugin use.
+    """
+    mark_weight = setup_mark_weight_primitive()
+    
+    return [
+        create_gelu_patch_config(with_transformers_update=False),
+        create_flax_apply_patch_config(mark_weight),
+    ]
+
+
+def get_test_monkeypatches():
+    """
+    Get the list of monkey patches used by the test infrastructure.
+    
+    Returns:
+        list[MonkeyPatchConfig]: List of monkey patch configurations for test use.
+    """
+    return [
+        create_gelu_patch_config(with_transformers_update=True),
+    ]
+
+
+def apply_patches(patch_configs):
+    """
+    Apply a list of monkey patch configurations.
+    
+    Args:
+        patch_configs: List of MonkeyPatchConfig instances to apply.
+    """
+    for patch_config in patch_configs:
+        patch_config.patch()
