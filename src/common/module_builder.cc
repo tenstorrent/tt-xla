@@ -211,22 +211,6 @@ void ModuleBuilder::runStableHLOPipeline(
   printModule(mlir_module);
 }
 
-std::vector<int>
-ModuleBuilder::parseMeshShape(const std::string &mesh_shape_str) {
-  std::vector<int> mesh_shape;
-  size_t pos = 0;
-  size_t comma_pos;
-
-  while ((comma_pos = mesh_shape_str.find(',', pos)) != std::string::npos) {
-    mesh_shape.push_back(
-        std::stoi(mesh_shape_str.substr(pos, comma_pos - pos)));
-    pos = comma_pos + 1;
-  }
-  mesh_shape.push_back(std::stoi(mesh_shape_str.substr(pos)));
-
-  return mesh_shape;
-}
-
 void ModuleBuilder::collectInputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_input_shardings.clear();

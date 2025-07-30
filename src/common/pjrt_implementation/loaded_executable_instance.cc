@@ -24,8 +24,6 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
-#include <iostream>
-
 namespace tt::pjrt {
 
 std::unique_ptr<LoadedExecutableInstance>
@@ -176,6 +174,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
+
   if (device_ids.size() != mesh_shape_num_devices) {
     DLOG_F(ERROR,
            "Input buffers are placed on a different number of devices (%zu) "
@@ -338,6 +337,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
@@ -367,7 +367,8 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-  auto output_sharding_shard_shape = outputSharding.getShardShape();
+  llvm::SmallVector<int64_t> output_sharding_shard_shape =
+      outputSharding.getShardShape();
   size_t output_sharding_shard_shape_size =
       outputSharding.getShardShape().size();
   std::vector<uint32_t> shard_shape_vec(output_sharding_shard_shape.begin(),
@@ -402,7 +403,7 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["replication_factor"] = std::to_string(num_devices);
     }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
-    auto mesh_shape_data = meshSharding.getMeshShape();
+    llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
     size_t mesh_shape_size = mesh_shape_data.size();
     std::vector<int64_t> mesh_shape_vec(
         mesh_shape_data.begin(), mesh_shape_data.begin() + mesh_shape_size);

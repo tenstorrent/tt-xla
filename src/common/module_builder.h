@@ -102,9 +102,6 @@ private:
   // Runs StableHLO pipeline with mesh shape configuration.
   void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Parses mesh shape string into vector of integers.
-  std::vector<int> parseMeshShape(const std::string &mesh_shape_str);
-
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
