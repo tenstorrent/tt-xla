@@ -24,10 +24,10 @@ from jax.interpreters.mlir import ir, register_lowering
 def is_module_imported(module_name: str) -> bool:
     """
     Check if a module is already imported in sys.modules.
-    
+
     Args:
         module_name: The name of the module to check.
-        
+
     Returns:
         bool: True if the module is imported, False otherwise.
     """
@@ -68,21 +68,47 @@ class MonkeyPatchConfig:
             self.post_patch()
 
 
-def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> None:
+def _get_tensor_signature(tensor_type: ir.Type) -> str:
     """
-    Create a tt.mark function definition in the MLIR module if it doesn't exist.
+    Get a unique string signature for a tensor type based on shape and datatype.
+
+    Args:
+        tensor_type: The tensor type to generate signature for
+
+    Returns:
+        str: Unique signature string for the tensor type
+    """
+    if hasattr(tensor_type, "shape") and hasattr(tensor_type, "element_type"):
+        shape_str = "x".join(str(dim) for dim in tensor_type.shape)
+        element_type_str = (
+            str(tensor_type.element_type).replace("<", "").replace(">", "")
+        )
+        return f"{shape_str}_{element_type_str}"
+    else:
+        # Fallback for non-ranked tensor types
+        return str(tensor_type).replace("<", "").replace(">", "").replace(" ", "_")
+
+
+def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> str:
+    """
+    Create a tt.mark function definition in the MLIR module for a specific tensor type.
 
     This function creates a nop function that takes a tensor argument and returns
-    it unchanged. The function is only created once per MLIR module.
+    it unchanged. A separate function is created for each unique tensor shape+datatype.
 
     Args:
         module_op: The MLIR module operation to add the function to
         tensor_type: The tensor type for the function signature
+
+    Returns:
+        str: The name of the created function
     """
-    tt_mark_defined_attr = "tt.mark_function_defined"
+    tensor_sig = _get_tensor_signature(tensor_type)
+    func_name = f"tt.mark_{tensor_sig}"
+    tt_mark_defined_attr = f"tt.mark_function_defined_{tensor_sig}"
 
     if tt_mark_defined_attr not in module_op.attributes:
-        # Define tt.mark function once per MLIR module as a nop
+        # Define tt.mark function for this specific tensor type
         func_type = ir.FunctionType.get([tensor_type], [tensor_type])
 
         # Insert function at module level
@@ -90,7 +116,7 @@ def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> N
             func_op = ir.Operation.create(
                 "func.func",
                 attributes={
-                    "sym_name": ir.StringAttr.get("tt.mark"),
+                    "sym_name": ir.StringAttr.get(func_name),
                     "function_type": ir.TypeAttr.get(func_type),
                     "sym_visibility": ir.StringAttr.get("private"),
                 },
@@ -102,14 +128,16 @@ def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> N
             with ir.InsertionPoint(entry_block):
                 ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
 
-        # Mark that tt.mark function has been defined in this module
+        # Mark that tt.mark function has been defined for this tensor type
         module_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+
+    return func_name
 
 
 def setup_mark_weight_primitive():
     """
     Set up the mark_weight JAX primitive and its lowerings.
-    
+
     Returns:
         Callable: The mark_weight function that can be used to mark tensors as weights.
     """
@@ -131,16 +159,17 @@ def setup_mark_weight_primitive():
             while current_op and current_op.name != "builtin.module":
                 current_op = current_op.parent
 
+            func_name = "tt.mark"
             if current_op:
-                _create_tt_mark_function(current_op, x_type)
+                func_name = _create_tt_mark_function(current_op, x_type)
 
-            # Create the custom call to tt.mark
+            # Create the func.call to the specific tt.mark function
             op = ir.Operation.create(
-                "stablehlo.custom_call",
+                "func.call",
                 results=[x_type],
                 operands=[x],
                 attributes={
-                    "call_target_name": ir.StringAttr.get("tt.mark"),
+                    "callee": ir.FlatSymbolRefAttr.get(func_name),
                     "tt.role": ir.StringAttr.get("weight"),
                 },
             )
@@ -157,20 +186,24 @@ def setup_mark_weight_primitive():
 
     # Register CPU-specific lowering
     register_lowering(mark_weight_p, lowering_mark_weight_cpu, platform="cpu")
-    
+
     return mark_weight
 
 
 def create_gelu_patch_config():
     """
     Create a MonkeyPatchConfig for patching jax.nn.gelu.
-    
+
     Returns:
         list[MonkeyPatchConfig]: List containing gelu patch config.
     """
+
     def post_patch_func():
-        if is_module_imported('transformers') and is_module_imported('transformers.modeling_flax_utils'):
+        if is_module_imported("transformers") and is_module_imported(
+            "transformers.modeling_flax_utils"
+        ):
             import transformers.modeling_flax_utils
+
             transformers.modeling_flax_utils.ACT2FN.update(
                 {
                     "gelu": partial(jax.nn.gelu, approximate=False),
@@ -178,43 +211,48 @@ def create_gelu_patch_config():
                 }
             )
 
-    return [MonkeyPatchConfig(
-        target_module=jax.nn,
-        target_function="gelu",
-        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-            lambda x: config.backup(x, approximate=approximate),
-            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-        )(
-            x
-        ),
-        post_patch=post_patch_func,
-    )]
+    return [
+        MonkeyPatchConfig(
+            target_module=jax.nn,
+            target_function="gelu",
+            replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
+                lambda x: config.backup(x, approximate=approximate),
+                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+            )(
+                x
+            ),
+            post_patch=post_patch_func,
+        )
+    ]
 
 
 def create_flax_apply_patch_config(mark_weight_func):
     """
     Create a MonkeyPatchConfig for patching flax.linen.Module.apply.
-    
+
     Args:
         mark_weight_func: The mark_weight function to use for marking weights.
-    
+
     Returns:
         list[MonkeyPatchConfig]: List containing flax patch config, or empty list if flax not available.
     """
-    if not (is_module_imported('flax') and is_module_imported('flax.linen')):
+    if not (is_module_imported("flax") and is_module_imported("flax.linen")):
         return []
-        
+
     from flax import linen as nn
-    return [MonkeyPatchConfig(
-        target_module=nn.Module,
-        target_function="apply",
-        replacement_factory=lambda config: jax.jit(
-            lambda self, variables, *args, **kwargs: config.backup(
-                self, jax.tree.map(mark_weight_func, variables), *args, **kwargs
+
+    return [
+        MonkeyPatchConfig(
+            target_module=nn.Module,
+            target_function="apply",
+            replacement_factory=lambda config: jax.jit(
+                lambda self, variables, *args, **kwargs: config.backup(
+                    self, jax.tree.map(mark_weight_func, variables), *args, **kwargs
+                ),
+                static_argnums=0,
             ),
-            static_argnums=0,
-        ),
-    )]
+        )
+    ]
 
 
 def get_monkeypatches():
@@ -225,21 +263,21 @@ def get_monkeypatches():
         list[MonkeyPatchConfig]: List of monkey patch configurations.
     """
     patches = []
-    
+
     # Add gelu patches
     patches.extend(create_gelu_patch_config())
-    
+
     # Add flax patches
     mark_weight = setup_mark_weight_primitive()
     patches.extend(create_flax_apply_patch_config(mark_weight))
-    
+
     return patches
 
 
 def apply_patches(patch_configs):
     """
     Apply a list of monkey patch configurations.
-    
+
     Args:
         patch_configs: List of MonkeyPatchConfig instances to apply.
     """

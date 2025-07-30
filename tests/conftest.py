@@ -244,9 +244,6 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-
-
-
 # Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
 @pytest.fixture(autouse=True)
 def monkeypatch_import(request):

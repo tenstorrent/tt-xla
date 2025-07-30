@@ -363,7 +363,9 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=["jax_plugins.pjrt_plugin_tt", "ttxla_tools"],
-    package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME, "monkeypatch.py"]},
+    package_data={
+        "jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME, "monkeypatch.py"]
+    },
     package_dir={
         f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
         "ttxla_tools": os.path.join("..", "ttxla_tools"),

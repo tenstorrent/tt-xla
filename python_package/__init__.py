@@ -21,8 +21,6 @@ from .monkeypatch import apply_patches, get_monkeypatches
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
 
-
-
 def _register_plugin():
     """
     Register the Tenstorrent PJRT plugin with JAX.
@@ -55,8 +53,6 @@ def _register_plugin():
     # Export path to metal so it is accessible by bundled tt-metal installation.
     tt_metal_path = plugin_dir / "tt-mlir/install/tt-metal"
     os.environ["TT_METAL_HOME"] = str(tt_metal_path)
-
-
 
 
 def _setup_monkey_patches():
