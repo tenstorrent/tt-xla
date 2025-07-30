@@ -7,10 +7,8 @@
 
 // c++ standard library includes
 #include <cstdlib>
-#include <iostream>
 #include <numeric>
 #include <optional>
-#include <sstream>
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -368,17 +366,17 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
 
   for (const mlir::StringAttr &gspmd_attr : gspmd_attributes) {
 
-    // If there is no sharding attribute, we put the default sharding, marked
-    // as "identity", which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding,
+    // which means there is no sharding.
     if (!gspmd_attr) {
-      mlir::tt::sharding_utils::MeshSharding mesh_sharding(
-          mlir::tt::ttcore::MeshShardDirection::FullToShard,
-          mlir::tt::ttcore::MeshShardType::Identity,
-          /*shardShape=*/{},
-          /*shardDims=*/{},
-          /*meshShape=*/{},
-          /*deviceIds=*/{}, mlir::tt::ttcore::ShardStatus::Unsharded);
-      shardings.push_back(mesh_sharding);
+      llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
+          default_mesh_sharding_result =
+              mlir::tt::gspmd_utils::GSPMDMeshSharding::generateDefault();
+      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
+        DLOG_F(ERROR, "Failed to generate default mesh sharding");
+        return llvm::LogicalResult::failure();
+      }
+      shardings.push_back(*default_mesh_sharding_result);
       continue;
     }
     llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
@@ -405,17 +403,17 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
   for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
 
-    // If there is no sharding attribute, we put the default sharding, marked
-    // as "identity", which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding,
+    // which means there is no sharding.
     if (!shardy_attr) {
-      mlir::tt::sharding_utils::MeshSharding mesh_sharding(
-          mlir::tt::ttcore::MeshShardDirection::FullToShard,
-          mlir::tt::ttcore::MeshShardType::Identity,
-          /*shardShape=*/{},
-          /*shardDims=*/{},
-          /*meshShape=*/{},
-          /*deviceIds=*/{}, mlir::tt::ttcore::ShardStatus::Unsharded);
-      shardings.push_back(mesh_sharding);
+      llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
+          default_mesh_sharding_result =
+              mlir::tt::shardy_utils::ShardyMeshSharding::generateDefault();
+      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
+        DLOG_F(ERROR, "Failed to generate default mesh sharding");
+        return llvm::LogicalResult::failure();
+      }
+      shardings.push_back(*default_mesh_sharding_result);
       continue;
     }
 
