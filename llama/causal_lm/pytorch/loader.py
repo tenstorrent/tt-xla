@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Mistral model loader implementation for causal language modeling
+Llama model loader implementation for causal language modeling
 """
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -21,31 +21,23 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Mistral model variants."""
+    """Available Llama Causal LM model variants."""
 
-    MISTRAL_7B = "7b"
-    MINISTRAL_3B = "ministral_3b_instruct"
-    MINISTRAL_8B = "ministral_8b_instruct"
+    LLAMA_3B = "3b"
 
 
 class ModelLoader(ForgeModel):
-    """Mistral model loader implementation for causal language modeling tasks."""
+    """Llama Causal LM model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.MISTRAL_7B: ModelConfig(
-            pretrained_model_name="mistralai/Mistral-7B-v0.1",
-        ),
-        ModelVariant.MINISTRAL_3B: ModelConfig(
-            pretrained_model_name="ministral/Ministral-3b-instruct",
-        ),
-        ModelVariant.MINISTRAL_8B: ModelConfig(
-            pretrained_model_name="mistralai/Ministral-8B-Instruct-2410",
+        ModelVariant.LLAMA_3B: ModelConfig(
+            pretrained_model_name="meta-llama/Llama-3.2-3B",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.MISTRAL_7B
+    DEFAULT_VARIANT = ModelVariant.LLAMA_3B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -69,9 +61,9 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="mistral",
+            model="llama_causal_lm",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -83,33 +75,33 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-        tokenizer_kwargs = {
-            "padding_side": "left",
-        }
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+
         # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the Mistral model instance for this instance's variant.
+        """Load and return the Llama Causal LM model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use bfloat16.
 
         Returns:
-            torch.nn.Module: The Mistral model instance for causal language modeling.
+            torch.nn.Module: The Llama Causal LM model instance for causal language modeling.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         # Ensure tokenizer is loaded
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -123,7 +115,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Mistral model with this instance's variant settings.
+        """Load and return sample inputs for the Llama Causal LM model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -134,13 +126,19 @@ class ModelLoader(ForgeModel):
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        # Set up sample input
-        test_input = "How often does the letter r occur in Mistral?"
+        # Sample text input
+        test_input = "This is a sample text from "
 
         # Tokenize input
-        inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
+        inputs = self.tokenizer.encode_plus(
+            test_input,
+            return_tensors="pt",
+            max_length=32,
+            padding="max_length",
+            truncation=True,
+        )
 
         # Add batch dimension
         for key in inputs:
@@ -148,21 +146,3 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    # TODO - Verify this function correct (was AI_GENERATED)
-    def decode_output(self, outputs, dtype_override):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-
-        Returns:
-            str: Decoded next token text
-        """
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        # Get logits for the last token
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])

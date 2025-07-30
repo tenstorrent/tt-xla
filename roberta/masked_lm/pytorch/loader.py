@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Mistral model loader implementation for causal language modeling
+XLMRoberta For Masked LM model loader implementation
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, XLMRobertaForMaskedLM
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -21,31 +21,23 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Mistral model variants."""
+    """Available XLMRoberta For Masked LM model variants."""
 
-    MISTRAL_7B = "7b"
-    MINISTRAL_3B = "ministral_3b_instruct"
-    MINISTRAL_8B = "ministral_8b_instruct"
+    XLM_BASE = "xlm_base"
 
 
 class ModelLoader(ForgeModel):
-    """Mistral model loader implementation for causal language modeling tasks."""
+    """XLMRoberta For Masked LM model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.MISTRAL_7B: ModelConfig(
-            pretrained_model_name="mistralai/Mistral-7B-v0.1",
-        ),
-        ModelVariant.MINISTRAL_3B: ModelConfig(
-            pretrained_model_name="ministral/Ministral-3b-instruct",
-        ),
-        ModelVariant.MINISTRAL_8B: ModelConfig(
-            pretrained_model_name="mistralai/Ministral-8B-Instruct-2410",
+        ModelVariant.XLM_BASE: ModelConfig(
+            pretrained_model_name="FacebookAI/xlm-roberta-base",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.MISTRAL_7B
+    DEFAULT_VARIANT = ModelVariant.XLM_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -69,61 +61,56 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="mistral",
+            model="roberta_masked_lm",
             variant=variant,
-            group=ModelGroup.RED,
-            task=ModelTask.NLP_CAUSAL_LM,
+            group=ModelGroup.GENERALITY,
+            task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
+    def _load_tokenizer(self):
         """Load tokenizer for the current variant.
 
         Returns:
             The loaded tokenizer instance
         """
-        tokenizer_kwargs = {
-            "padding_side": "left",
-        }
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
         # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name
         )
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the Mistral model instance for this instance's variant.
+        """Load and return the XLMRoberta For Masked LM model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use bfloat16.
 
         Returns:
-            torch.nn.Module: The Mistral model instance for causal language modeling.
+            torch.nn.Module: The XLMRoberta For Masked LM model instance for causal language modeling.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         # Ensure tokenizer is loaded
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
         # Load pre-trained model from HuggingFace
-        model = AutoModelForCausalLM.from_pretrained(
+        model = XLMRobertaForMaskedLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Mistral model with this instance's variant settings.
+        """Load and return sample inputs for the XLMRoberta For Masked LM model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -134,10 +121,10 @@ class ModelLoader(ForgeModel):
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
-        # Set up sample input
-        test_input = "How often does the letter r occur in Mistral?"
+        # Sample text input
+        test_input = "The capital of France is <mask>."
 
         # Tokenize input
         inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
@@ -149,20 +136,37 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    # TODO - Verify this function correct (was AI_GENERATED)
-    def decode_output(self, outputs, dtype_override):
-        """Helper method to decode model outputs into human-readable text.
+    def decode_output(self, outputs):
+        """Helper method to decode model outputs for masked language modeling.
 
         Args:
             outputs: Model output from a forward pass
 
         Returns:
-            str: Decoded next token text
+            str: Decoded predicted token for the mask position
         """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
-        # Get logits for the last token
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
+        # Handle data parallel case (list of tensors)
+        if isinstance(outputs, list):
+            logits = outputs[0].logits if hasattr(outputs[0], "logits") else outputs[0]
+        else:
+            # Get logits from outputs
+            logits = outputs.logits if hasattr(outputs, "logits") else outputs
+
+        # Load inputs to find mask position
+        inputs = self.load_inputs()
+
+        # Retrieve index of <mask> token
+        mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
+            0
+        ].nonzero(as_tuple=True)[0]
+
+        # Get predicted token ID for mask position
+        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
+
+        # Decode the predicted token
+        output = self.tokenizer.decode(predicted_token_id)
+
+        return f"Output: {output}"
