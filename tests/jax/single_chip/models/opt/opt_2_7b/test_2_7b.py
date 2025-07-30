@@ -52,7 +52,8 @@ def training_tester() -> OPTTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.6257885098457336. Required: pcc=0.99"
+        "PCC comparison failed. Calculated: pcc=0.6257885098457336. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 @pytest.mark.large

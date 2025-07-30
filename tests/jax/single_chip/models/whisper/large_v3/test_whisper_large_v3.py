@@ -54,7 +54,8 @@ def training_tester() -> WhisperTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99"
+        "PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_whisper_large_v3_inference(inference_tester: WhisperTester):

@@ -54,7 +54,8 @@ def training_tester() -> ResNetTester:
 @pytest.mark.xfail(
     reason=incorrect_result(
         "AssertionError: PCC comparison failed. "
-        "Calculated: pcc=-0.08085238188505173. Required: pcc=0.99."
+        "Calculated: pcc=-0.08085238188505173. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):

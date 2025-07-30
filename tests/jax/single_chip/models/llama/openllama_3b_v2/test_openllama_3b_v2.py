@@ -53,7 +53,8 @@ def training_tester() -> LLamaTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99."
+        "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_openllama3b_inference(inference_tester: LLamaTester):

@@ -49,7 +49,8 @@ def training_tester() -> MT5Tester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.009299473837018013. Required: pcc=0.99"
+        "PCC comparison failed. Calculated: pcc=0.009299473837018013. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_mt5_xl_inference(inference_tester: MT5Tester):
