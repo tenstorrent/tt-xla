@@ -50,7 +50,8 @@ def training_tester() -> GPTJTester:
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks, "
-        "where each bank needs to store 22372352 B"
+        "where each bank needs to store 22372352 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
 def test_gpt_j_6b_inference(inference_tester: GPTJTester):
