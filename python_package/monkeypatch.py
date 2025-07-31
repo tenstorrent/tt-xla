@@ -158,10 +158,8 @@ def setup_mark_weight_primitive():
             try:
                 if hasattr(x, 'owner') and x.owner is not None:
                     defining_op = x.owner
-                    # Check if it's a func.call operation
                     if (hasattr(defining_op, 'name') and 
                         defining_op.name == "func.call"):
-                        # Check if it has attributes
                         if hasattr(defining_op, 'attributes'):
                             attrs = defining_op.attributes
                             # Check if callee contains tt.mark and has tt.role
