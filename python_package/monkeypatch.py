@@ -179,14 +179,6 @@ def setup_mark_weight_primitive():
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
 
-    # Register CPU lowering for mark_weight that just returns identity
-    def lowering_mark_weight_cpu(_, x):
-        """CPU lowering for mark_weight - just return input unchanged."""
-        return [x]
-
-    # Register CPU-specific lowering
-    register_lowering(mark_weight_p, lowering_mark_weight_cpu, platform="cpu")
-
     return mark_weight
 
 
