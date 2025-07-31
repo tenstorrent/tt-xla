@@ -241,23 +241,30 @@ def create_flax_apply_patch_config(mark_weight_func):
 
     from flax import linen as nn
 
-    # Cache for marked variables using object id as key
-    _marked_cache = {}
-
-    def get_marked_variables(variables):
-        """Get marked variables from cache or create and cache them."""
-        # Use the object id as the key since dicts can't be weak referenced
-        var_id = id(variables)
-        if var_id not in _marked_cache:
-            _marked_cache[var_id] = jax.tree.map(mark_weight_func, variables)
-        return _marked_cache[var_id]
+    def mark_variables_once(variables):
+        """Mark variables as weights only if they haven't been marked already."""
+        def mark_if_needed(x):
+            # Check if this array/tensor is already marked by looking for a special attribute
+            if hasattr(x, '_tt_marked_as_weight'):
+                return x
+            else:
+                marked = mark_weight_func(x)
+                # Add a marker to prevent re-marking (this won't affect JAX computation)
+                try:
+                    marked._tt_marked_as_weight = True
+                except (AttributeError, TypeError):
+                    # Some JAX objects are immutable, that's fine
+                    pass
+                return marked
+        
+        return jax.tree.map(mark_if_needed, variables)
 
     return [
         MonkeyPatchConfig(
             target_module=nn.Module,
             target_function="apply",
             replacement_factory=lambda config: lambda self, variables, *args, **kwargs: config.backup(
-                self, get_marked_variables(variables), *args, **kwargs
+                self, mark_variables_once(variables), *args, **kwargs
             ),
         )
     ]
