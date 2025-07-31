@@ -13,6 +13,7 @@ from flax import nnx
 load_dotenv()
 
 from gemma3.gemma3 import Gemma3ForCausalLM as FlaxGemma3ForCausalLM
+from gemma3.gemma3 import Gemma3Config as FlaxGemma3Config
 
 # need a token
 hf_token = os.getenv("HF_TOKEN")
@@ -41,10 +42,10 @@ def prepare_pytorch_inputs(model_id: str, prompt: str):
 def prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len):
     input_ids = jnp.array(pt_input_ids)
     attention_mask = jnp.array(pt_attention_mask)
-    input_ids, attention_mask, position_ids = jax_model.prepare_inputs_for_generation(
-        input_ids, max_len, attention_mask
-    )
-    return input_ids, attention_mask, position_ids
+    # input_ids, attention_mask, position_ids = jax_model.prepare_inputs_for_generation(
+    #     input_ids, max_len, attention_mask
+    # )
+    return input_ids, attention_mask, None #position_ids
 
 
 def load_pytorch_model_from_hf(model_id, config):
@@ -78,8 +79,8 @@ def run_jax_model(
     return jax_model.generate(
         input_ids=jax_input_ids,
         attention_mask=jax_attention_mask,
-        max_new_tokens=max_len - seq_len,
-        position_ids=jax_position_ids,
+        max_length=max_len,
+        # position_ids=jax_position_ids,
     )
 
 
@@ -102,7 +103,9 @@ def run_comparison_test(model_id: str, prompt: str):
 
     max_len = pt_outputs[0].shape[0]
 
-    jax_model = load_jax_model(config, pt_model)
+    jax_config = FlaxGemma3Config()
+    jax_config.update(**config.text_config.to_dict())
+    jax_model = load_jax_model(jax_config, pt_model)
     jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(
         jax_model, pt_input_ids, pt_attention_mask, max_len
     )

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 
-from base import BaseModel
+from gemma3.base import BaseModel
 
 # TYPE_CHECKING to avoid circular imports at runtime
 if TYPE_CHECKING:
