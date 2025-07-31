@@ -48,7 +48,13 @@ def training_tester() -> AlbertV2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9827062487602234. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_flax_albert_v2_large_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()
