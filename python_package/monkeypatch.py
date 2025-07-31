@@ -154,14 +154,44 @@ def setup_mark_weight_primitive():
         """MLIR lowering for mark_weight primitive."""
         x_type = ir.RankedTensorType(x.type)
         with ir.Location.current:
+            # Check if x is already the result of a tt.mark call
+            try:
+                if hasattr(x, 'owner') and x.owner is not None:
+                    defining_op = x.owner
+                    # Check if it's a func.call operation
+                    if (hasattr(defining_op, 'name') and 
+                        defining_op.name == "func.call"):
+                        # Check if it has attributes
+                        if hasattr(defining_op, 'attributes'):
+                            attrs = defining_op.attributes
+                            # Check if callee contains tt.mark and has tt.role
+                            if ("callee" in attrs and 
+                                "tt.role" in attrs):
+                                callee_str = str(attrs["callee"])
+                                if "tt.mark" in callee_str:
+                                    # Already marked, return as-is
+                                    return [x]
+            except Exception:
+                # If any error occurs in checking, just proceed with marking
+                pass
+
             # Get the current module from the insertion point
-            current_op = ir.InsertionPoint.current.block.owner
-            while current_op and current_op.name != "builtin.module":
-                current_op = current_op.parent
+            try:
+                current_op = ir.InsertionPoint.current.block.owner
+                while current_op and hasattr(current_op, 'name') and current_op.name != "builtin.module":
+                    if hasattr(current_op, 'parent'):
+                        current_op = current_op.parent
+                    else:
+                        break
+            except Exception:
+                current_op = None
 
             func_name = "tt.mark"
             if current_op:
-                func_name = _create_tt_mark_function(current_op, x_type)
+                try:
+                    func_name = _create_tt_mark_function(current_op, x_type)
+                except Exception:
+                    func_name = "tt.mark"
 
             # Create the func.call to the specific tt.mark function
             op = ir.Operation.create(
@@ -233,30 +263,12 @@ def create_flax_apply_patch_config(mark_weight_func):
 
     from flax import linen as nn
 
-    def mark_variables_once(variables):
-        """Mark variables as weights only if they haven't been marked already."""
-        def mark_if_needed(x):
-            # Check if this array/tensor is already marked by looking for a special attribute
-            if hasattr(x, '_tt_marked_as_weight'):
-                return x
-            else:
-                marked = mark_weight_func(x)
-                # Add a marker to prevent re-marking (this won't affect JAX computation)
-                try:
-                    marked._tt_marked_as_weight = True
-                except (AttributeError, TypeError):
-                    # Some JAX objects are immutable, that's fine
-                    pass
-                return marked
-        
-        return jax.tree.map(mark_if_needed, variables)
-
     return [
         MonkeyPatchConfig(
             target_module=nn.Module,
             target_function="apply",
             replacement_factory=lambda config: lambda self, variables, *args, **kwargs: config.backup(
-                self, mark_variables_once(variables), *args, **kwargs
+                self, jax.tree.map(mark_weight_func, variables), *args, **kwargs
             ),
         )
     ]
