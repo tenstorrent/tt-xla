@@ -156,15 +156,13 @@ def setup_mark_weight_primitive():
         with ir.Location.current:
             # Check if x is already the result of a tt.mark call
             try:
-                if hasattr(x, 'owner') and x.owner is not None:
+                if hasattr(x, "owner") and x.owner is not None:
                     defining_op = x.owner
-                    if (hasattr(defining_op, 'name') and 
-                        defining_op.name == "func.call"):
-                        if hasattr(defining_op, 'attributes'):
+                    if hasattr(defining_op, "name") and defining_op.name == "func.call":
+                        if hasattr(defining_op, "attributes"):
                             attrs = defining_op.attributes
                             # Check if callee contains tt.mark and has tt.role
-                            if ("callee" in attrs and 
-                                "tt.role" in attrs):
+                            if "callee" in attrs and "tt.role" in attrs:
                                 callee_str = str(attrs["callee"])
                                 if "tt.mark" in callee_str:
                                     # Already marked, return as-is
@@ -176,8 +174,12 @@ def setup_mark_weight_primitive():
             # Get the current module from the insertion point
             try:
                 current_op = ir.InsertionPoint.current.block.owner
-                while current_op and hasattr(current_op, 'name') and current_op.name != "builtin.module":
-                    if hasattr(current_op, 'parent'):
+                while (
+                    current_op
+                    and hasattr(current_op, "name")
+                    and current_op.name != "builtin.module"
+                ):
+                    if hasattr(current_op, "parent"):
                         current_op = current_op.parent
                     else:
                         break
