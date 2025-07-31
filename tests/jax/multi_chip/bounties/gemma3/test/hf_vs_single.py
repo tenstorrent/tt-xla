@@ -13,6 +13,7 @@ from flax import nnx
 load_dotenv()
 
 from gemma3.gemma3 import Gemma3ForCausalLM as FlaxGemma3ForCausalLM
+from gemma3.gemma3 import Gemma3Config as FlaxGemma3Config
 
 # need a token
 hf_token = os.getenv("HF_TOKEN")
@@ -102,6 +103,8 @@ def run_comparison_test(model_id: str, prompt: str):
 
     max_len = pt_outputs[0].shape[0]
 
+    jax_config = FlaxGemma3Config()
+    jax_config.update(config.text_config)
     jax_model = load_jax_model(config, pt_model)
     jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(
         jax_model, pt_input_ids, pt_attention_mask, max_len

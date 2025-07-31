@@ -10,8 +10,8 @@ import jax.numpy as jnp
 from flax import nnx
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
-from base import BaseConfig, BaseModel
-from generation_utils import GenerationMixin
+from gemma3.base import BaseConfig, BaseModel
+from gemma3.generation_utils import GenerationMixin
 
 @dataclass
 class Gemma3Config(BaseConfig):
