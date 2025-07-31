@@ -241,15 +241,23 @@ def create_flax_apply_patch_config(mark_weight_func):
 
     from flax import linen as nn
 
+    # Cache for marked variables using object id as key
+    _marked_cache = {}
+
+    def get_marked_variables(variables):
+        """Get marked variables from cache or create and cache them."""
+        # Use the object id as the key since dicts can't be weak referenced
+        var_id = id(variables)
+        if var_id not in _marked_cache:
+            _marked_cache[var_id] = jax.tree.map(mark_weight_func, variables)
+        return _marked_cache[var_id]
+
     return [
         MonkeyPatchConfig(
             target_module=nn.Module,
             target_function="apply",
-            replacement_factory=lambda config: jax.jit(
-                lambda self, variables, *args, **kwargs: config.backup(
-                    self, jax.tree.map(mark_weight_func, variables), *args, **kwargs
-                ),
-                static_argnums=0,
+            replacement_factory=lambda config: lambda self, variables, *args, **kwargs: config.backup(
+                self, get_marked_variables(variables), *args, **kwargs
             ),
         )
     ]
