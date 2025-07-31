@@ -2,7 +2,6 @@
 jax==0.6.0
 flax==0.10.6
 optax==0.2.4
-gemma==3.0.2
 
 # Hugging Face for reference comparison
 transformers==4.51.3
