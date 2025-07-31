@@ -7,6 +7,8 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <numeric>
 #include <optional>
 
@@ -16,6 +18,7 @@
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -89,6 +92,9 @@ ModuleBuilder::ModuleBuilder()
   // https://github.com/tenstorrent/tt-xla/issues/355
   m_context->allowUnregisteredDialects();
   m_context->appendDialectRegistry(registry);
+
+  m_model_name = getModelName();
+  InitializeMLIRFolder();
 }
 
 tt_pjrt_status ModuleBuilder::buildModule(
@@ -187,6 +193,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
+  dumpModuleToFile(mlir_module, ModuleType::STABLEHLO);
 }
 
 void ModuleBuilder::collectInputShardings(
@@ -427,6 +434,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
+  dumpModuleToFile(mlir_module, ModuleType::TTIR);
 }
 
 void ModuleBuilder::collectMeshShape(
@@ -560,6 +568,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
+  dumpModuleToFile(mlir_module, ModuleType::TTNN);
 }
 
 void ModuleBuilder::createFlatbufferBinary(
@@ -707,6 +716,117 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
+}
+
+// MLIR Dumping Helper Functions
+std::string ModuleBuilder::getModelName() {
+  const char *model_name_env = std::getenv("MODEL_NAME");
+  if (model_name_env) {
+    LOG_F(INFO, "Model name from environment: %s", model_name_env);
+    std::string model_name = std::string(model_name_env);
+
+    std::string cleaned_name;
+    cleaned_name.reserve(std::string(model_name).size());
+    for (char c : model_name) {
+      if (std::isalnum(c)) {
+        // Keep alphanumeric characters, convert to lowercase
+        cleaned_name += std::tolower(c);
+      } else if (c == '_' || c == '-') {
+        // Keep underscores and hyphens as they're common in model names
+        cleaned_name += c;
+      }
+    }
+    return cleaned_name;
+  }
+  LOG_F(INFO,
+        "MODEL_NAME environment variable is not set. Using default name.");
+  return "default_model"; // Provide a default name if the env var isn't set
+}
+
+void ModuleBuilder::InitializeMLIRFolder() {
+  std::filesystem::path mlir_folder_path =
+      std::filesystem::current_path() / "model_mlir";
+  if (!std::filesystem::exists(mlir_folder_path)) {
+    DLOG_F(INFO, "Creating directory: %s", mlir_folder_path.c_str());
+    if (!std::filesystem::create_directories(mlir_folder_path)) {
+      LOG_F(ERROR, "Failed to create directory: %s", mlir_folder_path.c_str());
+      // Handle error as appropriate, e.g., throw an exception or set a status
+      // flag
+      m_status = tt_pjrt_status::kInternal;
+      return;
+    }
+  }
+
+  const char *dump_mlir_env = std::getenv("DUMP_MLIR");
+  if (!dump_mlir_env) {
+    DLOG_F(LOG_DEBUG,
+           "DUMP_MLIR environment variable is not set. No MLIR passes will be "
+           "printed to $(pwd)/model_mlir.");
+    return;
+  }
+
+  std::vector<ModuleType> module_types = {
+      ModuleType::STABLEHLO,
+      ModuleType::TTIR,
+      ModuleType::TTNN,
+  };
+
+  std::string dump_mlir_env_str = dump_mlir_env;
+
+  for (const auto &type : module_types) {
+    const char *type_string_upper = getModuleTypeString(type);
+    if (dump_mlir_env_str.find(type_string_upper) != std::string::npos) {
+      std::string env_var_name = "DUMP_" + std::string(type_string_upper);
+      if (setenv(env_var_name.c_str(), "true", 1) != 0) {
+        DLOG_F(ERROR, "Failed to set %s environment variable",
+               env_var_name.c_str());
+      }
+      std::filesystem::path mlir_file =
+          mlir_folder_path /
+          (m_model_name + "_" + getModuleTypeLower(type) + ".mlir");
+      if (std::filesystem::exists(mlir_file)) {
+        DLOG_F(INFO, "Deleting existing %s file: %s", type_string_upper,
+               mlir_file.c_str());
+        if (!std::filesystem::remove(mlir_file)) {
+          LOG_F(ERROR, "Failed to delete existing %s file: %s",
+                type_string_upper, mlir_file.c_str());
+        }
+      }
+    }
+  }
+}
+
+void ModuleBuilder::dumpModuleToFile(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, ModuleType module_type) {
+  std::string env_var_name = "DUMP_";
+  env_var_name += getModuleTypeString(module_type);
+
+  const char *dump_env = std::getenv(env_var_name.c_str());
+  if (!dump_env) {
+    return; // Don't dump if env var not set
+  }
+
+  // Create filename: {model_name}_{module_type}.mlir
+  std::string file_name =
+      m_model_name + "_" + getModuleTypeLower(module_type) + ".mlir";
+  std::filesystem::path file_path =
+      std::filesystem::current_path() / "model_mlir" / file_name;
+
+  DLOG_F(INFO, "Dumping MLIR module to file: %s", file_path.c_str());
+
+  std::string output;
+  llvm::raw_string_ostream raw_stream(output);
+  mlir_module->print(raw_stream);
+  raw_stream.flush();
+
+  std::ofstream ofs(file_path);
+  if (!ofs) {
+    LOG_F(ERROR, "Failed to open file for writing: %s", file_path.c_str());
+    return;
+  }
+
+  ofs << output;
+  ofs.close();
 }
 
 } // namespace tt::pjrt

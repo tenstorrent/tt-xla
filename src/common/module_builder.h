@@ -227,6 +227,39 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // Helper to read model name from environment variable.
+  enum class ModuleType { STABLEHLO, TTIR, TTNN };
+
+  inline const char *getModuleTypeString(ModuleType type) {
+    switch (type) {
+    case ModuleType::STABLEHLO:
+      return "STABLEHLO";
+    case ModuleType::TTIR:
+      return "TTIR";
+    case ModuleType::TTNN:
+      return "TTNN";
+    }
+    return "UNKNOWN";
+  }
+
+  inline const char *getModuleTypeLower(ModuleType type) {
+    switch (type) {
+    case ModuleType::STABLEHLO:
+      return "stablehlo";
+    case ModuleType::TTIR:
+      return "ttir";
+    case ModuleType::TTNN:
+      return "ttnn";
+    }
+    return "unknown";
+  }
+
+  std::string m_model_name;
+  std::string getModelName();
+  void InitializeMLIRFolder();
+  void dumpModuleToFile(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                        ModuleType module_type);
 };
 
 } // namespace tt::pjrt
