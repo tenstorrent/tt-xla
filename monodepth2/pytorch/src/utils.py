@@ -7,7 +7,6 @@ from torchvision import transforms
 import requests
 from PIL import Image
 import PIL.Image as pil
-from io import BytesIO
 from .resnet_encoder import ResnetEncoder
 from .depth_decoder import DepthDecoder
 from ....tools.utils import get_file
@@ -26,12 +25,12 @@ class MonoDepth2(torch.nn.Module):
 
 
 def load_model(variant):
-    encoder_path = os.path.join("models", variant, "encoder.pth")
-    depth_decoder_path = os.path.join("models", variant, "depth.pth")
+
+    encoder_path = get_file("test_files/pytorch/monodepth/mono_640x192/encoder.pth")
+    depth_decoder_path = get_file("test_files/pytorch/monodepth/mono_640x192/depth.pth")
 
     encoder = ResnetEncoder(18, False)
     depth_decoder = DepthDecoder(num_ch_enc=encoder.num_ch_enc, scales=range(4))
-
     loaded_dict_enc = torch.load(encoder_path, map_location="cpu")
     filtered_dict_enc = {
         k: v for k, v in loaded_dict_enc.items() if k in encoder.state_dict()
