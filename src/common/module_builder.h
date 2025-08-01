@@ -11,6 +11,7 @@
 #include <string>
 
 // llvm mlir includes
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
@@ -18,11 +19,13 @@
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// shardy includes
+#include "shardy/dialect/sdy/ir/dialect.h"
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
 #define TTMLIR_ENABLE_STABLEHLO 1
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
 #include "status.h"
@@ -95,6 +98,9 @@ private:
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // Runs StableHLO pipeline with mesh shape configuration.
+  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
@@ -104,10 +110,6 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Gets shardy mesh attribute from the mesh op and adjusts it to 2D mesh in
-  // case of 1D mesh so that the rest of our compiler logic can assume 2D mesh.
-  mlir::sdy::MeshAttr getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
