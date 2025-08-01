@@ -12,44 +12,62 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
 from ...base import ForgeModel
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
-from ...tools.utils import get_file
+from ...tools.utils import get_file, print_compiled_model_results
+from typing import Optional
+
+
+class ModelVariant(StrEnum):
+    """Available CLIP model variants."""
+
+    CLIP_VIT_BASE_PATCH32 = "openai/clip-vit-base-patch32"
 
 
 class ModelLoader(ForgeModel):
     """CLIP model loader implementation."""
 
-    def __init__(self, variant=None):
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.CLIP_VIT_BASE_PATCH32: ModelConfig(
+            pretrained_model_name="openai/clip-vit-base-patch32",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.CLIP_VIT_BASE_PATCH32
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "openai/clip-vit-base-patch32"
         self.processor = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional variant. If None, uses DEFAULT_VARIANT.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="clip",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.MM_IMAGE_CAPT,
             source=ModelSource.HUGGING_FACE,
@@ -66,21 +84,21 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The CLIP model instance.
         """
+        model_name = self._variant_config.pretrained_model_name
+
         # Initialize processor first with default or overridden dtype
         processor_kwargs = {}
         if dtype_override is not None:
             processor_kwargs["torch_dtype"] = dtype_override
 
-        self.processor = CLIPProcessor.from_pretrained(
-            self.model_name, **processor_kwargs
-        )
+        self.processor = CLIPProcessor.from_pretrained(model_name, **processor_kwargs)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = CLIPModel.from_pretrained(self.model_name, **model_kwargs)
+        model = CLIPModel.from_pretrained(model_name, **model_kwargs)
 
         return model
 
@@ -120,3 +138,6 @@ class ModelLoader(ForgeModel):
             inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
         return inputs
+
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

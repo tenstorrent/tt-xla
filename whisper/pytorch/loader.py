@@ -13,27 +13,65 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
+from ...tools.utils import get_file
 from ...base import ForgeModel
-from datasets import load_dataset
+from typing import Optional
+
+
+class ModelVariant(StrEnum):
+    """Available Whisper model variants."""
+
+    WHISPER_TINY = "openai/whisper-tiny"
+    WHISPER_BASE = "openai/whisper-base"
+    WHISPER_SMALL = "openai/whisper-small"
+    WHISPER_MEDIUM = "openai/whisper-medium"
+    WHISPER_LARGE = "openai/whisper-large"
 
 
 class ModelLoader(ForgeModel):
+    """Whisper model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.WHISPER_TINY: ModelConfig(
+            pretrained_model_name="openai/whisper-tiny",
+        ),
+        ModelVariant.WHISPER_BASE: ModelConfig(
+            pretrained_model_name="openai/whisper-base",
+        ),
+        ModelVariant.WHISPER_SMALL: ModelConfig(
+            pretrained_model_name="openai/whisper-small",
+        ),
+        ModelVariant.WHISPER_MEDIUM: ModelConfig(
+            pretrained_model_name="openai/whisper-medium",
+        ),
+        ModelVariant.WHISPER_LARGE: ModelConfig(
+            pretrained_model_name="openai/whisper-large",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.WHISPER_TINY
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="whisper",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.AUDIO_ASR,
             source=ModelSource.HUGGING_FACE,
@@ -50,19 +88,23 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "openai/whisper-tiny"
         self.processor = None
 
     def load_model(self, dtype_override=None):
         """Load a Whisper model from Hugging Face."""
 
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
         # Initialize processor first with default or overridden dtype
         processor_kwargs = {}
         if dtype_override is not None:
             processor_kwargs["torch_dtype"] = dtype_override
 
         self.processor = WhisperProcessor.from_pretrained(
-            self.model_name, use_cache=False, return_dict=False, **processor_kwargs
+            pretrained_model_name,
+            use_cache=False,
+            return_dict=False,
+            **processor_kwargs
         )
 
         # Load pre-trained model from HuggingFace
@@ -71,7 +113,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = WhisperForConditionalGeneration.from_pretrained(
-            self.model_name, use_cache=False, return_dict=False, **model_kwargs
+            pretrained_model_name, use_cache=False, **model_kwargs
         )
         model.eval()
         return model
@@ -82,18 +124,11 @@ class ModelLoader(ForgeModel):
         # Ensure processor is initialized
         if self.processor is None:
             self.load_model()  # This will initialize the processor
+        weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
+        sample = torch.load(weights_pth, weights_only=False)
+        sample_audio = sample["audio"]["array"]
 
-        # load dummy dataset and read audio files
-        ds = load_dataset(
-            "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
-        )
-        sample = ds[0]["audio"]
-        inputs = self.processor(
-            sample["array"], sampling_rate=sample["sampling_rate"], return_tensors="pt"
-        )
+        inputs = self.processor(sample_audio, return_tensors="pt")
+        input_features = inputs.input_features
 
-        # Whisper requires decoder input ids also an input
-        decoder_input_ids = torch.tensor([[self.processor.tokenizer.pad_token_id]])
-        inputs["decoder_input_ids"] = decoder_input_ids
-
-        return inputs
+        return input_features

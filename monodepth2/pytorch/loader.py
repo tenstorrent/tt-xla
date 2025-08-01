@@ -16,34 +16,86 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
+from typing import Optional
 from ...base import ForgeModel
 from .src.utils import load_model, load_input
 
 
+class ModelVariant(StrEnum):
+    """Available Monodepth2 model variants."""
+
+    MONO_640X192 = "mono_640x192"
+    STEREO_640X192 = "stereo_640x192"
+    MONO_STEREO_640X192 = "mono+stereo_640x192"
+    MONO_NO_PT_640X192 = "mono_no_pt_640x192"
+    STEREO_NO_PT_640X192 = "stereo_no_pt_640x192"
+    MONO_STEREO_NO_PT_640X192 = "mono+stereo_no_pt_640x192"
+    MONO_1024X320 = "mono_1024x320"
+    STEREO_1024X320 = "stereo_1024x320"
+    MONO_STEREO_1024X320 = "mono+stereo_1024x320"
+
+
 class ModelLoader(ForgeModel):
+    """Monodepth2 model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.MONO_640X192: ModelConfig(
+            pretrained_model_name="mono_640x192",
+        ),
+        ModelVariant.STEREO_640X192: ModelConfig(
+            pretrained_model_name="stereo_640x192",
+        ),
+        ModelVariant.MONO_STEREO_640X192: ModelConfig(
+            pretrained_model_name="mono+stereo_640x192",
+        ),
+        ModelVariant.MONO_NO_PT_640X192: ModelConfig(
+            pretrained_model_name="mono_no_pt_640x192",
+        ),
+        ModelVariant.STEREO_NO_PT_640X192: ModelConfig(
+            pretrained_model_name="stereo_no_pt_640x192",
+        ),
+        ModelVariant.MONO_STEREO_NO_PT_640X192: ModelConfig(
+            pretrained_model_name="mono+stereo_no_pt_640x192",
+        ),
+        ModelVariant.MONO_1024X320: ModelConfig(
+            pretrained_model_name="mono_1024x320",
+        ),
+        ModelVariant.STEREO_1024X320: ModelConfig(
+            pretrained_model_name="stereo_1024x320",
+        ),
+        ModelVariant.MONO_STEREO_1024X320: ModelConfig(
+            pretrained_model_name="mono+stereo_1024x320",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.MONO_640X192
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="monodepth2",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_DEPTH_EST,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
-
-    """Loads Monodepth2 model and sample input."""
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -55,13 +107,15 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "mono_640x192"
         self._height = None
         self._width = None
 
     def load_model(self, dtype_override=None):
         """Load pretrained Monodepth2 model."""
-        model, height, width = load_model(self.model_name)
+
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        model, height, width = load_model(pretrained_model_name)
         model.eval()
 
         self._height = height
@@ -107,5 +161,5 @@ class ModelLoader(ForgeModel):
         im = pil.fromarray(colormapped_im)
 
         os.makedirs(save_path, exist_ok=True)
-        name_dest_im = f"{save_path}/{self.model_name}_pred_disp_vis.png"
+        name_dest_im = f"{save_path}/{self._variant_config.pretrained_model_name}_pred_disp_vis.png"
         im.save(name_dest_im)
