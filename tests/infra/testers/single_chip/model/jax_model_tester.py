@@ -168,10 +168,15 @@ class JaxModelTester(ModelTester):
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
 
-        workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+        compiled_workload = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.jit(workload.executable, static_argnames=workload.static_argnames),
+            args=workload.args,
+            kwargs=workload.kwargs,
+            static_argnames=workload.static_argnames,
         )
-        return workload
+
+        return compiled_workload
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
