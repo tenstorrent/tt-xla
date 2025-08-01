@@ -31,7 +31,7 @@ Before setup can happen, you must configure your hardware. You can skip this sec
 
 2. Reboot your machine.
 
-3. Make sure **hugepages** is enabled: 
+3. Make sure **hugepages** is enabled:
 
 ```bash
 sudo systemctl enable --now 'dev-hugepages\x2d1G.mount'
