@@ -11,13 +11,6 @@ from typing import Any, Mapping, Optional, Sequence
 class Workload(ABC):
     """Abstract base class encapsulating workload (executable/model with its inputs)."""
 
-    # -------------------- Public methods --------------------
-
-    def execute(self) -> Any:
-        return self._execute()
-
-    # -------------------- Protected methods --------------------
-
     def __init__(
         self,
         args: Optional[Sequence[Any]] = None,
@@ -30,7 +23,8 @@ class Workload(ABC):
         self.args = args or []
         self.kwargs = kwargs or {}
 
-    # --- For subclasses to override ---
+    def execute(self) -> Any:
+        return self._execute()
 
     @abstractmethod
     def _execute(self) -> Any:

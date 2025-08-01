@@ -101,6 +101,14 @@ class DeviceConnector(ABC):
 
         return self._connect_device(device_type, device_num)
 
+    def _supported_devices(self) -> Sequence[DeviceType]:
+        """Returns list of supported device types."""
+        # NOTE The order here is important, JAX will respect that order to choose the
+        # default device. That way we don't need to use `with jax.default_device` to
+        # generate inputs on CPU etc. It also makes a difference in how JAX puts sharded
+        # tensors on device (https://github.com/tenstorrent/tt-xla/issues/542).
+        return [DeviceType.CPU, DeviceType.TT]
+    
     def connect_tt_device(self, device_num: int = 0) -> Device:
         """Returns TT device handle."""
         return self.connect_device(DeviceType.TT, device_num)
@@ -116,16 +124,6 @@ class DeviceConnector(ABC):
     def get_number_of_cpus(self) -> int:
         """Returns number of available CPUs."""
         return self._number_of_devices(DeviceType.CPU)
-
-    
-
-    def _supported_devices(self) -> Sequence[DeviceType]:
-        """Returns list of supported device types."""
-        # NOTE The order here is important, JAX will respect that order to choose the
-        # default device. That way we don't need to use `with jax.default_device` to
-        # generate inputs on CPU etc. It also makes a difference in how JAX puts sharded
-        # tensors on device (https://github.com/tenstorrent/tt-xla/issues/542).
-        return [DeviceType.CPU, DeviceType.TT]
 
     # --- For subclasses to override ---
 

@@ -16,8 +16,6 @@ from infra.workloads import Workload
 class BaseTester(ABC):
     """Abstract base class all testers must inherit."""
 
-    # -------------------- Protected methods --------------------
-
     def __init__(
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -67,21 +65,19 @@ class BaseTester(ABC):
         """
         pass
 
-    @abstractmethod
-    def _compile(self, workload: Workload) -> Workload:
-        """Compiles `workload`."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    # --- Convenience wrappers ---
-
+    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
+        """Runs workload on CPU."""
+        return self._device_runner.run_on_cpu(compiled_workload)
+    
     def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
         return self._device_runner.run_on_tt_device(compiled_workload)
 
-    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
-        """Runs workload on CPU."""
-        return self._device_runner.run_on_cpu(compiled_workload)
-
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
         """Compares device with golden output."""
         self._comparator.compare(device_out, golden_out)
+
+    @abstractmethod
+    def _compile(self, workload: Workload) -> Workload:
+        """Compiles `workload`."""
+        raise NotImplementedError("Subclasses must implement this method.")

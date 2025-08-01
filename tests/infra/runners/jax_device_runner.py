@@ -19,22 +19,10 @@ from .device_runner import DeviceRunner
 class JaxDeviceRunner(DeviceRunner):
     """Device runner used with JAX."""
 
-    # -------------------- Public methods --------------------
-
     @property
     def connector(self) -> DeviceConnector:
         """Exposed connector to easily reach its methods."""
         return self._device_connector
-
-    def run_on_multichip_device(
-        self, multichip_workload: JaxMultichipWorkload
-    ) -> Tensor:
-        """Runs `multichip_workload` on a multichip device."""
-        return self._run_on_multichip_device(multichip_workload)
-
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
 
     # @override
     def _run_on_device(
@@ -45,14 +33,7 @@ class JaxDeviceRunner(DeviceRunner):
 
         with jax.default_device(device):
             return device_workload.execute()
-
-    # @override
-    def _put_tensors_on_device(
-        self, device_type: DeviceType, tensors: Sequence[Tensor]
-    ) -> Sequence[Tensor]:
-        device = self._device_connector.connect_device(device_type)
-        return [jax.device_put(t, device) for t in tensors]
-
+        
     # @override
     def _safely_put_workload_on_device(
         self, workload: Workload, device: Device
@@ -100,9 +81,22 @@ class JaxDeviceRunner(DeviceRunner):
             kwargs_on_device,
             workload.static_argnames,  # Unchanged.
         )
+    
+    # @override
+    def _put_tensors_on_device(
+        self, device_type: DeviceType, tensors: Sequence[Tensor]
+    ) -> Sequence[Tensor]:
+        device = self._device_connector.connect_device(device_type)
+        return [jax.device_put(t, device) for t in tensors]
 
-    # -----------------
+    
 
+    def run_on_multichip_device(
+        self, multichip_workload: JaxMultichipWorkload
+    ) -> Tensor:
+        """Runs `multichip_workload` on a multichip device."""
+        return self._run_on_multichip_device(multichip_workload)
+    
     def _run_on_multichip_device(
         self, multichip_workload: JaxMultichipWorkload
     ) -> Tensor:
