@@ -11,7 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_runtime,
 )
 
 from ..tester import BloomTester
@@ -47,11 +47,14 @@ def training_tester() -> BloomTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 171270144 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
 def test_bloom_7b_inference(inference_tester: BloomTester):
@@ -65,6 +68,7 @@ def test_bloom_7b_inference(inference_tester: BloomTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_bloom_7b_training(training_tester: BloomTester):
     training_tester.test()

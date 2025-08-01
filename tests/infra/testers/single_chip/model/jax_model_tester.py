@@ -5,10 +5,15 @@
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 import jax
+import os
+import shutil
+
 from flax import linen, nnx
+from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model, PyTree
 from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from .model_tester import ModelTester, RunMode
@@ -45,6 +50,20 @@ class JaxModelTester(ModelTester):
         self._input_parameters: PyTree = None
 
         super().__init__(comparison_config, run_mode, Framework.JAX)
+
+    def __del__(self):
+        if hasattr(self, "_model_path"):
+            try:
+                cache_dir = snapshot_download(self._model_path, local_files_only=True)
+                if cache_dir and os.path.exists(cache_dir):
+                    print(f"Deleting HF cache at: {cache_dir}")
+                    shutil.rmtree(cache_dir)
+            except NameError as e:
+                logger.warning(
+                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
+                )
+            except Exception as e:
+                logger.warning(f"Error during cache cleanup in __del__: {e}")
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """

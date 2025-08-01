@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import XLMRobertaTester
@@ -47,13 +46,9 @@ def training_tester() -> XLMRobertaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
-    )
-)
+@pytest.mark.large
 def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     inference_tester.test()
 
@@ -65,6 +60,7 @@ def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_xlm_roberta_large_training(training_tester: XLMRobertaTester):
     training_tester.test()

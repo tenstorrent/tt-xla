@@ -53,7 +53,7 @@ def training_tester() -> Mistral7BTester:
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer "
         "across 12 banks, where each bank needs to store 178958336 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+        "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
 def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):
