@@ -7,54 +7,75 @@ YOLOv10 model loader implementation
 import torch
 from torchvision import transforms
 from datasets import load_dataset
+from typing import Optional
 
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
 from ...base import ForgeModel
 from torch.hub import load_state_dict_from_url
 from ultralytics.nn.tasks import DetectionModel
 
 
+class ModelVariant(StrEnum):
+    """Available YOLOv10 model variants."""
+
+    YOLOV10X = "yolov10x"
+    YOLOV10N = "yolov10n"
+
+
 class ModelLoader(ForgeModel):
+    """YOLOv10 model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.YOLOV10X: ModelConfig(
+            pretrained_model_name="yolov10x",
+        ),
+        ModelVariant.YOLOV10N: ModelConfig(
+            pretrained_model_name="yolov10n",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.YOLOV10X
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="yolov10",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
-
-    """YOLOv10 model loader implementation."""
-
-    def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
-        super().__init__(variant)
-
-        # Configuration parameters
-        self.model_variant = "yolov10x"
 
     def load_model(self, dtype_override=None):
         """Load and return the YOLOv10 model instance with default settings.
@@ -66,8 +87,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOv10 model instance.
         """
-
-        variant = self.model_variant
+        # Get the model name from the instance's variant config
+        variant = self._variant_config.pretrained_model_name
         weights = load_state_dict_from_url(
             f"https://github.com/ultralytics/assets/releases/download/v8.2.0/{variant}.pt",
             map_location="cpu",
@@ -82,35 +103,30 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the YOLOv10 model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
                            If not provided, inputs will use the default dtype (typically float32).
+            batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
 
-        # Load dataset
-        dataset = load_dataset(
-            "cppe-5", split="test"
-        )  # cppe-5 is a dataset of 5 classes for Combined Personal Protective Equipment
-
-        # Get first image from dataset
+        dataset = load_dataset("huggingface/cats-image", split="test[:1]")
         image = dataset[0]["image"]
-
-        # Preprocess the image
-        transform = transforms.Compose(
+        preprocess = transforms.Compose(
             [
-                transforms.Resize((480, 640)),
+                transforms.Resize((640, 640)),
                 transforms.ToTensor(),
             ]
         )
+        image_tensor = preprocess(image).unsqueeze(0)
 
-        img_tensor = [transform(image).unsqueeze(0)]  # Add batch dimension
-        batch_tensor = torch.cat(img_tensor, dim=0)
+        # Replicate tensors for batch size
+        batch_tensor = image_tensor.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

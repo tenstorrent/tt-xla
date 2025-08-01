@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-YOLOv9 model loader implementation
+YOLOS model loader implementation
 """
+from PIL import Image
+from transformers import AutoImageProcessor, AutoModelForObjectDetection
+
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -12,10 +15,7 @@ from ...config import (
     Framework,
 )
 from ...base import ForgeModel
-from torch.hub import load_state_dict_from_url
-from ultralytics.nn.tasks import DetectionModel
-from torchvision import transforms
-from datasets import load_dataset
+from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -32,15 +32,15 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         return ModelInfo(
-            model="yolov9",
+            model="yolos",
             variant=variant_name,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
-            source=ModelSource.CUSTOM,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    """YOLOv9 model loader implementation."""
+    """YOLOS model loader implementation."""
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -52,26 +52,20 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_variant = "yolov9c"
+        self.model_variant = "hustvl/yolos-tiny"
 
     def load_model(self, dtype_override=None):
-        """Load and return the YOLOv9 model instance with default settings.
+        """Load and return the YOLOS model instance with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The YOLOv9 model instance.
+            torch.nn.Module: The YOLOS model instance.
         """
-
         variant = self.model_variant
-        weights = load_state_dict_from_url(
-            f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{variant}.pt",
-            map_location="cpu",
-        )
-        model = DetectionModel(cfg=weights["model"].yaml)
-        model.load_state_dict(weights["model"].float().state_dict())
+        model = AutoModelForObjectDetection.from_pretrained(variant)
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -81,7 +75,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the YOLOv9 model with default settings.
+        """Load and return sample inputs for the YOLOS model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
@@ -92,16 +86,11 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
 
-        # Load sample image and preprocess
-        dataset = load_dataset("huggingface/cats-image", split="test[:1]")
-        image = dataset[0]["image"]
-        preprocess = transforms.Compose(
-            [
-                transforms.Resize((640, 640)),
-                transforms.ToTensor(),
-            ]
-        )
-        batch_tensor = preprocess(image).unsqueeze(0)
+        input_image = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
+        image = Image.open(str(input_image))
+        image_processor = AutoImageProcessor.from_pretrained(self.model_variant)
+        inputs = image_processor(images=image, return_tensors="pt")
+        batch_tensor = inputs["pixel_values"]
 
         # Replicate tensors for batch size
         batch_tensor = batch_tensor.repeat_interleave(batch_size, dim=0)

@@ -2,8 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-YOLOv9 model loader implementation
+YOLO-World model loader implementation
 """
+import torch
+from datasets import load_dataset
+from torch.hub import load_state_dict_from_url
+from torchvision import transforms
+from ultralytics.nn.tasks import WorldModel
+
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -12,10 +18,6 @@ from ...config import (
     Framework,
 )
 from ...base import ForgeModel
-from torch.hub import load_state_dict_from_url
-from ultralytics.nn.tasks import DetectionModel
-from torchvision import transforms
-from datasets import load_dataset
 
 
 class ModelLoader(ForgeModel):
@@ -32,7 +34,7 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         return ModelInfo(
-            model="yolov9",
+            model="yoloworld",
             variant=variant_name,
             group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
@@ -40,7 +42,7 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    """YOLOv9 model loader implementation."""
+    """YOLO-World model loader implementation."""
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -52,26 +54,34 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_variant = "yolov9c"
+        self.model_url = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8s-worldv2.pt"
 
     def load_model(self, dtype_override=None):
-        """Load and return the YOLOv9 model instance with default settings.
+        """Load and return the YOLO-World model instance with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The YOLOv9 model instance.
+            torch.nn.Module: The YOLO-World model instance.
         """
+        try:
+            ckpt = load_state_dict_from_url(self.model_url, map_location="cpu")
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error while downloading model from URL: {e}"
+            )
 
-        variant = self.model_variant
-        weights = load_state_dict_from_url(
-            f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{variant}.pt",
-            map_location="cpu",
-        )
-        model = DetectionModel(cfg=weights["model"].yaml)
-        model.load_state_dict(weights["model"].float().state_dict())
+        cfg_path = ckpt.get("cfg", "yolov8s-world.yaml")
+        model = WorldModel(cfg=cfg_path)
+
+        if "model" in ckpt:
+            state_dict = ckpt["model"].float().state_dict()
+        else:
+            state_dict = ckpt
+
+        model.load_state_dict(state_dict, strict=False)
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -81,7 +91,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the YOLOv9 model with default settings.
+        """Load and return sample inputs for the YOLO-World model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
@@ -92,7 +102,6 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
 
-        # Load sample image and preprocess
         dataset = load_dataset("huggingface/cats-image", split="test[:1]")
         image = dataset[0]["image"]
         preprocess = transforms.Compose(
@@ -101,10 +110,10 @@ class ModelLoader(ForgeModel):
                 transforms.ToTensor(),
             ]
         )
-        batch_tensor = preprocess(image).unsqueeze(0)
+        image_tensor = preprocess(image).unsqueeze(0)
 
         # Replicate tensors for batch size
-        batch_tensor = batch_tensor.repeat_interleave(batch_size, dim=0)
+        batch_tensor = image_tensor.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
