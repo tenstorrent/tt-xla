@@ -13,8 +13,6 @@ from .torch_comparator import TorchComparator
 class ComparatorFactory:
     """Factory creating Comparators based on provided framework."""
 
-    # -------------------- Public methods --------------------
-
     @staticmethod
     def create_comparator(
         framework: Framework, comparison_config: ComparisonConfig

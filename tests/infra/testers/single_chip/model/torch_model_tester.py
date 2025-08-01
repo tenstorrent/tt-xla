@@ -26,8 +26,6 @@ class TorchModelTester(ModelTester):
     ```
     """
 
-    # -------------------- Protected methods --------------------
-
     def __init__(
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -40,26 +38,20 @@ class TorchModelTester(ModelTester):
 
         super().__init__(comparison_config, run_mode, Framework.TORCH)
 
-    # -------------------- Private methods --------------------
+    # @override
+    def _configure_model_for_inference(self) -> None:
+        assert isinstance(self._model, torch.nn.Module)
+        self._model.eval()
 
-    # --- Overrides ---
+    # @override
+    def _configure_model_for_training(self) -> None:
+        assert isinstance(self._model, torch.nn.Module)
+        self._model.train()
 
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
         self._input_activations = self._get_input_activations()
-
-    # @override
-    def _get_forward_method_args(self) -> Sequence[Any]:
-        if isinstance(self._input_activations, torch.Tensor):
-            return [self._input_activations]
-        return []
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
-        if isinstance(self._input_activations, collections.abc.Mapping):
-            return {**self._input_activations}
-        return {}
 
     # @override
     def _initialize_workload(self) -> None:
@@ -77,29 +69,29 @@ class TorchModelTester(ModelTester):
         )
 
     # @override
-    @staticmethod
-    def _configure_model_for_inference(model: Model) -> None:
-        assert isinstance(model, torch.nn.Module)
-        model.eval()
+    def _get_forward_method_args(self) -> Sequence[Any]:
+        if isinstance(self._input_activations, torch.Tensor):
+            return [self._input_activations]
+        return []
 
     # @override
-    @staticmethod
-    def _configure_model_for_training(model: Model) -> None:
-        assert isinstance(model, torch.nn.Module)
-        model.train()
-
+    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
+        if isinstance(self._input_activations, collections.abc.Mapping):
+            return {**self._input_activations}
+        return {}    
+    
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(workload)
+    
     # @override
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels.
 
         Compiles for inductor backend by default.
         """
-        return self._compile_for_backend(workload, backend="inductor")
-
-    # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(workload)
+        return self._compile_for_backend(workload, backend="inductor")   
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:

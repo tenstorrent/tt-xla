@@ -16,7 +16,9 @@ class Comparator(ABC):
     Provides an abstract interface for framework specific subclasses to implement.
     """
 
-    # -------------------- Public methods --------------------
+    def __init__(self, comparison_config: ComparisonConfig) -> None:
+        """Protected constructor for subclasses to use."""
+        self._comparison_config = comparison_config
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> None:
         """
@@ -39,10 +41,12 @@ class Comparator(ABC):
                 device_output, golden_output, self._comparison_config.allclose
             )
 
-    # -------------------- Protected methods --------------------
-
-    # --- For subclasses to override ---
-
+    @staticmethod
+    @abstractmethod
+    def _match_data_types(tensors: PyTree) -> PyTree:
+        """Casts tensors to float32."""
+        raise NotImplementedError("Subclasses must implement this method")
+    
     @staticmethod
     @abstractmethod
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
@@ -62,6 +66,17 @@ class Comparator(ABC):
 
     @staticmethod
     @abstractmethod
+    def _compare_pcc(
+        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+    ) -> None:
+        """
+        Compares if PCC metric between device and golden output is within required PCC.
+        Asserts if not.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    @staticmethod
+    @abstractmethod
     def _compare_allclose(
         self,
         device_output: PyTree,
@@ -74,25 +89,5 @@ class Comparator(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
-    @abstractmethod
-    def _compare_pcc(
-        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
-    ) -> None:
-        """
-        Compares if PCC metric between device and golden output is within required PCC.
-        Asserts if not.
-        """
-        raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
-    @abstractmethod
-    def _match_data_types(tensors: PyTree) -> PyTree:
-        """Casts tensors to float32."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    # ----------------------------------
-
-    def __init__(self, comparison_config: ComparisonConfig) -> None:
-        """Protected constructor for subclasses to use."""
-        self._comparison_config = comparison_config
+    

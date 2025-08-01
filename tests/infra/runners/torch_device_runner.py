@@ -15,10 +15,6 @@ from .device_runner import DeviceRunner
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
-
     # @override
     def _run_on_device(
         self, workload: Workload, device_type: DeviceType, device_num: int = 0

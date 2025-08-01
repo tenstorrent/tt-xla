@@ -16,20 +16,6 @@ from .workload import Workload
 class JaxWorkload(Workload):
     """Workload used with JAX."""
 
-    def as_mlir_module_str(self) -> str:
-        """
-        Returns self as mlir module string.
-
-        Note `self.executable` must be the result of jax.jit, otherwise exception will
-        be raised.
-        """
-        try:
-            return self.executable.lower(*self.args, **self.kwargs).as_text()
-        except Exception as e:
-            raise RuntimeError("Couldn't produce MLIR module str from workload.") from e
-
-    # -------------------- Private methods --------------------
-
     def __init__(
         self,
         executable: Callable,
@@ -42,7 +28,17 @@ class JaxWorkload(Workload):
         self.executable = executable
         self.static_argnames = static_argnames or []
 
-    # --- Overrides ---
+    def as_mlir_module_str(self) -> str:
+        """
+        Returns self as mlir module string.
+
+        Note `self.executable` must be the result of jax.jit, otherwise exception will
+        be raised.
+        """
+        try:
+            return self.executable.lower(*self.args, **self.kwargs).as_text()
+        except Exception as e:
+            raise RuntimeError("Couldn't produce MLIR module str from workload.") from e
 
     # @override
     def _execute(self) -> Any:

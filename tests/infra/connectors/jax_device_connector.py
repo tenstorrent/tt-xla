@@ -49,12 +49,12 @@ class JaxDeviceConnector(DeviceConnector):
         return ",".join([device.value for device in self._supported_devices()])
 
     # @override
-    def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
-        return jax.devices(device_type.value)[device_num]
-
-    # @override
     def _number_of_devices(self, device_type: DeviceType) -> int:
         return len(jax.devices(device_type.value))
+    
+    # @override
+    def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
+        return jax.devices(device_type.value)[device_num]
 
     def get_tt_device_mesh(self, shape: tuple, axis_names: tuple) -> jax.sharding.Mesh:
         """Returns TT device mesh with specified `shape` and `axis_names`."""
