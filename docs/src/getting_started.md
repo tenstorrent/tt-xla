@@ -31,9 +31,16 @@ Before setup can happen, you must configure your hardware. You can skip this sec
 
 2. Reboot your machine.
 
-3. Please ensure that after you run the TT-Installer script, after you complete reboot, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
+3. Make sure **hugepages** is enabled: 
 
-4. After your environment is running, to check that everything is configured, type the following:
+```bash
+sudo systemctl enable --now 'dev-hugepages\x2d1G.mount'
+sudo systemctl enable --now tenstorrent-hugepages.service
+```
+
+4. Please ensure that after you run the TT-Installer script, after you complete reboot and set up hugepages, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
+
+5. After your environment is running, to check that everything is configured, type the following:
 
 ```bash
 tt-smi
