@@ -548,6 +548,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     return;
   }
 
+  
+  options.enableFusing = true;
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
