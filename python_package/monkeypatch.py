@@ -68,68 +68,45 @@ class MonkeyPatchConfig:
             self.post_patch()
 
 
-def _get_tensor_signature(tensor_type: ir.Type) -> str:
+def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     """
-    Get a unique string signature for a tensor type based on shape and datatype.
-
-    Args:
-        tensor_type: The tensor type to generate signature for
-
-    Returns:
-        str: Unique signature string for the tensor type
-    """
-    if hasattr(tensor_type, "shape") and hasattr(tensor_type, "element_type"):
-        shape_str = "x".join(str(dim) for dim in tensor_type.shape)
-        element_type_str = (
-            str(tensor_type.element_type).replace("<", "").replace(">", "")
-        )
-        return f"{shape_str}_{element_type_str}"
-    else:
-        # Fallback for non-ranked tensor types
-        return str(tensor_type).replace("<", "").replace(">", "").replace(" ", "_")
-
-
-def _create_tt_mark_function(module_op: ir.Operation, tensor_type: ir.Type) -> str:
-    """
-    Create a tt.mark function definition in the MLIR module for a specific tensor type.
+    Create a tt.mark function definition in the MLIR module.
 
     This function creates a nop function that takes a tensor argument and returns
-    it unchanged. A separate function is created for each unique tensor shape+datatype.
+    it unchanged. A new function is created for each func op creation.
 
     Args:
         module_op: The MLIR module operation to add the function to
-        tensor_type: The tensor type for the function signature
+        x: The operand to use for unique naming and type inference
 
     Returns:
         str: The name of the created function
     """
-    tensor_sig = _get_tensor_signature(tensor_type)
-    func_name = f"tt.mark_{tensor_sig}"
-    tt_mark_defined_attr = f"tt.mark_function_defined_{tensor_sig}"
+    operand_id = id(x)
+    func_name = f"tt.mark_{operand_id}"
 
-    if tt_mark_defined_attr not in module_op.attributes:
-        # Define tt.mark function for this specific tensor type
-        func_type = ir.FunctionType.get([tensor_type], [tensor_type])
+    # Get tensor type from the operand
+    tensor_type = ir.RankedTensorType(x.type)
 
-        # Insert function at module level
-        with ir.InsertionPoint.at_block_begin(module_op.regions[0].blocks[0]):
-            func_op = ir.Operation.create(
-                "func.func",
-                attributes={
-                    "sym_name": ir.StringAttr.get(func_name),
-                    "function_type": ir.TypeAttr.get(func_type),
-                    "sym_visibility": ir.StringAttr.get("private"),
-                },
-                regions=1,
-            )
+    # Always create tt.mark function for each func op creation
+    func_type = ir.FunctionType.get([tensor_type], [tensor_type])
 
-            # Add function body that returns input unchanged
-            entry_block = func_op.regions[0].blocks.append(tensor_type)
-            with ir.InsertionPoint(entry_block):
-                ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
+    # Insert function at module level
+    with ir.InsertionPoint.at_block_begin(module_op.regions[0].blocks[0]):
+        func_op = ir.Operation.create(
+            "func.func",
+            attributes={
+                "sym_name": ir.StringAttr.get(func_name),
+                "function_type": ir.TypeAttr.get(func_type),
+                "sym_visibility": ir.StringAttr.get("private"),
+            },
+            regions=1,
+        )
 
-        # Mark that tt.mark function has been defined for this tensor type
-        module_op.attributes[tt_mark_defined_attr] = ir.BoolAttr.get(True)
+        # Add function body that returns input unchanged
+        entry_block = func_op.regions[0].blocks.append(tensor_type)
+        with ir.InsertionPoint(entry_block):
+            ir.Operation.create("func.return", operands=[entry_block.arguments[0]])
 
     return func_name
 
@@ -189,7 +166,7 @@ def setup_mark_weight_primitive():
             func_name = "tt.mark"
             if current_op:
                 try:
-                    func_name = _create_tt_mark_function(current_op, x_type)
+                    func_name = _create_tt_mark_function(current_op, x)
                 except Exception:
                     func_name = "tt.mark"
 
