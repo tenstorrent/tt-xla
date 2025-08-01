@@ -26,17 +26,6 @@ class RunMode(Enum):
 class ModelTester(BaseTester, ABC):
     """Abstract base class all single chip model testers must inherit."""
 
-    # -------------------- Public methods --------------------
-
-    def test(self) -> None:
-        """Tests the model depending on test type with which tester was configured."""
-        if self._run_mode == RunMode.INFERENCE:
-            self._test_inference()
-        else:
-            self._test_training()
-
-    # ---------- Protected methods ----------
-
     def __init__(
         self,
         comparison_config: ComparisonConfig,
@@ -52,6 +41,14 @@ class ModelTester(BaseTester, ABC):
         self._workload: Workload = None
 
         super().__init__(comparison_config, framework)
+
+
+    def test(self) -> None:
+        """Tests the model depending on test type with which tester was configured."""
+        if self._run_mode == RunMode.INFERENCE:
+            self._test_inference()
+        else:
+            self._test_training()
 
     # --- For test writer's tester subclasses to override ---
 
