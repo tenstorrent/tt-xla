@@ -27,7 +27,7 @@ TT-XLA has the following system dependencies:
 * Clang 17
 * GCC 11
 * Ninja
-* CMake 3.20 or higher
+* CMake 4.0.3
 
 ### Installing Python
 If your system already has Python installed, make sure it is Python 3.10:
