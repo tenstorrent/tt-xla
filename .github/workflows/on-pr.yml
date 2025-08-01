@@ -7,6 +7,11 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      use-shared-runners:
+        description: 'Use shared runners from Civ2'
+        required: false
+        default: true
+        type: boolean
   pull_request:
     branches: [ "main" ]
 
@@ -94,6 +99,7 @@ jobs:
       test_mark: 'push'
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      use_shared_runners: ${{ github.event_name == 'pull_request' || inputs.use_shared_runners }} # Default to true for PR, use input for workflow_dispatch
 
   check-all-green:
     if: always()
