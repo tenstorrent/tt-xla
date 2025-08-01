@@ -89,6 +89,8 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.parametrize(
+    "training_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
+)
 def test_mnist_mlp_training(training_tester: MNISTMLPTester):
     training_tester.test()
