@@ -23,7 +23,7 @@ from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
-    """Available ALBERT model variants."""
+    """Available Vit model variants."""
 
     BASE = "base"
     LARGE = "large"
@@ -58,7 +58,7 @@ class ModelLoader(ForgeModel):
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TORCH_HUB,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
@@ -75,7 +75,15 @@ class ModelLoader(ForgeModel):
         self.model_name = self._variant_config.pretrained_model_name
 
     def load_model(self, dtype_override=None):
-        """Load a Vit model from Hugging Face."""
+        """Load a Vit model from Hugging Face.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The ViT model instance.
+        """
         model = ViTForImageClassification.from_pretrained(
             self.model_name, return_dict=False
         )
@@ -89,19 +97,29 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Generate sample inputs for Vit models."""
+        """Load and return sample inputs for the ViT model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor suitable for ViT.
+        """
         # Get the Image
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
         image = Image.open(image_file)
-        # Initialize tokenizer
+
+        # Initialize image processor
         image_processor = AutoImageProcessor.from_pretrained(
             self.model_name, use_fast=True
         )
 
-        # Create tokenized inputs
+        # Create processed inputs
         inputs = image_processor(images=image, return_tensors="pt").pixel_values
 
-        # Creat batch (default 1)
+        # Create batch (default 1)
         inputs = inputs.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
@@ -111,6 +129,11 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def post_processing(self, co_out):
+        """Print classification results.
+
+        Args:
+            co_out: Output from the compiled model
+        """
         logits = co_out[0]
         predicted_class_indices = logits.argmax(-1)
 
