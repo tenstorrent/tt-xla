@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama3 PyTorch model implementation for Tenstorrent projects.
+Monodle pytorch model loaders
 """
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant

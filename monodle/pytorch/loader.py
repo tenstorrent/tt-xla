@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GoogleNet model loader implementation
+Monodle model loader implementation
 """
 
-import torch
 from typing import Optional
-from PIL import Image
-from torchvision import models, transforms
+import torchvision.transforms as transforms
+from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -20,27 +19,27 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from .src.monodle_model import CenterNet3D
 
 
 class ModelVariant(StrEnum):
-    """Available GoogleNet model variants."""
+    """Available Monodle model variants."""
 
-    GOOGLENET = "googlenet"
+    DLA34 = "dla34"
 
 
 class ModelLoader(ForgeModel):
-    """GoogleNet model loader implementation."""
+    """Monodle model loader implementation."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GOOGLENET: ModelConfig(
-            pretrained_model_name="googlenet",
+        ModelVariant.DLA34: ModelConfig(
+            pretrained_model_name="dla34",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.GOOGLENET
+    DEFAULT_VARIANT = ModelVariant.DLA34
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -65,33 +64,29 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="googlenet",
+            model="monodle",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TORCHVISION,
+            task=ModelTask.CV_OBJECT_DET,
+            source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
 
     def load_model(self, dtype_override=None):
-        """Load and return the GoogleNet model instance for this instance's variant.
+        """Load and return the Monodle model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The GoogleNet model instance.
+            torch.nn.Module: The Monodle model instance.
         """
-        # Get the pretrained model name from the instance's variant config
-        model_name = self._variant_config.pretrained_model_name
+        # Get the backbone name from the instance's variant config
+        backbone_name = self._variant_config.pretrained_model_name
 
-        # Load GoogleNet model from torchvision
-        if model_name == "googlenet":
-            model = models.googlenet(pretrained=True)
-        else:
-            raise ValueError(f"Unsupported GoogleNet variant: {model_name}")
-
+        # Load Monodle model with specified backbone
+        model = CenterNet3D(backbone=backbone_name)
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -101,7 +96,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the GoogleNet model with this instance's variant settings.
+        """Load and return sample inputs for the Monodle model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -109,16 +104,14 @@ class ModelLoader(ForgeModel):
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for GoogleNet.
+            torch.Tensor: Preprocessed input tensor suitable for Monodle.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
 
-        # Preprocess image following GoogleNet requirements
-        preprocess = transforms.Compose(
+        dataset = load_dataset("imagenet-1k", split="validation", streaming=True)
+        image = next(iter(dataset.skip(10)))["image"]
+
+        # Preprocessing
+        transform = transforms.Compose(
             [
                 transforms.Resize(256),
                 transforms.CenterCrop(224),
@@ -129,7 +122,7 @@ class ModelLoader(ForgeModel):
             ]
         )
 
-        inputs = preprocess(image).unsqueeze(0)
+        inputs = transform(image).unsqueeze(0)
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)
@@ -139,11 +132,3 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
-
-    def print_cls_results(self, compiled_model_out):
-        """Print classification results.
-
-        Args:
-            compiled_model_out: Output from the compiled model
-        """
-        print_compiled_model_results(compiled_model_out)

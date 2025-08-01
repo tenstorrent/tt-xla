@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama model loader implementation for causal language modeling.
+Llama model loader implementation for sequence classification.
 """
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,11 +17,10 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available Llama model variants for causal LM."""
+    """Available Llama model variants for sequence classification."""
 
     # Llama 3 variants
     LLAMA_3_8B = "llama_3_8b"
@@ -47,7 +46,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Llama model loader implementation for causal language modeling tasks."""
+    """Llama model loader implementation for sequence classification tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
@@ -109,8 +108,8 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.LLAMA_3_2_1B_INSTRUCT
 
-    # Sample text for causal LM
-    sample_text = "Hey how are you doing today?"
+    # Shared configuration parameters
+    sample_text = "Movie is great"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -124,7 +123,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
+        """Implementation method for getting model info with validated variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -143,10 +142,10 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.GENERALITY
 
         return ModelInfo(
-            model="llama_causal_lm",
+            model="llama_seq_cls",
             variant=variant,
             group=group,
-            task=ModelTask.NLP_CAUSAL_LM,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -173,9 +172,6 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **tokenizer_kwargs
         )
 
-        # Set pad token to eos token for Llama models
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
@@ -186,7 +182,7 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The Llama model instance for causal LM.
+            torch.nn.Module: The Llama model instance for sequence classification.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -200,10 +196,9 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
-
         model.eval()
         self.model = model
 
@@ -213,28 +208,18 @@ class ModelLoader(ForgeModel):
         """Load and return sample inputs for the Llama model with this instance's variant settings.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            dict: Input tensors suitable for causal LM.
+            dict : Input tensors that can be fed to the model.
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
-        # For causal LM, we need both input_ids and attention_mask
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
+        # Create tokenized inputs for the sequence classification task
+        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
 
         # Replicate tensors for batch size
         for key in inputs:
@@ -246,3 +231,19 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
+
+    def decode_output(self, outputs, inputs=None):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            outputs: Model output from a forward pass (logits)
+            inputs: Optional input tensors used to generate the outputs
+
+        Returns:
+            str: Predicted category label
+        """
+
+        logits = outputs[0]
+        predicted_class_id = logits.argmax().item()
+        predicted_category = self.model.config.id2label[predicted_class_id]
+        return predicted_category

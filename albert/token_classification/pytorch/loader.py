@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ALBERT model loader implementation for masked language modeling.
+ALBERT model loader implementation for token classification.
 """
 import torch
-from transformers import AlbertForMaskedLM, AlbertTokenizer
+from transformers import AlbertForTokenClassification, AlbertTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -34,7 +34,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """ALBERT model loader implementation for masked language modeling tasks."""
+    """ALBERT model loader implementation for token classification tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
@@ -76,7 +76,7 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.BASE_V2
 
     # Shared configuration parameters
-    sample_text = "The capital of France is [MASK]."
+    sample_text = "HuggingFace is a company based in Paris and New York"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -103,7 +103,7 @@ class ModelLoader(ForgeModel):
             model="albert_v2",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.NLP_MASKED_LM,
+            task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -138,7 +138,7 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The ALBERT model instance for masked language modeling.
+            torch.nn.Module: The ALBERT model instance for token classification.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -152,7 +152,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AlbertForMaskedLM.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AlbertForTokenClassification.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
+        self.model = model
 
         return model
 
@@ -172,7 +175,7 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        # Create tokenized inputs for the masked language modeling task
+        # Create tokenized inputs for the token classification task
         inputs = self.tokenizer(
             self.sample_text,
             max_length=max_length,
@@ -191,7 +194,7 @@ class ModelLoader(ForgeModel):
             inputs: Optional input tensors used to generate the outputs
 
         Returns:
-            str: Decoded prediction for the masked token
+            list: Predicted token classes for valid tokens
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
@@ -200,12 +203,12 @@ class ModelLoader(ForgeModel):
         if inputs is None:
             inputs = self.load_inputs()
 
-        # Get the prediction for the masked token
-        logits = outputs[0]
-        mask_token_index = (inputs.input_ids == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_tokens = self.tokenizer.decode(predicted_token_id)
+        predicted_token_class_ids = outputs[0].argmax(-1)
+        predicted_token_class_ids = torch.masked_select(
+            predicted_token_class_ids, (inputs["attention_mask"][0] == 1)
+        )
+        predicted_tokens_classes = [
+            self.model.config.id2label[t.item()] for t in predicted_token_class_ids
+        ]
 
-        return predicted_tokens
+        return predicted_tokens_classes

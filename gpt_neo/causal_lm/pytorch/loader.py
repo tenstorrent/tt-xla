@@ -5,50 +5,77 @@
 GPT-Neo model loader implementation
 """
 import torch
-
+from typing import Optional
 
 from transformers import GPTNeoForCausalLM, GPT2Tokenizer, GenerationConfig
-from ...config import (
+from ....config import (
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
-from ...base import ForgeModel
+from ....base import ForgeModel
+
+
+class ModelVariant(StrEnum):
+    """Available GPT-Neo model variants."""
+
+    GPT_NEO_125M = "gpt_neo_125M"
+    GPT_NEO_1_3B = "gpt_neo_1_3B"
+    GPT_NEO_2_7B = "gpt_neo_2_7B"
 
 
 class ModelLoader(ForgeModel):
     """GPT-Neo model loader implementation."""
 
-    def __init__(self, variant=None):
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.GPT_NEO_125M: LLMModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-125M",
+            max_length=256,
+        ),
+        ModelVariant.GPT_NEO_1_3B: LLMModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-1.3B",
+            max_length=256,
+        ),
+        ModelVariant.GPT_NEO_2_7B: LLMModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-2.7B",
+            max_length=256,
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.GPT_NEO_125M
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-
-        # Configuration parameters
-        self.model_name = "EleutherAI/gpt-neo-125M"
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="gpt_neo",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
@@ -56,7 +83,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, dtype_override=None):
-        """Load and return the GPT-Neo model instance with default settings.
+        """Load and return the GPT-Neo model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -65,17 +92,23 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The GPT-Neo model instance.
         """
-        self.tokenizer = GPT2Tokenizer.from_pretrained(self.model_name)
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        self.tokenizer = GPT2Tokenizer.from_pretrained(pretrained_model_name)
+
+        # Set pad token to eos token for GPT-Neo
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = GPTNeoForCausalLM.from_pretrained(self.model_name, **model_kwargs)
+        model = GPTNeoForCausalLM.from_pretrained(pretrained_model_name, **model_kwargs)
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the GPT-Neo model with default settings.
+        """Load and return sample inputs for the GPT-Neo model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -83,7 +116,7 @@ class ModelLoader(ForgeModel):
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            dict: Input tensors (input_ids, attention_mask) and generation_config that can be fed to the model.
         """
 
         prompt = (
@@ -95,11 +128,24 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             model = self.load_model(dtype_override=dtype_override)
 
-        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
+        # Get max_length from the variant config
+        max_length = self._variant_config.max_length
+
+        tokenized_inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            max_length=max_length,
+            padding="max_length",
+            truncation=True,
+        )
         generation_config = GenerationConfig(
             max_length=100, do_sample=True, temperature=0.9
         )
-        inputs = {"input_ids": input_ids, "generation_config": generation_config}
+        inputs = {
+            "input_ids": tokenized_inputs.input_ids,
+            "attention_mask": tokenized_inputs.attention_mask,
+            "generation_config": generation_config,
+        }
 
         # Replicate inputs for batch size
         for key in inputs:

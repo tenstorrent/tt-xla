@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GPT-Neo model implementation for Tenstorrent projects.
+GPT-Neo causal language models
 """

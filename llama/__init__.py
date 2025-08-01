@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama3 model implementation for Tenstorrent projects.
+Llama model implementation for Tenstorrent projects.
 """
-# Import from the PyTorch implementation by default
-from .pytorch import ModelLoader
+# Import from the causal LM implementation by default for backward compatibility
+from .causal_lm.pytorch import ModelLoader

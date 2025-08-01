@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ALBERT model loader implementation for masked language modeling.
+GPT-Neo model loader implementation for sequence classification.
 """
 import torch
-from transformers import AlbertForMaskedLM, AlbertTokenizer
+from transformers import GPTNeoForSequenceClassification, GPT2Tokenizer
 from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -21,62 +21,34 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available ALBERT model variants."""
+    """Available GPT-Neo model variants for sequence classification."""
 
-    BASE_V1 = "base_v1"
-    LARGE_V1 = "large_v1"
-    XLARGE_V1 = "xlarge_v1"
-    XXLARGE_V1 = "xxlarge_v1"
-    BASE_V2 = "base_v2"
-    LARGE_V2 = "large_v2"
-    XLARGE_V2 = "xlarge_v2"
-    XXLARGE_V2 = "xxlarge_v2"
+    GPT_NEO_125M = "gpt_neo_125M"
+    GPT_NEO_1_3B = "gpt_neo_1_3B"
+    GPT_NEO_2_7B = "gpt_neo_2_7B"
 
 
 class ModelLoader(ForgeModel):
-    """ALBERT model loader implementation for masked language modeling tasks."""
+    """GPT-Neo model loader implementation for sequence classification tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BASE_V1: LLMModelConfig(
-            pretrained_model_name="albert-base-v1",
-            max_length=128,
+        ModelVariant.GPT_NEO_125M: ModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-125M",
         ),
-        ModelVariant.LARGE_V1: LLMModelConfig(
-            pretrained_model_name="albert-large-v1",
-            max_length=128,
+        ModelVariant.GPT_NEO_1_3B: ModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-1.3B",
         ),
-        ModelVariant.XLARGE_V1: LLMModelConfig(
-            pretrained_model_name="albert-xlarge-v1",
-            max_length=128,
-        ),
-        ModelVariant.XXLARGE_V1: LLMModelConfig(
-            pretrained_model_name="albert-xxlarge-v1",
-            max_length=128,
-        ),
-        ModelVariant.BASE_V2: LLMModelConfig(
-            pretrained_model_name="albert-base-v2",
-            max_length=128,
-        ),
-        ModelVariant.LARGE_V2: LLMModelConfig(
-            pretrained_model_name="albert-large-v2",
-            max_length=128,
-        ),
-        ModelVariant.XLARGE_V2: LLMModelConfig(
-            pretrained_model_name="albert-xlarge-v2",
-            max_length=128,
-        ),
-        ModelVariant.XXLARGE_V2: LLMModelConfig(
-            pretrained_model_name="albert-xxlarge-v2",
-            max_length=128,
+        ModelVariant.GPT_NEO_2_7B: ModelConfig(
+            pretrained_model_name="EleutherAI/gpt-neo-2.7B",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.BASE_V2
+    DEFAULT_VARIANT = ModelVariant.GPT_NEO_125M
 
     # Shared configuration parameters
-    sample_text = "The capital of France is [MASK]."
+    sample_text = "the movie was great!"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -100,10 +72,10 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="albert_v2",
+            model="gpt_neo_seq_cls",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.NLP_MASKED_LM,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -117,6 +89,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
         # Initialize tokenizer with dtype override if specified
         tokenizer_kwargs = {}
@@ -124,21 +98,24 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         # Load the tokenizer
-        self.tokenizer = AlbertTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
+            pretrained_model_name, **tokenizer_kwargs
         )
+
+        # Set pad token to eos token for GPT-Neo
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the ALBERT model instance for this instance's variant.
+        """Load and return the GPT-Neo model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The ALBERT model instance for masked language modeling.
+            torch.nn.Module: The GPT-Neo model instance for sequence classification.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -152,12 +129,16 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AlbertForMaskedLM.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = GPTNeoForSequenceClassification.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
+        model.eval()
+        self.model = model
 
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the ALBERT model with this instance's variant settings.
+        """Load and return sample inputs for the GPT-Neo model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -169,17 +150,13 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
+        # Create tokenized inputs for the sequence classification task
+        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
 
-        # Create tokenized inputs for the masked language modeling task
-        inputs = self.tokenizer(
-            self.sample_text,
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        )
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
 
@@ -187,25 +164,18 @@ class ModelLoader(ForgeModel):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
-            outputs: Model output from a forward pass
+            outputs: Model output from a forward pass (logits)
             inputs: Optional input tensors used to generate the outputs
 
         Returns:
-            str: Decoded prediction for the masked token
+            str: Predicted category label
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        # Get the prediction for the masked token
         logits = outputs[0]
-        mask_token_index = (inputs.input_ids == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_tokens = self.tokenizer.decode(predicted_token_id)
+        predicted_class_id = logits.argmax().item()
+        predicted_category = self.model.config.id2label[predicted_class_id]
 
-        return predicted_tokens
+        return predicted_category
