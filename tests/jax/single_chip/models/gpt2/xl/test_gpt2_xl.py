@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import GPT2Tester

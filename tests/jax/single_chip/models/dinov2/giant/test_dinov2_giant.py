@@ -54,7 +54,8 @@ def training_tester() -> Dinov2Tester:
 @pytest.mark.xfail(
     reason=failed_runtime(
         "tt-metal error: input_tensor_a.padded_shape().rank() == this->slice_start.rank() && "
-        "this->slice_start.rank() == this->slice_end.rank()"
+        "this->slice_start.rank() == this->slice_end.rank() "
+        "https://github.com/tenstorrent/tt-xla/issues/923"
     )
 )
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
