@@ -543,7 +543,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.enableFusing = true;
-  options.optimizerPassEnabled = true;
+  options.optimizerPassEnabled = false;
   options.memoryLayoutAnalysisEnabled = false;
   options.systemDescPath = system_descriptor_path.data();
 
