@@ -54,7 +54,7 @@ def training_tester() -> ViTTester:
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=0.9865921139717102. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+        "https://github.com/tenstorrent/tt-xla/issues/929"
     )
 )
 def test_vit_base_patch16_384_inference(

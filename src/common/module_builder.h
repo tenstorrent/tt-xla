@@ -19,11 +19,10 @@
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
-// tt-mlir includes
-#include "tt/runtime/types.h"
-
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
+// tt-mlir includes
+#include "tt/runtime/types.h"
 
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"

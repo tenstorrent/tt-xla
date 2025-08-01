@@ -44,7 +44,6 @@
 #include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/runtime.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
@@ -192,8 +191,6 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
 void ModuleBuilder::runStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  printModule(mlir_module);
-
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
@@ -372,7 +369,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
       llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
           default_mesh_sharding_result =
               mlir::tt::gspmd_utils::GSPMDMeshSharding::generateDefault();
-      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
+      if (default_mesh_sharding_result.takeError()) {
         DLOG_F(ERROR, "Failed to generate default mesh sharding");
         return llvm::LogicalResult::failure();
       }
@@ -386,7 +383,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
                 /*operandShardingStr=*/gspmd_attr.getValue(),
                 mlir::tt::ttcore::ShardStatus::Unsharded,
                 mlir::tt::ttcore::MeshShardDirection::FullToShard);
-    if (llvm::Error e = mesh_sharding_result.takeError()) {
+    if (mesh_sharding_result.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
       return llvm::LogicalResult::failure();
     }

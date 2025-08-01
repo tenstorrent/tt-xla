@@ -53,7 +53,8 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=0.9827062487602234. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+        "Issue due to the fusing of the softmax op "
+        "https://github.com/tenstorrent/tt-xla/issues/927"
     )
 )
 def test_flax_albert_v2_large_inference(inference_tester: AlbertV2Tester):

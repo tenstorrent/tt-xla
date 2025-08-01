@@ -266,6 +266,41 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   return tt_pjrt_status::kSuccess;
 }
 
+mlir::FailureOr<std::unordered_map<std::string, std::string>>
+LoadedExecutableInstance::fillStrategyMapFromSharding(
+    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+    size_t num_devices) {
+  std::unordered_map<std::string, std::string> strategy;
+  mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
+  if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
+    // If there is only one device, the output will be replicated, but there is
+    // no need to replicate.
+    if (num_devices == 1) {
+      strategy["strategy"] = "identity";
+    } else {
+      strategy["strategy"] = "replicate";
+      strategy["replication_factor"] = std::to_string(num_devices);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
+    llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
+    assert(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1);
+    if (mesh_shape_data.size() == 1) {
+      strategy["strategy"] = "shard";
+      strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);
+    }
+    if (mesh_shape_data.size() == 2) {
+      strategy["strategy"] = "shard_2d";
+      strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
+      strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
+    strategy["strategy"] = "identity";
+  } else {
+    return mlir::failure();
+  }
+  return strategy;
+}
+
 // TODO: We are using std::maps with strings as that is the way it is defined in
 // the tt::runtime, instead of a more structured approach with structs and/or
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
@@ -301,11 +336,11 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
-    // If the output is a replicated scalar, we expect only one tensor on
-    // output, so we need to fill the rest of the output tensors with the same
-    // tensors, to match the number of devices.
+    // If the output is a replicated scalar or tensor, we expect only one tensor
+    // on output, so we need to fill the rest of the output tensors with the
+    // same tensors, to match the number of devices.
     if (untilized_output.size() != num_devices) {
-      // If the output is not a scalar throw an error.
+      // If the size of the output is not 1 nor num_devices, we have an error.
       if (untilized_output.size() > 1) {
         DLOG_F(ERROR,
                "Untilize to host produced invalid number of output tensors: "
@@ -369,63 +404,17 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   }
   llvm::SmallVector<int64_t> output_sharding_shard_shape =
       outputSharding.getShardShape();
-  size_t output_sharding_shard_shape_size =
-      outputSharding.getShardShape().size();
-  std::vector<uint32_t> shard_shape_vec(output_sharding_shard_shape.begin(),
-                                        output_sharding_shard_shape.begin() +
-                                            output_sharding_shard_shape_size);
-  llvm::ArrayRef<uint32_t> shard_shape = shard_shape_vec;
-  assert(shard_shape.size() == outputShape.size() &&
+  assert(output_sharding_shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    assert(outputShape[i] % shard_shape[i] == 0 &&
+    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
            "Output shape is not divisible by the sharding shape");
-    outputShape[i] /= shard_shape[i];
+    outputShape[i] /= output_sharding_shard_shape[i];
   }
 
   return outputShape;
 }
-
-mlir::FailureOr<std::unordered_map<std::string, std::string>>
-LoadedExecutableInstance::fillStrategyMapFromSharding(
-    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-    size_t num_devices) {
-  std::unordered_map<std::string, std::string> strategy;
-  mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
-  if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
-    // If there is only one device, the output will be replicated, but there is
-    // no need to replicate.
-    if (num_devices == 1) {
-      strategy["strategy"] = "identity";
-    } else {
-      strategy["strategy"] = "replicate";
-      strategy["replication_factor"] = std::to_string(num_devices);
-    }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
-    llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
-    size_t mesh_shape_size = mesh_shape_data.size();
-    std::vector<int64_t> mesh_shape_vec(
-        mesh_shape_data.begin(), mesh_shape_data.begin() + mesh_shape_size);
-    llvm::ArrayRef<int64_t> mesh_shape = mesh_shape_vec;
-    assert(mesh_shape.size() <= 2 && mesh_shape.size() >= 1);
-    if (mesh_shape.size() == 1) {
-      strategy["strategy"] = "shard";
-      strategy["shard_dim"] = std::to_string(mesh_shape[0]);
-    }
-    if (mesh_shape.size() == 2) {
-      strategy["strategy"] = "shard_2d";
-      strategy["mesh_shape_y"] = std::to_string(mesh_shape[0]);
-      strategy["mesh_shape_x"] = std::to_string(mesh_shape[1]);
-    }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
-    strategy["strategy"] = "identity";
-  } else {
-    return mlir::failure();
-  }
-  return strategy;
-}
-
 namespace internal {
 
 PJRT_Error *
