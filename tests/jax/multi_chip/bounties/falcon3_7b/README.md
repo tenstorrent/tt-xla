@@ -141,13 +141,13 @@ output_text = tokenizer.batch_decode(token_ids, skip_special_tokens=True)
 
 ```bash
 # Run model with tensor parallelism
-python3 test.generate_flax_sharded
+python3 -m test.generate_flax_sharded
 
 # Compare with HuggingFace implementation
-python3 test.generate_hf
+python3 -m test.generate_hf
 
 # Run normal model
-python3 test.generate_flax
+python3 -m test.generate_flax
 ```
 
 ## 🏛️ Model Architecture
