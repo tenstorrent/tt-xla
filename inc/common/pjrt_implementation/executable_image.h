@@ -19,7 +19,7 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_

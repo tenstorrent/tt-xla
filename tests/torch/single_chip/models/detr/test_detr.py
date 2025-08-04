@@ -11,18 +11,19 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import DETRTester
 
-MODEL_VARIANT = ResNetVariant.RESNET_101
+VARIANT_NAME = "detr_resnet50"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "101",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+    Framework.TORCH,
+    "detr",
+    "resnet50",
+    ModelTask.CV_OBJECT_DET,
+    ModelSource.TORCH_HUB,
 )
 
 
@@ -30,13 +31,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+def inference_tester() -> DETRTester:
+    return DETRTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> DETRTester:
+    return DETRTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,17 +49,15 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.large
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: PCC comparison failed. "
-        "Calculated: pcc=-0.08085238188505173. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
     )
 )
-def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
+def test_torch_detr_inference(inference_tester: DETRTester):
     inference_tester.test()
 
 
@@ -69,7 +68,6 @@ def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_101_training(training_tester: ResNetTester):
+def test_torch_detr_training(training_tester: DETRTester):
     training_tester.test()

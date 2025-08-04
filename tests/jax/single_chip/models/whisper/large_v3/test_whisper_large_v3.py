@@ -11,7 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
 
 from ..tester import WhisperTester
@@ -49,11 +49,13 @@ def training_tester() -> WhisperTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOMs in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_whisper_large_v3_inference(inference_tester: WhisperTester):
@@ -67,6 +69,7 @@ def test_whisper_large_v3_inference(inference_tester: WhisperTester):
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_whisper_large_v3_training(training_tester: WhisperTester):
     training_tester.test()

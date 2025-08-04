@@ -11,17 +11,18 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from .tester import Qwen2_5Tester
 
-MODEL_VARIANT = ResNetVariant.RESNET_101
+VARIANT_NAME = "Qwen/Qwen2.5-1.5B"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "101",
-    ModelTask.CV_IMAGE_CLS,
+    Framework.TORCH,
+    "qwen_2_5",
+    "1.5B",
+    ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
 
@@ -30,13 +31,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+def inference_tester() -> Qwen2_5Tester:
+    return Qwen2_5Tester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> Qwen2_5Tester:
+    return Qwen2_5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,17 +49,15 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.large
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: PCC comparison failed. "
-        "Calculated: pcc=-0.08085238188505173. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+    reason=failed_ttmlir_compilation(
+        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
+        "https://github.com/tenstorrent/tt-xla/issues/795"
     )
 )
-def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
+def test_torch_qwen_2_5_inference(inference_tester: Qwen2_5Tester):
     inference_tester.test()
 
 
@@ -69,7 +68,6 @@ def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_resnet_v1_5_101_training(training_tester: ResNetTester):
+def test_torch_qwen_2_5_training(training_tester: Qwen2_5Tester):
     training_tester.test()
