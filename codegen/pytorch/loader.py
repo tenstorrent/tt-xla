@@ -12,13 +12,41 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    LLMModelConfig,
 )
 from ...base import ForgeModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
+class ModelVariant(StrEnum):
+    """Available Codegen model variants."""
+
+    CODEGEN_350M_MONO = "Salesforce/codegen-350M-mono"
+    CODEGEN_350M_MULTI = "Salesforce/codegen-350M-multi"
+    CODEGEN_350M_NL = "Salesforce/codegen-350M-nl"
+
+
 class ModelLoader(ForgeModel):
-    """Codegen model loader implementation."""
+
+    # Dictionary of available model variants
+    _VARIANTS = {
+        ModelVariant.CODEGEN_350M_MONO: LLMModelConfig(
+            pretrained_model_name="Salesforce/codegen-350M-mono",
+            max_length=256,
+        ),
+        ModelVariant.CODEGEN_350M_MULTI: LLMModelConfig(
+            pretrained_model_name="Salesforce/codegen-350M-multi",
+            max_length=256,
+        ),
+        ModelVariant.CODEGEN_350M_NL: LLMModelConfig(
+            pretrained_model_name="Salesforce/codegen-350M-nl",
+            max_length=256,
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.CODEGEN_350M_MONO
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -30,7 +58,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "Salesforce/codegen-350M-mono"
+        self.model_name = self._variant_config.pretrained_model_name
         self.tokenizer = None
 
     @classmethod
@@ -71,7 +99,9 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(
+            self.model_name, use_cache=False, **model_kwargs
+        )
 
         return model
 

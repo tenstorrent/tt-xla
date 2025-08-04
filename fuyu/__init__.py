@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Roberta model implementation for Tenstorrent projects.
+Fuyu model implementation for Tenstorrent projects.
 """
 # Import from the PyTorch implementation by default
 from .pytorch import ModelLoader

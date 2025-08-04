@@ -6,17 +6,43 @@ DPR model loader implementation
 """
 
 from transformers import DPRContextEncoderTokenizer, DPRContextEncoder
-from ...config import (
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    LLMModelConfig,
 )
-from ...base import ForgeModel
+from third_party.tt_forge_models.base import ForgeModel
+
+
+class ModelVariant(StrEnum):
+    """Available DPR Context Encoder model variants."""
+
+    DPR_SINGLE_NQ_BASE = "facebook/dpr-ctx_encoder-single-nq-base"
+    DPR_MULTISET_BASE = "facebook/dpr-ctx_encoder-multiset-base"
 
 
 class ModelLoader(ForgeModel):
+    """DPR Context Encoder model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.DPR_SINGLE_NQ_BASE: LLMModelConfig(
+            pretrained_model_name="facebook/dpr-ctx_encoder-single-nq-base",
+            max_length=128,
+        ),
+        ModelVariant.DPR_MULTISET_BASE: LLMModelConfig(
+            pretrained_model_name="facebook/dpr-ctx_encoder-multiset-base",
+            max_length=128,
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.DPR_SINGLE_NQ_BASE
+
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
         """Get model information for dashboard and metrics reporting.
@@ -30,7 +56,7 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         return ModelInfo(
-            model="dpr",
+            model="DPR-Context-Encoder",
             variant=variant_name,
             group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_QA,
@@ -48,13 +74,15 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "facebook/dpr-ctx_encoder-multiset-base"
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.model_name = pretrained_model_name
         self.text = "Hello, is my dog cute?"
         self.max_length = 128
         self.tokenizer = None
 
     def load_model(self, dtype_override=None):
-        """Load a DPR model from Hugging Face."""
+        """Load a DPR Context Encoder model from Hugging Face."""
 
         # Initialize tokenizer first with default or overridden dtype
         tokenizer_kwargs = {}

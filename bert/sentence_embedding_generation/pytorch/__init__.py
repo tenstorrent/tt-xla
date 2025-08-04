@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BERT PyTorch model implementation for Tenstorrent projects.
+BERT Sentence Embedding Generation PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant

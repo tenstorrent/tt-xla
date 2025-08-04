@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DPR Reader PyTorch model implementation for Tenstorrent projects.
+SSDLite320_MobileNet_V3 model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

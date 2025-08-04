@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Roberta model implementation for Tenstorrent projects.
+SSDLite320_MobileNet_V3 model implementation for Tenstorrent projects.
 """
 # Import from the PyTorch implementation by default
 from .pytorch import ModelLoader

@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Distilbert PyTorch model implementation for Tenstorrent projects.
+BERT Sequence Classification PyTorch implementation.
 """
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant

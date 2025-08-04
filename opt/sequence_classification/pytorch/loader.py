@@ -2,14 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BERT model loader implementation for question answering
+OPT model loader implementation for sequence classification.
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+from transformers import OPTForSequenceClassification, AutoTokenizer
+from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
+from transformers.modeling_outputs import (
+    CausalLMOutputWithPast,
+    QuestionAnsweringModelOutput,
+    SequenceClassifierOutputWithPast,
+)
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     LLMModelConfig,
     ModelInfo,
     ModelGroup,
@@ -21,33 +27,37 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available BERT model variants."""
+    """Available OPT model variants."""
 
-    BASE = "base"
-    LARGE = "large"
+    OPT_125M = "facebook/opt-125m"
+    OPT_350M = "facebook/opt-350m"
+    OPT_1_3B = "facebook/opt-1.3b"
 
 
 class ModelLoader(ForgeModel):
-    """BERT model loader implementation for question answering tasks."""
+    """OPT model loader implementation for sequence classification tasks."""
 
-    # Dictionary of available model variants
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BASE: LLMModelConfig(
-            pretrained_model_name="phiyodr/bert-base-finetuned-squad2",
-            max_length=256,
+        ModelVariant.OPT_125M: LLMModelConfig(
+            pretrained_model_name="facebook/opt-125m",
+            max_length=32,
         ),
-        ModelVariant.LARGE: LLMModelConfig(
-            pretrained_model_name="phiyodr/bert-large-finetuned-squad2",
-            max_length=256,
+        ModelVariant.OPT_350M: LLMModelConfig(
+            pretrained_model_name="facebook/opt-350m",
+            max_length=32,
+        ),
+        ModelVariant.OPT_1_3B: LLMModelConfig(
+            pretrained_model_name="facebook/opt-1.3b",
+            max_length=32,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.OPT_125M
 
     # Shared configuration parameters
-    context = 'Johann Joachim Winckelmann was a German art historian and archaeologist. He was a pioneering Hellenist who first articulated the difference between Greek, Greco-Roman and Roman art. "The prophet and founding hero of modern archaeology", Winckelmann was one of the founders of scientific archaeology and first applied the categories of style on a large, systematic basis to the history of art. '
-    question = "What discipline did Winkelmann create?"
+    sample_text = "the movie was great!"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -58,6 +68,7 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.tokenizer = None
+        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -71,10 +82,10 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="bert",
+            model="opt",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.NLP_QA,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -88,9 +99,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-
         # Initialize tokenizer with dtype override if specified
-        tokenizer_kwargs = {"padding_side": "left"}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
@@ -102,14 +112,14 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the BERT model instance for this instance's variant.
+        """Load and return the OPT model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The BERT model instance for question answering.
+            torch.nn.Module: The OPT model instance for sequence classification.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -118,64 +128,54 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Load pre-trained model from HuggingFace
-        model_kwargs = {}
+        # Load the model with dtype override if specified
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = AutoModelForQuestionAnswering.from_pretrained(
+        model = OPTForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
-        return model
+
+        # Store the original model for accessing config later
+        self.model = model
+        self.model.eval()
+
+        return self.model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the BERT model with this instance's variant settings.
+        """Load and return sample inputs for the OPT model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            list: Input tensors that can be fed to the model [input_ids, attention_mask].
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
-        # Create tokenized inputs
-        inputs = self.tokenizer.encode_plus(
-            self.question,
-            self.context,
-            add_special_tokens=True,
-            return_tensors="pt",
-            max_length=max_length,
+        # Create tokenized inputs for the sequence classification task
+        input_tokens = self.tokenizer(
+            self.sample_text,
+            max_length=self._variant_config.max_length,
             padding="max_length",
             truncation=True,
+            return_tensors="pt",
         )
 
-        return inputs
+        # Return as list of tensors for the wrapper
+        return [input_tokens["input_ids"], input_tokens["attention_mask"]]
 
-    def decode_output(self, outputs, inputs=None):
+    def decode_output(self, co_out):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
             outputs: Model output from a forward pass
-            inputs: Optional input tensors used to generate the outputs
 
         Returns:
             str: Decoded answer text
         """
-        # Ensure tokenizer is initialized
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        response_start = torch.argmax(outputs.start_logits)
-        response_end = torch.argmax(outputs.end_logits) + 1
-        response_tokens = inputs.input_ids[0, response_start:response_end]
-
-        return self.tokenizer.decode(response_tokens)
+        predicted_value = co_out[0].argmax(-1).item()
+        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")

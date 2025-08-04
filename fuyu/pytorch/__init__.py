@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DPR Reader PyTorch model implementation for Tenstorrent projects.
+Fuyu PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

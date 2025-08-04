@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-RoBERTa PyTorch model implementation for Tenstorrent projects.
+Roberta PyTorch model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant

@@ -4,6 +4,7 @@
 """
 Falcon model loader implementation for question answering
 """
+from typing import Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, FalconForCausalLM
 
@@ -13,13 +14,48 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
 from ...base import ForgeModel
 
 
+class ModelVariant(StrEnum):
+    """Available WideResnet model variants."""
+
+    FALCON_1B = "tiiuae/Falcon3-1B-Base"
+    FALCON_3B = "tiiuae/Falcon3-3B-Base"
+    FALCON_7B = "tiiuae/Falcon3-7B-Base"
+    FALCON_10B = "tiiuae/Falcon3-10B-Base"
+    FALCON_MAMBA_7B = "tiiuae/Falcon3-Mamba-7B-Base"
+
+
 class ModelLoader(ForgeModel):
-    @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    """WideResnet model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.FALCON_1B: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-1B-Base",
+        ),
+        ModelVariant.FALCON_3B: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-3B-Base",
+        ),
+        ModelVariant.FALCON_7B: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-7B-Base",
+        ),
+        ModelVariant.FALCON_10B: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-10B-Base",
+        ),
+        ModelVariant.FALCON_MAMBA_7B: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-Mamba-7B-Base",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.FALCON_1B
+
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
@@ -28,11 +64,9 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
         return ModelInfo(
             model="falcon",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.RED,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
@@ -51,7 +85,6 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "tiiuae/Falcon3-1B-Base"
         self.input_text = "Write a function to calculate the factorial of a number"
         self.max_length = 512
         self.tokenizer = None
@@ -66,13 +99,16 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The Falcon model instance for question answering.
         """
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         # Initialize tokenizer first with default or overridden dtype
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
@@ -81,7 +117,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = AutoModelForCausalLM.from_pretrained(
-            self.model_name, return_dict=False, use_cache=False, **model_kwargs
+            pretrained_model_name, return_dict=False, use_cache=False, **model_kwargs
         )
         return model
 
@@ -101,7 +137,6 @@ class ModelLoader(ForgeModel):
             add_special_tokens=True,
             return_tensors="pt",
             max_length=self.max_length,
-            padding="max_length",
             truncation=True,
         )
 

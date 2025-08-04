@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-RoBERTa model loader implementation
+Roberta model implementation for Tenstorrent projects.
 """
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -12,11 +12,30 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
 from ...base import ForgeModel
 
 
+class ModelVariant(StrEnum):
+    """Available Roberta model variants."""
+
+    ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-roberta-base-sentiment"
+
+
 class ModelLoader(ForgeModel):
+    """Roberta model loader implementation."""
+
+    _VARIANTS = {
+        ModelVariant.ROBERTA_BASE_SENTIMENT: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.ROBERTA_BASE_SENTIMENT
+
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
         """Get model information for dashboard and metrics reporting.
@@ -48,13 +67,15 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "cardiffnlp/twitter-roberta-base-sentiment"
         self.text = """Great road trip views! @ Shartlesville, Pennsylvania"""
         self.max_length = 128
         self.tokenizer = None
 
     def load_model(self, dtype_override=None):
-        """Load a RoBERTa model from Hugging Face."""
+        """Load a Roberta model from Hugging Face."""
+
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
         # Initialize tokenizer first with default or overridden dtype
         tokenizer_kwargs = {}
@@ -62,7 +83,7 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
@@ -71,14 +92,14 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = AutoModelForSequenceClassification.from_pretrained(
-            self.model_name, return_dict=False, **model_kwargs
+            pretrained_model_name, return_dict=False, **model_kwargs
         )
         model.eval()
         self.model = model
         return model
 
     def load_inputs(self):
-        """Generate sample inputs for RoBERTa model."""
+        """Generate sample inputs for Roberta model."""
 
         # Ensure tokenizer is initialized
         if self.tokenizer is None:

@@ -11,14 +11,32 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    ModelConfig,
 )
 from ...base import ForgeModel
 
 from transformers import AutoModel, AutoTokenizer
 
 
+class ModelVariant(StrEnum):
+    """Available NanoGPT model variants."""
+
+    FINANCIAL_SUPPORT_NANOGPT = "FinancialSupport/NanoGPT"
+
+
 class ModelLoader(ForgeModel):
-    @classmethod
+    """NanoGPT model loader implementation."""
+
+    _VARIANTS = {
+        ModelVariant.FINANCIAL_SUPPORT_NANOGPT: ModelConfig(
+            pretrained_model_name="FinancialSupport/NanoGPT",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.FINANCIAL_SUPPORT_NANOGPT
+
     def _get_model_info(cls, variant_name: str = None):
         """Get model information for dashboard and metrics reporting.
 
@@ -55,8 +73,11 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, dtype_override=None):
         """Load pretrained NanoGPT model."""
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         model = AutoModel.from_pretrained(
-            self.model_name,
+            pretrained_model_name,
             ignore_mismatched_sizes=True,
             use_cache=False,
             return_dict=False,
@@ -72,7 +93,9 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None):
         """Prepare sample input for NanoGPT model"""
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
         tokenizer.pad_token = tokenizer.eos_token
 
         # Input prompt

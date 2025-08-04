@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DPR Reader model loader implementation
+BERT model loader implementation for sequence classification.
 """
 
-
-from transformers import DPRReader, DPRReaderTokenizer
+from transformers import BertForSequenceClassification, BertTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -20,29 +19,24 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available DPR Context Encoder model variants."""
+    """Available BERT model variants for sequence classification."""
 
-    DPR_SINGLE_NQ_BASE = "facebook/dpr-reader-single-nq-base"
-    DPR_MULTISET_BASE = "facebook/dpr-reader-multiset-base"
+    TEXTATTACK_BERT_BASE_UNCASED_SST_2 = "textattack/bert-base-uncased-SST-2"
 
 
 class ModelLoader(ForgeModel):
-    """DPR Reader model loader implementation."""
+    """BERT model loader implementation for sequence classification."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.DPR_SINGLE_NQ_BASE: LLMModelConfig(
-            pretrained_model_name="facebook/dpr-reader-single-nq-base",
-            max_length=128,
-        ),
-        ModelVariant.DPR_MULTISET_BASE: LLMModelConfig(
-            pretrained_model_name="facebook/dpr-reader-multiset-base",
+        ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: LLMModelConfig(
+            pretrained_model_name="textattack/bert-base-uncased-SST-2",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.DPR_SINGLE_NQ_BASE
+    DEFAULT_VARIANT = ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -53,11 +47,10 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
 
-        # Configuration parameters
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.text = "What is love ?"
+        self.review = "the movie was great!"
         self.max_length = 128
         self.tokenizer = None
 
@@ -74,41 +67,42 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         return ModelInfo(
-            model="DPR-Reader",
+            model="BERT-SequenceClassification",
             variant=variant_name,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.NLP_QA,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
     def load_model(self, dtype_override=None):
-        """Load and return the DPR Reader model instance with default settings.
+        """Load BERT model for sequence classification from Hugging Face.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                             If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The DPR Reader model instance.
-
+            torch.nn.Module: The BERT model instance.
         """
 
         # Initialize tokenizer
-        self.tokenizer = DPRReaderTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = DPRReader.from_pretrained(
+        model = BertForSequenceClassification.from_pretrained(
             self.model_name, return_dict=False, **model_kwargs
         )
+        self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the DPR Reader model with default settings.
+        """Prepare sample input for BERT sequence classification.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -121,12 +115,25 @@ class ModelLoader(ForgeModel):
             # Ensure tokenizer is initialized
             self.load_model(dtype_override=dtype_override)
 
+        # Data preprocessing
         inputs = self.tokenizer(
-            questions=self.text,
-            titles=["Haddaway"],
-            texts=["'What Is Love' is a song recorded by the artist Haddaway"],
+            self.review,
             max_length=self.max_length,
+            padding="max_length",
+            truncation=True,
             return_tensors="pt",
         )
 
         return inputs
+
+    def decode_output(self, co_out):
+        """Decode the model output for sequence classification.
+
+        Args:
+            co_out: Model output
+            framework_model: Framework model with config (needed for id2label mapping)
+        """
+        predicted_value = co_out[0].argmax(-1).item()
+
+        # Answer - "positive"
+        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")

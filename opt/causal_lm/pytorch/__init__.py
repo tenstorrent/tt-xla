@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DPR Reader PyTorch model implementation for Tenstorrent projects.
+OPT PyTorch causal language modeling implementation.
 """
+
 from .loader import ModelLoader, ModelVariant
