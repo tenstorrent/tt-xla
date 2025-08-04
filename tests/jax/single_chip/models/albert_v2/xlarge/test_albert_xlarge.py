@@ -51,7 +51,8 @@ def training_tester() -> AlbertV2Tester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "PCC regressed to 0.98, https://github.com/tenstorrent/tt-xla/issues/739"
+        "PCC comparison failed. Calculated: pcc=0.9865921139717102. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_flax_albert_v2_xlarge_inference(inference_tester: AlbertV2Tester):

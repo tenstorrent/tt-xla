@@ -71,7 +71,7 @@ def process_directory(directory):
 def main():
     if len(sys.argv) != 3:
         print(
-            "Usage: python .github/workflows/get_test_duration_from_junit_xmls.py <directory> <json_output>"
+            "Usage: python .github/scripts/get_test_duration_from_junit_xmls.py <directory> <json_output>"
         )
         sys.exit(1)
 
@@ -80,6 +80,15 @@ def main():
     print(f"Dir to process {root_directory}, output file {output_file}")
 
     test_case_data = process_directory(root_directory)
+
+    # Assign a small default duration (0.01 seconds) to tests with 0 duration
+    # This helps pytest's least_duration splitting algorithm distribute tests properly
+    default_duration = 0.01
+
+    for test_name, duration in test_case_data.items():
+        if duration == 0.0:
+            test_case_data[test_name] = default_duration
+
     json_output = json.dumps(test_case_data, indent=4)
 
     with open(output_file, "w") as f:
