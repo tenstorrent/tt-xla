@@ -18,23 +18,22 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
 
     Extracted here in order not to pollute the test function.
     """
-    if use_shardy or sharding_mode == ShardingMode.INPUTS:
+    if sharding_mode == ShardingMode.INPUTS:
         pytest.xfail(
             failed_ttmlir_compilation(
-                "Sharding constraint not supported in tt-mlir "
-                "(https://github.com/tenstorrent/tt-xla/issues/563)"
+                "Resharding not supported in fully automatic mode "
+                "https://github.com/tenstorrent/tt-xla/issues/916"
             )
         )
+    if not use_shardy:
+        pytest.xfail(failed_ttmlir_compilation("Resharding not supported in GSPMD"))
 
 
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
-    [
-        True,
-        False,
-    ],
+    [True, False],
 )
 @pytest.mark.parametrize(
     ("input_shape", "mesh_shape", "axis_names"), [((32, 32), (1, 2), ("x", "y"))]
