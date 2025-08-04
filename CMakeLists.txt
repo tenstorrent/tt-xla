@@ -45,6 +45,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_INSTALL_PREFIX ${TTPJRT_SOURCE_DIR}/install)
 
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+option(TTMLIR_ENABLE_OPMODEL "Enable op model in tt-mlir" OFF)
 
 # ----- coverage_config -----
 

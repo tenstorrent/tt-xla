@@ -35,8 +35,7 @@ on:
 
 jobs:
 
-  # # Run tests on TT hardware
-
+  # Run tests on TT hardware
   run-tests:
     timeout-minutes: 120
     strategy:
@@ -47,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }})"
+    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     container:
       image: ${{ matrix.build.sh-run && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -75,7 +74,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }})"
+        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     - name: Set reusable strings
       id: strings
@@ -131,6 +130,8 @@ jobs:
     - name: Run tests
       env:
         HF_HOME: /mnt/dockercache/huggingface
+        TEST_GROUP_CNT: ${{ matrix.build.test_group_cnt || 1}}
+        TEST_GROUP_ID: ${{ matrix.build.test_group_id || 1}}
       shell: bash
       run: |
         source venv/activate
@@ -142,10 +143,13 @@ jobs:
           PYTEST_FORKED=""
         fi
         pytest $PYTEST_FORKED --log-memory -sv \
-               ${{ matrix.build.dir }}  \
-               -m "${{ inputs.test_mark }}" \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               2>&1 | tee pytest.log
+                ${{ matrix.build.dir }}  \
+                -m "${{ inputs.test_mark }}" \
+                --splits $TEST_GROUP_CNT \
+                --group $TEST_GROUP_ID \
+                --splitting-algorithm least_duration \
+                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+                2>&1 | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4

@@ -2,7 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set(TT_MLIR_VERSION "42332a2b361f458595be7b91769a17b9a92b2fc7")
+option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
+
+if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
+    set(TT_MLIR_VERSION "077720405776cd100e8203574ad1796de20aba69")
+endif()
+
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -29,6 +34,8 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
     set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
+    set(TT_RUNTIME_DEBUG OFF CACHE BOOL "Enable ttmlir runtime debugging")
+    message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
         tt-mlir
@@ -46,7 +53,9 @@ else()
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
+          -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
+          -DTTMLIR_ENABLE_OPMODEL=${TTMLIR_ENABLE_OPMODEL}
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git

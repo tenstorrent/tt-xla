@@ -118,8 +118,6 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
-  collectTTIRCode(mlir_module);
-
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
@@ -327,13 +325,6 @@ void ModuleBuilder::collectOutputTypes(
   }
 }
 
-void ModuleBuilder::collectTTIRCode(
-    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  m_ttir_code.clear();
-  llvm::raw_string_ostream os(m_ttir_code);
-  mlir_module.get()->print(os);
-}
-
 std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   std::vector<mlir::func::FuncOp> public_func_ops;
@@ -528,6 +519,26 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
+
+  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
+  //    - determine a more rigorous approach to retrieving the argument
+  //      types
+  // The argument type map is used in tt-mlir so that consteval
+  // can determine which graph inputs are allowed to be used as
+  // consteval graph inputs. Also, so EIO may know which paths
+  // of the graph will end up in a consteval graph as some of its
+  // commute conditions depend on whether this is the case for
+  // a given op.
+  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
+    auto parser =
+        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
+    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+        argEnumMap;
+
+    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
+                 argEnumMap);
+    options.argumentTypeMap = argEnumMap;
+  }
 
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
