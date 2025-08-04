@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 
 from .tester import VovNetTester
@@ -48,7 +49,13 @@ def training_tester() -> VovNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.max_pool2d' op output tensor height and width dimension (28, 28) do not match the expected dimensions (27, 28) "
+        "https://github.com/tenstorrent/tt-xla/issues/928"
+    )
 )
 def test_torch_vovnet_inference(inference_tester: VovNetTester):
     inference_tester.test()
