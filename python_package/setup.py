@@ -279,6 +279,15 @@ class CMakeBuildPy(build_py):
         else:
             print("__init__.py already copied.")
 
+        # Copy monkeypatch.py file into the python jax_plugins package directory.
+        monkeypatch_src = THIS_DIR / "monkeypatch.py"
+        monkeypatch_dst = config.jax_plugin_target_dir / "monkeypatch.py"
+        if not monkeypatch_dst.exists():
+            print("Copying monkeypatch.py...")
+            shutil.copy2(monkeypatch_src, config.jax_plugin_target_dir)
+        else:
+            print("monkeypatch.py already copied.")
+
         # Copy the .so file into the python jax_plugins package directory.
         if not config.pjrt_plugin_copied:
             print("Copying PJRT plugin...")
@@ -354,7 +363,9 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=["jax_plugins.pjrt_plugin_tt", "ttxla_tools"],
-    package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME]},
+    package_data={
+        "jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME, "monkeypatch.py"]
+    },
     package_dir={
         f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
         "ttxla_tools": os.path.join("..", "ttxla_tools"),
