@@ -12,7 +12,7 @@ from .torch_device_runner import TorchDeviceRunner
 
 class DeviceRunnerFactory:
     """Factory creating DeviceRunners based on provided framework."""
-    
+
     @staticmethod
     def create_runner(framework: Framework) -> DeviceRunner:
         connector = DeviceConnectorFactory.create_connector(framework)

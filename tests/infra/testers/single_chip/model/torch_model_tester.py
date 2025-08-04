@@ -78,20 +78,20 @@ class TorchModelTester(ModelTester):
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
         if isinstance(self._input_activations, collections.abc.Mapping):
             return {**self._input_activations}
-        return {}    
-    
+        return {}
+
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """Compiles `workload` for CPU."""
         return self._compile(workload)
-    
+
     # @override
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels.
 
         Compiles for inductor backend by default.
         """
-        return self._compile_for_backend(workload, backend="inductor")   
+        return self._compile_for_backend(workload, backend="inductor")
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:

@@ -24,7 +24,7 @@ class DeviceRunner(ABC):
     def run_on_cpu(self, workload: Workload) -> Tensor:
         """Runs `workload` on CPU."""
         return self._run_on_device(workload, DeviceType.CPU)
-    
+
     def run_on_tt_device(self, workload: Workload, device_num: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
         return self._run_on_device(workload, DeviceType.TT, device_num)
@@ -42,13 +42,13 @@ class DeviceRunner(ABC):
             device_type, device_num
         )
         return self._safely_put_workload_on_device(workload, device)
-    
-    #Mislim da naredne 4 funkcije ne sluzen nicemu
-###########################################################################
+
+    # Mislim da naredne 4 funkcije ne sluzen nicemu
+    ###########################################################################
     def put_on_cpu(self, workload: Workload) -> Workload:
         """Puts `workload` on CPU."""
         return self._put_on_device(workload, device_type=DeviceType.CPU)
-    
+
     def put_on_tt_device(self, workload: Workload, device_num: int = 0) -> Workload:
         """Puts `workload` on TT device."""
         return self._put_on_device(
@@ -62,8 +62,9 @@ class DeviceRunner(ABC):
     def put_tensors_on_cpu(self, *tensors: Tensor) -> Sequence[Tensor]:
         """Puts `tensors` on CPU."""
         return self._put_tensors_on_device(DeviceType.CPU, tensors)
- ###########################################################################
- 
+
+    ###########################################################################
+
     @abstractmethod
     def _run_on_device(
         self, workload: Workload, device_type: DeviceType, device_num: int = 0
@@ -84,7 +85,3 @@ class DeviceRunner(ABC):
     ) -> Workload:
         """Puts workload's args and kwargs on device."""
         raise NotImplementedError("Subclasses must implement this method")
-
-    
-
-

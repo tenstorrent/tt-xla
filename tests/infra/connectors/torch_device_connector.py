@@ -55,7 +55,7 @@ class TorchDeviceConnector(DeviceConnector):
             raise RuntimeError(
                 "Failed to initialize TT PJRT plugin for PyTorch from wheel or local build."
             ) from e
-        
+
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
         # Custom TT devices are discovered through XLA plugin. In case of CPUs, we
@@ -76,8 +76,6 @@ class TorchDeviceConnector(DeviceConnector):
             if device_type == DeviceType.TT
             else os.cpu_count()
         )
-
-    
 
 
 # Global singleton instance.

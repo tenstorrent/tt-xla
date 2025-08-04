@@ -70,7 +70,7 @@ class JaxModelTester(ModelTester):
             return
 
         self._model.train()
-    
+
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
@@ -88,7 +88,7 @@ class JaxModelTester(ModelTester):
             return self._model.params
 
         raise NotImplementedError("Subclasses must implement this method.")
-    
+
     # @override
     def _initialize_workload(self) -> None:
         """Initializes `self._workload`."""
@@ -142,7 +142,7 @@ class JaxModelTester(ModelTester):
             }
 
         return {}
-    
+
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """
         Returns names of arguments which should be treated as static by JIT compiler.
@@ -155,7 +155,7 @@ class JaxModelTester(ModelTester):
         By default no arguments are static.
         """
         return []
-    
+
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """Compiles `workload` for CPU."""
@@ -165,7 +165,7 @@ class JaxModelTester(ModelTester):
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
         return self._compile(workload)
-    
+
     # @override
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
@@ -175,7 +175,7 @@ class JaxModelTester(ModelTester):
             workload.executable, static_argnames=workload.static_argnames
         )
         return workload
-    
+
     def __del__(self):
         if hasattr(self, "_model_path"):
             try:

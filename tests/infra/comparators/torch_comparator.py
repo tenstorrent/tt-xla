@@ -99,5 +99,3 @@ class TorchComparator(Comparator):
             f"Allclose comparison failed. "
             f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )
-
-

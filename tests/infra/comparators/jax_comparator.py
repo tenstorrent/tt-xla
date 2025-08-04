@@ -79,7 +79,7 @@ class JaxComparator(Comparator):
                 f"PCC comparison failed. "
                 f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
             )
-            
+
     # @override
     @staticmethod
     @run_on_cpu(Framework.JAX)
@@ -100,4 +100,3 @@ class JaxComparator(Comparator):
             f"Allclose comparison failed. "
             f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )
-

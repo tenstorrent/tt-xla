@@ -64,7 +64,7 @@ class DeviceConnector(ABC):
             )
 
         self._register_plugin(wheel_plugin_path, build_plugin_path)
-    
+
     def _find_plugin_path_from_wheel(self):
         """Finds path to the plugin installed from wheel."""
         # Try and see if plugin was installed from a wheel.
@@ -108,7 +108,7 @@ class DeviceConnector(ABC):
         # generate inputs on CPU etc. It also makes a difference in how JAX puts sharded
         # tensors on device (https://github.com/tenstorrent/tt-xla/issues/542).
         return [DeviceType.CPU, DeviceType.TT]
-    
+
     def connect_tt_device(self, device_num: int = 0) -> Device:
         """Returns TT device handle."""
         return self.connect_device(DeviceType.TT, device_num)
@@ -145,5 +145,3 @@ class DeviceConnector(ABC):
     def _number_of_devices(self, device_type: DeviceType) -> int:
         """Returns the number of available devices of specified type."""
         raise NotImplementedError("Subclasses must implement this method")
-
-    

@@ -51,7 +51,7 @@ class JaxDeviceConnector(DeviceConnector):
     # @override
     def _number_of_devices(self, device_type: DeviceType) -> int:
         return len(jax.devices(device_type.value))
-    
+
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
         return jax.devices(device_type.value)[device_num]
@@ -65,9 +65,6 @@ class JaxDeviceConnector(DeviceConnector):
         """Returns CPU mesh with specified `shape` and `axis_names`."""
         cpu_devices = jax.devices(DeviceType.CPU.value)
         return jax.make_mesh(shape, axis_names, devices=cpu_devices)
-    
-
-    
 
 
 # Global singleton instance.

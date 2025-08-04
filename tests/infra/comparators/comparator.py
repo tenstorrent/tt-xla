@@ -46,7 +46,7 @@ class Comparator(ABC):
     def _match_data_types(tensors: PyTree) -> PyTree:
         """Casts tensors to float32."""
         raise NotImplementedError("Subclasses must implement this method")
-    
+
     @staticmethod
     @abstractmethod
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
@@ -74,7 +74,7 @@ class Comparator(ABC):
         Asserts if not.
         """
         raise NotImplementedError("Subclasses must implement this method")
-    
+
     @staticmethod
     @abstractmethod
     def _compare_allclose(
@@ -88,6 +88,3 @@ class Comparator(ABC):
         Asserts if not.
         """
         raise NotImplementedError("Subclasses must implement this method")
-
-
-    
