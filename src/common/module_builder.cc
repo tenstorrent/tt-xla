@@ -4,6 +4,7 @@
 //
 
 #include "common/module_builder.h"
+#include "common/pipelines.h"
 
 // c++ standard library includes
 #include <cstdlib>
@@ -114,6 +115,11 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  runTTXLAPipelines(mlir_module);
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
+
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
@@ -205,6 +211,13 @@ void ModuleBuilder::runStableHLOPipeline(
   }
 
   DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
+}
+
+void ModuleBuilder::runTTXLAPipelines(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  tt::pjrt::pipelines::runTTXLAPipelines(mlir_module);
+  
+  DLOG_F(LOG_DEBUG, "SHLO Module - after tt-xla pipelines:");
   printModule(mlir_module);
 }
 

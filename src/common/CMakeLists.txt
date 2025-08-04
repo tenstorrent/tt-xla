@@ -32,6 +32,7 @@ target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
 add_library(TTPJRTCommon
     "platform.cc"
     "module_builder.cc"
+    "pipelines.cc"
     "plugin_attributes.cc"
     "compile_options.cc"
     "pjrt_implementation/api_bindings.cc"

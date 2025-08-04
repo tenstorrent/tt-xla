@@ -12,9 +12,11 @@
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/Value.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -101,6 +103,9 @@ private:
 
   // Runs StableHLO pipeline with mesh shape configuration.
   void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Runs TT-XLA specific pipelines on the MLIR module.
+  void runTTXLAPipelines(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
