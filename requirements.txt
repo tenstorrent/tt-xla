@@ -21,6 +21,7 @@ pytest
 pytest-forked
 pytorchcv
 rjieba
+pytest-split
 sentencepiece
 setuptools
 soundfile

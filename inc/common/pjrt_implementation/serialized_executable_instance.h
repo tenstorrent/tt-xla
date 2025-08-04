@@ -53,18 +53,12 @@ public:
     return m_serialized_flatbuffer.size();
   }
 
-  // Gets the TTIR code of the executable image.
-  const std::string &getTTIRCode() const { return m_ttir_code; }
-
 private:
   // Creates serialized executable instance from the executable image.
   SerializedExecutableInstance(const ExecutableImage *executable_image);
 
   // Serialized flatbuffer binary data.
   std::vector<std::byte> m_serialized_flatbuffer;
-
-  // TTIR representation of the executable image.
-  const std::string m_ttir_code;
 };
 
 } // namespace tt::pjrt
