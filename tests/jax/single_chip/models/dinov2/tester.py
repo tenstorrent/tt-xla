@@ -34,10 +34,10 @@ class Dinov2Tester(JaxModelTester):
     def _get_input_activations(self) -> jax.Array:
         model_config = Dinov2Config.from_pretrained(self._model_path)
         image_size = model_config.image_size
-        random_image = random_image(image_size)
+        input_image = random_image(image_size)
 
         processor = AutoImageProcessor.from_pretrained(self._model_path)
-        inputs = processor(images=random_image, return_tensors="jax")
+        inputs = processor(images=input_image, return_tensors="jax")
         return inputs["pixel_values"]
 
     # @override

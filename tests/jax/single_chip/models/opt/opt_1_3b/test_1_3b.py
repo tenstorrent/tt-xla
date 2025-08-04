@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
 
 from ..tester import OPTTester
@@ -49,7 +50,10 @@ def training_tester() -> OPTTester:
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason="AssertionError: PCC comparison failed. Calculated: pcc=0.3758324682712555. Required: pcc=0.99"
+    reason=incorrect_result(
+        "AssertionError: PCC comparison failed. Calculated: pcc=0.3758324682712555. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_opt_1_3b_inference(inference_tester: OPTTester):
     inference_tester.test()
