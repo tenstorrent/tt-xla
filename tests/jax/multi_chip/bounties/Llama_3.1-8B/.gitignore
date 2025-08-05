@@ -1,3 +1,4 @@
 /llama_env
 .pre-commit-config.yaml
 /results
+/llama/llama3.1-8B/
