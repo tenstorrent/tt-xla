@@ -60,6 +60,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
+      use-shared-runners: true # Run nightly tests on Civ2
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -94,7 +95,7 @@ jobs:
                 "name": "run_large_jax_models",
                 "dir": "./tests/jax/single_chip",
                 "extra_test_marks": "large",
-                "sh-run": "true"
+                "use-shared-runners": "true"
               },
               {
                 "runs-on": "n150",
@@ -116,6 +117,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
+      use-shared-runners: true # Run full model tests on Civ2
 
   fail-notify:
     if: always()

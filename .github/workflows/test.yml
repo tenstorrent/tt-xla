@@ -39,7 +39,7 @@ on:
       use-shared-runners:
         description: 'Use shared runners from Civ2'
         required: false
-        default: true
+        default: false
         type: boolean
 
 jobs:
