@@ -68,7 +68,7 @@ class ModelLoader(ForgeModel):
             model="phi1",
             variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.NLP_TOKEN_CLASSIFICATION,
+            task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )

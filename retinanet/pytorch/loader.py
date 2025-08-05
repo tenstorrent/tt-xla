@@ -90,7 +90,7 @@ class ModelLoader(ForgeModel):
             model="retinanet",
             variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.CV_OBJECT_DETECTION,
+            task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )

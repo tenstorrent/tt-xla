@@ -72,7 +72,7 @@ class ModelLoader(ForgeModel):
             model="BERT-SentenceEmbeddingGeneration",
             variant=variant_name,
             group=ModelGroup.RED,
-            task=ModelTask.SENTENCE_EMBEDDING_GENERATION,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )

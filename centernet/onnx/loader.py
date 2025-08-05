@@ -52,9 +52,9 @@ class ModelLoader(ForgeModel):
             variant_name = "dla1x_od"  # Default variant is object detection
         # Determine task based on variant name
         if "hpe" in variant_name:
-            task = ModelTask.CV_POSE_ESTIMATION
+            task = ModelTask.CV_KEYPOINT_DET
         elif "3d" in variant_name.lower():
-            task = ModelTask.CV_3D_DETECTION
+            task = ModelTask.CV_OBJECT_DET
         else:
             task = ModelTask.CV_OBJECT_DET
         return ModelInfo(
