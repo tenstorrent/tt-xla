@@ -107,6 +107,14 @@ private:
                          std::uint32_t program_index,
                          std::vector<tt::runtime::Tensor> &input_tensors);
 
+  // Fills strategy map from sharding configuration.
+  // TODO: This function might be better suited living in the tt-mlir
+  // repository. https://github.com/tenstorrent/tt-xla/issues/374
+  static mlir::FailureOr<std::unordered_map<std::string, std::string>>
+  fillStrategyMapFromSharding(
+      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+      size_t num_devices);
+
   // Either returns single tensor or creates multi-device host tensor from arg
   // tensors, depending on the strategy.
   tt::runtime::Tensor getTensorFromStrategy(

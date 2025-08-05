@@ -19,6 +19,10 @@ on:
         description: "Only run tests with name that contains"
         required: false
         type: string
+      sh-runner:
+        description: "Run on shared runner"
+        required: false
+        type: boolean
 
 permissions:
   packages: write
@@ -65,3 +69,4 @@ jobs:
         run_id_source: tt-xla
         ref: ${{ needs.set-inputs.outputs.ref }}
         test-filter: ${{ inputs.test_filter }}
+        sh-runner: ${{ inputs.sh-runner }}
