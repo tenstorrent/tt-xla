@@ -5,9 +5,8 @@
 YOLOv5 model loader implementation
 """
 import torch
-import cv2
-import numpy as np
-from ...tools.utils import get_file
+from torchvision import transforms
+from datasets import load_dataset
 
 from ...config import (
     ModelInfo,
@@ -82,14 +81,24 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        img = cv2.imread(str(image_file), cv2.IMREAD_COLOR)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
-        img = cv2.resize(img, (640, 480))  # Resize to model input size
-        img = img / 255.0  # Normalize to [0,1]
-        img = np.transpose(img, (2, 0, 1))  # HWC to CHW format
-        img = [torch.from_numpy(img).float().unsqueeze(0)]  # Add batch dimension
-        batch_tensor = torch.cat(img, dim=0)
+        # Load dataset
+        dataset = load_dataset(
+            "huggingface/cats-image", split="test"
+        )  # cats-image is a dataset of 1000 images of cats
+
+        # Get first image from dataset
+        image = dataset[0]["image"]
+
+        # Preprocess the image
+        transform = transforms.Compose(
+            [
+                transforms.Resize((480, 640)),
+                transforms.ToTensor(),
+            ]
+        )
+
+        img_tensor = [transform(image).unsqueeze(0)]  # Add batch dimension
+        batch_tensor = torch.cat(img_tensor, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

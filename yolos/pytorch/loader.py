@@ -4,9 +4,9 @@
 """
 YOLOS model loader implementation
 """
-from PIL import Image
-from transformers import AutoImageProcessor, AutoModelForObjectDetection
 
+from transformers import AutoImageProcessor, AutoModelForObjectDetection
+from datasets import load_dataset
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -86,8 +86,13 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
 
-        input_image = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(str(input_image))
+        # Load dataset
+        dataset = load_dataset(
+            "huggingface/cats-image", split="test"
+        )  # cats-image is a dataset of 1000 images of cats
+
+        # Get first image from dataset
+        image = dataset[0]["image"]
         image_processor = AutoImageProcessor.from_pretrained(self.model_variant)
         inputs = image_processor(images=image, return_tensors="pt")
         batch_tensor = inputs["pixel_values"]

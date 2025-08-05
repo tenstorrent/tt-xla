@@ -7,9 +7,9 @@ YOLOv3 model loader implementation
 Reference: https://github.com/tenstorrent/tt-buda-demos/blob/main/model_demos/cv_demos/yolo_v3/pytorch_yolov3_holli.py
 """
 import torch
-from PIL import Image
 from torchvision import transforms
 from typing import Optional
+from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -113,12 +113,10 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
         # Original image used in test
-        image_file = get_file(
-            "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
-        )
+        dataset = load_dataset("chrismontes/dog_images", split="train")
 
         # Download and load image
-        image = Image.open(image_file)
+        image = dataset[0]["image"]
 
         # Preprocess the image
         transform = transforms.Compose(

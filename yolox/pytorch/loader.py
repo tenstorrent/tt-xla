@@ -12,7 +12,7 @@ subprocess.run(
 )  # Install yolox==0.3.0 without installing its dependencies
 
 import torch
-import cv2
+from datasets import load_dataset
 import os
 from typing import Optional
 
@@ -163,8 +163,10 @@ class ModelLoader(ForgeModel):
         else:
             input_shape = (640, 640)
 
-        image_path = get_file("http://images.cocodataset.org/val2017/000000397133.jpg")
-        img = cv2.imread(str(image_path))
+        ds = load_dataset("mpnikhil/kitchen-classifier", split="train").with_format(
+            "np"
+        )  # to get the image as an numpy array
+        img = ds[200]["image"]
         img_tensor, ratio = preprocess(img, input_shape)
         self.ratio = ratio
         self.input_shape = input_shape  # Store for post_processing
