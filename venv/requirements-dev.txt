@@ -2,6 +2,7 @@ black
 clang-format
 cmake
 datasets
+diffusers
 einops
 flax==0.10.4
 fsspec
