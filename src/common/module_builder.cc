@@ -216,7 +216,7 @@ void ModuleBuilder::runStableHLOPipeline(
 void ModuleBuilder::runTTXLAPipelines(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   tt::pjrt::pipelines::runTTXLAPipelines(mlir_module);
-  
+
   DLOG_F(LOG_DEBUG, "SHLO Module - after tt-xla pipelines:");
   printModule(mlir_module);
 }
