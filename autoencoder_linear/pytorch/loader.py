@@ -8,7 +8,7 @@ Autoencoder Linear model loader implementation
 import os
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
+from PIL import Image
 import torchvision.transforms as transforms
 from datasets import load_dataset
 
@@ -110,4 +110,15 @@ class ModelLoader(ForgeModel):
         output_image = co_out[0].view(1, 28, 28).detach().numpy()
         os.makedirs(save_path, exist_ok=True)
         reconstructed_image_path = f"{save_path}/reconstructed_image.png"
-        plt.imsave(reconstructed_image_path, np.squeeze(output_image), cmap="gray")
+
+        # Squeeze to remove single dimensions and normalize to 0-255 range
+        image_array = np.squeeze(output_image)
+
+        # Ensure the array is in the correct range [0, 255]
+        image_array = (image_array * 255).astype(np.uint8)
+
+        # Create PIL Image from numpy array
+        pil_image = Image.fromarray(image_array, mode="L")  # 'L' mode for grayscale
+
+        # Save the image
+        pil_image.save(reconstructed_image_path)
