@@ -7,15 +7,15 @@ from typing import Sequence
 import jax
 import pytest
 from flax import nnx
-from infra import ModelTester, RunMode
-from utils import failed_fe_compilation
+from infra import JaxModelTester, RunMode
+from jaxtyping import PyTree
 
 from ..model import ExampleModel
 
 # ----- Tester -----
 
 
-class ExampleModelOnlyArgsTester(ModelTester):
+class ExampleModelOnlyArgsTester(JaxModelTester):
     """
     Example tester showcasing how to use only positional arguments for model's forward
     method.
@@ -30,6 +30,10 @@ class ExampleModelOnlyArgsTester(ModelTester):
         act_shape = (32, 784)
         act = jax.numpy.ones(act_shape)
         return [act]
+
+    # @override
+    def _get_input_parameters(self) -> PyTree:
+        return ()
 
     # @override
     def _get_forward_method_name(self) -> str:

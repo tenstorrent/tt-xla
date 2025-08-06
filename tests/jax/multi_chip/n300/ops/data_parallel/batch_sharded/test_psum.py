@@ -2,17 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from infra import make_partition_spec, run_multichip_test_with_random_inputs
 import jax
-import jax.numpy as jnp
 import pytest
 from infra import (
-    make_partition_spec,
     ShardingMode,
-    run_multichip_test_with_random_inputs,
+    make_partition_spec,
+    run_jax_multichip_op_test_with_random_inputs,
 )
-
-from tests.utils import failed_fe_compilation
+from utils import failed_fe_compilation
 
 
 @pytest.mark.nightly
@@ -30,6 +27,7 @@ from tests.utils import failed_fe_compilation
         ((2048, 2048), (1, 2), ("batch", "model")),
     ],
 )
+# Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.psum
 @pytest.mark.parametrize(
     "sharding_mode",
     [
@@ -59,7 +57,7 @@ def test_psum(
     in_specs = (make_partition_spec(axis_names),)
     out_specs = make_partition_spec((axis_names[0],))
 
-    run_multichip_test_with_random_inputs(
+    run_jax_multichip_op_test_with_random_inputs(
         fwd,
         [batch_shape],
         mesh_shape,

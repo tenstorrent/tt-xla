@@ -5,11 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import CLIPProcessor, FlaxCLIPModel, FlaxPreTrainedModel
 
 
-class FlaxCLIPTester(ModelTester):
+class FlaxCLIPTester(JaxModelTester):
     """Tester for CLIP family of models on image classification tasks."""
 
     def __init__(
@@ -37,11 +37,3 @@ class FlaxCLIPTester(ModelTester):
             return_tensors="jax",
         )
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }

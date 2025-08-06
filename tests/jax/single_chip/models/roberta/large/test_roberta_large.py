@@ -4,16 +4,13 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
-    incorrect_result,
 )
 
 from ..tester import FlaxRobertaForMaskedLMTester
@@ -49,13 +46,7 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131078.359375. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTester):
     inference_tester.test()

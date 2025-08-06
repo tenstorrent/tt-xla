@@ -4,15 +4,14 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import T5Tester
@@ -49,11 +48,12 @@ def training_tester() -> T5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_runtime(
-        "Hangs in the runtime (https://github.com/tenstorrent/tt-xla/issues/539)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.5672792792320251. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_t5_small_inference(inference_tester: T5Tester):

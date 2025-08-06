@@ -4,8 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -53,7 +52,7 @@ def training_tester() -> OPTTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=2040517.5. Required: atol=0.16 "
+        "PCC comparison failed. Calculated: pcc=0.44071146845817566. Required: pcc=0.99. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )

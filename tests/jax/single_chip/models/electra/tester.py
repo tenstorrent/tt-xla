@@ -5,16 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
-from transformers import (
-    AutoTokenizer,
-    FlaxPreTrainedModel,
-    FlaxElectraForCausalLM,
-)
-from jaxtyping import PyTree
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from transformers import AutoTokenizer, FlaxElectraForCausalLM, FlaxPreTrainedModel
 
 
-class ElectraTester(ModelTester):
+class ElectraTester(JaxModelTester):
     """Tester for Electra models for Causal LM task"""
 
     def __init__(
@@ -37,14 +32,6 @@ class ElectraTester(ModelTester):
             "Hello, my dog is cute",
             return_tensors="jax",
         )
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):

@@ -18,6 +18,7 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/executable_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/plugin_attributes.h"
 
 namespace tt::pjrt {
@@ -56,6 +57,7 @@ void BindMonomorphicApi(PJRT_Api *api) {
   ErrorInstance::bindApi(api);
   ExecutableInstance::bindApi(api);
   LoadedExecutableInstance::bindApi(api);
+  MemoryInstance::bindApi(api);
 }
 
 void BindUndefineds(PJRT_Api *api) {

@@ -15,9 +15,13 @@
 #include <string>
 #include <vector>
 
+// third-party includes
+#include <google/protobuf/unknown_field_set.h>
+
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
 
@@ -65,9 +69,20 @@ public:
     return m_addressable_devices_raw;
   }
 
+  const std::vector<MemoryInstance *> &getAddressableMemoriesRaw() const {
+    return m_addressable_memories_raw;
+  }
+
   // Compiles given mlir program.
-  tt_pjrt_status compileMlirProgram(const PJRT_Program *mlir_program,
-                                    LoadedExecutableInstance **out_executable);
+  tt_pjrt_status compileMlirProgram(
+      const PJRT_Program *mlir_program,
+      LoadedExecutableInstance **out_executable,
+      const std::unordered_map<std::string, std::string> &compile_options);
+
+  // Gets custom compile options from the given compile options protobuf.
+  static std::unordered_map<std::string, std::string>
+  getCompileOptions(const char *compile_options_data,
+                    size_t compile_options_size);
 
 protected:
   std::string cached_platform_name_;
@@ -75,6 +90,7 @@ protected:
 
 private:
   tt_pjrt_status populateDevices();
+  tt_pjrt_status populateMemories();
 
   std::unique_ptr<Platform> platform_;
 
@@ -94,6 +110,19 @@ private:
   // `PJRT_Client_AddressableDevices` API call.
   std::vector<DeviceInstance *> m_addressable_devices_raw;
 
+  // Vector of all device memories visible to the runtime.
+  // The host memory is in the m_addressable_host_memory member.
+  std::vector<std::unique_ptr<MemoryInstance>> m_addressable_device_memories;
+
+  // MemoryInstance object representing host memory.
+  std::unique_ptr<MemoryInstance> m_addressable_host_memory;
+
+  // Vector of raw pointers to all addressable memories, owned by
+  // `m_addressable_device_memories` and `m_addressable_host_memory`.
+  // Necessary to have to be able to return it in
+  // `PJRT_Client_AddressableMemories` API call.
+  std::vector<MemoryInstance *> m_addressable_memories_raw;
+
   // Module builder that compiles program code.
   std::unique_ptr<ModuleBuilder> m_module_builder;
 
@@ -103,6 +132,12 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
+  // fields.
+  static std::unordered_map<std::string, std::string>
+  extractCustomProtobufFields(
+      const google::protobuf::UnknownFieldSet &unknown_fields);
 };
 
 namespace internal {

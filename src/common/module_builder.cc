@@ -37,21 +37,29 @@
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
 #include "shardy/dialect/sdy/ir/register.h"
+#include "shardy/dialect/sdy/transforms/export/passes.h"
+#include "shardy/dialect/sdy/transforms/propagation/basic_propagation.h"
 #include "shardy/round_trip_import/constants.h"
 #include "shardy/round_trip_import/pipelines.h"
 #include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
 #include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
+#include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardyUtils.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
+
+// tt-xla includes
+#include "common/pjrt_implementation/data_type_utils.h"
 
 namespace tt::pjrt {
 
@@ -86,9 +94,10 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status
-ModuleBuilder::buildModule(const std::string_view &mlir_code,
-                           const std::string &system_descriptor_path) {
+tt_pjrt_status ModuleBuilder::buildModule(
+    const std::string_view &mlir_code,
+    const std::string &system_descriptor_path,
+    const std::unordered_map<std::string, std::string> &compile_options) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
@@ -106,6 +115,11 @@ ModuleBuilder::buildModule(const std::string_view &mlir_code,
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
   collectOutputTypes(mlir_module);
+
+  runStableHLOPipeline(mlir_module);
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
 
   convertFromSHLOToTTIR(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -175,6 +189,23 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   printModule(mlir_module);
 }
 
+void ModuleBuilder::runStableHLOPipeline(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
+                                          mlir::PassManager::Nesting::Implicit);
+  mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
+  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
+                                               stablehlo_pipeline_options);
+  if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to run stablehlo pipeline");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
+  printModule(mlir_module);
+}
+
 void ModuleBuilder::collectInputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_input_shardings.clear();
@@ -190,7 +221,7 @@ void ModuleBuilder::collectInputShardingsGSPMD(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getArgAttr(i, mlir::tt::sharding_utils::kXlaShardingAttr)));
+          func_op.getArgAttr(i, mlir::sdy::kXlaShardingAttr)));
     }
   }
 
@@ -245,9 +276,8 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
   std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
-      gspmd_attributes.push_back(
-          llvm::dyn_cast_if_present<mlir::StringAttr>(func_op.getResultAttr(
-              i, mlir::tt::sharding_utils::kXlaShardingAttr)));
+      gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
+          func_op.getResultAttr(i, mlir::sdy::kXlaShardingAttr)));
     }
   }
 
@@ -280,7 +310,6 @@ void ModuleBuilder::collectOutputShardingsShardy(
               result_index, mlir::sdy::kShardingAttr));
     }
   }
-
   mlir::LogicalResult result = createShardingsFromShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
@@ -291,6 +320,7 @@ void ModuleBuilder::collectOutputShardingsShardy(
 void ModuleBuilder::collectOutputTypes(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   m_is_output_scalar.clear();
+  m_output_data_types.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
@@ -298,6 +328,8 @@ void ModuleBuilder::collectOutputTypes(
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
       m_is_output_scalar.push_back(isScalarType(returnType));
+      m_output_data_types.push_back(
+          tt::pjrt::data_type_utils::convertMLIRToPJRTDataType(returnType));
     }
   }
 }
@@ -331,24 +363,32 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
 
   for (const mlir::StringAttr &gspmd_attr : gspmd_attributes) {
 
-    mlir::tt::sharding_utils::MeshSharding mesh_sharding;
-
-    // If there is no sharding attribute, we put the default sharding, marked
-    // as "identity", which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding,
+    // which means there is no sharding.
     if (!gspmd_attr) {
-      shardings.push_back(mesh_sharding);
+      llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
+          default_mesh_sharding_result =
+              mlir::tt::gspmd_utils::GSPMDMeshSharding::generateDefault();
+      if (default_mesh_sharding_result.takeError()) {
+        DLOG_F(ERROR, "Failed to generate default mesh sharding");
+        return llvm::LogicalResult::failure();
+      }
+      shardings.push_back(*default_mesh_sharding_result);
       continue;
     }
-
-    llvm::Expected<bool> error =
-        mesh_sharding.convertGSPMDShardingToMeshSharding(gspmd_attr.getValue());
-    if (llvm::Error e = error.takeError()) {
+    llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
+        mesh_sharding_result =
+            mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
+                gspmd_attr.getValue(),
+                /*operandShardingStr=*/gspmd_attr.getValue(),
+                mlir::tt::ttcore::ShardStatus::Unsharded,
+                mlir::tt::ttcore::MeshShardDirection::FullToShard);
+    if (mesh_sharding_result.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
-
       return llvm::LogicalResult::failure();
     }
 
-    shardings.push_back(mesh_sharding);
+    shardings.push_back(*mesh_sharding_result);
   }
 
   return llvm::LogicalResult::success();
@@ -360,24 +400,32 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
   for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
 
-    mlir::tt::sharding_utils::MeshSharding mesh_sharding;
-
-    // If there is no sharding attribute, we put the default sharding, marked
-    // as "identity", which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding,
+    // which means there is no sharding.
     if (!shardy_attr) {
-      shardings.push_back(mesh_sharding);
+      llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
+          default_mesh_sharding_result =
+              mlir::tt::shardy_utils::ShardyMeshSharding::generateDefault();
+      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
+        DLOG_F(ERROR, "Failed to generate default mesh sharding");
+        return llvm::LogicalResult::failure();
+      }
+      shardings.push_back(*default_mesh_sharding_result);
       continue;
     }
 
-    llvm::Expected<bool> error = mesh_sharding.convertSdyShardingToMeshSharding(
-        shardy_attr, shardy_mesh, mlir::tt::MeshShardDirection::FullToShard);
-    if (llvm::Error e = error.takeError()) {
+    llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
+        mesh_sharding_result =
+            mlir::tt::shardy_utils::ShardyMeshSharding::generate(
+                shardy_mesh, shardy_attr,
+                mlir::tt::ttcore::ShardStatus::Unsharded,
+                mlir::tt::ttcore::MeshShardDirection::FullToShard);
+    if (llvm::Error e = mesh_sharding_result.takeError()) {
       DLOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
-
       return llvm::LogicalResult::failure();
     }
 
-    shardings.push_back(mesh_sharding);
+    shardings.push_back(*mesh_sharding_result);
   }
 
   return llvm::LogicalResult::success();
@@ -407,9 +455,9 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
 void ModuleBuilder::collectMeshShape(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::tt::MeshesAttr meshes_attr =
-      module.get()->getAttrOfType<mlir::tt::MeshesAttr>(
-          mlir::tt::MeshesAttr::name);
+  mlir::tt::ttcore::MeshesAttr meshes_attr =
+      module.get()->getAttrOfType<mlir::tt::ttcore::MeshesAttr>(
+          mlir::tt::ttcore::MeshesAttr::name);
   if (!meshes_attr || meshes_attr.getMeshes().empty()) {
     // If mesh attribute is not set we can still estimate the mesh based on the
     // input shardings.
@@ -417,7 +465,7 @@ void ModuleBuilder::collectMeshShape(
     return;
   }
 
-  llvm::ArrayRef<mlir::tt::MeshAttr> meshes = meshes_attr.getMeshes();
+  llvm::ArrayRef<mlir::tt::ttcore::MeshAttr> meshes = meshes_attr.getMeshes();
 
   // For now, use the first mesh shape (same as what is used in tt-mlir).
   llvm::ArrayRef<int64_t> mesh_shape = meshes[0].getShape();
@@ -429,7 +477,8 @@ void ModuleBuilder::collectMeshShape(
 void ModuleBuilder::estimateMeshShape() {
   for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
        m_input_shardings) {
-    if (input_sharding.getShardType() == mlir::tt::MeshShardType::Devices) {
+    if (input_sharding.getShardType() ==
+        mlir::tt::ttcore::MeshShardType::Devices) {
       m_devices_mesh_shape =
           std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
                                      input_sharding.getMeshShape().end());
@@ -494,6 +543,26 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
   options.systemDescPath = system_descriptor_path.data();
+
+  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
+  //    - determine a more rigorous approach to retrieving the argument
+  //      types
+  // The argument type map is used in tt-mlir so that consteval
+  // can determine which graph inputs are allowed to be used as
+  // consteval graph inputs. Also, so EIO may know which paths
+  // of the graph will end up in a consteval graph as some of its
+  // commute conditions depend on whether this is the case for
+  // a given op.
+  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
+    auto parser =
+        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
+    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+        argEnumMap;
+
+    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
+                 argEnumMap);
+    options.argumentTypeMap = argEnumMap;
+  }
 
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
@@ -575,8 +644,10 @@ void ModuleBuilder::checkOutputShardingShapes(
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         m_output_shardings[output_index];
-    if (output_sharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-        output_sharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+    if (output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Identity ||
+        output_sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Replicate) {
       continue;
     }
 
@@ -634,6 +705,22 @@ bool ModuleBuilder::isUsingShardy(
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
 
   return mesh_op.has_value();
+}
+
+bool ModuleBuilder::isUsingShardyManualComputation(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  if (!isUsingShardy(module)) {
+    return false;
+  }
+
+  bool is_using_shardy_manual_computation = false;
+  module.get().walk([&](mlir::sdy::ManualComputationOp op) {
+    is_using_shardy_manual_computation = true;
+
+    return mlir::WalkResult::interrupt();
+  });
+
+  return is_using_shardy_manual_computation;
 }
 
 std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(

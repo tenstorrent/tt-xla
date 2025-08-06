@@ -4,15 +4,14 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import BlenderBotTester
@@ -48,11 +47,13 @@ def training_tester() -> BlenderBotTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "OOM in CI (https://github.com/tenstorrent/tt-xla/issues/186)"
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
 def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
@@ -66,6 +67,7 @@ def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_blenderbot_3b_training(training_tester: BlenderBotTester):
     training_tester.test()

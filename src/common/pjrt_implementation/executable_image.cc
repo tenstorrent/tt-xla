@@ -10,22 +10,25 @@
 
 #include "common/pjrt_implementation/executable_image.h"
 
+// tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/memory_instance.h"
 
 namespace tt::pjrt {
 
 std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
-    std::string &&optimized_mlir_code, std::string &&executable_name,
+    std::string &&original_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
     const std::vector<std::uint32_t> &devices_mesh_shape,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<bool> &is_output_scalar) {
+    const std::vector<bool> &is_output_scalar,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   struct make_shared_enabler : public ExecutableImage {
     make_shared_enabler(
         const tt::runtime::Binary &flatbuffer_binary,
-        std::string &&optimized_mlir_code, std::string &&executable_name,
+        std::string &&original_mlir_code, std::string &&executable_name,
         size_t num_partitions, size_t num_replicas,
         size_t num_devices_to_utilize,
         const std::vector<std::uint32_t> &devices_mesh_shape,
@@ -33,36 +36,39 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
             &input_sharding,
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
             &output_sharding,
-        const std::vector<bool> &is_output_scalar)
-        : ExecutableImage(flatbuffer_binary, std::move(optimized_mlir_code),
+        const std::vector<bool> &is_output_scalar,
+        const std::vector<PJRT_Buffer_Type> &expected_output_data_types)
+        : ExecutableImage(flatbuffer_binary, std::move(original_mlir_code),
                           std::move(executable_name), num_partitions,
                           num_replicas, num_devices_to_utilize,
                           devices_mesh_shape, input_sharding, output_sharding,
-                          is_output_scalar) {}
+                          is_output_scalar, expected_output_data_types) {}
   };
 
   return std::make_shared<make_shared_enabler>(
-      flatbuffer_binary, std::move(optimized_mlir_code),
+      flatbuffer_binary, std::move(original_mlir_code),
       std::move(executable_name), num_partitions, num_replicas,
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
-      output_sharding, is_output_scalar);
+      output_sharding, is_output_scalar, expected_output_data_types);
 }
 
 ExecutableImage::ExecutableImage(
     const tt::runtime::Binary &flatbuffer_binary,
-    std::string &&optimized_mlir_code, std::string &&executable_name,
+    std::string &&original_mlir_code, std::string &&executable_name,
     size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
     const std::vector<std::uint32_t> &devices_mesh_shape,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<bool> &is_output_scalar)
+    const std::vector<bool> &is_output_scalar,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types)
     : m_flatbuffer_binary(flatbuffer_binary),
-      m_optimized_mlir_code(std::move(optimized_mlir_code)),
+      m_original_mlir_code(std::move(original_mlir_code)),
       m_executable_name(std::move(executable_name)),
       m_num_partitions(num_partitions), m_num_replicas(num_replicas),
       m_num_devices_to_utilize(num_devices_to_utilize),
       m_devices_mesh_shape(devices_mesh_shape),
-      m_input_sharding(input_sharding), m_output_sharding(output_sharding) {
+      m_input_sharding(input_sharding), m_output_sharding(output_sharding),
+      m_output_types(expected_output_data_types) {
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -82,10 +88,6 @@ ExecutableImage::ExecutableImage(
   m_output_ranks.resize(m_num_outputs);
 
   for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
-    m_output_types[output_index] =
-        tt::pjrt::data_type_utils::convertRuntimeToPJRTDataType(
-            output_specs[output_index].dataType);
-
     // PJRT expects an empty shape for scalars.
     m_output_dimensions.emplace_back(is_output_scalar[output_index]
                                          ? std::vector<std::uint32_t>()
@@ -96,6 +98,18 @@ ExecutableImage::ExecutableImage(
     for (std::uint32_t dim : m_output_dimensions[output_index]) {
       m_output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
     }
+  }
+
+  m_output_memory_kinds.reserve(m_num_outputs);
+  m_output_memory_kinds_sizes.reserve(m_num_outputs);
+
+  // Currently we move all output buffers to host memory at the end of
+  // PJRT_LoadedExecutable_Execute.
+  for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
+    m_output_memory_kinds.emplace_back(
+        MemoryInstance::c_device_memory_kind_name.c_str());
+    m_output_memory_kinds_sizes.emplace_back(
+        MemoryInstance::c_device_memory_kind_name.size());
   }
 }
 

@@ -1,0 +1,119 @@
+name: Build tt-xla
+
+on:
+  workflow_call:
+    inputs:
+        mlir_override:
+            description: 'Git SHA of commit in tenstorrent/tt-mlir'
+            required: false
+            type: string
+        docker_image:
+            description: 'Docker image to use for the build'
+            required: true
+            type: string
+        debug_build:
+            description: 'Is this debug build (or release)'
+            required: false
+            type: boolean
+        enable_artifact_upload:
+            description: 'Enable artifact upload'
+            required: false
+            type: boolean
+
+jobs:
+  build-ttxla:
+    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    name: "Build tt-xla"
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+            git config --global --add safe.directory /__w/tt-xla/tt-xla
+            git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+            submodules: recursive
+            repository: 'tenstorrent/tt-xla'
+            lfs: true
+
+      - name: Override tt-mlir SHA mlir_override is set
+        if: ${{ inputs.mlir_override }}
+        shell: bash
+        run: |
+            # Update the CMakeLists.txt file with the new SHA
+            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+            echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+            echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+            echo "build-name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)" >> "$GITHUB_OUTPUT"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+            create-symlink: true
+            key: "${{ steps.strings.outputs.build-name }}-build"
+
+      - name: Build
+        shell: bash
+        run: |
+            source venv/activate
+            cmake -G Ninja \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+              $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '-DCODE_COVERAGE=ON'; fi) \
+              -B ${{ steps.strings.outputs.build-output-dir }} \
+              -S ${{ steps.strings.outputs.work-dir }}
+            cmake --build ${{ steps.strings.outputs.build-output-dir }}
+
+      - name: Build the wheel
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/python_package
+            python setup.py bdist_wheel
+
+      - name: Upload the wheel
+        uses: actions/upload-artifact@v4
+        with:
+            name: xla-whl-${{ steps.strings.outputs.build-name }}
+            path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+
+      - name: Archive Build Directory
+        if: inputs.enable_artifact_upload
+        shell: bash
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: tar cf artifact.tar .
+
+      - name: Upload Build Folder
+        if: inputs.enable_artifact_upload
+        uses: actions/upload-artifact@v4
+        with:
+            name: build-artifacts
+            path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
+
+      - name: Remove tar archive
+        if: inputs.enable_artifact_upload
+        shell: bash
+        run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
+
+
+      - name: Verify tt-mlir SHA override
+        if: inputs.mlir_override
+        continue-on-error: true
+        shell: bash
+        run: |
+            cd third_party/tt-mlir/src/tt-mlir
+            branch_name=$(git rev-parse --abbrev-ref HEAD)
+            commit_sha=$(git rev-parse HEAD)
+            commit_title=$(git log -1 --pretty=%s)
+            echo "Branch name: $branch_name"
+            echo "Commit SHA: $commit_sha"
+            echo "Commit title: $commit_title"
+            echo "::notice::Using tt-mlir: $branch_name, commit: $commit_sha, title: $commit_title"

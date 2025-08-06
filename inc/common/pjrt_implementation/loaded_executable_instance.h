@@ -91,7 +91,7 @@ private:
   // corresponding devices count in the mesh shape estimated by the compiler.
   std::optional<tt::runtime::Device>
   openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-              size_t num_devices);
+              size_t num_devices, PJRT_Device *pjrt_device);
 
   // Collects device ids from the addressable devices.
   std::unordered_set<int>
@@ -107,9 +107,17 @@ private:
                          std::uint32_t program_index,
                          std::vector<tt::runtime::Tensor> &input_tensors);
 
+  // Fills strategy map from sharding configuration.
+  // TODO: This function might be better suited living in the tt-mlir
+  // repository. https://github.com/tenstorrent/tt-xla/issues/374
+  static mlir::FailureOr<std::unordered_map<std::string, std::string>>
+  fillStrategyMapFromSharding(
+      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+      size_t num_devices);
+
   // Either returns single tensor or creates multi-device host tensor from arg
   // tensors, depending on the strategy.
-  static tt::runtime::Tensor getTensorFromStrategy(
+  tt::runtime::Tensor getTensorFromStrategy(
       const std::vector<tt::runtime::Tensor> &arg_tensors,
       const std::unordered_map<std::string, std::string> &strategy);
 
@@ -120,7 +128,7 @@ private:
                       const tt::runtime::Device &runtime_device);
 
   // Untilizes output tensors and transfers them from device to host.
-  static tt_pjrt_status untilizeToHost(
+  tt_pjrt_status untilizeToHost(
       const std::vector<tt::runtime::Tensor> &output_tensors,
       size_t num_devices,
       std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
@@ -129,7 +137,8 @@ private:
   // execution.
   void fillPJRTOutputLists(
       const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
-      size_t num_devices, PJRT_Buffer **const *output_lists);
+      size_t num_devices, PJRT_Buffer **const *output_lists,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);

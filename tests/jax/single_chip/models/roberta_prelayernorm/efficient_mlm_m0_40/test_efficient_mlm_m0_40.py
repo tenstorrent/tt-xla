@@ -6,22 +6,19 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, ModelTester, RunMode
-from jaxtyping import PyTree
+from infra import ComparisonConfig, Framework, JaxModelTester, RunMode
 from transformers import (
     AutoTokenizer,
     FlaxPreTrainedModel,
     FlaxRobertaPreLayerNormForMaskedLM,
 )
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
@@ -34,7 +31,7 @@ MODEL_NAME = build_model_name(
 )
 
 
-class FlaxRobertaPreLayerNormForMaskedLMTester(ModelTester):
+class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
     """Tester for Roberta PreLayerNorm model on a masked language modeling task."""
 
     def __init__(
@@ -57,14 +54,6 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello <mask>.", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @ override
     def _get_static_argnames(self):
@@ -93,13 +82,7 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131048.65625. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_roberta_prelayernorm_inference(
     inference_tester: FlaxRobertaPreLayerNormForMaskedLMTester,

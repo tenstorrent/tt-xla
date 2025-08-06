@@ -4,8 +4,7 @@
 
 import pytest
 from infra import RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     Framework,
@@ -13,7 +12,6 @@ from tests.utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import FlaxBartForCausalLMTester
@@ -50,13 +48,7 @@ def training_tester() -> FlaxBartForCausalLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=365204.0. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_bart_large_inference(inference_tester: FlaxBartForCausalLMTester):
     inference_tester.test()

@@ -5,8 +5,7 @@
 import jax
 import pytest
 from infra import run_op_test_with_random_inputs
-
-from tests.utils import Category, convert_output_to_bfloat16
+from utils import Category, convert_output_to_bfloat16
 
 
 @pytest.mark.push

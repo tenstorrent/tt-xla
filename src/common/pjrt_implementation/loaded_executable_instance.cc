@@ -17,8 +17,8 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
-#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -97,7 +97,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices);
+      openDevices(args->argument_lists, args->num_args, args->num_devices,
+                  args->execute_device);
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
@@ -136,7 +137,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists);
+                      args->output_lists, m_executable_image->getOutputTypes());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
@@ -163,7 +164,8 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
 std::optional<tt::runtime::Device>
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
-                                      size_t num_args, size_t num_devices) {
+                                      size_t num_args, size_t num_devices,
+                                      PJRT_Device *pjrt_device) {
   std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
 
@@ -178,6 +180,15 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
            "Input buffers are placed on a different number of devices (%zu) "
            "than in the mesh shape estimated by the compiler (%zu)",
            device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+  if (device_instance &&
+      !(device_ids.size() == 1 &&
+        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                  "specified in the execute_device argument");
     return std::nullopt;
   }
 
@@ -230,7 +241,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
-        mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
+        LoadedExecutableInstance::fillStrategyMapFromSharding(
             m_executable_image->getInputSharding(arg_index), num_devices);
     if (mlir::failed(strategy)) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
@@ -255,6 +266,41 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   return tt_pjrt_status::kSuccess;
 }
 
+mlir::FailureOr<std::unordered_map<std::string, std::string>>
+LoadedExecutableInstance::fillStrategyMapFromSharding(
+    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+    size_t num_devices) {
+  std::unordered_map<std::string, std::string> strategy;
+  mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
+  if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
+    // If there is only one device, the output will be replicated, but there is
+    // no need to replicate.
+    if (num_devices == 1) {
+      strategy["strategy"] = "identity";
+    } else {
+      strategy["strategy"] = "replicate";
+      strategy["replication_factor"] = std::to_string(num_devices);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
+    llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
+    assert(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1);
+    if (mesh_shape_data.size() == 1) {
+      strategy["strategy"] = "shard";
+      strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);
+    }
+    if (mesh_shape_data.size() == 2) {
+      strategy["strategy"] = "shard_2d";
+      strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
+      strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
+    strategy["strategy"] = "identity";
+  } else {
+    return mlir::failure();
+  }
+  return strategy;
+}
+
 // TODO: We are using std::maps with strings as that is the way it is defined in
 // the tt::runtime, instead of a more structured approach with structs and/or
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
@@ -265,8 +311,8 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     return arg_tensors.front();
   }
 
-  tt::runtime::Tensor tensor =
-      tt::runtime::createMultiDeviceHostTensor(arg_tensors, strategy);
+  tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
+      arg_tensors, strategy, m_executable_image->getDevicesMeshShape());
   tt::runtime::setTensorRetain(tensor, /*retain=*/false);
 
   return tensor;
@@ -290,16 +336,22 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
-    // TODO(mrakita): This will not be the case if runtime output tensor does
-    // not have multi-device storage, but I haven't yet encountered situation
-    // where executable is run on multiple devices and we produce a single
-    // device tensor. Leaving this check to help us find those situations.
+    // If the output is a replicated scalar or tensor, we expect only one tensor
+    // on output, so we need to fill the rest of the output tensors with the
+    // same tensors, to match the number of devices.
     if (untilized_output.size() != num_devices) {
-      DLOG_F(ERROR,
-             "Untilize to host produced invalid number of output tensors: "
-             "expected %zu, got %zu",
-             num_devices, untilized_output.size());
-      return tt_pjrt_status::kInternal;
+      // If the size of the output is not 1 nor num_devices, we have an error.
+      if (untilized_output.size() > 1) {
+        DLOG_F(ERROR,
+               "Untilize to host produced invalid number of output tensors: "
+               "expected %zu, got %zu",
+               num_devices, untilized_output.size());
+        return tt_pjrt_status::kInternal;
+      }
+      for (size_t device_index = 1; device_index < num_devices;
+           ++device_index) {
+        untilized_output.emplace_back(untilized_output[0]);
+      }
     }
 
     untilized_output_tensors.emplace_back(std::move(untilized_output));
@@ -311,7 +363,8 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
 void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<std::vector<tt::runtime::Tensor>>
         &untilized_output_tensors,
-    size_t num_devices, PJRT_Buffer **const *output_lists) {
+    size_t num_devices, PJRT_Buffer **const *output_lists,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t num_outputs = untilized_output_tensors.size();
 
   for (int device_index = 0; device_index < num_devices; ++device_index) {
@@ -323,7 +376,9 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),
-              m_addressable_devices[device_index]);
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index]);
 
       output_buffer->markAsDataReady();
 
@@ -341,24 +396,25 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
   const mlir::tt::sharding_utils::MeshSharding &outputSharding =
       m_executable_image->getOutputSharding(output_index);
 
-  if (outputSharding.getShardType() == mlir::tt::MeshShardType::Identity ||
-      outputSharding.getShardType() == mlir::tt::MeshShardType::Replicate) {
+  if (outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Identity ||
+      outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-
-  llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
-  assert(shard_shape.size() == outputShape.size() &&
+  llvm::SmallVector<int64_t> output_sharding_shard_shape =
+      outputSharding.getShardShape();
+  assert(output_sharding_shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    assert(outputShape[i] % shard_shape[i] == 0 &&
+    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
            "Output shape is not divisible by the sharding shape");
-    outputShape[i] /= shard_shape[i];
+    outputShape[i] /= output_sharding_shard_shape[i];
   }
 
   return outputShape;
 }
-
 namespace internal {
 
 PJRT_Error *
@@ -430,13 +486,8 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
-  tt_pjrt_status status;
-  if (args->execute_device) {
-    DLOG_F(ERROR, "Executing on a specific single device is not supported");
-    status = tt_pjrt_status::kUnimplemented;
-  } else {
-    status = LoadedExecutableInstance::unwrap(args->executable)->execute(args);
-  }
+  tt_pjrt_status status =
+      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
 
   return *ErrorInstance::makeError(status).release();
 }

@@ -4,16 +4,16 @@
 from typing import Dict, Sequence
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
     FlaxMBartForConditionalGeneration,
     FlaxPreTrainedModel,
 )
-from jaxtyping import PyTree
 
 
-class MBartTester(ModelTester):
+class MBartTester(JaxModelTester):
     """Tester for MBart model variants"""
 
     def __init__(
@@ -34,14 +34,6 @@ class MBartTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # override
     def _get_static_argnames(self) -> Sequence[str]:

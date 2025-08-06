@@ -10,18 +10,17 @@ import pytest
 import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
-from infra import Framework, ModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from jaxtyping import PyTree
 from transformers import AutoTokenizer
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
@@ -38,7 +37,7 @@ MODEL_NAME = build_model_name(
 # ----- Tester -----
 
 
-class SqueezeBertTester(ModelTester):
+class SqueezeBertTester(JaxModelTester):
     """Tester for SqueezeBERT model on a masked language modeling task"""
 
     # @override
@@ -57,17 +56,22 @@ class SqueezeBertTester(ModelTester):
         return inputs
 
     # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
+    def _get_input_parameters(self) -> PyTree:
         model_file = hf_hub_download(
             repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
         )
         state_dict = torch.load(model_file, weights_only=True)
 
-        params = self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
+        return self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
 
+    def _get_forward_method_args(self) -> list:
+        return []
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
         return {
-            "variables": params,  # JAX frameworks have a convention of passing weights as the first argument
-            **self._get_input_activations(),
+            "variables": self._input_parameters,
+            **self._input_activations,
             "train": False,
         }
 
@@ -98,13 +102,7 @@ def training_tester() -> SqueezeBertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()

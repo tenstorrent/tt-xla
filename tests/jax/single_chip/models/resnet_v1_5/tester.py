@@ -7,16 +7,17 @@ from typing import Dict, List, Sequence, Tuple, Union
 import jax
 import torch
 from huggingface_hub import hf_hub_download
-from infra import ComparisonConfig, ModelTester, RunMode
-from utils import StrEnum
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from safetensors import safe_open
 from transformers import (
     FlaxPreTrainedModel,
     FlaxResNetForImageClassification,
     ResNetConfig,
 )
+from utils import StrEnum
 
 from tests.jax.single_chip.models.model_utils import torch_statedict_to_pytree
+
 
 # Variants should be the same between all versions of resnet.
 # Therefore the version is not included
@@ -29,7 +30,7 @@ class ResNetVariant(StrEnum):
     RESNET_152 = "resnet-152"
 
 
-class ResNetTester(ModelTester):
+class ResNetTester(JaxModelTester):
     "Tester for ResNet family of models."
 
     def __init__(
@@ -109,10 +110,9 @@ class ResNetTester(ModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        assert hasattr(self._model, "params")
         return {
-            "params": self._model.params,
-            "pixel_values": self._get_input_activations(),
+            "params": self._input_parameters,
+            "pixel_values": self._input_activations,
         }
 
     # @override

@@ -11,8 +11,7 @@ import jax.numpy as jnp
 import pytest
 from infra import run_op_test
 from jax._src.typing import DTypeLike
-
-from tests.utils import Category, enable_x64
+from utils import Category, enable_x64
 
 
 @pytest.mark.push
@@ -22,37 +21,24 @@ from tests.utils import Category, enable_x64
     "dtype",
     [
         # uints
-        pytest.param(
-            jnp.uint8,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
-        ),
+        jnp.uint8,
         jnp.uint16,
         jnp.uint32,
         jnp.uint64,
         # ints
-        pytest.param(
-            jnp.int8,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
-        ),
+        jnp.int8,
         jnp.int16,
         jnp.int32,
         jnp.int64,
         # floats
         pytest.param(
             jnp.float16,
-            marks=pytest.mark.xfail(reason="Unsupported data type"),
-        ),
-        jnp.float32,
-        pytest.param(
-            jnp.float64,
-            marks=pytest.mark.xfail(
-                reason=(
-                    "Executable expected parameter 0 of size 8 but got buffer "
-                    "with incompatible size 4. See issue "
-                    "https://github.com/tenstorrent/tt-xla/issues/170"
-                )
+            marks=pytest.mark.skip(
+                reason="Unsupported data type which is not handled/casted by runtime"
             ),
         ),
+        jnp.float32,
+        jnp.float64,
         # bfloat
         jnp.bfloat16,
         # bool
@@ -60,15 +46,22 @@ from tests.utils import Category, enable_x64
     ],
 )
 def test_dtypes(dtype: DTypeLike):
-    def scalar() -> jax.Array:
+    def scalar(inp) -> jax.Array:
         """
-        This test just returns a scalar of a certain dtype. It will fail if dtype is
-        unsupported. In mlir graph, it produces one simple stablehlo.constant op.
+        This test will push a scalar of a certain data type to device, and
+        pull it back to host. If the data type is not supported, the runtime will cast
+        it to a supported data type alias. When the host pulls the tensor back, the
+        runtime will see that the data type we are expecting is different from the
+        true data type of the runtime tensor, and will cast it to the type that the
+        host is requesting.
 
         Scalars are actually 0-dim arrays. They can be created the same way arrays are,
         using `jax.array(<some-value>, dtype)` or using `dtype(<some-value>)`.
         """
-        return jnp.array(1, dtype)  # same as dtype(1)
+        return inp
 
+    # Pass in a jax array with the desired dtype to the program
+    # This ensures that we will push a tensor to device, run a
+    # program that does nothing, and pull the output back to host.
     with enable_x64():
-        run_op_test(scalar, [])
+        run_op_test(scalar, [jnp.array(1, dtype)])

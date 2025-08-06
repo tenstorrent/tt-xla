@@ -22,9 +22,10 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      - name: Set env variable for today's date
+      - name: Set env variables
         run: |
           echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "CURRENT_COMMIT_SHA=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)" >> $GITHUB_ENV
 
       - name: Fetch latest SHA of tt-mlir submodule
         env:
@@ -38,13 +39,27 @@ jobs:
           echo "Updating tt-mlir to SHA: $LATEST_TT_MLIR_VERSION"
           sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${LATEST_TT_MLIR_VERSION}\")/" third_party/CMakeLists.txt
 
+      - name: Fetch commit history from tt-mlir repository
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          # Clone the tt-mlir repository
+          cd ${{ runner.temp }}
+          echo "### List of tt-mlir commits since previous uplift:" > commit_list.txt
+          git clone https://github.com/tenstorrent/tt-mlir.git tt-mlir
+          cd tt-mlir
+          # Fetch commit history between $COMMIT_SHA and LATEST_SHA
+          git log --oneline ${{ env.CURRENT_COMMIT_SHA}}..${{ env.LATEST_TT_MLIR_VERSION }} >>../commit_list.txt
+          cd ..
+          cat commit_list.txt
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         id: create-pr
         with:
           branch: uplift
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          author: "ajakovljevicTT <ajakovljevic@tenstorrent.com>"
           base: main
           commit-message: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
           title: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
@@ -62,8 +77,12 @@ jobs:
           echo "Pull Request URL - ${{ steps.create-pr.outputs.pull-request-url }}"
           gh pr review ${{ steps.create-pr.outputs.pull-request-number }} --approve
 
-      - name: Enable Pull Request Automerge
+      - name: Enable Pull Request Automerge and Add Comment with Commit List
         if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+          gh pr comment ${{ steps.create-pr.outputs.pull-request-number }} --body "$(cat ${{ runner.temp }}/commit_list.txt)"
+          rm -rf ${{ runner.temp }}/tt-mlir
+          rm -f ${{ runner.temp }}/commit_list.txt

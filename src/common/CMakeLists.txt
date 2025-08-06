@@ -7,13 +7,27 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # https://llvm.org/LICENSE.txt
 
+# ----- TTPJRTCommonDylibPlatform -----
+# Static lib containing platform specific logic.
+# Depends on: loguru
+
+find_package(Protobuf REQUIRED)
+
 add_library(TTPJRTCommonDylibPlatform
-"dylib_platform.cc"
+    "dylib_platform.cc"
 )
+
+add_dependencies(TTPJRTCommonDylibPlatform
+    loguru
+)
+
 target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
 )
-add_dependencies(TTPJRTCommonDylibPlatform loguru)
+
+# ----- TTPJRTCommon -----
+# Static lib containing core logic implementation, handling device/client/buffer/etc.
+# Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTCommonDylibPlatform, loguru, coverage_config
 
 add_library(TTPJRTCommon
     "platform.cc"
@@ -30,9 +44,17 @@ add_library(TTPJRTCommon
     "pjrt_implementation/executable_image.cc"
     "pjrt_implementation/executable_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/memory_instance.cc"
+    "pjrt_implementation/serialized_executable_instance.cc"
 )
-add_dependencies(TTPJRTCommon tt-mlir loguru)
+
+add_dependencies(TTPJRTCommon
+    tt-mlir
+    loguru
+)
+
 target_include_directories(TTPJRTCommon PUBLIC
+    ${Protobuf_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
@@ -43,13 +65,13 @@ target_include_directories(TTPJRTCommon PUBLIC
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
+    protobuf::libprotobuf
     loguru
+    coverage_config
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
 )
-
-target_link_libraries(TTPJRTCommon PUBLIC coverage_config)
 
 target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib

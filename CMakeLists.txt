@@ -7,6 +7,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # https://llvm.org/LICENSE.txt
 
+# Here is the dependency graph to easily keep track of components involved:
+#
+# pjrt_plugin_tt.so (TTPJRTTTDylib) # src/tt/CMakeLists.txt
+# |                                 # This is the final product of the build, a dynamic
+# |                                 # lib imported by JAX as a plugin
+# │
+# ├── TTPJRTTT  # src/tt/CMakeLists.txt
+# │   └── TTPJRTCommon  # src/common/CMakeLists.txt
+# │       ├── TTPJRTCommonDylibPlatform   # src/common/CMakeLists.txt
+# │       ├── TTMLIRCompiler (tt-mlir dynamic lib, product of tt-mlir build)
+# │       ├── TTMLIRRuntime (tt-mlir dynamic lib, product of tt-mlir build)
+# │       └── loguru
+# │
+# └── coverage_config   # CMakeLists.txt
+
+# ----- Project, cmake, compiler settings -----
 
 cmake_minimum_required(VERSION 3.20)
 
@@ -27,6 +43,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 set(CMAKE_INSTALL_PREFIX ${TTPJRT_SOURCE_DIR}/install)
+
+option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+option(TTMLIR_ENABLE_OPMODEL "Enable op model in tt-mlir" OFF)
+
+# ----- coverage_config -----
 
 add_library(coverage_config INTERFACE)
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
@@ -59,3 +80,4 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(third_party)
+add_subdirectory(docs)

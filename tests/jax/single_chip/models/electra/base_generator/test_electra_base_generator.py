@@ -4,8 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -48,13 +47,7 @@ def training_tester() -> ElectraTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131044.7890625. Required: atol=0.16 "
-        "(https://github.com/tenstorrent/tt-xla/issues/379)"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_electra_base_generator_inference(inference_tester: ElectraTester):
     inference_tester.test()

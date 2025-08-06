@@ -2,14 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
 
-import jax
 import pytest
-from flax import linen as nn
-from infra import ComparisonConfig, Framework, ModelTester, RunMode
-
-from tests.utils import (
+from infra import Framework, RunMode
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -18,7 +14,7 @@ from tests.utils import (
     build_model_name,
 )
 
-from .model_implementation import MNISTMLPModel
+from .tester import MNISTMLPTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -27,45 +23,6 @@ MODEL_NAME = build_model_name(
     ModelTask.CV_IMAGE_CLS,
     ModelSource.CUSTOM,
 )
-
-
-# ----- Tester -----
-
-
-class MNISTMLPTester(ModelTester):
-    """Tester for MNIST MLP model."""
-
-    def __init__(
-        self,
-        hidden_sizes: Sequence[int],
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        run_mode: RunMode = RunMode.INFERENCE,
-    ) -> None:
-        self._hidden_sizes = hidden_sizes
-        super().__init__(comparison_config, run_mode)
-
-    # @override
-    def _get_model(self) -> nn.Module:
-        return MNISTMLPModel(self._hidden_sizes)
-
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
-        key = jax.random.PRNGKey(37)
-        img = jax.random.normal(key, (4, 28, 28, 1))  # B, H, W, C
-        # Channels is 1 as MNIST is in grayscale.
-        return img
-
-    # @override
-    def _get_forward_method_args(self):
-        inp = self._get_input_activations()
-
-        parameters = self._model.init(jax.random.PRNGKey(42), inp)
-
-        return [parameters, inp]
 
 
 # ----- Fixtures -----

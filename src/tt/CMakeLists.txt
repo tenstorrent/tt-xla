@@ -8,13 +8,13 @@
 # https://llvm.org/LICENSE.txt
 
 include(ExternalProject)
+
+# ----- TTPJRTTT -----
+# Static lib that implements client logic.
+# Depends on: loguru, TTPJRTCommon.
+
 add_library(TTPJRTTT
     "client.cc"
-)
-
-target_link_libraries(TTPJRTTT PUBLIC
-    loguru
-    TTPJRTCommon
 )
 
 target_include_directories(TTPJRTTT PUBLIC
@@ -22,25 +22,40 @@ target_include_directories(TTPJRTTT PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
 )
 
-add_library(TTPJRTTTDylib
-    SHARED
+target_link_libraries(TTPJRTTT PUBLIC
+    loguru
+    TTPJRTCommon
+)
+
+# ----- TTPJRTTTDylib -----
+# Final dynamic library plugin `pjrt_plugin_tt.so`.
+# Depends on: TTPJRTTT, coverage_config
+
+add_library(TTPJRTTTDylib SHARED
     "dylib_entry_point.cc"
 )
-target_include_directories(TTPJRTTTDylib PUBLIC ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api)
-target_link_libraries(TTPJRTTTDylib PUBLIC TTPJRTTT)
 
-target_link_libraries(TTPJRTTTDylib PUBLIC coverage_config)
-
-# # Output to the project wide python binary directory tree.
-set_target_properties(TTPJRTTTDylib
-    PROPERTIES
-    PREFIX ""  # Disable "lib" prefix.
-    LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    INSTALL_RPATH "$ORIGIN"
+target_include_directories(TTPJRTTTDylib PUBLIC
+    ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
 )
-install(TARGETS TTPJRTTTDylib DESTINATION lib)
+
+target_link_libraries(TTPJRTTTDylib PUBLIC
+    TTPJRTTT
+    coverage_config
+)
 
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
+
+# Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
+# file) sets its search paths in which it will search for libs it dynamically links.
+set_target_properties(TTPJRTTTDylib PROPERTIES
+    PREFIX "" # Disable "lib" prefix.
+    LIBRARY_OUTPUT_NAME pjrt_plugin_tt
+    BUILD_RPATH "$ORIGIN:$ORIGIN/tt-mlir/install/lib"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/tt-mlir/install/lib"
+)
+
+install(TARGETS TTPJRTTTDylib DESTINATION lib)
 
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Setting build type to 'Release' as none was specified.")

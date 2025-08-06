@@ -4,15 +4,13 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import XLMRobertaTester
@@ -48,14 +46,9 @@ def training_tester() -> XLMRobertaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131073.1875. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
+@pytest.mark.large
 def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     inference_tester.test()
 
@@ -67,6 +60,7 @@ def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_xlm_roberta_large_training(training_tester: XLMRobertaTester):
     training_tester.test()

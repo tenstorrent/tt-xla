@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict
-import jax
 
-from infra import ComparisonConfig, ModelTester, RunMode
+import jax
+from datasets import load_dataset
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import (
-    WhisperProcessor,
     FlaxPreTrainedModel,
     FlaxWhisperForAudioClassification,
+    WhisperProcessor,
 )
-from datasets import load_dataset
-from jaxtyping import PyTree
 
 
-class WhisperTester(ModelTester):
+class WhisperTester(JaxModelTester):
     """Tester for Whisper model."""
 
     def __init__(
@@ -44,14 +43,6 @@ class WhisperTester(ModelTester):
             return_tensors="jax",
         )
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):

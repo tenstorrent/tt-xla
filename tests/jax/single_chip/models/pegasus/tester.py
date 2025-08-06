@@ -5,16 +5,16 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
+from jaxtyping import PyTree
 from transformers import (
     AutoTokenizer,
-    FlaxPreTrainedModel,
     FlaxPegasusForConditionalGeneration,
+    FlaxPreTrainedModel,
 )
-from jaxtyping import PyTree
 
 
-class PegasusTester(ModelTester):
+class PegasusTester(JaxModelTester):
     """Tester for Pegasus models."""
 
     def __init__(
@@ -39,14 +39,6 @@ class PegasusTester(ModelTester):
             return_tensors="jax",
         )
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
     # @override
     def _get_static_argnames(self):

@@ -15,11 +15,6 @@
   // ---------------------------------------------------------------------------
   // PJRT_Device stubs:
 
-  // PJRT_Memory is not yet supported in our implementation.
-  // https://github.com/tenstorrent/tt-xla/issues/468
-  _STUB(PJRT_Device_AddressableMemories);
-  _STUB(PJRT_Device_DefaultMemory);
-
   // This is used for diagnostic purposes and is allowed to return unimplemented
   // status code, but we could implement at least `bytes_in_use` calculation
   // which is the only non-optional stat that has to be set in this function.
@@ -38,18 +33,6 @@
   // need flexible memcpy from runtime in order to specify the offset and size.
   _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_CopyRawToHost);
-
-  // XLA client is not currently using this, but we should implement it, it
-  // shouldn't be too hard. It should just create the output buffer by copying
-  // the input buffer (its parameters and underlying tensor) and setting given
-  // device.
-  // https://github.com/tenstorrent/tt-xla/issues/467
-  _STUB(PJRT_Buffer_CopyToDevice);
-
-  // PJRT_Memory is not yet supported in our implementation.
-  // https://github.com/tenstorrent/tt-xla/issues/468
-  _STUB(PJRT_Buffer_CopyToMemory);
-  _STUB(PJRT_Buffer_Memory);
 
   // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
   // optimizations (avoids memory copy), but currently all our inputs are
@@ -92,15 +75,8 @@
   // https://github.com/tenstorrent/tt-xla/issues/496
   _STUB(PJRT_Executable_GetCompiledMemoryStats);
 
-  // This should return list of lists of memory kind strings for outputs, in a
-  // shape [num_programs, num_outputs]. Most implementations I've found just
-  // populate it with default memory kind.
-  // https://github.com/tenstorrent/tt-xla/issues/497
-  _STUB(PJRT_Executable_OutputMemoryKinds);
-
-  // Serialization/deserialization of our executable is not yet supported.
+  // Deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
-  _STUB(PJRT_Executable_Serialize);
   _STUB(PJRT_Executable_DeserializeAndLoad);
   // ---------------------------------------------------------------------------
 
@@ -112,19 +88,12 @@
   _STUB(PJRT_LoadedExecutable_Fingerprint);
   // ---------------------------------------------------------------------------
 
-
   _STUB(PJRT_Plugin_Initialize);
   _STUB(PJRT_Plugin_Attributes);
   _STUB(PJRT_Client_Create);
   _STUB(PJRT_Client_PlatformName);
   _STUB(PJRT_Client_PlatformVersion);
-  _STUB(PJRT_Client_AddressableMemories);
   _STUB(PJRT_Client_DefaultDeviceAssignment);
-  _STUB(PJRT_Memory_Id);
-  _STUB(PJRT_Memory_Kind);
-  _STUB(PJRT_Memory_DebugString);
-  _STUB(PJRT_Memory_ToString);
-  _STUB(PJRT_Memory_AddressableByDevices);
   _STUB(PJRT_CopyToDeviceStream_Destroy);
   _STUB(PJRT_CopyToDeviceStream_AddChunk);
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);
@@ -141,6 +110,13 @@
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   _STUB(PJRT_Client_TopologyDescription);
-  _STUB(PJRT_Memory_Kind_Id);
+  _STUB(PJRT_Client_DmaMap);
+  _STUB(PJRT_Client_DmaUnmap);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferData);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_RetrieveBuffer);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferCount);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);

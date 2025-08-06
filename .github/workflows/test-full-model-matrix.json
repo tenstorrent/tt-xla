@@ -1,0 +1,8 @@
+[
+    { "runs-on": "n150",        "name": "run_jax",           "dir": "./tests/jax/single_chip", "extra_test_marks": "not large"},
+    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
+    { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip", "extra_test_marks": "large", "use-shared-runners": "true" },
+    { "runs-on": "n300",        "name": "run_jax",           "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
+    { "runs-on": "n300-llmbox", "name": "run_jax_4_devices", "dir": "./tests/jax/multi_chip/llmbox/4_devices" },
+    { "runs-on": "n300-llmbox", "name": "run_jax_8_devices", "dir": "./tests/jax/multi_chip/llmbox/8_devices" }
+]

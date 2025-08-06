@@ -4,15 +4,13 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import ResNetTester, ResNetVariant
@@ -49,12 +47,7 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Crashes in CI https://github.com/tenstorrent/tt-xla/issues/560"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_resnet_v1_5_34_inference(inference_tester: ResNetTester):
     inference_tester.test()

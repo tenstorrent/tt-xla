@@ -5,8 +5,7 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
@@ -54,8 +53,8 @@ def training_tester() -> ViTTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=354305.75. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+        "PCC comparison failed. Calculated: pcc=0.9865921139717102. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/929"
     )
 )
 def test_vit_base_patch16_384_inference(

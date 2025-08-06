@@ -19,7 +19,7 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
@@ -35,22 +35,23 @@ public:
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&optimized_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar);
+      const std::vector<bool> &is_output_scalar,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
     return m_flatbuffer_binary;
   }
 
-  // Returns optimized mlir code produced by the compiler.
-  const std::string &getOptimizedMlirCode() const {
-    return m_optimized_mlir_code;
+  // Returns original mlir code produced by the xla plugin.
+  const std::string &getOriginalMlirCode() const {
+    return m_original_mlir_code;
   }
 
   // Returns a name that identifies the executable.
@@ -76,6 +77,9 @@ public:
   // Returns number of output buffers per device produced by this executable.
   const size_t getNumOutputs() const { return m_num_outputs; }
 
+  // Returns the vector of output data types.
+  std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
+
   // Returns raw pointer to data types for each output buffer.
   PJRT_Buffer_Type *getOutputTypesRaw() { return m_output_types.data(); }
 
@@ -98,25 +102,36 @@ public:
   const mlir::tt::sharding_utils::MeshSharding &
   getOutputSharding(size_t output_index) const;
 
+  // Gets the vector of memory kinds for each output.
+  const std::vector<const char *> &getOutputMemoryKinds() const {
+    return m_output_memory_kinds;
+  }
+
+  // Gets the vector of sizes of the memory kinds for each output.
+  const std::vector<size_t> &getOutputMemoryKindsSizes() const {
+    return m_output_memory_kinds_sizes;
+  }
+
 private:
   // Constructs executable image instance from the information given by the
   // compiler.
   ExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&optimized_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar);
+      const std::vector<bool> &is_output_scalar,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Flatbuffer binary produced by the compiler.
   tt::runtime::Binary m_flatbuffer_binary;
 
-  // Optimized mlir code produced by the compiler, stored for debugging
+  // Original mlir code produced by the compiler, stored for debugging
   // purposes.
-  std::string m_optimized_mlir_code;
+  std::string m_original_mlir_code;
 
   // A name that identifies the executable.
   std::string m_executable_name;
@@ -160,6 +175,13 @@ private:
 
   // Hold the sharding information for each output.
   const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
+
+  // Holds the information on memory kind of the output.
+  std::vector<const char *> m_output_memory_kinds;
+
+  // Holds the information about the individual sizes of the memory kind strings
+  // of the outputs.
+  std::vector<size_t> m_output_memory_kinds_sizes;
 };
 
 } // namespace tt::pjrt

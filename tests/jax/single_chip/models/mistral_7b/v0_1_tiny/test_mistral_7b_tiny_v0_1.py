@@ -4,15 +4,14 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    failed_runtime,
 )
 
 from ..tester import Mistral7BTester
@@ -48,12 +47,13 @@ def training_tester() -> Mistral7BTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer "
+        "across 12 banks, where each bank needs to store 178958336 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
 def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):

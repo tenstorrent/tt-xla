@@ -6,18 +6,15 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import Framework, ModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
-from jaxtyping import PyTree
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 MODEL_PATH = "distilbert/distilbert-base-uncased"
@@ -32,7 +29,7 @@ MODEL_NAME = build_model_name(
 # ----- Tester -----
 
 
-class FlaxDistilBertForMaskedLMTester(ModelTester):
+class FlaxDistilBertForMaskedLMTester(JaxModelTester):
     """Tester for DistilBert model on a masked language modeling task"""
 
     # @override
@@ -44,14 +41,6 @@ class FlaxDistilBertForMaskedLMTester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         inputs = tokenizer("Hello [MASK].", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }
 
 
 # ----- Fixtures -----
@@ -76,13 +65,7 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131036.078125. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
     inference_tester.test()

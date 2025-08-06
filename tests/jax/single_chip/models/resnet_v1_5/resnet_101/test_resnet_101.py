@@ -4,15 +4,14 @@
 
 import pytest
 from infra import Framework, RunMode
-
-from tests.utils import (
+from utils import (
     BringupStatus,
     Category,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
 
 from ..tester import ResNetTester, ResNetVariant
@@ -49,11 +48,14 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Segfault (https://github.com/tenstorrent/tt-xla/issues/558)"
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "AssertionError: PCC comparison failed. "
+        "Calculated: pcc=-0.08085238188505173. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
@@ -67,6 +69,7 @@ def test_resnet_v1_5_101_inference(inference_tester: ResNetTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
+@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_resnet_v1_5_101_training(training_tester: ResNetTester):
     training_tester.test()

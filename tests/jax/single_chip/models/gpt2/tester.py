@@ -5,12 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, ModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from transformers import AutoTokenizer, FlaxGPT2LMHeadModel, FlaxPreTrainedModel
-from jaxtyping import PyTree
 
 
-class GPT2Tester(ModelTester):
+class GPT2Tester(JaxModelTester):
     """Tester for GPT2 for autoregressive text generation."""
 
     def __init__(
@@ -31,11 +30,3 @@ class GPT2Tester(ModelTester):
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello there fellow traveler", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        assert hasattr(self._model, "params")
-        return {
-            "params": self._model.params,
-            **self._get_input_activations(),
-        }

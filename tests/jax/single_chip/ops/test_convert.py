@@ -8,8 +8,7 @@ import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
 from jax._src.typing import DTypeLike
-
-from tests.utils import Category, enable_x64, failed_fe_compilation, failed_runtime
+from utils import Category, enable_x64, failed_fe_compilation, failed_runtime
 
 # NOTE Use test_data_types.py as reference for all supported data types.
 

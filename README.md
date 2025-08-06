@@ -1,54 +1,56 @@
 [![Tests][tests badge]][tests]
 [![Codecov][codecov badge]][codecov]
 
-# tt-xla
-tt-xla leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX (and in the future other frameworks), [tt-mlir](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about PJRT project. This project is a fork of [iree-pjrt](https://github.com/stellaraccident/iree-pjrt).
+<div align="center">
 
-**Note:** Currently only Tenstorrent `nebula` boards are supported and `galaxy` boards are not yet supported.
+<h1>
 
-## Build Process
-tt-xla integration with tt-mlir compiler is still under progress and currently it depends on tt-mlir toolchain for build. This build flow provides an easy way to experiment with tt-xla, StableHLO and tt-mlir infrastructure. Build process will be updated in the future to enhance the user experience.
+[Hardware](https://tenstorrent.com/cards/) | [Documentation](docs/src) | [Discord](https://discord.gg/tenstorrent) | [Join Us](https://job-boards.greenhouse.io/tenstorrent?gh_src=22e462047us)
 
-### tt-mlir toolchain
-Before compiling tt-xla, tt-mlir toolchain needs to be built:
-- Clone [tt-mlir](https://github.com/tenstorrent/tt-mlir) repo
-- Follow tt-mlir [build instructions](https://docs.tenstorrent.com/tt-mlir/build.html) to setup the environment and build the toolchain
+</h1>
+<picture>
+  <img alt="Logo" src="docs/src/imgs/tt_xla_logo.png" height="250">
+</picture>
 
-### tt-xla
-Before running these commands to build tt-xla, please ensure that the environtment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the tt-mlir toolchain directory created above as part of tt-mlir environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs.
+</div>
+<br>
 
-```bash
-git clone git@github.com:tenstorrent/tt-xla.git
-cd tt-xla
-source venv/activate
-cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
-cmake --build build
-```
+TT-XLA leverages a PJRT interface to integrate JAX (and in the future other frameworks), `tt-mlir` and Tenstorrent hardware. It supports ingestion of JAX models via jit compile, providing a StableHLO (SHLO) graph to `tt-mlir` compiler.
 
-## Testing
-tt-xla repo contains various tests in `tests` directory. To run them all, please run `pytest -v tests` from project root directory. To run individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line.
+-----
+# Quick Links
+- [Getting Started / How to Run a Model](docs/src/getting_started.md)
 
-## Common Build Errors
-- Building `tt-xla` requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` link to correct version of respective tools.
-- `tt-xla` also builds `tt-metal` and it may cause `sfpi-trisc-ncrisc-build-failure`. Please use [this](https://docs.tenstorrent.com/tt-mlir/build.html#sfpi-trisc-ncrisc-build-failure) fix.
-- Please see tt-mlir [docs](https://docs.tenstorrent.com/tt-mlir/build.html#common-build-errors) for common build errors.
+-----
+# What is This Repo?
+The tt-xla repository is primarily used to enable running JAX models on Tenstorrent's AI hardware. It's a backend integration between the JAX ecosystem and Tenstorrent's ML accelerators using the PJRT (Portable JAX Runtime) interface.
 
-### Pre-Commit
-Pre-Commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install from the root of the repository using:
+-----
+# Current AI Framework Front End Projects
+- [TT-Forge-FE](https://github.com/tenstorrent/tt-forge-fe)
+  - A TVM based graph compiler designed to optimize and transform computational graphs for deep learning models. Supports ingestion of PyTorch, ONNX, TensorFlow, PaddlePaddle and similar ML frameworks via TVM ([TT-TVM](https://github.com/tenstorrent/tt-tvm)).
+  - See [docs pages](https://github.com/tenstorrent/tt-forge-fe/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
-```bash
-source venv/activate
-pre-commit install
-```
+- [TT-Torch](https://github.com/tenstorrent/tt-torch)
+  - A MLIR-native, open-source, PyTorch 2.X and torch-mlir based front-end. It provides stableHLO (SHLO) graphs to `tt-mlir`. Supports ingestion of PyTorch models via PT2.X compile and ONNX models via torch-mlir (ONNX->SHLO)
+  - See [docs pages](https://github.com/tenstorrent/tt-torch/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
-If you have already committed something locally before installing the pre-commit hooks, you can run this command to "catch up" on all files:
+- [TT-XLA](https://github.com/tenstorrent/tt-xla)
+  - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR, and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to TT-MLIR compiler
+  - See [docs pages](https://github.com/tenstorrent/tt-xla/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
-```bash
-pre-commit run --all-files
-```
+-----
+# Related Tenstorrent Projects
+- [TT-Forge](https://github.com/tenstorrent/tt-forge)
+- [TT-Forge-FE](https://github.com/tenstorrent/tt-forge-fe)
+- [TT-Torch](https://github.com/tenstorrent/tt-torch)
+- [TT-MLIR](https://github.com/tenstorrent/tt-mlir)
+- [TT-Metalium](https://github.com/tenstorrent/tt-metal)
+- [TT-TVM](https://github.com/tenstorrent/tt-tvm)
 
-For more information please visit [pre-commit](https://pre-commit.com/).
-
+-----
+# Tenstorrent Bounty Program Terms and Conditions
+This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://docs.tenstorrent.com/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
 
 [codecov]: https://codecov.io/gh/tenstorrent/tt-xla
 [tests]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml?query=branch%3Amain
