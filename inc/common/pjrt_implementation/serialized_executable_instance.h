@@ -43,22 +43,20 @@ public:
     return reinterpret_cast<SerializedExecutableInstance *>(executable);
   }
 
-  // Returns the serialized flatbuffer data.
-  const std::vector<std::byte> &getSerializedFlatbuffer() const {
-    return m_serialized_flatbuffer;
+  // Returns the serialized payload data.
+  const std::vector<std::byte> &getSerializedPayload() const {
+    return m_payload;
   }
 
-  // Gets the size of the serialized flatbuffer in bytes.
-  size_t getSerializedSizeInBytes() const {
-    return m_serialized_flatbuffer.size();
-  }
+  // Gets the size of the serialized payload in bytes.
+  size_t getSerializedPayloadSizeInBytes() const { return m_payload.size(); }
 
 private:
   // Creates serialized executable instance from the executable image.
   SerializedExecutableInstance(const ExecutableImage *executable_image);
 
   // Serialized flatbuffer binary data.
-  std::vector<std::byte> m_serialized_flatbuffer;
+  std::vector<std::byte> m_payload;
 };
 
 } // namespace tt::pjrt
