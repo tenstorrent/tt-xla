@@ -135,14 +135,13 @@ struct ReplaceCompositeWithCall final
         op.getLoc(), op.getResultTypes(), op.getDecomposition(),
         op.getOperands());
 
-    mlir::SmallVector<mlir::Attribute> attrs;
-
-    for (const mlir::NamedAttribute &attr :
-         op.getCompositeAttributes().getValue()) {
-      attrs.push_back(attr.getValue());
+    auto inputRole = op.getCompositeAttributes().get(kInputRoleAttrString);
+    if (!inputRole) {
+      return mlir::failure();
     }
 
-    call.setArgAttrsAttr(rewriter.getArrayAttr(attrs));
+    call->setAttr(kInputRoleAttrString, inputRole);
+
     rewriter.replaceOp(op, call.getResults());
     return mlir::success();
   }
