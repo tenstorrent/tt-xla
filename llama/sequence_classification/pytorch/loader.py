@@ -225,11 +225,6 @@ class ModelLoader(ForgeModel):
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            for key in inputs:
-                inputs[key] = inputs[key].to(dtype_override)
-
         return inputs
 
     def decode_output(self, outputs, inputs=None):
