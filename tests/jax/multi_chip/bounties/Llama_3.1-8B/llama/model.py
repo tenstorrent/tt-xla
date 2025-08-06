@@ -117,25 +117,25 @@ class FlaxLLaMAAttention(nn.Module):
         self.head_dim = self.embed_dim // self.num_heads
         self.num_key_value_heads = config.num_key_value_heads
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
-        self.wq = ParallelDense(
+        self.wq = ColumnParallelDense(
             config.num_attention_heads * self.head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
 
-        self.wk = ParallelDense(
+        self.wk = ColumnParallelDense(
             config.num_key_value_heads * self.head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
 
-        self.wv = ParallelDense(
+        self.wv = ColumnParallelDense(
             config.num_key_value_heads * self.head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
 
-        self.wo = ParallelDense(
+        self.wo = RowParallelDense(
             config.hidden_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -290,8 +290,65 @@ print("Devices:", devices)
 mesh = Mesh(devices, axis_names=("mp",))
 
 
-class ParallelDense(nn.Module):
-    features: float
+class ParallelEmbed(nn.Module):
+    vocab_size: int
+    features: int
+    dtype: jnp.dtype = jnp.float32
+    param_dtype: jnp.dtype = jnp.float32
+
+    @nn.compact
+    def __call__(self, x):
+        local_vocab_size = self.vocab_size // mesh.shape["mp"]
+
+        # Get pre-sharded embedding table (local_vocab_size, features)
+        sharded_emb = self.param(
+            "embedding",
+            nn.initializers.lecun_normal(),
+            (local_vocab_size, self.features),
+            self.param_dtype,
+        )
+
+        # Check if we're in initialization by trying to access axis_index
+        try:
+            # This will fail during jax.eval_shape or outside shard_map
+            jax.lax.axis_index("mp")
+        except:
+            # We're in initialization phase - return full output shape
+            return jnp.zeros(
+                (x.shape[0], x.shape[1], self.features), dtype=self.param_dtype
+            )
+
+        def embed_fn(x, emb):
+            batch, seq = x.shape
+            my_rank = jax.lax.axis_index("mp")
+            vocab_per_rank = self.vocab_size // mesh.shape["mp"]
+            vocab_start = my_rank * vocab_per_rank
+            vocab_end = (my_rank + 1) * vocab_per_rank
+
+            # Create mask for tokens in this device's range
+            local_tokens = jnp.clip(x - vocab_start, 0, vocab_per_rank - 1)
+            mask = (x >= vocab_start) & (x < vocab_end)
+
+            # Local embedding lookup
+            local_embeds = emb[local_tokens] * mask[..., None]
+
+            # Gather from all devices and sum
+            all_embeds = jax.lax.all_gather(local_embeds, axis_name="mp", axis=0)
+            final_embeds = jnp.sum(all_embeds, axis=0)
+
+            return final_embeds
+
+        return shard_map(
+            embed_fn,
+            mesh=mesh,
+            in_specs=(None, P("mp", None)),  # x replicated, embedding sharded
+            out_specs=P(None),  # output replicated
+            check_rep=False,
+        )(x, sharded_emb)
+
+
+class ColumnParallelDense(nn.Module):
+    features: int
     dtype: jnp.dtype = jnp.float32
     param_dtype: jnp.dtype = jnp.float32
 
@@ -299,42 +356,92 @@ class ParallelDense(nn.Module):
     def __call__(self, x):
         x = x.astype(self.dtype)
         in_dim = x.shape[-1]
-        out_dim = self.features
-        local_shape = (in_dim, out_dim)
+        local_out_dim = self.features // mesh.shape["mp"]
 
-        kernel = self.param(
-            "kernel", nn.initializers.lecun_normal(), local_shape, self.param_dtype
+        # Get pre-sharded kernel (in_dim, local_out_dim)
+        sharded_k = self.param(
+            "kernel",
+            nn.initializers.lecun_normal(),
+            (in_dim, local_out_dim),
+            self.param_dtype,
         )
 
+        # Check if we're in initialization by trying to access axis_index
+        try:
+            # This will fail during jax.eval_shape or outside shard_map
+            jax.lax.axis_index("mp")
+        except:
+            # We're in initialization phase - return full output shape
+            return jnp.zeros((x.shape[0], x.shape[1], self.features), dtype=x.dtype)
+
         def matmul_fn(x, k):
-            axis_idx = jax.lax.axis_index("mp")
-            debug.print(
-                "🔧 Device {}/{} running matmul: x.shape = {}, kernel.shape = {}",
-                axis_idx,
-                mesh.shape["mp"],
-                x.shape,
-                k.shape,
-            )
-
+            batch, seq, _ = x.shape
+            # Local matrix multiplication
             local_out = jnp.einsum("bsd,df->bsf", x, k)
+            # Gather from all devices
+            gathered = jax.lax.all_gather(local_out, axis_name="mp", axis=0)
+            # Reshape to combine outputs: (mp, batch, seq, local_out) -> (batch, seq, full_out)
+            full_out = gathered.reshape(batch, seq, -1)
+            return full_out
 
-            full_out = jax.lax.all_gather(local_out, axis_name="mp", axis=0)
-
-            return jnp.reshape(
-                jnp.transpose(full_out, (1, 2, 0, 3)), (x.shape[0], x.shape[1], -1)
-            )
-
-        # Note: we replicate x, shard only kernel
         return shard_map(
             matmul_fn,
             mesh=mesh,
-            in_specs=(
-                None,
-                P(None, "mp"),
-            ),  # x is replicated, kernel is sharded on output dim
-            out_specs=P(None),  # output is sharded along output dim
+            in_specs=(None, P(None, "mp")),  # x replicated, kernel sharded on output
+            out_specs=P(None),  # output replicated
             check_rep=False,
-        )(x, kernel)
+        )(x, sharded_k)
+
+
+class RowParallelDense(nn.Module):
+    features: int
+    dtype: jnp.dtype = jnp.float32
+    param_dtype: jnp.dtype = jnp.float32
+
+    @nn.compact
+    def __call__(self, x):
+        x = x.astype(self.dtype)
+        in_dim = x.shape[-1]
+        local_in_dim = in_dim // mesh.shape["mp"]
+
+        # Get pre-sharded kernel (local_in_dim, features)
+        sharded_k = self.param(
+            "kernel",
+            nn.initializers.lecun_normal(),
+            (local_in_dim, self.features),
+            self.param_dtype,
+        )
+
+        # Check if we're in initialization by trying to access axis_index
+        try:
+            # This will fail during jax.eval_shape or outside shard_map
+            jax.lax.axis_index("mp")
+        except:
+            # We're in initialization phase - return full output shape
+            return jnp.zeros((x.shape[0], x.shape[1], self.features), dtype=x.dtype)
+
+        def matmul_fn(x, k):
+            batch, seq, _ = x.shape
+            my_rank = jax.lax.axis_index("mp")
+
+            # Slice input for this device
+            start_idx = my_rank * local_in_dim
+            end_idx = (my_rank + 1) * local_in_dim
+            x_local = x[:, :, start_idx:end_idx]
+
+            # Local matrix multiplication
+            local_out = jnp.einsum("bsd,df->bsf", x_local, k)
+            # Sum across devices (all-reduce)
+            full_out = jax.lax.psum(local_out, axis_name="mp")
+            return full_out
+
+        return shard_map(
+            matmul_fn,
+            mesh=mesh,
+            in_specs=(None, P("mp", None)),  # x replicated, kernel sharded on input
+            out_specs=P(None),  # output replicated
+            check_rep=False,
+        )(x, sharded_k)
 
 
 class FlaxLLaMAMLP(nn.Module):
@@ -346,17 +453,17 @@ class FlaxLLaMAMLP(nn.Module):
     def setup(self) -> None:
         config = self.config
 
-        self.w1 = ParallelDense(
+        self.w1 = ColumnParallelDense(
             config.intermediate_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
-        self.w2 = ParallelDense(
+        self.w2 = RowParallelDense(
             config.hidden_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
-        self.w3 = ParallelDense(
+        self.w3 = ColumnParallelDense(
             config.intermediate_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -659,12 +766,9 @@ class FlaxLLaMAModule(nn.Module):
     def setup(self):
         self.embed_dim = self.config.hidden_size
 
-        self.wte = nn.Embed(
-            self.config.vocab_size,
-            self.config.hidden_size,
-            embedding_init=jax.nn.initializers.normal(
-                stddev=self.config.initializer_range
-            ),
+        self.wte = ParallelEmbed(
+            vocab_size=self.config.vocab_size,
+            features=self.config.hidden_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
         )
@@ -737,15 +841,10 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
 
     def setup(self):
         self.transformer = FlaxLLaMAModule(self.config, dtype=self.dtype)
-        self.lm_head = nn.Dense(
-            self.config.vocab_size,
+        self.lm_head = ColumnParallelDense(
+            features=self.config.vocab_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
-            use_bias=False,
-            kernel_init=jax.nn.initializers.normal(
-                stddev=self.config.initializer_range
-            ),
-            precision=self.precision,
         )
 
     def __call__(

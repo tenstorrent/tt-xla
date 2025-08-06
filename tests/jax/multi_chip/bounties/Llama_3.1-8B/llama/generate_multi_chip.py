@@ -13,7 +13,8 @@ from model import FlaxLLaMAForCausalLM
 from convert_weights import convert_llama_weights
 from transformers import AutoTokenizer
 from generation import LLaMA
-from jax.sharding import Mesh
+from jax.sharding import Mesh, PartitionSpec as P
+from jax.experimental.shard_map import shard_map
 import gc
 from pathlib import Path
 
@@ -32,21 +33,69 @@ def jax_load(
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    params_np, jax_config = convert_llama_weights(
-        ckpt_dir=ckpt_dir,
-        tokenizer=tokenizer,
-        max_seq_len=max_seq_length,
-        n_layers=n_layers,
-    )
+    # Get tensor parallel size from mesh
+    tensor_parallel_size = mesh.shape["mp"]
+    print(f"🔧 Tensor parallel size: {tensor_parallel_size}")
+
+    # STAGE 1: Pre-load all ranks' sharded weights into CPU memory
+    print("🔧 Stage 1: Loading sharded weights for all ranks...")
+    all_rank_weights = {}
+    jax_config = None
+
+    for tp_rank in range(tensor_parallel_size):
+        print(f"🔧 Loading sharded weights for rank {tp_rank}...")
+        weights, config = convert_llama_weights(
+            ckpt_dir=ckpt_dir,
+            tokenizer=tokenizer,
+            max_seq_len=max_seq_length,
+            n_layers=n_layers,
+            tensor_parallel_size=tensor_parallel_size,
+            tp_rank=tp_rank,
+            verbose=True,
+        )
+        all_rank_weights[tp_rank] = weights
+        if jax_config is None:
+            jax_config = config
+        gc.collect()  # Clean up after each rank
+
+    print(f"🔧 Pre-loaded {len(all_rank_weights)} ranks into CPU memory")
+
+    # STAGE 2: Distribute sharded weights to devices using shard_map
+    print("🔧 Stage 2: Distributing weights to devices...")
+
+    def select_rank_weights():
+        """Each device selects its corresponding rank's pre-sharded weights"""
+        my_rank = jax.lax.axis_index("mp")  # Get device's logical index (0,1,2,3)
+
+        # Use jax.lax.switch for tracer-safe selection
+        return jax.lax.switch(
+            my_rank, [lambda: all_rank_weights[i] for i in range(tensor_parallel_size)]
+        )
+
+    # Distribute weights to devices
+    params_np = shard_map(
+        select_rank_weights,
+        mesh=mesh,
+        in_specs=(),  # No inputs
+        out_specs=P(),  # Output is replicated (each device gets its own weights)
+        check_rep=False,
+    )()
+
+    # Convert to JAX arrays
     jax_params = freeze(jax.tree.map(jnp.asarray, params_np))
 
-    del params_np
+    # Clean up CPU memory
+    del all_rank_weights, params_np
     gc.collect()
 
+    print("🔧 Creating model...")
     model = FlaxLLaMAForCausalLM(config=jax_config, _do_init=False)
     llama = LLaMA(params=jax_params, model=model, tokenizer=tokenizer, mesh=mesh)
+
     del jax_params
     gc.collect()
+
+    print("✅ Model loaded with optimal tensor parallel sharding!")
     return llama
 
 
