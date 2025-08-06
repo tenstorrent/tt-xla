@@ -184,8 +184,10 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::shared_ptr<ExecutableImage> executable_image =
       ExecutableImage::createInstance(
           m_module_builder->getFlatbufferBinary(),
-          std::move(original_mlir_code), std::move(executable_name),
-          m_module_builder->getNumPartitions(),
+          std::move(original_mlir_code),
+          std::move(m_module_builder->getTTIRMLlirCode()),
+          std::move(m_module_builder->getTTNNMLlirCode()),
+          std::move(executable_name), m_module_builder->getNumPartitions(),
           m_module_builder->getNumReplicas(),
           m_module_builder->getNumDevicesToUtilize(),
           m_module_builder->getDevicesMeshShape(),

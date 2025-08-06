@@ -35,7 +35,8 @@ public:
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
@@ -53,6 +54,10 @@ public:
   const std::string &getOriginalMlirCode() const {
     return m_original_mlir_code;
   }
+
+  const std::string &getTTIRMLlirCode() const { return m_ttir_mlir; }
+
+  const std::string &getTTNNMLlirCode() const { return m_ttnn_mlir; }
 
   // Returns a name that identifies the executable.
   const std::string &getExecutableName() const { return m_executable_name; }
@@ -117,7 +122,8 @@ private:
   // compiler.
   ExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
@@ -132,6 +138,12 @@ private:
   // Original mlir code produced by the compiler, stored for debugging
   // purposes.
   std::string m_original_mlir_code;
+
+  // TTIR MLIR code produced by the compiler, stored for debugging purposes.
+  std::string m_ttir_mlir;
+
+  // TTNN MLIR code produced by the compiler, stored for debugging purposes.
+  std::string m_ttnn_mlir;
 
   // A name that identifies the executable.
   std::string m_executable_name;
