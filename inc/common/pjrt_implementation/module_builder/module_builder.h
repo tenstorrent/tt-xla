@@ -61,10 +61,10 @@ public:
   }
 
   // Returns TTIR MLIR code.
-  std::string &getTTIRMLlirCode() { return m_ttir_mlir; }
+  std::string &getTTIRMlirCode() { return m_ttir_mlir; }
 
   // Returns TTNN MLIR code.
-  std::string &getTTNNMLlirCode() { return m_ttnn_mlir; }
+  std::string &getTTNNMlirCode() { return m_ttnn_mlir; }
 
   // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
