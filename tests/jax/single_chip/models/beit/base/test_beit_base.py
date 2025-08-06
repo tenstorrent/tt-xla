@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import FlaxBeitForImageClassificationTester
+from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
 
-MODEL_PATH = "microsoft/beit-base-patch16-224"
+MODEL_VARIANT = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "beit",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH)
+    return FlaxBeitForImageClassificationTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxBeitForImageClassificationTester(MODEL_VARIANT, RunMode.TRAINING)
 
 
 # ----- Tests -----
