@@ -50,24 +50,6 @@ void propagateRoleAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
                             mlir::StringAttr roleAttr) {
   if (auto *definingOp = value.getDefiningOp()) {
-    if (roleAttr.getValue() == "input") {
-      definingOp->setAttr(
-          "ttcore.argument_type",
-          mlir::tt::ttcore::ArgumentTypeAttr::get(
-              definingOp->getContext(), mlir::tt::ttcore::ArgumentType::Input));
-    } else if (roleAttr.getValue() == "weight") {
-      definingOp->setAttr("ttcore.argument_type",
-                          mlir::tt::ttcore::ArgumentTypeAttr::get(
-                              definingOp->getContext(),
-                              mlir::tt::ttcore::ArgumentType::Parameter));
-    } else if (roleAttr.getValue() == "constant") {
-      definingOp->setAttr("ttcore.argument_type",
-                          mlir::tt::ttcore::ArgumentTypeAttr::get(
-                              definingOp->getContext(),
-                              mlir::tt::ttcore::ArgumentType::Constant));
-    } else {
-      LOG_F(ERROR, "Unknown role attribute");
-    }
 
     // If this is a call operation, propagate to its arguments
     if (auto callOp = mlir::dyn_cast<mlir::func::CallOp>(definingOp)) {
@@ -82,7 +64,25 @@ void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
     auto argIndex = blockArg.getArgNumber();
 
     if (auto parentFuncOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp)) {
-      parentFuncOp.setArgAttr(argIndex, kInputRoleAttrString, roleAttr);
+      // parentFuncOp.setArgAttr(argIndex, kInputRoleAttrString, roleAttr);
+      if (roleAttr.getValue() == "input") {
+        parentFuncOp.setArgAttr(
+            argIndex, "ttcore.argument_type",
+            mlir::tt::ttcore::ArgumentTypeAttr::get(
+                module->getContext(), mlir::tt::ttcore::ArgumentType::Input));
+      } else if (roleAttr.getValue() == "weight") {
+        parentFuncOp.setArgAttr(argIndex, "ttcore.argument_type",
+                                mlir::tt::ttcore::ArgumentTypeAttr::get(
+                                    module->getContext(),
+                                    mlir::tt::ttcore::ArgumentType::Parameter));
+      } else if (roleAttr.getValue() == "constant") {
+        parentFuncOp.setArgAttr(argIndex, "ttcore.argument_type",
+                                mlir::tt::ttcore::ArgumentTypeAttr::get(
+                                    module->getContext(),
+                                    mlir::tt::ttcore::ArgumentType::Constant));
+      } else {
+        LOG_F(ERROR, "Unknown role attribute");
+      }
 
       // Find all call sites of this function and propagate upward
       auto funcName = parentFuncOp.getSymName();
