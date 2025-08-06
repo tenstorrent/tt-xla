@@ -5,7 +5,7 @@
 Stable Diffusion UNET model loader implementation
 """
 
-from ....config import (
+from ...config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -14,7 +14,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
+from ...base import ForgeModel
 import torch
 from diffusers import (
     UNet2DConditionModel,

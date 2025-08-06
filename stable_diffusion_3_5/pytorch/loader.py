@@ -6,7 +6,7 @@ Stable Diffusion 3.5 model loader implementation
 https://huggingface.co/stabilityai/stable-diffusion-3.5-medium
 """
 
-from ....config import (
+from ...config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -15,7 +15,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
+from ...base import ForgeModel
 import torch
 from diffusers import StableDiffusion3Pipeline, AutoencoderTiny
 from typing import Optional
