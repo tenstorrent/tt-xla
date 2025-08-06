@@ -12,6 +12,10 @@
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "stablehlo/dialect/StablehloOps.h"
 
 namespace tt::pjrt::pipelines {
 
@@ -20,6 +24,7 @@ bool isTTMarkFunction(const std::string &function_name) {
 }
 
 void runTTXLAPipelines(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  legalizeStablehloMarkCompositeToCall(mlir_module);
   // Propagate role attributes through the call graph
   propagateRoleAttributes(mlir_module);
 
@@ -113,6 +118,51 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   for (auto func_op : functions_to_remove) {
     std::string func_name = func_op.getSymName().str();
     func_op.erase();
+  }
+}
+
+struct ReplaceCompositeWithCall final
+    : mlir::OpRewritePattern<mlir::stablehlo::CompositeOp> {
+  using mlir::OpRewritePattern<mlir::stablehlo::CompositeOp>::OpRewritePattern;
+
+  ReplaceCompositeWithCall(mlir::MLIRContext *context)
+      : mlir::OpRewritePattern<mlir::stablehlo::CompositeOp>(context) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::stablehlo::CompositeOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+    auto call = rewriter.create<mlir::func::CallOp>(
+        op.getLoc(), op.getResultTypes(), op.getDecomposition(),
+        op.getOperands());
+
+    mlir::SmallVector<mlir::Attribute> attrs;
+
+    for (const mlir::NamedAttribute &attr :
+         op.getCompositeAttributes().getValue()) {
+      attrs.push_back(attr.getValue());
+    }
+
+    call.setArgAttrsAttr(rewriter.getArrayAttr(attrs));
+    rewriter.replaceOp(op, call.getResults());
+    return mlir::success();
+  }
+};
+
+void legalizeStablehloMarkCompositeToCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+
+  mlir::MLIRContext *context = mlir_module->getContext();
+
+  // mlir::ConversionTarget target(*context);
+  // target.addLegalDialect<mlir::stablehlo::StablehloDialect>();
+  // target.addLegalDialect<mlir::func::FuncDialect>();
+
+  mlir::RewritePatternSet patterns(context);
+  patterns.add<ReplaceCompositeWithCall>(context);
+
+  if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
+                                         std::move(patterns)))) {
+    LOG_F(ERROR, "Failed to legalize stablehlo mark composite to call");
   }
 }
 
