@@ -298,53 +298,48 @@ class ParallelEmbed(nn.Module):
 
     @nn.compact
     def __call__(self, x):
-        local_vocab_size = self.vocab_size // mesh.shape["mp"]
-
-        # Get pre-sharded embedding table (local_vocab_size, features)
-        sharded_emb = self.param(
+        # Get embedding table - already sharded by generate_multi_chip.py
+        embedding = self.param(
             "embedding",
             nn.initializers.lecun_normal(),
-            (local_vocab_size, self.features),
+            (self.vocab_size, self.features),
             self.param_dtype,
         )
 
-        # Check if we're in initialization by trying to access axis_index
+        # Check if we're in initialization phase (no mesh context available)
         try:
-            # This will fail during jax.eval_shape or outside shard_map
-            jax.lax.axis_index("mp")
+            # This will fail during initialization/jax.eval_shape
+            device_id = jax.lax.axis_index("mp")
         except:
-            # We're in initialization phase - return full output shape
-            return jnp.zeros(
-                (x.shape[0], x.shape[1], self.features), dtype=self.param_dtype
-            )
+            # During initialization - just return the right shape
+            return embedding[x]
 
+        # Vocab parallel embedding: each device handles its vocab slice
+        # Need to gather results from all devices
         def embed_fn(x, emb):
             batch, seq = x.shape
-            my_rank = jax.lax.axis_index("mp")
-            vocab_per_rank = self.vocab_size // mesh.shape["mp"]
-            vocab_start = my_rank * vocab_per_rank
-            vocab_end = (my_rank + 1) * vocab_per_rank
+            vocab_per_device = self.vocab_size // 4  # 4 devices
+            device_id = jax.lax.axis_index("mp")
 
-            # Create mask for tokens in this device's range
-            local_tokens = jnp.clip(x - vocab_start, 0, vocab_per_rank - 1)
-            mask = (x >= vocab_start) & (x < vocab_end)
+            vocab_start = device_id * vocab_per_device
+            vocab_end = (device_id + 1) * vocab_per_device
 
-            # Local embedding lookup
-            local_embeds = emb[local_tokens] * mask[..., None]
+            # Mask for tokens in this device's vocab range
+            local_mask = (x >= vocab_start) & (x < vocab_end)
 
-            # Gather from all devices and sum
+            # Adjust token indices to local range
+            local_tokens = jnp.clip(x - vocab_start, 0, vocab_per_device - 1)
+
+            # Local embedding lookup (only for tokens in this device's range)
+            local_embeds = emb[local_tokens] * local_mask[..., None]
+
+            # All-gather from all devices and sum (each device contributes its vocab slice)
             all_embeds = jax.lax.all_gather(local_embeds, axis_name="mp", axis=0)
             final_embeds = jnp.sum(all_embeds, axis=0)
 
             return final_embeds
 
-        return shard_map(
-            embed_fn,
-            mesh=mesh,
-            in_specs=(None, P("mp", None)),  # x replicated, embedding sharded
-            out_specs=P(None),  # output replicated
-            check_rep=False,
-        )(x, sharded_emb)
+        return embed_fn(x, embedding)
 
 
 class ColumnParallelDense(nn.Module):
@@ -356,41 +351,15 @@ class ColumnParallelDense(nn.Module):
     def __call__(self, x):
         x = x.astype(self.dtype)
         in_dim = x.shape[-1]
-        local_out_dim = self.features // mesh.shape["mp"]
 
-        # Get pre-sharded kernel (in_dim, local_out_dim)
-        sharded_k = self.param(
+        # Get kernel - already sharded by generate_multi_chip.py
+        kernel = self.param(
             "kernel",
             nn.initializers.lecun_normal(),
-            (in_dim, local_out_dim),
+            (in_dim, self.features),
             self.param_dtype,
         )
-
-        # Check if we're in initialization by trying to access axis_index
-        try:
-            # This will fail during jax.eval_shape or outside shard_map
-            jax.lax.axis_index("mp")
-        except:
-            # We're in initialization phase - return full output shape
-            return jnp.zeros((x.shape[0], x.shape[1], self.features), dtype=x.dtype)
-
-        def matmul_fn(x, k):
-            batch, seq, _ = x.shape
-            # Local matrix multiplication
-            local_out = jnp.einsum("bsd,df->bsf", x, k)
-            # Gather from all devices
-            gathered = jax.lax.all_gather(local_out, axis_name="mp", axis=0)
-            # Reshape to combine outputs: (mp, batch, seq, local_out) -> (batch, seq, full_out)
-            full_out = gathered.reshape(batch, seq, -1)
-            return full_out
-
-        return shard_map(
-            matmul_fn,
-            mesh=mesh,
-            in_specs=(None, P(None, "mp")),  # x replicated, kernel sharded on output
-            out_specs=P(None),  # output replicated
-            check_rep=False,
-        )(x, sharded_k)
+        return jnp.dot(x, kernel)
 
 
 class RowParallelDense(nn.Module):
@@ -402,46 +371,16 @@ class RowParallelDense(nn.Module):
     def __call__(self, x):
         x = x.astype(self.dtype)
         in_dim = x.shape[-1]
-        local_in_dim = in_dim // mesh.shape["mp"]
 
-        # Get pre-sharded kernel (local_in_dim, features)
-        sharded_k = self.param(
+        # Get kernel - already sharded by generate_multi_chip.py
+        kernel = self.param(
             "kernel",
             nn.initializers.lecun_normal(),
-            (local_in_dim, self.features),
+            (in_dim, self.features),
             self.param_dtype,
         )
 
-        # Check if we're in initialization by trying to access axis_index
-        try:
-            # This will fail during jax.eval_shape or outside shard_map
-            jax.lax.axis_index("mp")
-        except:
-            # We're in initialization phase - return full output shape
-            return jnp.zeros((x.shape[0], x.shape[1], self.features), dtype=x.dtype)
-
-        def matmul_fn(x, k):
-            batch, seq, _ = x.shape
-            my_rank = jax.lax.axis_index("mp")
-
-            # Slice input for this device
-            start_idx = my_rank * local_in_dim
-            end_idx = (my_rank + 1) * local_in_dim
-            x_local = x[:, :, start_idx:end_idx]
-
-            # Local matrix multiplication
-            local_out = jnp.einsum("bsd,df->bsf", x_local, k)
-            # Sum across devices (all-reduce)
-            full_out = jax.lax.psum(local_out, axis_name="mp")
-            return full_out
-
-        return shard_map(
-            matmul_fn,
-            mesh=mesh,
-            in_specs=(None, P("mp", None)),  # x replicated, kernel sharded on input
-            out_specs=P(None),  # output replicated
-            check_rep=False,
-        )(x, sharded_k)
+        return jnp.dot(x, kernel)
 
 
 class FlaxLLaMAMLP(nn.Module):

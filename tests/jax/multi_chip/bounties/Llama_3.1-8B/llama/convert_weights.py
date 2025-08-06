@@ -35,7 +35,7 @@ def config_from_params(params: ModelArgs) -> LLaMAConfig:
     return LLaMAConfig(
         vocab_size=params.vocab_size,
         hidden_size=params.dim,
-        intermediate_size=int(params.dim * 2.6666),
+        intermediate_size=14336,  # Correct value for Llama 3.1-8B
         num_hidden_layers=params.n_layers,
         num_attention_heads=params.n_heads,
         num_key_value_heads=params.n_kv_heads or params.n_heads,
@@ -122,7 +122,7 @@ def convert_llama_weights(
                 # Vocab parallel: each device gets its vocab slice
                 "embedding": np.concatenate(
                     [
-                        ckpt["tok_embeddings.weight"].type(torch.float32).numpy()
+                        ckpt["tok_embeddings.weight"].type(torch.float16).numpy()
                         for ckpt in ckpts
                     ],
                     axis=0,
@@ -131,7 +131,7 @@ def convert_llama_weights(
             "ln_f": {
                 # Layer norm: replicated (small, no sharding needed)
                 "kernel": ckpts[0]["norm.weight"]
-                .type(torch.float32)
+                .type(torch.float16)
                 .numpy()
             },
             "h": {
@@ -143,7 +143,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.attention.wq.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -155,7 +155,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.attention.wk.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -167,7 +167,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.attention.wv.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -179,7 +179,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.attention.wo.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -193,7 +193,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.feed_forward.w1.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -205,7 +205,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.feed_forward.w2.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -217,7 +217,7 @@ def convert_llama_weights(
                             "kernel": np.concatenate(
                                 [
                                     ckpt["layers.%d.feed_forward.w3.weight" % (layer)]
-                                    .type(torch.float32)
+                                    .type(torch.float16)
                                     .numpy()
                                     for ckpt in ckpts
                                 ],
@@ -228,13 +228,13 @@ def convert_llama_weights(
                     "attention_norm": {
                         # Layer norm: replicated (small, no sharding needed)
                         "kernel": ckpts[0]["layers.%d.attention_norm.weight" % (layer)]
-                        .type(torch.float32)
+                        .type(torch.float16)
                         .numpy()
                     },
                     "ffn_norm": {
                         # Layer norm: replicated (small, no sharding needed)
                         "kernel": ckpts[0]["layers.%d.ffn_norm.weight" % (layer)]
-                        .type(torch.float32)
+                        .type(torch.float16)
                         .numpy()
                     },
                 }
@@ -244,7 +244,7 @@ def convert_llama_weights(
         "lm_head": {
             # Vocab parallel: each device gets its vocab slice
             "kernel": np.concatenate(
-                [ckpt["output.weight"].type(torch.float32).numpy() for ckpt in ckpts],
+                [ckpt["output.weight"].type(torch.float16).numpy() for ckpt in ckpts],
                 axis=0,
             )[vocab_start:vocab_end, :].transpose()
         },

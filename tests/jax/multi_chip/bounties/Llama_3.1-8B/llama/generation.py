@@ -27,20 +27,23 @@ class LLaMA(struct.PyTreeNode):
         top_p: float = 1,
         do_sample: bool = False,
     ) -> jnp.ndarray:
-        generations = self.model.generate(
-            input_ids=tokens,
-            attention_mask=attention_mask,
-            params=self.params,
-            generation_config=GenerationConfig(
-                num_beams=1,
-                do_sample=do_sample,
-                max_length=max_gen_len + tokens.shape[1],
-                pad_token_id=self.tokenizer.pad_token_id,
-                eos_token_id=self.tokenizer.eos_token_id,
-                temperature=temperature,
-                top_p=top_p,
-            ),
-        )
+
+        # Ensure generation runs within mesh context for tensor parallel ops
+        with self.mesh:
+            generations = self.model.generate(
+                input_ids=tokens,
+                attention_mask=attention_mask,
+                params=self.params,
+                generation_config=GenerationConfig(
+                    num_beams=1,
+                    do_sample=do_sample,
+                    max_length=max_gen_len + tokens.shape[1],
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    temperature=temperature,
+                    top_p=top_p,
+                ),
+            )
         return generations.sequences
 
     def generate_from_str(
