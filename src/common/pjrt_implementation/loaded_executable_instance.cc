@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <numeric>
+#include <string>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -165,6 +166,87 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   auto t_submit_start = std::chrono::high_resolution_clock::now();
+
+  // [James] dumping input tensors back to host
+  DLOG_F(LOG_DEBUG, "[JAMES] dumping input tensors back to host");
+  for (size_t tensor_idx = 0; tensor_idx < input_tensors.size(); ++tensor_idx) {
+    try {
+      tt::runtime::Tensor& tensor = input_tensors[tensor_idx];
+      
+      // Dump tensor back to host
+      std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(tensor, /* untilize */ true);
+      
+      for (size_t host_tensor_idx = 0; host_tensor_idx < host_tensors.size(); ++host_tensor_idx) {
+        tt::runtime::Tensor& host_tensor = host_tensors[host_tensor_idx];
+        
+        // Get tensor shape
+        std::vector<std::uint32_t> shape = tt::runtime::getTensorShape(host_tensor);
+        
+        // Build shape string
+        std::string shape_str = "";
+        for (size_t i = 0; i < shape.size(); ++i) {
+          shape_str += std::to_string(shape[i]);
+          if (i < shape.size() - 1) shape_str += ", ";
+        }
+        
+        DLOG_F(LOG_DEBUG, "[JAMES] Input tensor[%zu][%zu] shape: [%s]", 
+               tensor_idx, host_tensor_idx, shape_str.c_str());
+        
+        // // Check if tensor is 4D and calculate mean along last dimension for [0][0][:][:]
+        // if (shape.size() == 4 && shape[0] > 0 && shape[1] > 0 && shape[2] > 0 && shape[3] > 0) {
+        //   // Get tensor data pointer
+        //   void* data_ptr = tt::runtime::getTensorDataPtr(host_tensor); // non existent
+          
+        //   if (data_ptr != nullptr) {
+        //     // Get data type - assuming we can get it from the tensor or use float32 as default
+        //     // You may need to adjust this based on actual tensor data type
+        //     float* float_data = static_cast<float*>(data_ptr);
+            
+        //     size_t batch_stride = shape[1] * shape[2] * shape[3];
+        //     size_t channel_stride = shape[2] * shape[3];
+        //     size_t height = shape[2];
+        //     size_t width = shape[3];
+            
+        //     // Calculate mean along last dimension for [0][0][:][:]
+        //     std::vector<float> mean_values;
+        //     mean_values.reserve(height);
+            
+        //     for (size_t h = 0; h < height; ++h) {
+        //       float sum = 0.0f;
+        //       for (size_t w = 0; w < width; ++w) {
+        //         size_t idx = 0 * batch_stride + 0 * channel_stride + h * width + w;
+        //         sum += float_data[idx];
+        //       }
+        //       mean_values.push_back(sum / static_cast<float>(width));
+        //     }
+            
+        //     // Print the mean values (limit to first 10 values if too many)
+        //     std::string mean_str = "[";
+        //     size_t print_limit = std::min(mean_values.size(), static_cast<size_t>(10));
+        //     for (size_t i = 0; i < print_limit; ++i) {
+        //       mean_str += std::to_string(mean_values[i]);
+        //       if (i < print_limit - 1) mean_str += ", ";
+        //     }
+        //     if (mean_values.size() > print_limit) {
+        //       mean_str += ", ... (" + std::to_string(mean_values.size() - print_limit) + " more)";
+        //     }
+        //     mean_str += "]";
+            
+        //     DLOG_F(LOG_DEBUG, "[JAMES] Input tensor[%zu][%zu] mean along last dim for [0][0][:][:]: %s",
+        //            tensor_idx, host_tensor_idx, mean_str.c_str());
+        //   } else {
+        //     DLOG_F(LOG_DEBUG, "[JAMES] Input tensor[%zu][%zu] has null data pointer", tensor_idx, host_tensor_idx);
+        //   }
+        // } else {
+        //   DLOG_F(LOG_DEBUG, "[JAMES] Input tensor[%zu][%zu] is not 4D or has zero dimensions, skipping mean calculation", 
+        //          tensor_idx, host_tensor_idx);
+        // }
+      }
+    } catch (const std::exception& e) {
+      DLOG_F(ERROR, "[JAMES] Error processing input tensor[%zu]: %s", tensor_idx, e.what());
+    }
+  }
+
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
       *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
       input_tensors);
