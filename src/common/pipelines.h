@@ -35,6 +35,9 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 // Check is the function is tt_mark.
 bool isTTMarkFunction(const std::string &function_name);
 
+void upliftMarkParametersCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
 } // namespace tt::pjrt::pipelines
 
 #endif // TT_XLA_SRC_COMMON_PIPELINES_H_

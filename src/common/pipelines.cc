@@ -12,6 +12,11 @@
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "stablehlo/dialect/StablehloOps.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCore.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 namespace tt::pjrt::pipelines {
 
@@ -20,7 +25,8 @@ bool isTTMarkFunction(const std::string &function_name) {
 }
 
 void runTTXLAPipelines(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  // Propagate role attributes through the call graph
+  upliftMarkParametersCustomCall(mlir_module);
+  // Propagate role attributes through the call graph - jax implementation
   propagateRoleAttributes(mlir_module);
 
   // Inline all private tt.mark_* functions to eliminate unnecessary calls
@@ -113,6 +119,55 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   for (auto func_op : functions_to_remove) {
     std::string func_name = func_op.getSymName().str();
     func_op.erase();
+  }
+}
+
+struct ReplaceMarkParameterWithCall final
+    : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp> {
+  using mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>::OpRewritePattern;
+
+  ReplaceMarkParameterWithCall(mlir::MLIRContext *context)
+      : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>(context) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::stablehlo::CustomCallOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    if (op.getCallTargetName() != "tt.mark_parameter") {
+      return mlir::failure();
+    }
+
+    mlir::Value input = op.getOperand(0);
+    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
+    assert(blockArg && "Expected block argument as input to tt.mark_parameter");
+
+    auto *parentOp = blockArg.getOwner()->getParentOp();
+    auto argIndex = blockArg.getArgNumber();
+
+    auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
+    assert(funcOp && "Expected function as parent of block argument");
+
+    funcOp.setArgAttr(
+        argIndex, "ttcore.argument_type",
+        mlir::tt::ttcore::ArgumentTypeAttr::get(
+            funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Parameter));
+
+    rewriter.replaceOp(op, input);
+    return mlir::success();
+  }
+};
+
+void upliftMarkParametersCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+
+  mlir::MLIRContext *context = mlir_module->getContext();
+  context->loadDialect<mlir::tt::ttcore::TTCoreDialect>();
+  mlir::RewritePatternSet patterns(context);
+  patterns.add<ReplaceMarkParameterWithCall>(context);
+
+  if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
+                                         std::move(patterns)))) {
+    LOG_F(ERROR, "Failed to uplift mark parameters custom call");
   }
 }
 
