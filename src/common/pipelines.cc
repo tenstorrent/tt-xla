@@ -11,6 +11,7 @@
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -133,13 +134,13 @@ struct ReplaceMarkParameterWithCall final
   matchAndRewrite(mlir::stablehlo::CustomCallOp op,
                   mlir::PatternRewriter &rewriter) const override {
 
-    if (op.getCallTargetName() != "tt.mark_parameter") {
+    if (op.getCallTargetName() != "tt.mark_argument") {
       return mlir::failure();
     }
 
     mlir::Value input = op.getOperand(0);
     auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
-    assert(blockArg && "Expected block argument as input to tt.mark_parameter");
+    assert(blockArg && "Expected block argument as input to tt.mark_argument");
 
     auto *parentOp = blockArg.getOwner()->getParentOp();
     auto argIndex = blockArg.getArgNumber();
@@ -147,10 +148,51 @@ struct ReplaceMarkParameterWithCall final
     auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
     assert(funcOp && "Expected function as parent of block argument");
 
-    funcOp.setArgAttr(
-        argIndex, "ttcore.argument_type",
-        mlir::tt::ttcore::ArgumentTypeAttr::get(
-            funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Parameter));
+    mlir::DictionaryAttr frontendAttrs;
+    if (mlir::Attribute frontendAttrs_ =
+            op->getDiscardableAttr("mhlo.frontend_attributes")) {
+      frontendAttrs = mlir::cast<mlir::DictionaryAttr>(frontendAttrs_);
+    } else {
+      return mlir::failure();
+    }
+
+    auto argumentType = frontendAttrs.get("argument_type");
+    if (!argumentType) {
+      return mlir::failure();
+    }
+
+    mlir::StringRef argumentTypeStr;
+    if (mlir::StringAttr argumentTypeStrAttr =
+            mlir::dyn_cast<mlir::StringAttr>(argumentType)) {
+      argumentTypeStr = argumentTypeStrAttr.getValue();
+    }
+
+    auto nameAttr = frontendAttrs.get("name");
+    if (!nameAttr) {
+      return mlir::failure();
+    }
+
+    mlir::StringAttr nameStrAttr = mlir::dyn_cast<mlir::StringAttr>(nameAttr);
+    if (!nameStrAttr) {
+      return mlir::failure();
+    }
+
+    mlir::tt::ttcore::ArgumentType argumentTypeEnum;
+    if (argumentTypeStr == "input") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Input;
+    } else if (argumentTypeStr == "parameter") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Parameter;
+    } else if (argumentTypeStr == "constant") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Constant;
+    } else {
+      return mlir::failure();
+    }
+
+    funcOp.setArgAttr(argIndex, "ttcore.argument_type",
+                      mlir::tt::ttcore::ArgumentTypeAttr::get(
+                          funcOp.getContext(), argumentTypeEnum));
+
+    funcOp.setArgAttr(argIndex, "ttir.name", nameStrAttr);
 
     rewriter.replaceOp(op, input);
     return mlir::success();
