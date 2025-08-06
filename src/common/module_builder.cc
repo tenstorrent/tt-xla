@@ -578,6 +578,14 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  // [James try to add more debug to eager execution mode]
+  mlir::PassManager pm(mlir_module.get()->getName());
+  const char *enable_printing = std::getenv("TT_TORCH_IR_LOG_LEVEL");
+  if (enable_printing && std::string(enable_printing) == "DEBUG") {
+    pm.getContext()->disableMultithreading();
+    pm.enableIRPrinting();
+  }
+
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
