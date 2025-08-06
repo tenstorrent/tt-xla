@@ -193,15 +193,51 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
                tensor_idx, host_tensor_idx, shape_str.c_str());
         
         // // Check if tensor is 4D and calculate mean along last dimension for [0][0][:][:]
-        // if (shape.size() == 4 && shape[0] > 0 && shape[1] > 0 && shape[2] > 0 && shape[3] > 0) {
+        if (shape.size() == 4 && shape[0] > 0 && shape[1] > 0 && shape[2] > 0 && shape[3] > 0) {
         //   // Get tensor data pointer
-        //   void* data_ptr = tt::runtime::getTensorDataPtr(host_tensor); // non existent
+          // void* data_ptr = tt::runtime::getTensorDataPtr(host_tensor); // non existent
           
         //   if (data_ptr != nullptr) {
         //     // Get data type - assuming we can get it from the tensor or use float32 as default
         //     // You may need to adjust this based on actual tensor data type
         //     float* float_data = static_cast<float*>(data_ptr);
             
+          //   std::vector<std::byte> rawData = getTensorDataBuffer(tensor);
+          //   tt::target::DataType dataType = getTensorDataType(tensor);
+
+          //   switch (dataType) {
+          //   case tt::target::DataType::Float32: {
+          //       // Safe to cast back to float*
+          //       float* floatData = reinterpret_cast<float*>(rawData.data());
+          //       for(auto x:floatData){
+          //         std::cout << x << ",";
+          //       }
+          //       std::cout << std::endl;
+          //       // Use floatData with proper size bounds
+          //       break;
+          //   }
+          //   case tt::target::DataType::Int32: {
+          //       // Safe to cast back to int32_t*
+          //       std::int32_t* intData = reinterpret_cast<std::int32_t*>(rawData.data());
+          //         for(auto x:intData){
+          //         std::cout << x << ",";
+          //       }
+          //       std::cout << std::endl;
+          //       break;
+          //   }
+          //   // case tt::target::DataType::BFloat16: {
+          //   //     // Safe to cast back to bfloat16*
+          //   //     bfloat16* bfloatData = reinterpret_cast<bfloat16*>(rawData.data());
+          //   //     std::int32_t* intData = reinterpret_cast<std::int32_t*>(rawData.data());
+          //   //       for(auto x:intData){
+          //   //       std::cout << x << ",";
+          //   //     }
+          //   //     std::cout << std::endl;
+          //   //     break;
+          //   // }
+          //   // ... other cases
+          // }
+        }
         //     size_t batch_stride = shape[1] * shape[2] * shape[3];
         //     size_t channel_stride = shape[2] * shape[3];
         //     size_t height = shape[2];
