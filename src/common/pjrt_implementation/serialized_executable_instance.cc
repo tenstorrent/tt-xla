@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/serialized_executable_instance.h"
 
+// c++ standard library includes
+#include <string>
+
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
@@ -30,7 +33,25 @@ SerializedExecutableInstance::SerializedExecutableInstance(
     const ExecutableImage *executable_image) {
   const tt::runtime::Binary &flatbuffer_binary =
       executable_image->getFlatbufferBinary();
-  flatbuffer_binary.storeToMemory(m_serialized_flatbuffer);
+  const std::string &ttir_code = executable_image->getTTIRMlirCode();
+  const std::string &ttnn_code = executable_image->getTTNNMlirCode();
+
+  std::vector<std::byte> flatbuffer_data;
+  // TODO(stefan): We could avoid double copy if storeToMemory took a span.
+  flatbuffer_binary.storeToMemory(flatbuffer_data);
+
+  SerializationHeader header(ttir_code, ttnn_code, flatbuffer_data);
+  m_payload.resize(header.getPayloadSize());
+
+  std::byte *data_ptr = m_payload.data();
+
+  data_ptr = write(data_ptr, header);
+  data_ptr = writeRaw(data_ptr, ttir_code.data(), ttir_code.size());
+  data_ptr = writeRaw(data_ptr, ttnn_code.data(), ttnn_code.size());
+  data_ptr = writeRaw(data_ptr, flatbuffer_data.data(), flatbuffer_data.size());
+
+  // assert that we wrote the correct number of bytes
+  assert(data_ptr == m_payload.data() + m_payload.size());
 }
 
 } // namespace tt::pjrt

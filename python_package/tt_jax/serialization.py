@@ -7,17 +7,20 @@ import jax
 from jax.experimental import serialize_executable
 import os
 import pickle
+from ttxla_tools import parse_executable
 
 
-def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
+def serialize_function(func, *args, **kwargs):
     """
-    Serialize a JAX function to binary format.
+    Serialize a JAX function as TTIR, TTNN and FB.
 
     Args:
-        func: The function to serialize to binary
-        binary_file_path: Path to save the binary data
+        func: The function to serialize
         *args: Sample arguments for compilation
         **kwargs: Sample keyword arguments for compilation
+
+    Returns:
+        tuple: (ttir_mlir, ttnn_mlir, flatbuffer_binary)
     """
 
     def persistent_load(pid):
@@ -46,11 +49,7 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
         return data
 
     jitted_func = jax.jit(func)
-
-    # Compile with the provided arguments
     compiled = jitted_func.lower(*args, **kwargs).compile()
-
-    # Serialize the compiled executable
     payload, _, _ = serialize_executable.serialize(compiled)
 
     # Extract the binary from the payload
@@ -59,10 +58,43 @@ def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
     unpickler.persistent_load = persistent_load
     unloaded_executable, _, _ = unpickler.load()
 
-    flatbuffer_binary = unloaded_executable.xla_executable
+    return parse_executable(unloaded_executable.xla_executable)
 
-    dirname = os.path.dirname(binary_file_path)
+
+def serialize_function_to_disk(output_prefix, func, *args, **kwargs):
+    """
+    Serialize a JAX function to disk as TTIR, TTNN and FB.
+
+    Creates three files: {output_prefix}_ttir.mlir, {output_prefix}_ttnn.mlir, and {output_prefix}.ttnn.
+    Output directory is created if it doesn't exist.
+
+    Example:
+    ```
+        serialize_function_to_disk("output/my_fn", fn, x, params=params)
+        # This creates: output/my_fn_ttir.mlir, output/my_fn_ttnn.mlir, output/my_fn.ttnn
+    ```
+
+    Args:
+        output_prefix (str): Base path and filename prefix for output files
+        func (callable): The function to serialize
+        *args: Positional arguments for compilation
+        **kwargs: Keyword arguments for compilation
+    """
+
+    ttir_mlir, ttnn_mlir, flatbuffer_binary = serialize_function(func, *args, **kwargs)
+
+    dirname = os.path.dirname(output_prefix)
     if dirname:
         os.makedirs(dirname, exist_ok=True)
-    with open(binary_file_path, "wb") as f:
+
+    ttir_path = f"{output_prefix}_ttir.mlir"
+    with open(ttir_path, "w", encoding="utf-8") as f:
+        f.write(ttir_mlir)
+
+    ttnn_path = f"{output_prefix}_ttnn.mlir"
+    with open(ttnn_path, "w", encoding="utf-8") as f:
+        f.write(ttnn_mlir)
+
+    flatbuffer_path = f"{output_prefix}.ttnn"
+    with open(flatbuffer_path, "wb") as f:
         f.write(flatbuffer_binary)
