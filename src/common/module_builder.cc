@@ -553,9 +553,10 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
-  std::cerr << "optimizer=" << m_use_optimizer << std::endl;
+
   options.optimizerPassEnabled = m_use_optimizer;
   options.memoryLayoutAnalysisEnabled = m_use_optimizer;
+
   options.systemDescPath = system_descriptor_path.data();
 
   // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
