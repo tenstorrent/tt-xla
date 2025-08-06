@@ -306,40 +306,8 @@ class ParallelEmbed(nn.Module):
             self.param_dtype,
         )
 
-        # Check if we're in initialization phase (no mesh context available)
-        try:
-            # This will fail during initialization/jax.eval_shape
-            device_id = jax.lax.axis_index("mp")
-        except:
-            # During initialization - just return the right shape
-            return embedding[x]
-
-        # Vocab parallel embedding: each device handles its vocab slice
-        # Need to gather results from all devices
-        def embed_fn(x, emb):
-            batch, seq = x.shape
-            vocab_per_device = self.vocab_size // 4  # 4 devices
-            device_id = jax.lax.axis_index("mp")
-
-            vocab_start = device_id * vocab_per_device
-            vocab_end = (device_id + 1) * vocab_per_device
-
-            # Mask for tokens in this device's vocab range
-            local_mask = (x >= vocab_start) & (x < vocab_end)
-
-            # Adjust token indices to local range
-            local_tokens = jnp.clip(x - vocab_start, 0, vocab_per_device - 1)
-
-            # Local embedding lookup (only for tokens in this device's range)
-            local_embeds = emb[local_tokens] * local_mask[..., None]
-
-            # All-gather from all devices and sum (each device contributes its vocab slice)
-            all_embeds = jax.lax.all_gather(local_embeds, axis_name="mp", axis=0)
-            final_embeds = jnp.sum(all_embeds, axis=0)
-
-            return final_embeds
-
-        return embed_fn(x, embedding)
+        # Simple embedding lookup - JAX handles sharding automatically
+        return embedding[x]
 
 
 class ColumnParallelDense(nn.Module):

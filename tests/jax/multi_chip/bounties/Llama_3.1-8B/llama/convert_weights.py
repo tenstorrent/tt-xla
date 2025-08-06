@@ -256,13 +256,4 @@ def convert_llama_weights(
 
     gc.collect()
 
-    if verbose:
-        print(f"🔧 Device {tp_rank}: Memory efficient weights created!")
-        print(
-            f"🔧 Device {tp_rank}: wq shape = {jax_weights['transformer']['h']['0']['attention']['wq']['kernel'].shape}"
-        )
-        print(
-            f"🔧 Device {tp_rank}: lm_head shape = {jax_weights['lm_head']['kernel'].shape}"
-        )
-
     return jax_weights, llama_config
