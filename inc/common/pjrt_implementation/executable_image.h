@@ -55,9 +55,9 @@ public:
     return m_original_mlir_code;
   }
 
-  const std::string &getTTIRMLlirCode() const { return m_ttir_mlir; }
+  const std::string &getTTIRMlirCode() const { return m_ttir_mlir; }
 
-  const std::string &getTTNNMLlirCode() const { return m_ttnn_mlir; }
+  const std::string &getTTNNMlirCode() const { return m_ttnn_mlir; }
 
   // Returns a name that identifies the executable.
   const std::string &getExecutableName() const { return m_executable_name; }
