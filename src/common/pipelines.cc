@@ -138,6 +138,12 @@ struct ReplaceMarkParameterWithCall final
       return mlir::failure();
     }
 
+    assert(op.getNumOperands() == 1 &&
+           "Expected one operand to tt.mark_argument");
+    assert(op.getNumResults() == 1 &&
+           "Expected one result to tt.mark_argument");
+
+    // Retrieve input and assert that it is indeed a block argument
     mlir::Value input = op.getOperand(0);
     auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
     assert(blockArg && "Expected block argument as input to tt.mark_argument");
@@ -145,9 +151,15 @@ struct ReplaceMarkParameterWithCall final
     auto *parentOp = blockArg.getOwner()->getParentOp();
     auto argIndex = blockArg.getArgNumber();
 
+    // Assert that the input is a block argument to a function
     auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
     assert(funcOp && "Expected function as parent of block argument");
 
+    // Torch xla allows us to populate a frontend_attributes dictionary to
+    // custom call ops This dictionary is used to populate the argument type and
+    // name of the argument We need to extract this information and set the
+    // argument type and name of the argument in the function argument
+    // attributes.
     mlir::DictionaryAttr frontendAttrs;
     if (mlir::Attribute frontendAttrs_ =
             op->getDiscardableAttr("mhlo.frontend_attributes")) {
@@ -177,6 +189,7 @@ struct ReplaceMarkParameterWithCall final
       return mlir::failure();
     }
 
+    // Determine the argument type enum from the argument type string
     mlir::tt::ttcore::ArgumentType argumentTypeEnum;
     if (argumentTypeStr == "input") {
       argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Input;
@@ -188,12 +201,16 @@ struct ReplaceMarkParameterWithCall final
       return mlir::failure();
     }
 
+    // Set argument type for this argument
     funcOp.setArgAttr(argIndex, "ttcore.argument_type",
                       mlir::tt::ttcore::ArgumentTypeAttr::get(
                           funcOp.getContext(), argumentTypeEnum));
 
+    // Set argument name for this argument
     funcOp.setArgAttr(argIndex, "ttir.name", nameStrAttr);
 
+    // Remove the custom call op and replace it with the input
+    // as the information is now embedded in the function argument attributes
     rewriter.replaceOp(op, input);
     return mlir::success();
   }
