@@ -16,6 +16,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "stablehlo/dialect/StablehloOps.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 namespace tt::pjrt::pipelines {
 
@@ -49,7 +50,24 @@ void propagateRoleAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
                             mlir::StringAttr roleAttr) {
   if (auto *definingOp = value.getDefiningOp()) {
-    definingOp->setAttr(kInputRoleAttrString, roleAttr);
+    if (roleAttr.getValue() == "input") {
+      definingOp->setAttr(
+          "ttcore.argument_type",
+          mlir::tt::ttcore::ArgumentTypeAttr::get(
+              definingOp->getContext(), mlir::tt::ttcore::ArgumentType::Input));
+    } else if (roleAttr.getValue() == "weight") {
+      definingOp->setAttr("ttcore.argument_type",
+                          mlir::tt::ttcore::ArgumentTypeAttr::get(
+                              definingOp->getContext(),
+                              mlir::tt::ttcore::ArgumentType::Parameter));
+    } else if (roleAttr.getValue() == "constant") {
+      definingOp->setAttr("ttcore.argument_type",
+                          mlir::tt::ttcore::ArgumentTypeAttr::get(
+                              definingOp->getContext(),
+                              mlir::tt::ttcore::ArgumentType::Constant));
+    } else {
+      LOG_F(ERROR, "Unknown role attribute");
+    }
 
     // If this is a call operation, propagate to its arguments
     if (auto callOp = mlir::dyn_cast<mlir::func::CallOp>(definingOp)) {
