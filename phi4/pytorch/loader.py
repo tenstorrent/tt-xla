@@ -153,6 +153,7 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    # TODO - Verify this function correct (was AI_GENERATED)
     def decode_output(self, outputs, dtype_override=None):
         """Helper method to decode model outputs into human-readable text.
 

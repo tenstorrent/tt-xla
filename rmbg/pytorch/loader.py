@@ -149,6 +149,7 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    # TODO - Verify this function correct (was AI_GENERATED)
     def decode_output(self, outputs, save_image=False, output_path="no_bg_image.png"):
         """Helper method to decode model outputs into segmentation mask and optionally save result.
 
