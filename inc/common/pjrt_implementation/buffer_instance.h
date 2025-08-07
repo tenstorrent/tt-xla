@@ -144,6 +144,9 @@ public:
     m_runtime_tensor = runtime_tensor;
   }
 
+  // Logs the buffer's dimensions for debugging purposes
+  void logDimensions();
+
   bool needsLayoutConversion = true;
 private:
   // Constructor used for the input buffers.

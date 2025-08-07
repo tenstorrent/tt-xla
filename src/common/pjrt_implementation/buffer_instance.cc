@@ -114,6 +114,21 @@ size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   return static_cast<size_t>(runtime_tensor_size);
 }
 
+void BufferInstance::logDimensions() {
+  // Build dimensions string
+  std::string dims_str = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    dims_str += std::to_string(m_dimensions[i]);
+    if (i < m_dimensions.size() - 1) {
+      dims_str += ", ";
+    }
+  }
+  dims_str += "]";
+  
+  DLOG_F(LOG_DEBUG, "[BUFFER] Buffer dimensions: %s (data_type: %d)", 
+         dims_str.c_str(), static_cast<int>(m_data_type));
+}
+
 bool BufferInstance::isDataDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   return m_data_deleted;
