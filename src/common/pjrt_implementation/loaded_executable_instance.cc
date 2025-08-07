@@ -282,10 +282,14 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // Check if we should close devices after this execution
   const char* close_device_env = std::getenv("IS_PREFILL");
   if (close_device_env && std::string(close_device_env) == "1") {
-    DLOG_F(LOG_DEBUG, "[DEVICE] Closing device due to IS_PREFILL=1");
+    DLOG_F(LOG_DEBUG, "[DEVICE] Closing device due to IS_PREFILL=1 + force dealloc of all tensors thereon");
     if (m_runtime_device_opened) {
       tt::runtime::closeMeshDevice(*m_runtime_device);
       m_runtime_device_opened = false;
+
+      for(size_t input_index =0; input_index < input_tensors.size(); input_index++){
+        tt::runtime::deallocateTensor(input_tensors[input_index], true);
+      }
       // m_runtime_device.reset();
     }
   }
