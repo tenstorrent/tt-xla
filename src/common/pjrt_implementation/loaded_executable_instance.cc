@@ -301,6 +301,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
       if(buffer_map.find(buffer->getRuntimeTensor().handle.get()) == buffer_map.end()){
         DLOG_F(LOG_DEBUG, "Missed input in buffer map %d from device %d", arg_index, device_index);
+        buffer->logDimensions();
       }
 
       buffer_map[buffer->getRuntimeTensor().handle.get()] = buffer;
