@@ -217,6 +217,10 @@ private:
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Creates argument type map based on collected input argument roles.
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+  createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 

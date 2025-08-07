@@ -611,6 +611,9 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     parser.parse(options.argumentTypeMap, "argument-types", arg_map,
                  argEnumMap);
     options.argumentTypeMap = argEnumMap;
+  } else {
+    // Set argument types based on collected input argument roles
+    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
   }
 
   if (m_devices_mesh_shape.size() != 2) {
@@ -780,6 +783,38 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
+}
+
+llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+ModuleBuilder::createArgumentTypeMap(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+      argTypesMap;
+
+  if (m_input_argument_roles.empty()) {
+    return argTypesMap;
+  }
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  size_t arg_offset = 0;
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
+    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
+      if (arg_offset + i < m_input_argument_roles.size()) {
+        if (m_input_argument_roles[arg_offset + i] ==
+            InputArgumentRole::kWeight) {
+          argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
+        } else {
+          argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
+        }
+      }
+    }
+    argTypesMap[func_op.getName().str()] = argTypes;
+    arg_offset += func_op.getNumArguments();
+  }
+
+  return argTypesMap;
 }
 
 } // namespace tt::pjrt
