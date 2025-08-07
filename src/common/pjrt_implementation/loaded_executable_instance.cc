@@ -286,6 +286,10 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
+
+    
+  std::map<void*, BufferInstance*> buffer_map;
+
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<tt::runtime::Tensor> arg_tensors;
     arg_tensors.reserve(num_devices);
@@ -294,6 +298,12 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       arg_tensors.push_back(buffer->getRuntimeTensor());
+
+      if(buffer_map.find(buffer->getRuntimeTensor().handle.get()) === buffer_map.end())
+        DLOG_F(LOG_DEBUG, "Missed input in buffer map %d from device %d", arg_index, device_index);
+      }
+
+      buffer_map[buffer->getRuntimeTensor().handle.get()] = buffer;
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
@@ -307,8 +317,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor input_tensor =
         getTensorFromStrategy(arg_tensors, *strategy);
 
-    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-        input_tensor, program_index, arg_index, runtime_device);
+    tt::runtime::Tensor laid_out_tensor = input_tensor;
+    if (buffer_map[input_tensor.handle.get()]->needsLayoutConversion) {      
+      laid_out_tensor = convertTensorLayout(input_tensor, program_index,
+                                            arg_index, runtime_device);
+      buffer_map[input_tensor.handle.get()]->needsLayoutConversion = false;
+      buffer_map[input_tensor.handle.get()]->setRuntimeTensor(laid_out_tensor);
+    }
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
