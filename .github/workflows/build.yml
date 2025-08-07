@@ -61,23 +61,12 @@ jobs:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
 
-      - name: Build
-        shell: bash
-        run: |
-            source venv/activate
-            cmake -G Ninja \
-              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-              $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '-DCODE_COVERAGE=ON'; fi) \
-              -B ${{ steps.strings.outputs.build-output-dir }} \
-              -S ${{ steps.strings.outputs.work-dir }}
-            cmake --build ${{ steps.strings.outputs.build-output-dir }}
-
       - name: Build the wheel
         shell: bash
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-            python setup.py bdist_wheel
+            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
 
       - name: Upload the wheel
         uses: actions/upload-artifact@v4

@@ -12,22 +12,6 @@ import os
 import sys
 import jax._src.xla_bridge as xb
 
-# Register cpu and tt plugin. tt plugin is registered with higher priority; so
-# program will execute on tt device if not specified otherwise.
-def initialize():
-    backend = "tt"
-    path = os.path.join(os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so")
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}")
-
-    print("Loading tt_pjrt C API plugin", file=sys.stderr)
-    xb.discover_pjrt_plugins()
-
-    plugin = xb.register_plugin("tt", priority=500, library_path=path, options=None)
-    print("Loaded", file=sys.stderr)
-    jax.config.update("jax_platforms", "tt,cpu")
-
-
 # Create random inputs (weights) on cpu and move them to tt device if requested.
 def random_input_tensor(shape, key=42, on_device=False):
     def random_input(shape, key):
@@ -57,20 +41,18 @@ def loss(params, X, y):
 
 
 def test_simple_regression():
-    initialize()
-
     X, y = make_regression(n_samples=150, n_features=2, noise=5)
     y = y.reshape((y.shape[0], 1))
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.15
     )  # Splitting data into train and test
 
-    Weights = random_input_tensor((X_train.shape[1], 1))
+    Weights = random_input_tensor((X_train.shape[1], 1), on_device=True)
     Bias = 0.0
     l_rate = 0.001
     n_iter = 6000
     size = 127.0
-    params = [Weights, Bias]
+    params = [Weights, Bias]  # Move weights and bias to tt device
 
     gradient = jit(grad(loss), backend="tt")
     print(gradient.lower(params, X_train, y_train).as_text())
