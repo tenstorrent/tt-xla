@@ -12,11 +12,15 @@
 
 // c++ standard library includes
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 // third-party includes
 #include <google/protobuf/unknown_field_set.h>
+
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
@@ -84,6 +88,12 @@ public:
   getCompileOptions(const char *compile_options_data,
                     size_t compile_options_size);
 
+  // Runtime device access methods for loaded executable instances
+  bool isRuntimeDeviceOpened() const { return m_runtime_device_opened; }
+  std::optional<tt::runtime::Device> getRuntimeDevice() const { return m_runtime_device; }
+  void setRuntimeDevice(const std::optional<tt::runtime::Device>& device) { m_runtime_device = device; }
+  void setRuntimeDeviceOpened(bool opened) { m_runtime_device_opened = opened; }
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
@@ -132,6 +142,11 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  // Shared runtime device handle across loaded executable instances
+  std::optional<tt::runtime::Device> m_runtime_device;
+
+  bool m_runtime_device_opened = false;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
