@@ -35,6 +35,12 @@
 
 namespace tt::pjrt {
 
+// Enum to represent the role of input arguments
+enum class InputArgumentRole {
+  kInput, // Regular input data
+  kWeight // Weight/parameter data
+};
+
 class ModuleBuilder {
 public:
   ModuleBuilder();
@@ -90,6 +96,11 @@ public:
     return m_output_shardings;
   }
 
+  // Returns input argument roles (weight vs input).
+  const std::vector<InputArgumentRole> &getInputArgumentRoles() const {
+    return m_input_argument_roles;
+  }
+
   // MLIR program format name. This would ideally be defined in PJRT API header.
   static const std::string c_mlir_format_name;
 
@@ -116,6 +127,10 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the information about input argument roles (weight vs input).
+  void
+  collectInputArgumentRoles(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -236,6 +251,9 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // For every input, holds the argument role (weight vs input).
+  std::vector<InputArgumentRole> m_input_argument_roles;
 };
 
 } // namespace tt::pjrt

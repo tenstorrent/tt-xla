@@ -122,6 +122,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
+  collectInputArgumentRoles(mlir_module);
   collectOutputTypes(mlir_module);
 
   runStableHLOPipeline(mlir_module);
@@ -329,6 +330,34 @@ void ModuleBuilder::collectOutputShardingsShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectInputArgumentRoles(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  m_input_argument_roles.clear();
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
+         ++arg_index) {
+      // Check for tt.input_role attribute
+      mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
+          arg_index, "tt.input_role");
+
+      if (role_attr && role_attr.getValue() == "weight") {
+        m_input_argument_roles.push_back(InputArgumentRole::kWeight);
+      } else {
+        // Default to input if attribute is not present or not "weight"
+        m_input_argument_roles.push_back(InputArgumentRole::kInput);
+      }
+
+      // Remove the tt.input_role attribute after collecting it
+      if (role_attr) {
+        func_op.removeArgAttr(arg_index, "tt.input_role");
+      }
+    }
   }
 }
 
