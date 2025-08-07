@@ -64,8 +64,12 @@ bool LoadedExecutableInstance::isDeleted() {
 
 void LoadedExecutableInstance::releaseResources() {
   if (m_client_instance->isRuntimeDeviceOpened()) {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Closing runtime device in releaseResources");
     tt::runtime::closeMeshDevice(*m_client_instance->getRuntimeDevice());
     m_client_instance->setRuntimeDeviceOpened(false);
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device closed successfully");
+  } else {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device already closed, no action needed");
   }
 
   if (m_deleted) {
@@ -107,13 +111,18 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   if (!m_client_instance->isRuntimeDeviceOpened()) {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device not opened, opening devices...");
     std::optional<tt::runtime::Device> device = openDevices(args->argument_lists, args->num_args, args->num_devices,
                   args->execute_device);
     if (!device) {
+      DLOG_F(ERROR, "[DEVICE] Failed to open runtime device");
       return tt_pjrt_status::kInternal;
     }
+    DLOG_F(LOG_DEBUG, "[DEVICE] Successfully opened runtime device");
     m_client_instance->setRuntimeDevice(device);
     m_client_instance->setRuntimeDeviceOpened(true);
+  } else {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device already opened, reusing existing device");
   }
   std::optional<tt::runtime::Device> runtime_device = m_client_instance->getRuntimeDevice();
 
@@ -175,9 +184,13 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   if (close_device_env && std::string(close_device_env) == "1") {
     DLOG_F(LOG_DEBUG, "[DEVICE] Closing device due to IS_PREFILL=1");
     if (m_client_instance->isRuntimeDeviceOpened()) {
+      DLOG_F(LOG_DEBUG, "[DEVICE] Closing runtime device after execution (IS_PREFILL mode)");
       tt::runtime::closeMeshDevice(*m_client_instance->getRuntimeDevice());
       m_client_instance->setRuntimeDeviceOpened(false);
+      DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device closed successfully after execution");
       // m_client_instance->setRuntimeDevice(std::nullopt);
+    } else {
+      DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device already closed, no action needed in IS_PREFILL mode");
     }
   }
 
@@ -188,8 +201,10 @@ std::optional<tt::runtime::Device>
 LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
                                       size_t num_args, size_t num_devices,
                                       PJRT_Device *pjrt_device) {
+  DLOG_F(LOG_DEBUG, "[DEVICE] Starting device opening process with %zu args on %zu devices", num_args, num_devices);
   std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
+  DLOG_F(LOG_DEBUG, "[DEVICE] Found %zu unique device IDs from arguments", device_ids.size());
 
   const std::vector<std::uint32_t> &devices_mesh_shape =
       m_executable_image->getDevicesMeshShape();
@@ -199,7 +214,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
 
   if (device_ids.size() != mesh_shape_num_devices) {
     DLOG_F(ERROR,
-           "Input buffers are placed on a different number of devices (%zu) "
+           "[DEVICE] Input buffers are placed on a different number of devices (%zu) "
            "than in the mesh shape estimated by the compiler (%zu)",
            device_ids.size(), mesh_shape_num_devices);
     return std::nullopt;
@@ -209,7 +224,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   if (device_instance &&
       !(device_ids.size() == 1 &&
         *device_ids.begin() == device_instance->getGlobalDeviceId())) {
-    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+    DLOG_F(ERROR, "[DEVICE] Input buffers are placed on a different device than the one "
                   "specified in the execute_device argument");
     return std::nullopt;
   }
@@ -220,7 +235,23 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  return tt::runtime::openMeshDevice(devices_mesh_shape);
+  DLOG_F(LOG_DEBUG, "[DEVICE] Opening mesh device with shape [%s]", 
+         [&devices_mesh_shape]() {
+           std::string shape_str;
+           for (size_t i = 0; i < devices_mesh_shape.size(); ++i) {
+             if (i > 0) shape_str += ", ";
+             shape_str += std::to_string(devices_mesh_shape[i]);
+           }
+           return shape_str;
+         }().c_str());
+  
+  std::optional<tt::runtime::Device> device = tt::runtime::openMeshDevice(devices_mesh_shape);
+  if (device) {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Mesh device opened successfully");
+  } else {
+    DLOG_F(ERROR, "[DEVICE] Failed to open mesh device");
+  }
+  return device;
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
