@@ -33,6 +33,8 @@
 
 namespace tt::pjrt {
 
+class ClientInstance;
+
 // Represents `PJRT_LoadedExecutable` structure and the functionality around it.
 // It is the in-memory loaded executable which is ready for input arguments to
 // execute.
@@ -41,7 +43,8 @@ public:
   // Creates new loaded executable instance from the executable image.
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 std::vector<DeviceInstance *> &&addressable_devices);
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 ClientInstance *client_instance);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -82,9 +85,11 @@ private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices)
+      const std::vector<DeviceInstance *> &addressable_devices,
+      ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
-        m_addressable_devices(addressable_devices), m_deleted(false) {}
+        m_addressable_devices(addressable_devices),
+        m_client_instance(client_instance), m_deleted(false) {}
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
@@ -150,16 +155,14 @@ private:
   // Subset of client's addressable devices that this executable will run on.
   const std::vector<DeviceInstance *> m_addressable_devices;
 
+  // Backreference to the client instance that owns this loaded executable
+  ClientInstance *m_client_instance;
+
   // True if loaded executable was deleted, i.e. its resources are released.
   bool m_deleted;
 
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
-
-  // Runtime device handle  
-  std::optional<tt::runtime::Device> m_runtime_device;
-
-  bool m_runtime_device_opened = false;
 };
 
 namespace internal {
@@ -188,5 +191,8 @@ PJRT_Error *onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args);
 } // namespace internal
 
 } // namespace tt::pjrt
+
+// Include implementation after class declarations to avoid circular dependency
+#include "common/pjrt_implementation/client_instance.h"
 
 #endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_LOADED_EXECUTABLE_INSTANCE_H_
