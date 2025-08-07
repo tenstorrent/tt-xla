@@ -26,6 +26,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -214,7 +215,7 @@ std::string ModuleBuilder::collectMlirModule(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   std::string mlir_code;
   llvm::raw_string_ostream os(mlir_code);
-  mlir_module.get()->print(os);
+  mlir_module.get()->print(os, mlir::OpPrintingFlags().enableDebugInfo());
   os.flush();
   return mlir_code;
 }
