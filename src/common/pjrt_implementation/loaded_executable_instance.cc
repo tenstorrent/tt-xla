@@ -30,16 +30,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    ClientInstance *client_instance) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        ClientInstance *client_instance)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -59,9 +63,9 @@ bool LoadedExecutableInstance::isDeleted() {
 }
 
 void LoadedExecutableInstance::releaseResources() {
-  if (m_runtime_device_opened) {
-    tt::runtime::closeMeshDevice(*m_runtime_device);
-    m_runtime_device_opened = false;
+  if (m_client_instance->isRuntimeDeviceOpened()) {
+    tt::runtime::closeMeshDevice(*m_client_instance->getRuntimeDevice());
+    m_client_instance->setRuntimeDeviceOpened(false);
   }
 
   if (m_deleted) {
@@ -102,15 +106,16 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  if (!m_runtime_device_opened) {
-    m_runtime_device = openDevices(args->argument_lists, args->num_args, args->num_devices,
+  if (!m_client_instance->isRuntimeDeviceOpened()) {
+    std::optional<tt::runtime::Device> device = openDevices(args->argument_lists, args->num_args, args->num_devices,
                   args->execute_device);
-    if (!m_runtime_device) {
+    if (!device) {
       return tt_pjrt_status::kInternal;
     }
-    m_runtime_device_opened = true;
+    m_client_instance->setRuntimeDevice(device);
+    m_client_instance->setRuntimeDeviceOpened(true);
   }
-  std::optional<tt::runtime::Device> runtime_device = m_runtime_device;
+  std::optional<tt::runtime::Device> runtime_device = m_client_instance->getRuntimeDevice();
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -169,10 +174,10 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   const char* close_device_env = std::getenv("IS_PREFILL");
   if (close_device_env && std::string(close_device_env) == "1") {
     DLOG_F(LOG_DEBUG, "[DEVICE] Closing device due to IS_PREFILL=1");
-    if (m_runtime_device_opened) {
-      tt::runtime::closeMeshDevice(*m_runtime_device);
-      m_runtime_device_opened = false;
-      // m_runtime_device.reset();
+    if (m_client_instance->isRuntimeDeviceOpened()) {
+      tt::runtime::closeMeshDevice(*m_client_instance->getRuntimeDevice());
+      m_client_instance->setRuntimeDeviceOpened(false);
+      // m_client_instance->setRuntimeDevice(std::nullopt);
     }
   }
 
