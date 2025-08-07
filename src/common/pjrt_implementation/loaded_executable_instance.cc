@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <numeric>
+#include <cstdlib>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -161,6 +162,17 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       // responsible for calling `PJRT_Event_Destroy` on the event.
       args->device_complete_events[device_num] =
           *device_complete_event.release();
+    }
+  }
+
+
+  const char* close_device_env = std::getenv("IS_PREFILL");
+  if (close_device_env && std::string(close_device_env) == "1") {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Closing device due to IS_PREFILL=1");
+    if (m_runtime_device_opened) {
+      tt::runtime::closeMeshDevice(*m_runtime_device);
+      m_runtime_device_opened = false;
+      // m_runtime_device.reset();
     }
   }
 
