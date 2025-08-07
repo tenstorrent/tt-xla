@@ -181,6 +181,14 @@ void BufferInstance::copyFromHost(
   std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
+  
+  // Format shape for logging
+  std::string shape_str = "[";
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (i > 0) shape_str += ", ";
+    shape_str += std::to_string(shape[i]);
+  }
+  shape_str += "]";
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
@@ -199,6 +207,10 @@ void BufferInstance::copyFromHost(
   if (host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+    DLOG_F(LOG_DEBUG, "[BUFFER] Creating OWNED host tensor with shape %s (semantics: %s, supported_dtype: %s)", 
+           shape_str.c_str(),
+           host_buffer_semantics == PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ? "ImmutableOnlyDuringCall" : "other",
+           ::tt::runtime::utils::isSupportedDataType(runtime_data_type) ? "true" : "false");
 
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
@@ -212,6 +224,8 @@ void BufferInstance::copyFromHost(
   // original data we can't mark the event as ready yet, so we remember it and
   // mark it as ready once the buffer is destroyed.
   else {
+    DLOG_F(LOG_DEBUG, "[BUFFER] Creating BORROWED host tensor with shape %s (semantics: ZeroCopy/other)", 
+           shape_str.c_str());
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
