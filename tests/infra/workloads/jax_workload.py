@@ -12,45 +12,11 @@ from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
 
-
-class JaxWorkload(Workload):
-    """Workload used with JAX."""
-
-    def __init__(
-        self,
-        executable: Callable,
-        args: Optional[Sequence[Any]] = None,
-        kwargs: Optional[Mapping[str, Any]] = None,
-        static_argnames: Optional[Sequence[str]] = None,
-    ) -> None:
-        super().__init__(args, kwargs)
-
-        self.executable = executable
-        self.static_argnames = static_argnames or []
-
-    def as_mlir_module_str(self) -> str:
-        """
-        Returns self as mlir module string.
-
-        Note `self.executable` must be the result of jax.jit, otherwise exception will
-        be raised.
-        """
-        try:
-            return self.executable.lower(*self.args, **self.kwargs).as_text()
-        except Exception as e:
-            raise RuntimeError("Couldn't produce MLIR module str from workload.") from e
-
-    # @override
-    def _execute(self) -> Any:
-        """Calls callable passing stored args and kwargs directly."""
-        return self.executable(*self.args, **self.kwargs)
-
-
 @dataclass
-class JaxMultichipWorkload(JaxWorkload):
+class JaxMultichipWorkload(Workload):
     """
-    An extension of the JaxWorkload dataclass that includes a mesh and partition specs,
-    necessary for multichip sharding.
+    An extension of the Workload dataclass that includes a mesh and partition specs,
+    necessary for multichip sharding for JAX framework.
     """
 
     def __init__(
