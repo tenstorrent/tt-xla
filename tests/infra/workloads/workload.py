@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from infra.utilities import Framework, Model
 
 
-class Workload():
+class Workload:
     """Class encapsulating workload (executable/model with its inputs)."""
 
     def __init__(
@@ -19,7 +19,7 @@ class Workload():
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        
+
         self.framework = framework
 
         assert (

@@ -12,6 +12,7 @@ from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
 
+
 @dataclass
 class JaxMultichipWorkload(Workload):
     """
