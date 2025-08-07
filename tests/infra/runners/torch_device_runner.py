@@ -24,12 +24,15 @@ class TorchDeviceRunner(DeviceRunner):
         self, workload: Workload, device_type: DeviceType, device_num: int = 0
     ) -> Tensor:
         device = self._device_connector.connect_device(device_type, device_num)
-        device_workload = self._put_on_device(workload, device=device)
+
+        # commenting this out as the "tt" torch.compile backend will place/remove weights/inputs
+        # from device automatically
+        # device_workload = self._put_on_device(workload, device=device)
 
         # TODO this context manager disables gradient calculation to save memory. We
         # will need to enable it for training.
         with torch.no_grad():
-            return device_workload.execute()
+            return workload.execute()
 
     # @override
     def _put_tensors_on_device(
