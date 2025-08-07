@@ -52,12 +52,12 @@ def training_tester() -> ResnetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
-    )
-)
+# @pytest.mark.xfail(
+#     reason=failed_ttmlir_compilation(
+#         " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
+#         "https://github.com/tenstorrent/tt-xla/issues/795"
+#     )
+# )
 def test_torch_resnet_inference(inference_tester: ResnetTester):
     inference_tester.test()
 
