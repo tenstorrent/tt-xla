@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import FlaxBeitForImageClassificationTester
+from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
 
-MODEL_PATH = "microsoft/beit-base-patch16-224"
+VARIANT_NAME = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "beit",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -50,12 +51,12 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=5.294093608856201. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "PCC comparison failed. Calculated: pcc=0.1442379504442215. Required: pcc=0.99 "
+#         "https://github.com/tenstorrent/tt-xla/issues/379"
+#     )
+# )
 def test_flax_beit_base_inference(
     inference_tester: FlaxBeitForImageClassificationTester,
 ):
