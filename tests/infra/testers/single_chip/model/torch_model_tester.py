@@ -12,6 +12,9 @@ from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
 
+# Registers PJRT plugin to torch-xla and registers "tt" backend for torch.compile
+import tt_torch
+
 
 class TorchModelTester(ModelTester):
     """
@@ -93,7 +96,7 @@ class TorchModelTester(ModelTester):
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(workload, backend="openxla")
+        return self._compile_for_backend(workload, backend="tt")
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
         """JIT-compiles model into optimized kernels."""
