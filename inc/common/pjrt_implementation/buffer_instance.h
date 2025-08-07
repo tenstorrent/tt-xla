@@ -140,7 +140,11 @@ public:
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
+  void setRuntimeTensor(tt::runtime::Tensor &runtime_tensor) {
+    m_runtime_tensor = runtime_tensor;
+  }
 
+  bool needsLayoutConversion = true;
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
@@ -182,11 +186,7 @@ private:
   // Underlying runtime tensor created for this buffer.
   tt::runtime::Tensor m_runtime_tensor;
 
-  void setRuntimeTensor(tt::runtime::Tensor &runtime_tensor) {
-    m_runtime_tensor = runtime_tensor;
-  }
 
-  bool needsLayoutConversion = true;
 
 
 
