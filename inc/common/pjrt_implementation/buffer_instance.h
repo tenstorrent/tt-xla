@@ -182,6 +182,14 @@ private:
   // Underlying runtime tensor created for this buffer.
   tt::runtime::Tensor m_runtime_tensor;
 
+  void setRuntimeTensor(tt::runtime::Tensor &runtime_tensor) {
+    m_runtime_tensor = runtime_tensor;
+  }
+
+  bool needsLayoutConversion = true;
+
+
+
   // True if data in the buffer is ready (transferred from host or computed on
   // device).
   bool m_data_ready;
