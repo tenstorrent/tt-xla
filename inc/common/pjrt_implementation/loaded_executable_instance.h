@@ -80,7 +80,10 @@ public:
 
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args);
-
+  
+  ~LoadedExecutableInstance() {
+    DLOG_F(LOG_DEBUG, "[LIFECYCLE] LoadedExecutableInstance destructor - instance destroyed: %p", this);
+  }
 private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
@@ -89,7 +92,11 @@ private:
       ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
         m_addressable_devices(addressable_devices),
-        m_client_instance(client_instance), m_deleted(false) {}
+        m_client_instance(client_instance), m_deleted(false) {
+    DLOG_F(LOG_DEBUG, "[LIFECYCLE] LoadedExecutableInstance constructor - instance created: %p", this);
+  }
+
+
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
