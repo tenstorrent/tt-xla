@@ -18,27 +18,23 @@ import sys
 
 
 """
-The CompileDepth's below represent the different stages of the compilation
-pipeline.
+Below is a high level diagram of the compilation pipeline.
 
-tt-torch has two entrypoints it can compile from: PyTorch and ONNX. At the
-beginning of the compile flow these entrypoints follow different paths, but
-converge early in the compilation pipeline. The flow is as follows:
-
-                                 PyTorch nn.Module
-                                         |
-     ONNX ModelProto               Torch FX Graph
-            |                            |
-      Torch ONNX IR                Torch FX IR  <-----  (first MLIR modules)
-             \-----Torch Backend IR-----/
+                   PyTorch nn.Module
                            |
-                       StableHLO
+                    Lazy Tensor trace
+                           |
+                       XLA Module
+                           |
+                      VHLO Dialect <---- (first MLIR module)
+                           |
+                    StableHLO Dialect
                            |
                       TTIR Dialect
                            |
                       TTNN Dialect
                            |
-                 Flatbuffer Executable
+                  Flatbuffer Executable
 """
 
 
@@ -47,247 +43,188 @@ class CompileDepth(Enum):
     EXECUTE = 6
 
 
-class OpCompilationStatus(IntEnum):
-    NOT_STARTED = 0
-    CREATED_GRAPH = 1
-    CONVERTED_TO_TORCH_IR = 2
-    CONVERTED_TO_TORCH_BACKEND_IR = 3
-    CONVERTED_TO_STABLE_HLO = 4
-    CONVERTED_TO_TTIR = 5
-    CONVERTED_TO_TTNN = 6
-    EXECUTED = 7
+# class Tensor:
+#     def __init__(self, shape):
+#         constrained_shape = []
+#         for dim in shape:
+#             if isinstance(dim, int):
+#                 constrained_shape.append(dim)
+#             else:
+#                 constrained_shape.append(-1)
+#         self.shape = constrained_shape
+
+#         self.data_type = ""
+#         self.buffer_type = ""
+#         self.layout = ""
+#         self.grid_shape = []
+
+#     def to_dict(self):
+#         return {
+#             "shape": self.shape,
+#             "data_type": self.data_type,
+#             "buffer_type": self.buffer_type,
+#             "layout": self.layout,
+#             "grid_shape": self.grid_shape,
+#         }
 
 
-class OpByOpBackend(Enum):
-    TORCH = 1
-    STABLEHLO = 2
+# class Op:
+#     def __init__(self, torch_name, input_shapes, model_name):
+#         self.framework_op_name = torch_name
+#         self.num_ops = 1
+#         self.model_name = model_name
+#         self.input_shapes = input_shapes
+#         self.input_tensors = []
+#         self.output_shapes = []
+#         self.output_tensors = []
+#         self.frontend = "tt-torch"
+#         self.backend = "torch"
+#         self.model_group = ""
+#         self.global_op_idx = 0
 
+#         self.torch_ir_graph = ""
+#         self.stable_hlo_graph = ""
+#         self.stable_hlo_ops = []
+#         self.ttir_graph = ""
+#         self.ttnn_graph = ""
+#         self.json = ""
+#         self.binary = ""
+#         self.runtime_stack_dump = ""
+#         self.compilation_status = OpCompilationStatus.NOT_STARTED
+#         self.parsed_stable_hlo_ops = False
+#         self.parsed_ttnn_ops = False
+#         self.pcc = None
+#         self.atol = None
 
-class IOType(Enum):
-    INTER_DEVICE = 1
-    USER = 2
+#     def parse_json(self):
+#         # Replace inf with strings until https://github.com/tenstorrent/tt-mlir/issues/2151 is fixed
+#         self.json = re.sub(r":\s*-inf\s*([,}])", r': "-inf"\1', self.json)
+#         self.json = re.sub(r":\s*inf\s*([,}])", r': "inf"\1', self.json)
+#         binary = json.loads(self.json)
 
+#         def tensor_from_tensor_desc(desc):
+#             tensor = Tensor(desc["shape"])
+#             if "memory_desc" in desc["layout"]:
+#                 tensor.data_type = desc["layout"]["memory_desc"]["data_type"]
+#                 try:
+#                     tensor.buffer_type = desc["layout"]["memory_desc"]["memory_space"]
+#                 except KeyError:
 
-class MultiChipOutput:
-    def __init__(self, originating_device, io_type, index):
-        self.originating_device = originating_device
-        self.io_type = io_type
-        self.index = index
-        self.linked_input = None
-        self.output_dtype = None
-        self.output_shape = None
+#                     if "memory_config" in desc["layout"]["memory_desc"]:
+#                         # If the tensor is on device, the descriptor will have a "memory_config" field
+#                         tensor.buffer_type = desc["layout"]["memory_desc"][
+#                             "memory_config"
+#                         ]["buffer_type"]
+#                     else:
+#                         # If the tensor is on host, the descriptor will have a "storage_type" field and no "memory_config" field
+#                         tensor.buffer_type = desc["layout"]["memory_desc"][
+#                             "storage_type"
+#                         ]
 
-    def link_input(self, input):
-        self.linked_input = input
+#                 try:
+#                     tensor.layout = desc["layout"]["memory_desc"]["memory_layout"]
+#                 except KeyError:
+#                     if "memory_config" in desc["layout"]["memory_desc"]:
+#                         # If the tensor is on device, the descriptor will have a "memory_config" field
+#                         tensor.layout = desc["layout"]["memory_desc"]["memory_config"][
+#                             "tensor_memory_layout"
+#                         ]
+#                     else:
+#                         # If the tensor is on host, there will be no "memory_config" and thus no "tensor_memory_layout" field
+#                         tensor.layout = ""
+#             try:
+#                 grid_shape = desc["layout"]["core_range_set"][0]["size"]
+#                 tensor.grid_shape = [grid_shape["x"], grid_shape["y"]]
+#             except KeyError:
+#                 pass
+#             return tensor
 
+#         for inp in binary["programs"][0]["inputs"]:
+#             self.input_tensors.append(tensor_from_tensor_desc(inp["desc"]))
 
-class MultiChipInput:
-    def __init__(
-        self, originating_device, io_type, producer_index, consumer_index, meta
-    ):
-        self.originating_device = originating_device
-        self.io_type = io_type
-        self.producer_index = producer_index
-        self.consumer_index = consumer_index
-        self.meta = meta
+#         for out in binary["programs"][0]["outputs"]:
+#             self.output_tensors.append(tensor_from_tensor_desc(out["desc"]))
 
+#     def print_shapes(self, shapes):
+#         output = []
+#         for shape in shapes:
+#             output.append(f"{shape}")
+#         return output
 
-class MultiChipGraph:
-    def __init__(self, devices):
-        self.devices = devices
-        self.device_graphs = {device: torch.fx.Graph() for device in devices}
-        self.graph_outputs = {device: [] for device in devices}
-        self.graph_inputs = {device: [] for device in devices}
-        self.programs = {}
-        self.binaries = {}
-        self.constant_inputs = {}
-        self.buffers = {}
-        self.example_inputs = {}
-        self.shlo_modules = {}
+#     def to_dict(self):
+#         def scrub_nan_inf(value):
+#             if isinstance(value, float):
+#                 if math.isnan(value):
+#                     ret = "NaN"
+#                 elif math.isinf(value):
+#                     ret = "Inf"
+#                 else:
+#                     ret = f"{value:.2f}"
+#             else:
+#                 ret = ""
+#             return ret
 
+#         pcc = scrub_nan_inf(self.pcc)
+#         atol = scrub_nan_inf(self.atol)
 
-class Tensor:
-    def __init__(self, shape):
-        constrained_shape = []
-        for dim in shape:
-            if isinstance(dim, int):
-                constrained_shape.append(dim)
-            else:
-                constrained_shape.append(-1)
-        self.shape = constrained_shape
+#         if len(self.input_tensors) == 0:
+#             self.input_tensors = [
+#                 Tensor(shp) for shp in self.input_shapes if isinstance(shp, Iterable)
+#             ]
 
-        self.data_type = ""
-        self.buffer_type = ""
-        self.layout = ""
-        self.grid_shape = []
+#         if len(self.output_tensors) == 0:
+#             self.output_tensors = [
+#                 Tensor(shp) for shp in self.output_shapes if isinstance(shp, Iterable)
+#             ]
 
-    def to_dict(self):
-        return {
-            "shape": self.shape,
-            "data_type": self.data_type,
-            "buffer_type": self.buffer_type,
-            "layout": self.layout,
-            "grid_shape": self.grid_shape,
-        }
+#         return {
+#             "framework_op_name": self.framework_op_name,
+#             "torch_name": self.framework_op_name,  # For backward compatibility
+#             "frontend": self.frontend,
+#             "backend": self.backend,
+#             "model_name": self.model_name,
+#             "model_group": self.model_group,
+#             "global_op_idx": self.global_op_idx,
+#             "input_shapes": self.print_shapes(self.input_shapes),
+#             "input_tensors": [tensor.to_dict() for tensor in self.input_tensors],
+#             "output_shapes": self.print_shapes(self.output_shapes),
+#             "output_tensors": [tensor.to_dict() for tensor in self.output_tensors],
+#             "num_ops": self.num_ops,
+#             "compilation_status": self.compilation_status,
+#             "parsed_stable_hlo_ops": self.parsed_stable_hlo_ops,
+#             "torch_ir_graph": self.torch_ir_graph,
+#             "stable_hlo_graph": self.stable_hlo_graph,
+#             "stable_hlo_ops": self.stable_hlo_ops,
+#             "ttir_graph": self.ttir_graph,
+#             "ttnn_graph": self.ttnn_graph,
+#             "runtime_stack_dump": self.runtime_stack_dump,
+#             "pcc": pcc,
+#             "atol": atol,
+#             "compiled_json": self.json,
+#         }
 
+#     def unique_key(self):
+#         key = self.framework_op_name
+#         for shape in self.input_shapes:
+#             if isinstance(shape, torch.Size):
+#                 key += f"_{print_shape(shape)}"
+#             else:
+#                 key += f"_{shape}"
+#         return key
 
-class Op:
-    def __init__(self, torch_name, input_shapes, model_name):
-        self.framework_op_name = torch_name
-        self.num_ops = 1
-        self.model_name = model_name
-        self.input_shapes = input_shapes
-        self.input_tensors = []
-        self.output_shapes = []
-        self.output_tensors = []
-        self.frontend = "tt-torch"
-        self.backend = "torch"
-        self.model_group = ""
-        self.global_op_idx = 0
+#     def add_torch_ir_graph(self, torch_ir_graph: str):
+#         self.torch_ir_graph = torch_ir_graph
 
-        self.torch_ir_graph = ""
-        self.stable_hlo_graph = ""
-        self.stable_hlo_ops = []
-        self.ttir_graph = ""
-        self.ttnn_graph = ""
-        self.json = ""
-        self.binary = ""
-        self.runtime_stack_dump = ""
-        self.compilation_status = OpCompilationStatus.NOT_STARTED
-        self.parsed_stable_hlo_ops = False
-        self.parsed_ttnn_ops = False
-        self.pcc = None
-        self.atol = None
+#     def add_stable_hlo_graph(self, stable_hlo_graph: str):
+#         self.stable_hlo_graph = stable_hlo_graph
+#         self.converted_to_stable_hlo = True
+#         self.parsed_stable_hlo_ops = False
 
-    def parse_json(self):
-        # Replace inf with strings until https://github.com/tenstorrent/tt-mlir/issues/2151 is fixed
-        self.json = re.sub(r":\s*-inf\s*([,}])", r': "-inf"\1', self.json)
-        self.json = re.sub(r":\s*inf\s*([,}])", r': "inf"\1', self.json)
-        binary = json.loads(self.json)
+#     def add_ttir_graph(self, ttir_graph: str):
+#         self.ttir_graph = ttir_graph
 
-        def tensor_from_tensor_desc(desc):
-            tensor = Tensor(desc["shape"])
-            if "memory_desc" in desc["layout"]:
-                tensor.data_type = desc["layout"]["memory_desc"]["data_type"]
-                try:
-                    tensor.buffer_type = desc["layout"]["memory_desc"]["memory_space"]
-                except KeyError:
-
-                    if "memory_config" in desc["layout"]["memory_desc"]:
-                        # If the tensor is on device, the descriptor will have a "memory_config" field
-                        tensor.buffer_type = desc["layout"]["memory_desc"][
-                            "memory_config"
-                        ]["buffer_type"]
-                    else:
-                        # If the tensor is on host, the descriptor will have a "storage_type" field and no "memory_config" field
-                        tensor.buffer_type = desc["layout"]["memory_desc"][
-                            "storage_type"
-                        ]
-
-                try:
-                    tensor.layout = desc["layout"]["memory_desc"]["memory_layout"]
-                except KeyError:
-                    if "memory_config" in desc["layout"]["memory_desc"]:
-                        # If the tensor is on device, the descriptor will have a "memory_config" field
-                        tensor.layout = desc["layout"]["memory_desc"]["memory_config"][
-                            "tensor_memory_layout"
-                        ]
-                    else:
-                        # If the tensor is on host, there will be no "memory_config" and thus no "tensor_memory_layout" field
-                        tensor.layout = ""
-            try:
-                grid_shape = desc["layout"]["core_range_set"][0]["size"]
-                tensor.grid_shape = [grid_shape["x"], grid_shape["y"]]
-            except KeyError:
-                pass
-            return tensor
-
-        for inp in binary["programs"][0]["inputs"]:
-            self.input_tensors.append(tensor_from_tensor_desc(inp["desc"]))
-
-        for out in binary["programs"][0]["outputs"]:
-            self.output_tensors.append(tensor_from_tensor_desc(out["desc"]))
-
-    def print_shapes(self, shapes):
-        output = []
-        for shape in shapes:
-            output.append(f"{shape}")
-        return output
-
-    def to_dict(self):
-        def scrub_nan_inf(value):
-            if isinstance(value, float):
-                if math.isnan(value):
-                    ret = "NaN"
-                elif math.isinf(value):
-                    ret = "Inf"
-                else:
-                    ret = f"{value:.2f}"
-            else:
-                ret = ""
-            return ret
-
-        pcc = scrub_nan_inf(self.pcc)
-        atol = scrub_nan_inf(self.atol)
-
-        if len(self.input_tensors) == 0:
-            self.input_tensors = [
-                Tensor(shp) for shp in self.input_shapes if isinstance(shp, Iterable)
-            ]
-
-        if len(self.output_tensors) == 0:
-            self.output_tensors = [
-                Tensor(shp) for shp in self.output_shapes if isinstance(shp, Iterable)
-            ]
-
-        return {
-            "framework_op_name": self.framework_op_name,
-            "torch_name": self.framework_op_name,  # For backward compatibility
-            "frontend": self.frontend,
-            "backend": self.backend,
-            "model_name": self.model_name,
-            "model_group": self.model_group,
-            "global_op_idx": self.global_op_idx,
-            "input_shapes": self.print_shapes(self.input_shapes),
-            "input_tensors": [tensor.to_dict() for tensor in self.input_tensors],
-            "output_shapes": self.print_shapes(self.output_shapes),
-            "output_tensors": [tensor.to_dict() for tensor in self.output_tensors],
-            "num_ops": self.num_ops,
-            "compilation_status": self.compilation_status,
-            "parsed_stable_hlo_ops": self.parsed_stable_hlo_ops,
-            "torch_ir_graph": self.torch_ir_graph,
-            "stable_hlo_graph": self.stable_hlo_graph,
-            "stable_hlo_ops": self.stable_hlo_ops,
-            "ttir_graph": self.ttir_graph,
-            "ttnn_graph": self.ttnn_graph,
-            "runtime_stack_dump": self.runtime_stack_dump,
-            "pcc": pcc,
-            "atol": atol,
-            "compiled_json": self.json,
-        }
-
-    def unique_key(self):
-        key = self.framework_op_name
-        for shape in self.input_shapes:
-            if isinstance(shape, torch.Size):
-                key += f"_{print_shape(shape)}"
-            else:
-                key += f"_{shape}"
-        return key
-
-    def add_torch_ir_graph(self, torch_ir_graph: str):
-        self.torch_ir_graph = torch_ir_graph
-
-    def add_stable_hlo_graph(self, stable_hlo_graph: str):
-        self.stable_hlo_graph = stable_hlo_graph
-        self.converted_to_stable_hlo = True
-        self.parsed_stable_hlo_ops = False
-
-    def add_ttir_graph(self, ttir_graph: str):
-        self.ttir_graph = ttir_graph
-
-    def add_ttnn_graph(self, ttnn_graph: str):
-        self.ttnn_graph = ttnn_graph
+#     def add_ttnn_graph(self, ttnn_graph: str):
+#         self.ttnn_graph = ttnn_graph
 
 
 class CompilerConfig:
@@ -302,7 +239,6 @@ class CompilerConfig:
         self.model_group = ""
         self.results_path = "results/models/"
         self.single_op_timeout = 30
-        self.op_by_op_backend = OpByOpBackend.TORCH
         self.enable_consteval = False
         self.enable_optimizer = False
         self._consteval_parameters = False
