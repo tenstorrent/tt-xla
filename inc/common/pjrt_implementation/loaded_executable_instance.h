@@ -80,10 +80,12 @@ public:
 
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args);
-  
+
+  // implied destructor is public by default. we must explicate it as public so  
   ~LoadedExecutableInstance() {
     DLOG_F(LOG_DEBUG, "[LIFECYCLE] LoadedExecutableInstance destructor - instance destroyed: %p", this);
   }
+
 private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(

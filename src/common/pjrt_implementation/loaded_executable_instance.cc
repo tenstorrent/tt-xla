@@ -281,39 +281,11 @@ std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
   return device_ids;
 }
 
-// Helper function to manage buffer map operations with logging
-static BufferInstance* getOrInsertBufferInMap(
-    std::map<void*, BufferInstance*> &buffer_map, 
-    BufferInstance *buffer, 
-    size_t arg_index, 
-    size_t device_index) {
-  
-  void* tensor_handle = buffer->getRuntimeTensor().handle.get();
-  
-  auto it = buffer_map.find(tensor_handle);
-  if (it == buffer_map.end()) {
-    // Cache miss - first time seeing this tensor handle
-    DLOG_F(LOG_DEBUG, "[CACHE] Miss for tensor handle %p (arg %zu, device %zu)", 
-           tensor_handle, arg_index, device_index);
-    buffer->logDimensions();
-    buffer_map[tensor_handle] = buffer;
-    return buffer;
-  } else {
-    // Cache hit - we've seen this tensor handle before
-    DLOG_F(LOG_DEBUG, "[CACHE] Hit for tensor handle %p (arg %zu, device %zu)", 
-           tensor_handle, arg_index, device_index);
-    return it->second;
-  }
-}
-
 tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
-
-    
-  std::map<void*, BufferInstance*> buffer_map;
 
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<tt::runtime::Tensor> arg_tensors;
@@ -324,8 +296,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       arg_tensors.push_back(buffer->getRuntimeTensor());
 
-      // Use helper function to manage buffer map operations
-      getOrInsertBufferInMap(buffer_map, buffer, arg_index, device_index);
+      // Use client-level buffer cache that persists across executions
+      m_client_instance->getOrInsertBufferInCache(buffer, arg_index, device_index);
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
@@ -341,13 +313,14 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     tt::runtime::Tensor laid_out_tensor = input_tensor;
     void* tensor_handle = input_tensor.handle.get();
-    if (buffer_map[tensor_handle]->needsLayoutConversion) {
+    BufferInstance* cached_buffer = m_client_instance->getBufferFromCache(tensor_handle);
+    if (cached_buffer && cached_buffer->needsLayoutConversion) {
       DLOG_F(LOG_DEBUG, "[LAYOUT] Converting layout for tensor handle %p (arg %zu)", 
              tensor_handle, arg_index);
       laid_out_tensor = convertTensorLayout(input_tensor, program_index,
                                             arg_index, runtime_device);
-      buffer_map[tensor_handle]->needsLayoutConversion = false;
-      buffer_map[tensor_handle]->setRuntimeTensor(laid_out_tensor);
+      cached_buffer->needsLayoutConversion = false;
+      cached_buffer->setRuntimeTensor(laid_out_tensor);
     }
 
     // In case when new tensor was created, we want it to be automatically
