@@ -60,7 +60,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
-      use-shared-runners: true # Run nightly tests on Civ2
+      use-shared-runners: false # Run nightly tests on VMs
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -117,7 +117,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
-      use-shared-runners: true # Run full model tests on Civ2
+      use-shared-runners: false # Run full model tests on VMs
 
   fail-notify:
     if: always()
