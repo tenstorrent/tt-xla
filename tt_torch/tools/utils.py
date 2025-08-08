@@ -46,11 +46,6 @@ class CompileDepth(Enum):
 class CompilerConfig:
     def __init__(self):
         self.compile_depth = CompileDepth.EXECUTE
-        self.profile_ops = True
-        self.torch_mlir_module = None
-        self.stablehlo_mlir_module = None
-        self.unique_ops = {}
-        self.stable_hlo_ops = []
         self._model_name = ""
         self.model_group = ""
         self.results_path = "results/models/"
@@ -58,14 +53,6 @@ class CompilerConfig:
         self.enable_consteval = False
         self.enable_optimizer = False
         self._consteval_parameters = False
-        self._enable_intermediate_verification = False
-        self.dump_debug = False
-        self.dump_info = False
-        self.check_all_ops_execute = False
-        self._verify_op_by_op = False
-        self.typecast_inputs = True
-        self.cache_preprocessed_constants = False
-        self.inline_parameters = False
         self.record_property = None
         self.record_property = lambda *args, **kwargs: None  # Default to no-op
         self.runtime_intermediate_cache = None  # Do not serialize.
@@ -133,25 +120,6 @@ class CompilerConfig:
         self._verify_op_by_op = value
 
     @property
-    def enable_intermediate_verification(self):
-        return self._enable_intermediate_verification
-
-    @enable_intermediate_verification.setter
-    def enable_intermediate_verification(self, value):
-        assert isinstance(
-            value, bool
-        ), "enable_intermediate_verification must be a boolean"
-
-        if value and not tt_mlir.is_runtime_debug_enabled():
-            raise RuntimeError(
-                "attempting to set enable_intermediate_verification to True but tt_mlir was not built with runtime debug enabled. Rebuild this project with -DTT_RUNTIME_DEBUG=ON if you wish to verify intermediate results."
-            )
-
-        self._enable_intermediate_verification = True
-        if self.runtime_intermediate_cache is None:
-            self.runtime_intermediate_cache = {}
-
-    @property
     def consteval_parameters(self):
         return self._consteval_parameters
 
@@ -164,50 +132,15 @@ class CompilerConfig:
         compile_depth = os.environ.get("TT_TORCH_COMPILE_DEPTH")
         if compile_depth:
             self.compile_depth = CompileDepth[compile_depth]
-        verify_op_by_op = os.environ.get("TT_TORCH_VERIFY_OP_BY_OP")
-        if verify_op_by_op and int(verify_op_by_op):
-            self.verify_op_by_op = True
-        check_all_ops_execute = os.environ.get("TT_TORCH_CHECK_ALL_OPS_EXECUTE")
-        if check_all_ops_execute:
-            self.check_all_ops_execute = True
-        verify_intermediates = os.environ.get("TT_TORCH_VERIFY_INTERMEDIATES")
-        if verify_intermediates and int(verify_intermediates):
-            self.enable_intermediate_verification = True
         enable_consteval = os.environ.get("TT_TORCH_CONSTEVAL")
         if enable_consteval and int(enable_consteval):
             self.enable_consteval = True
-        enable_optimizer = os.environ.get("TT_TORCH_OPTIMIZER")
-        if enable_optimizer and int(enable_optimizer):
-            self.enable_optimizer = True
         consteval_parameters = os.environ.get("TT_TORCH_CONSTEVAL_PARAMETERS")
         if consteval_parameters and int(consteval_parameters):
             self.consteval_parameters = True
         inline_parameters = os.environ.get("TT_TORCH_INLINE_PARAMETERS")
         if inline_parameters and int(inline_parameters):
             self.inline_parameters = True
-        dump_intermediates = os.environ.get("TT_TORCH_IR_LOG_LEVEL")
-        if dump_intermediates:
-            self.dump_debug = dump_intermediates == "DEBUG"
-            self.dump_info = self.dump_debug or dump_intermediates == "INFO"
-        save_mlir_str = os.environ.get("TT_TORCH_SAVE_MLIR")
-        if save_mlir_str:
-            self.save_mlir_override = []
-            dialects = [
-                d.strip() for d in save_mlir_str.split(",")
-            ]  # Using comma as a separator
-            for dialect in dialects:
-                if (
-                    dialect in self.valid_dialects
-                    and dialect not in self.save_mlir_override
-                ):
-                    self.save_mlir_override.append(dialect)
-                elif dialect:
-                    print(
-                        f"Warning: Invalid SAVE_MLIR value: {dialect}. Expected one or more of {valid_dialects} separated by commas."
-                    )
-        dump_binary = os.environ.get("TT_TORCH_SAVE_BINARY")
-        if dump_binary and int(dump_binary):
-            self.dump_binary = True
 
     def post_init(self):
         if self.consteval_parameters:
