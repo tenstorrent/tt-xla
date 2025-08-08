@@ -63,9 +63,11 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
-        return Workload.create(
+        # In Pytorch, we need to work with executable because of comparison (comparator.py -> compare() -> _match_data_types())
+        return Workload(
             framework=workload.framework,
             model=workload.model,  # Moved to device if not None.
+            executable=workload.executable,  # Unchanged.
             args=args_on_device,
             kwargs=kwargs_on_device,
         )

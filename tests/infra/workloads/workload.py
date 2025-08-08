@@ -18,6 +18,7 @@ class Workload:
         model: Optional[Model] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
+        static_argnames: Optional[Sequence[str]] = None,
     ) -> None:
 
         self.framework = framework
@@ -35,6 +36,7 @@ class Workload:
 
         self.args = args or []
         self.kwargs = kwargs or {}
+        self.static_argnames = static_argnames or []
 
     @property
     def is_jax(self) -> bool:
