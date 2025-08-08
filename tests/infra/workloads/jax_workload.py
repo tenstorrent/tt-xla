@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import ShardingMode
+from infra.utilities import ShardingMode, Framework
 from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
@@ -31,7 +31,13 @@ class JaxMultichipWorkload(Workload):
         out_spec: Optional[PartitionSpec] = None,
         sharding_mode: Optional[ShardingMode] = None,
     ) -> None:
-        super().__init__(executable, args, kwargs, static_argnames)
+        super().__init__(
+            framework=Framework.JAX,
+            executable=executable,
+            args=args,
+            kwargs=kwargs,
+            static_argnames=static_argnames,
+        )
 
         self._device_mesh = device_mesh
         self._in_specs = in_specs
