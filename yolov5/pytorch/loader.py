@@ -7,49 +7,85 @@ YOLOv5 model loader implementation
 import torch
 from torchvision import transforms
 from datasets import load_dataset
+from typing import Optional
 
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
 from ...base import ForgeModel
 
 
+class ModelVariant(StrEnum):
+    """Available YOLOv5 model variants."""
+
+    YOLOV5N = "yolov5n"
+    YOLOV5S = "yolov5s"
+    YOLOV5M = "yolov5m"
+    YOLOV5L = "yolov5l"
+    YOLOV5X = "yolov5x"
+
+
 class ModelLoader(ForgeModel):
+    """YOLOv5 model loader implementation."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.YOLOV5N: ModelConfig(
+            pretrained_model_name="yolov5n",
+        ),
+        ModelVariant.YOLOV5S: ModelConfig(
+            pretrained_model_name="yolov5s",
+        ),
+        ModelVariant.YOLOV5M: ModelConfig(
+            pretrained_model_name="yolov5m",
+        ),
+        ModelVariant.YOLOV5L: ModelConfig(
+            pretrained_model_name="yolov5l",
+        ),
+        ModelVariant.YOLOV5X: ModelConfig(
+            pretrained_model_name="yolov5x",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.YOLOV5S
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+        super().__init__(variant)
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="yolov5",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
-            source=ModelSource.CUSTOM,
+            source=ModelSource.TORCH_HUB,
             framework=Framework.TORCH,
         )
-
-    """YOLOv5 model loader implementation."""
-
-    def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
-        super().__init__(variant)
 
     def load_model(self, dtype_override=None):
         """Load and return the YOLOv5 model instance with default settings.
@@ -61,7 +97,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOv5 model instance.
         """
-        model_variant = "yolov5s"
+        # Get the model name from the instance's variant config
+        model_variant = self._variant_config.pretrained_model_name
         model = torch.hub.load("ultralytics/yolov5", model_variant)
 
         # Only convert dtype if explicitly requested
@@ -70,12 +107,14 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1, input_size=640):
         """Load and return sample inputs for the YOLOv5 model with default settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
                            If not provided, inputs will use the default dtype (typically float32).
+            batch_size: Optional batch size to override the default batch size of 1.
+            input_size: Optional input size (width and height) to override the default size of 640.
 
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
@@ -92,13 +131,15 @@ class ModelLoader(ForgeModel):
         # Preprocess the image
         transform = transforms.Compose(
             [
-                transforms.Resize((480, 640)),
+                transforms.Resize((input_size, input_size)),
                 transforms.ToTensor(),
             ]
         )
 
-        img_tensor = [transform(image).unsqueeze(0)]  # Add batch dimension
-        batch_tensor = torch.cat(img_tensor, dim=0)
+        img_tensor = transform(image).unsqueeze(0)  # Add batch dimension
+
+        # Replicate tensors for batch size
+        batch_tensor = img_tensor.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

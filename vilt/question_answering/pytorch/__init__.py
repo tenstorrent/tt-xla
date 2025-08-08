@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-YOLOv5 PyTorch model implementation for Tenstorrent projects.
+ViLT PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

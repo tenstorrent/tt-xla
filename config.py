@@ -34,6 +34,7 @@ class ModelTask(StrEnum):
 
     NLP_TEXT_CLS = "nlp_text_cls"
     NLP_TOKEN_CLS = "nlp_token_cls"
+    NLP_EMBED_GEN = "nlp_embed_gen"
     NLP_QA = "nlp_qa"
     NLP_CAUSAL_LM = "nlp_causal_lm"
     NLP_MASKED_LM = "nlp_masked_lm"

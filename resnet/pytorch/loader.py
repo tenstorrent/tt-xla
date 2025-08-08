@@ -8,6 +8,8 @@ import torch
 
 from transformers import ResNetForImageClassification
 from ...tools.utils import print_compiled_model_results
+from transformers import AutoImageProcessor
+from tabulate import tabulate
 
 from ...config import (
     ModelInfo,
@@ -80,5 +82,45 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def print_cls_results(self, compiled_model_out):
-        print_compiled_model_results(compiled_model_out)
+    def run_and_print_results(self, framework_model, compiled_model, inputs):
+        """
+        Runs inference using both a framework model and a compiled model on a list of input images,
+        then prints the results in a formatted table.
+
+        Args:
+            framework_model: The original framework-based model.
+            compiled_model: The compiled version of the model.
+            inputs: A list of images to process and classify.
+        """
+        label_dict = framework_model.config.id2label
+        processor = AutoImageProcessor.from_pretrained("microsoft/resnet-50")
+
+        results = []
+        for i, image in enumerate(inputs):
+            processed_inputs = processor(image, return_tensors="pt")["pixel_values"].to(
+                torch.bfloat16
+            )
+
+            cpu_logits = framework_model(processed_inputs)[0]
+            cpu_conf, cpu_idx = cpu_logits.softmax(-1).max(-1)
+            cpu_pred = label_dict.get(cpu_idx.item(), "Unknown")
+
+            tt_logits = compiled_model(processed_inputs)[0]
+            tt_conf, tt_idx = tt_logits.softmax(-1).max(-1)
+            tt_pred = label_dict.get(tt_idx.item(), "Unknown")
+
+            results.append([i + 1, cpu_pred, cpu_conf.item(), tt_pred, tt_conf.item()])
+
+        print(
+            tabulate(
+                results,
+                headers=[
+                    "Example",
+                    "CPU Prediction",
+                    "CPU Confidence",
+                    "Compiled Prediction",
+                    "Compiled Confidence",
+                ],
+                tablefmt="grid",
+            )
+        )

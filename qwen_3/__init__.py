@@ -2,6 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen Casual LM PyTorch model implementation for Tenstorrent projects.
+Qwen 3 model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader

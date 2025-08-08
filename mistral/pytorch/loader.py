@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Mistral model variants."""
 
     MISTRAL_7B = "7b"
+    MISTRAL_7B_INSTRUCT_V03 = "7b_instruct_v03"
     MINISTRAL_3B = "ministral_3b_instruct"
     MINISTRAL_8B = "ministral_8b_instruct"
 
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MISTRAL_7B: ModelConfig(
             pretrained_model_name="mistralai/Mistral-7B-v0.1",
+        ),
+        ModelVariant.MISTRAL_7B_INSTRUCT_V03: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-7B-Instruct-v0.3",
         ),
         ModelVariant.MINISTRAL_3B: ModelConfig(
             pretrained_model_name="ministral/Ministral-3b-instruct",
