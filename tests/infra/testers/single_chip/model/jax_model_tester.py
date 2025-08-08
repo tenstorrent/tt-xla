@@ -93,7 +93,7 @@ class JaxModelTester(ModelTester):
         # Prepack model's forward pass and its arguments into a `Workload.`
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
-        self.forward_static_args = self._get_static_argnames()
+        forward_static_args = self._get_static_argnames()
         forward_method_name = self._get_forward_method_name()
 
         assert (
@@ -108,9 +108,9 @@ class JaxModelTester(ModelTester):
         self._workload = WorkloadFactory.create_workload(
             self._framework,
             executable=forward_pass_method,
-            model=self._model,
             args=args,
             kwargs=kwargs,
+            static_argnames=forward_static_args,
         )
 
     def _get_forward_method_args(self) -> Sequence[Any]:
@@ -168,7 +168,7 @@ class JaxModelTester(ModelTester):
         assert workload.is_jax, "Workload must be JAX workload to compile"
 
         workload.executable = jax.jit(
-            workload.executable, static_argnames=self.forward_static_args
+            workload.executable, static_argnames=workload.static_argnames
         )
         return workload
 

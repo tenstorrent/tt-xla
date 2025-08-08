@@ -22,9 +22,10 @@ class WorkloadFactory:
         model: Optional[Model] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
+        static_argnames: Optional[Sequence[str]] = None,
     ) -> Workload:
 
         if not isinstance(framework, Framework):
             raise ValueError(f"Unsupported framework {framework}")
 
-        return Workload(framework, executable, model, args, kwargs)
+        return Workload(framework, executable, model, args, kwargs, static_argnames)

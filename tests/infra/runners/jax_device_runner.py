@@ -76,6 +76,7 @@ class JaxDeviceRunner(DeviceRunner):
             executable=workload.executable,  # Unchanged.
             args=args_on_device,
             kwargs=kwargs_on_device,
+            static_argnames=workload.static_argnames,  # Unchanged.
         )
 
     def run_on_multichip_device(
