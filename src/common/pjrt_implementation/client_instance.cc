@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <cstdlib>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -511,6 +512,15 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                   "`memory` arg");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
+  }
+
+  // sidechannel to grab out a python object ID from last dim
+  //   const int64_t *dims;
+  //    size_t num_dims;
+  if (std::getenv("LASTDIM_SIDECHANNEL")) {
+    int64_t last_dim = *((args->dims)+args->num_dims-1);
+    DLOG_F(LOG_DEBUG, "[James] Sidechannel for last dim %lld", last_dim);
+    args->num_dims -= 1;
   }
 
   std::unique_ptr<BufferInstance> buffer =
