@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from functools import partial
+import os
 from typing import Optional, Tuple, Union
 
 import flax.linen as nn  # type: ignore
@@ -219,8 +220,8 @@ class FlaxLLaMAAttention(nn.Module):
         freqs_cis = jnp.take(self.freqs_cis, position_ids, axis=0)
         # np.savetxt("freqs_cis.txt", freqs_cis.reshape(-1, self.head_dim), fmt='%.6f')
 
+        # xq, xk = xq, xk
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis, dtype=self.dtype)
-
         query_length, key_length = xq.shape[1], xk.shape[1]
 
         if self.has_variable("cache", "cached_key"):
@@ -422,6 +423,7 @@ class FlaxLLaMABlock(nn.Module):
         init_cache: bool = False,
         output_attentions: bool = False,
     ):
+
         attn_outputs = self.attention(
             self.attention_norm(hidden_states),
             attention_mask=attention_mask,

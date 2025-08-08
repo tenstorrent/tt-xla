@@ -83,38 +83,6 @@ def convert_llama_weights(
     )
     llama_config = config_from_params(ModelArgs(**params))
 
-    # Calculate sharding parameters
-    hidden_size = llama_config.hidden_size
-    intermediate_size = llama_config.intermediate_size
-    num_heads = llama_config.num_attention_heads
-    num_kv_heads = llama_config.num_key_value_heads
-    vocab_size = llama_config.vocab_size
-    head_dim = hidden_size // num_heads
-
-    heads_per_rank = num_heads // tensor_parallel_size
-    kv_heads_per_rank = num_kv_heads // tensor_parallel_size
-    intermediate_per_rank = intermediate_size // tensor_parallel_size
-    vocab_per_rank = vocab_size // tensor_parallel_size
-
-    if verbose:
-        print(
-            f"🔧 Creating SHARDED weights for TP rank {tp_rank}/{tensor_parallel_size}"
-        )
-        print(
-            f"🔧 Memory efficient: {heads_per_rank} heads, {kv_heads_per_rank} kv_heads, "
-            f"{intermediate_per_rank} intermediate, {vocab_per_rank} vocab per rank"
-        )
-
-    # Calculate slice indices for THIS rank only
-    q_start = tp_rank * heads_per_rank * head_dim
-    q_end = (tp_rank + 1) * heads_per_rank * head_dim
-    kv_start = tp_rank * kv_heads_per_rank * head_dim
-    kv_end = (tp_rank + 1) * kv_heads_per_rank * head_dim
-    inter_start = tp_rank * intermediate_per_rank
-    inter_end = (tp_rank + 1) * intermediate_per_rank
-    vocab_start = tp_rank * vocab_per_rank
-    vocab_end = (tp_rank + 1) * vocab_per_rank
-
     # Create OPTIMAL SHARDED weights (only what THIS device needs)
     jax_weights = {
         "transformer": {
@@ -126,7 +94,7 @@ def convert_llama_weights(
                         for ckpt in ckpts
                     ],
                     axis=0,
-                )[vocab_start:vocab_end, :]
+                )
             },
             "ln_f": {
                 # Layer norm: replicated (small, no sharding needed)
@@ -148,7 +116,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=0,
-                            )[q_start:q_end, :].transpose()
+                            ).transpose()
                         },
                         "wk": {
                             # Column parallel: split output dimension (kv_heads)
@@ -160,7 +128,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=0,
-                            )[kv_start:kv_end, :].transpose()
+                            ).transpose()
                         },
                         "wv": {
                             # Column parallel: split output dimension (kv_heads)
@@ -172,7 +140,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=0,
-                            )[kv_start:kv_end, :].transpose()
+                            ).transpose()
                         },
                         "wo": {
                             # Row parallel: split input dimension (heads)
@@ -184,7 +152,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=1,
-                            )[:, q_start:q_end].transpose()
+                            ).transpose()
                         },
                     },
                     "feed_forward": {
@@ -198,7 +166,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=0,
-                            )[inter_start:inter_end, :].transpose()
+                            ).transpose()
                         },
                         "w2": {
                             # Row parallel: split input dimension
@@ -210,7 +178,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=1,
-                            )[:, inter_start:inter_end].transpose()
+                            ).transpose()
                         },
                         "w3": {
                             # Column parallel: split output dimension
@@ -222,7 +190,7 @@ def convert_llama_weights(
                                     for ckpt in ckpts
                                 ],
                                 axis=0,
-                            )[inter_start:inter_end, :].transpose()
+                            ).transpose()
                         },
                     },
                     "attention_norm": {
@@ -246,7 +214,7 @@ def convert_llama_weights(
             "kernel": np.concatenate(
                 [ckpt["output.weight"].type(torch.float16).numpy() for ckpt in ckpts],
                 axis=0,
-            )[vocab_start:vocab_end, :].transpose()
+            ).transpose()
         },
     }
 
