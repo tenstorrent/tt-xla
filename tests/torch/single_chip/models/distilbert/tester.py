@@ -4,7 +4,9 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.distilbert.pytorch import ModelLoader
+from third_party.tt_forge_models.distilbert.masked_lm.pytorch import (
+    ModelLoader,
+)
 
 
 class DistilBertTester(TorchModelTester):

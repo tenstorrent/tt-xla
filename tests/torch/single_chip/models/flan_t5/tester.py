@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.flan_t5.pytorch import ModelLoader
+from third_party.tt_forge_models.t5.pytorch import ModelLoader
 
 
 class FlanT5Tester(TorchModelTester):
