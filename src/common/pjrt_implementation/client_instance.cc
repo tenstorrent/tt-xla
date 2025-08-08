@@ -308,12 +308,53 @@ ClientInstance::extractCustomProtobufFields(
   return result;
 }
 
+BufferInstance* ClientInstance::getOrInsertBufferInCache(
+    BufferInstance *buffer, size_t arg_index, size_t device_index) {
+  
+  void* tensor_handle = buffer->getRuntimeTensor().handle.get();
+  
+  std::lock_guard<std::mutex> lock(m_buffer_cache_mutex);
+  
+  auto it = m_buffer_cache.find(tensor_handle);
+  if (it == m_buffer_cache.end()) {
+    // Cache miss - first time seeing this tensor handle
+    DLOG_F(LOG_DEBUG, "[CLIENT_CACHE] Miss for tensor handle %p (arg %zu, device %zu)", 
+           tensor_handle, arg_index, device_index);
+    buffer->logDimensions();
+    m_buffer_cache[tensor_handle] = buffer;
+    return buffer;
+  } else {
+    // Cache hit - we've seen this tensor handle before in previous executions
+    DLOG_F(LOG_DEBUG, "[CLIENT_CACHE] Hit for tensor handle %p (arg %zu, device %zu) - REUSING TENSOR!", 
+           tensor_handle, arg_index, device_index);
+    return it->second;
+  }
+}
+
+BufferInstance* ClientInstance::getBufferFromCache(void* tensor_handle) {
+  std::lock_guard<std::mutex> lock(m_buffer_cache_mutex);
+  
+  auto it = m_buffer_cache.find(tensor_handle);
+  if (it != m_buffer_cache.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+void ClientInstance::clearBufferCache() {
+  std::lock_guard<std::mutex> lock(m_buffer_cache_mutex);
+  DLOG_F(LOG_DEBUG, "[CLIENT_CACHE] Clearing buffer cache with %zu entries", m_buffer_cache.size());
+  m_buffer_cache.clear();
+}
+
 namespace internal {
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
-  delete ClientInstance::unwrap(args->client);
+  ClientInstance* client = ClientInstance::unwrap(args->client);
+  client->clearBufferCache();
+  delete client;
 
   return nullptr;
 }
