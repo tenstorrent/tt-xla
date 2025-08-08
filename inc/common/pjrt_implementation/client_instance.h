@@ -11,7 +11,9 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
+#include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -37,6 +39,7 @@ namespace tt::pjrt {
 namespace module_builder {
 class ModuleBuilder;
 }
+class BufferInstance;
 
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
@@ -96,6 +99,11 @@ public:
   void setRuntimeDevice(const std::optional<tt::runtime::Device>& device) { m_runtime_device = device; }
   void setRuntimeDeviceOpened(bool opened) { m_runtime_device_opened = opened; }
 
+  // Buffer cache access methods
+  BufferInstance* getOrInsertBufferInCache(BufferInstance *buffer, size_t arg_index, size_t device_index);
+  BufferInstance* getBufferFromCache(void* tensor_handle);
+  void clearBufferCache();
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
@@ -149,6 +157,10 @@ private:
   std::optional<tt::runtime::Device> m_runtime_device;
 
   bool m_runtime_device_opened = false;
+
+  // Persistent buffer cache that survives across executions
+  std::map<void*, BufferInstance*> m_buffer_cache;
+  std::mutex m_buffer_cache_mutex;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
