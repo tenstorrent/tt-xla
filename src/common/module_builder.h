@@ -43,6 +43,10 @@ public:
       const std::string &system_descriptor_path,
       const std::unordered_map<std::string, std::string> &compile_options);
 
+  // Gets the information about if the tt compilation uses the optimizer.
+  void collectIsOptimized(
+      const std::unordered_map<std::string, std::string> &compile_options);
+
   // Returns compiled flatbuffer binary.
   const tt::runtime::Binary &getFlatbufferBinary() const {
     return m_flatbuffer_binary;
@@ -219,6 +223,9 @@ private:
   // Number of devices the binary is intended to run on, estimated from the
   // compiled graph.
   size_t m_num_devices_to_utilize;
+
+  // Is the compilation using the optimizer.
+  bool m_use_optimizer;
 
   // Devices mesh shape the binary is intended to run on, estimated from the
   // compiled graph.

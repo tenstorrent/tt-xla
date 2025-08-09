@@ -102,6 +102,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   m_status = tt_pjrt_status::kSuccess;
 
+  collectIsOptimized(compile_options);
+
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
@@ -187,6 +189,15 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
+}
+
+void ModuleBuilder::collectIsOptimized(
+    const std::unordered_map<std::string, std::string> &compile_options) {
+  if (compile_options.find("optimize") != compile_options.end()) {
+    m_use_optimizer = (compile_options.at("optimize") == "True");
+  } else {
+    m_use_optimizer = false;
+  }
 }
 
 void ModuleBuilder::runStableHLOPipeline(
@@ -542,6 +553,10 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+
+  options.optimizerPassEnabled = m_use_optimizer;
+  options.memoryLayoutAnalysisEnabled = m_use_optimizer;
+
   options.systemDescPath = system_descriptor_path.data();
 
   // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856

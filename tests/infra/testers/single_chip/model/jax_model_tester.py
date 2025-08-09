@@ -42,12 +42,14 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        use_optimizer: bool = False,
     ) -> None:
         # Placeholders for objects that will be set during
         # `_initialize_all_components`. Easier to spot if located in constructor instead
         # of dynamically creating them somewhere in methods.
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
+        self._use_optimizer = use_optimizer
 
         super().__init__(comparison_config, run_mode, Framework.JAX)
 
@@ -183,21 +185,25 @@ class JaxModelTester(ModelTester):
         model.train()
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload, on_tt_device: bool) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
-
+        jax_jit_compile_options = (
+            {"optimize": "True"} if (self._use_optimizer and on_tt_device) else {}
+        )
         workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+            workload.executable,
+            static_argnames=workload.static_argnames,
+            compiler_options=jax_jit_compile_options,
         )
         return workload
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """Compiles `workload` for CPU."""
-        return self._compile(workload)
+        return self._compile(workload, on_tt_device=False)
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
-        return self._compile(workload)
+        return self._compile(workload, on_tt_device=True)
