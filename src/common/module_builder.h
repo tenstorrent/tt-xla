@@ -48,6 +48,12 @@ public:
     return m_flatbuffer_binary;
   }
 
+  // Returns TTIR MLIR code.
+  std::string &getTTIRMlirCode() { return m_ttir_mlir; }
+
+  // Returns TTNN MLIR code.
+  std::string &getTTNNMlirCode() { return m_ttnn_mlir; }
+
   // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
     return m_is_output_scalar;
@@ -149,6 +155,10 @@ private:
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
 
+  // Collects a MLIR module into a string representing it.
+  std::string
+  collectMlirModule(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // Collect input sharding if we are using GSPMD.
   void
   collectInputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
@@ -200,6 +210,12 @@ private:
 
   // Compiled flatbuffer binary.
   tt::runtime::Binary m_flatbuffer_binary;
+
+  // TTIR MLIR code.
+  std::string m_ttir_mlir;
+
+  // TTNN MLIR code.
+  std::string m_ttnn_mlir;
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;
