@@ -183,14 +183,54 @@ class JaxModelTester(ModelTester):
         model.train()
 
     # @override
+    def _test_training(self):
+        """
+        Tests the model by running training (VJP) on TT device and on CPU and comparing the
+        forward results and gradients.
+        """
+        # Compile workloads for CPU and TT device
+        compiled_cpu_workload = self._compile_for_cpu(self._workload)
+        compiled_device_workload = self._compile_for_tt_device(self._workload)
+
+        assert id(compiled_cpu_workload.executable) != id(compiled_device_workload.executable), "Compiled workloads should have different executable ids"
+
+        compiled_cpu_workload.executable = jax.tree_util.Partial(jax.vjp, compiled_cpu_workload.executable)
+        compiled_device_workload.executable = jax.tree_util.Partial(jax.vjp, compiled_device_workload.executable)
+
+        cpu_forward = self._run_on_cpu(compiled_cpu_workload)
+        tt_forward = self._run_on_tt_device(compiled_device_workload)
+
+        cpu_forward_result, cpu_pullback_fn = cpu_forward
+        tt_forward_result, tt_pullback_fn = tt_forward
+
+        # Generate random gradients with the same shape and dtype as forward results
+        # TODO: extract this to a separate function
+        with jax.default_device(jax.devices("cpu")[0]):
+            random_grad = jax.random.normal(
+                jax.random.key(0), cpu_forward_result.shape, dtype=cpu_forward_result.dtype
+            )
+
+        cpu_gradients = cpu_pullback_fn(random_grad)
+        tt_gradients = tt_pullback_fn(random_grad)
+
+        self._compare(tt_forward_result, cpu_forward_result)
+        self._compare(tt_gradients, cpu_gradients)
+        # NOTE: maybe we should have better memory management for the gradients
+
+    # @override
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
 
-        workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+        compiled_workload = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.jit(workload.executable, static_argnames=workload.static_argnames),
+            args=workload.args,
+            kwargs=workload.kwargs,
+            static_argnames=workload.static_argnames,
         )
-        return workload
+
+        return compiled_workload
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
