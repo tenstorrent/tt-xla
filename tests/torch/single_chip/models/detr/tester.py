@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.detr.pytorch import ModelLoader
+from third_party.tt_forge_models.detr.object_detection.pytorch import ModelLoader
 
 
 class DETRTester(TorchModelTester):

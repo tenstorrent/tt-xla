@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.dpr.pytorch import ModelLoader
+from third_party.tt_forge_models.dpr.context_encoder.pytorch import ModelLoader
 
 
 class DprTester(TorchModelTester):
