@@ -12,9 +12,11 @@
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/Value.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -31,6 +33,12 @@
 #include "status.h"
 
 namespace tt::pjrt {
+
+// Enum to represent the role of input arguments
+enum class InputArgumentRole {
+  kInput, // Regular input data
+  kWeight // Weight/parameter data
+};
 
 class ModuleBuilder {
 public:
@@ -87,6 +95,11 @@ public:
     return m_output_shardings;
   }
 
+  // Returns input argument roles (weight vs input).
+  const std::vector<InputArgumentRole> &getInputArgumentRoles() const {
+    return m_input_argument_roles;
+  }
+
   // MLIR program format name. This would ideally be defined in PJRT API header.
   static const std::string c_mlir_format_name;
 
@@ -101,6 +114,9 @@ private:
   // Runs StableHLO pipeline with mesh shape configuration.
   void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // Runs TT-XLA specific pipelines on the MLIR module.
+  void runTTXLAPipelines(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
@@ -110,6 +126,10 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the information about input argument roles (weight vs input).
+  void
+  collectInputArgumentRoles(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -195,6 +215,10 @@ private:
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Creates argument type map based on collected input argument roles.
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+  createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
@@ -229,6 +253,9 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // For every input, holds the argument role (weight vs input).
+  std::vector<InputArgumentRole> m_input_argument_roles;
 };
 
 } // namespace tt::pjrt

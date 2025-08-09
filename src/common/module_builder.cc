@@ -4,6 +4,7 @@
 //
 
 #include "common/module_builder.h"
+#include "common/pipelines.h"
 
 // c++ standard library includes
 #include <cstdlib>
@@ -112,8 +113,14 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  runTTXLAPipelines(mlir_module);
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
+
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
+  collectInputArgumentRoles(mlir_module);
   collectOutputTypes(mlir_module);
 
   runStableHLOPipeline(mlir_module);
@@ -203,6 +210,13 @@ void ModuleBuilder::runStableHLOPipeline(
   }
 
   DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
+}
+
+void ModuleBuilder::runTTXLAPipelines(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  tt::pjrt::pipelines::runTTXLAPipelines(mlir_module);
+
+  DLOG_F(LOG_DEBUG, "SHLO Module - after tt-xla pipelines:");
   printModule(mlir_module);
 }
 
@@ -314,6 +328,34 @@ void ModuleBuilder::collectOutputShardingsShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectInputArgumentRoles(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  m_input_argument_roles.clear();
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
+         ++arg_index) {
+      // Check for tt.input_role attribute
+      mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
+          arg_index, "tt.input_role");
+
+      if (role_attr && role_attr.getValue() == "weight") {
+        m_input_argument_roles.push_back(InputArgumentRole::kWeight);
+      } else {
+        // Default to input if attribute is not present or not "weight"
+        m_input_argument_roles.push_back(InputArgumentRole::kInput);
+      }
+
+      // Remove the tt.input_role attribute after collecting it
+      if (role_attr) {
+        func_op.removeArgAttr(arg_index, "tt.input_role");
+      }
+    }
   }
 }
 
@@ -562,6 +604,9 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     parser.parse(options.argumentTypeMap, "argument-types", arg_map,
                  argEnumMap);
     options.argumentTypeMap = argEnumMap;
+  } else {
+    // Set argument types based on collected input argument roles
+    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
   }
 
   if (m_devices_mesh_shape.size() != 2) {
@@ -731,6 +776,38 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
+}
+
+llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+ModuleBuilder::createArgumentTypeMap(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+      argTypesMap;
+
+  if (m_input_argument_roles.empty()) {
+    return argTypesMap;
+  }
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  size_t arg_offset = 0;
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
+    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
+      if (arg_offset + i < m_input_argument_roles.size()) {
+        if (m_input_argument_roles[arg_offset + i] ==
+            InputArgumentRole::kWeight) {
+          argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
+        } else {
+          argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
+        }
+      }
+    }
+    argTypesMap[func_op.getName().str()] = argTypes;
+    arg_offset += func_op.getNumArguments();
+  }
+
+  return argTypesMap;
 }
 
 } // namespace tt::pjrt
