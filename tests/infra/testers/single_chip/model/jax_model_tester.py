@@ -36,8 +36,6 @@ class JaxModelTester(ModelTester):
     ```
     """
 
-    # -------------------- Protected methods --------------------
-
     def __init__(
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
@@ -51,32 +49,33 @@ class JaxModelTester(ModelTester):
 
         super().__init__(comparison_config, run_mode, Framework.JAX)
 
-    def __del__(self):
-        if hasattr(self, "_model_path"):
-            try:
-                cache_dir = snapshot_download(self._model_path, local_files_only=True)
-                if cache_dir and os.path.exists(cache_dir):
-                    print(f"Deleting HF cache at: {cache_dir}")
-                    shutil.rmtree(cache_dir)
-            except NameError as e:
-                logger.warning(
-                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
-                )
-            except Exception as e:
-                logger.warning(f"Error during cache cleanup in __del__: {e}")
+    # @override
+    def _configure_model_for_inference(self) -> None:
+        assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
 
-    def _get_static_argnames(self) -> Optional[Sequence[str]]:
-        """
-        Returns names of arguments which should be treated as static by JIT compiler.
+        if not isinstance(self._model, nnx.Module):
+            # TODO find another way to do this since model.eval() does not exist, maybe
+            # by passing train param as kwarg to __call__.
+            return
 
-        Static arguments are those which are not replaced with Tracer objects by the JIT
-        but rather are used as is, which is needed if control flow or shapes depend on
-        them. See:
-        https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html#jit-mechanics-tracing-and-static-variables
+        self._model.eval()
 
-        By default no arguments are static.
-        """
-        return []
+    # @override
+    def _configure_model_for_training(self) -> None:
+        assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
+
+        if not isinstance(self._model, nnx.Module):
+            # TODO find another way to do this since model.train() does not exist, maybe
+            # by passing train param as kwarg to __call__.
+            return
+
+        self._model.train()
+
+    # @override
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        self._input_activations = self._get_input_activations()
+        self._input_parameters = self._get_input_parameters()
 
     def _get_input_parameters(self) -> PyTree:
         """
@@ -89,41 +88,6 @@ class JaxModelTester(ModelTester):
             return self._model.params
 
         raise NotImplementedError("Subclasses must implement this method.")
-
-    # --- Overrides ---
-
-    # @override
-    def _get_forward_method_args(self) -> Sequence[Any]:
-        """
-        Returns positional arguments for model's forward pass.
-
-        By default returns input parameters and activations for the Flax linen models,
-        and empty list for other type of models.
-        """
-        if isinstance(self._model, linen.Module):
-            return [self._input_parameters, self._input_activations]
-
-        return []
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
-        """
-        Returns keyword arguments for model's forward pass.
-
-        By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel, and empty dict for other type of models.
-        """
-        if isinstance(self._model, FlaxPreTrainedModel):
-            return {
-                "params": self._input_parameters,
-                **self._input_activations,
-            }
-
-        return {}
-
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
 
     # @override
     def _initialize_workload(self) -> None:
@@ -152,35 +116,55 @@ class JaxModelTester(ModelTester):
             static_argnames=forward_static_args,
         )
 
-    # @override
-    def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
-        self._input_activations = self._get_input_activations()
-        self._input_parameters = self._get_input_parameters()
+    def _get_forward_method_args(self) -> Sequence[Any]:
+        """
+        Returns positional arguments for model's forward pass.
+
+        By default returns input parameters and activations for the Flax linen models,
+        and empty list for other type of models.
+        """
+        if isinstance(self._model, linen.Module):
+            return [self._input_parameters, self._input_activations]
+
+        return []
+
+    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
+        """
+        Returns keyword arguments for model's forward pass.
+
+        By default returns input parameters and activations for the HF
+        FlaxPreTrainedModel, and empty dict for other type of models.
+        """
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return {
+                "params": self._input_parameters,
+                **self._input_activations,
+            }
+
+        return {}
+
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        """
+        Returns names of arguments which should be treated as static by JIT compiler.
+
+        Static arguments are those which are not replaced with Tracer objects by the JIT
+        but rather are used as is, which is needed if control flow or shapes depend on
+        them. See:
+        https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html#jit-mechanics-tracing-and-static-variables
+
+        By default no arguments are static.
+        """
+        return []
 
     # @override
-    @staticmethod
-    def _configure_model_for_inference(model: Model) -> None:
-        assert isinstance(model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
-
-        if not isinstance(model, nnx.Module):
-            # TODO find another way to do this since model.eval() does not exist, maybe
-            # by passing train param as kwarg to __call__.
-            return
-
-        model.eval()
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """Compiles `workload` for CPU."""
+        return self._compile(workload)
 
     # @override
-    @staticmethod
-    def _configure_model_for_training(model: Model) -> None:
-        assert isinstance(model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
-
-        if not isinstance(model, nnx.Module):
-            # TODO find another way to do this since model.train() does not exist, maybe
-            # by passing train param as kwarg to __call__.
-            return
-
-        model.train()
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """Compiles `workload` for TT device."""
+        return self._compile(workload)
 
     # @override
     def _compile(self, workload: Workload) -> Workload:
@@ -192,12 +176,16 @@ class JaxModelTester(ModelTester):
         )
         return workload
 
-    # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(workload)
-
-    # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        return self._compile(workload)
+    def __del__(self):
+        if hasattr(self, "_model_path"):
+            try:
+                cache_dir = snapshot_download(self._model_path, local_files_only=True)
+                if cache_dir and os.path.exists(cache_dir):
+                    print(f"Deleting HF cache at: {cache_dir}")
+                    shutil.rmtree(cache_dir)
+            except NameError as e:
+                logger.warning(
+                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
+                )
+            except Exception as e:
+                logger.warning(f"Error during cache cleanup in __del__: {e}")
