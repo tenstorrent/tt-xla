@@ -86,19 +86,6 @@ jobs:
             TESTS_TO_PARALLELIZE='[
               {
                 "runs-on": "n150",
-                "name": "run_jax",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "not large"
-              },
-              {
-                "runs-on": "n150",
-                "name": "run_large_jax_models",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "large",
-                "use-shared-runners": "true"
-              },
-              {
-                "runs-on": "n150",
                 "name": "run_torch",
                 "dir": "./tests/torch/single_chip"
               }
