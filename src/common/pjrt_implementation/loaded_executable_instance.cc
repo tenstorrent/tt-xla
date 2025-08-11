@@ -292,19 +292,19 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     arg_tensors.reserve(num_devices);
 
 
-    bool is_static_cache_tensor = false;
+    // bool is_static_cache_tensor = false;
     
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       arg_tensors.push_back(buffer->getRuntimeTensor());
 
-      if(buffer->getNumberOfDimensions() == 4 && buffer->getDimensionsRaw()[3]==128 && buffer -> getDimensionsRaw()[2]==128){
-        is_static_cache_tensor = true;
-      }
+      // if(buffer->getNumberOfDimensions() == 4 && buffer->getDimensionsRaw()[3]==128 && buffer -> getDimensionsRaw()[2]==128){
+      //   is_static_cache_tensor = true;
+      // }
 
-      // Use client-level buffer cache that persists across executions
-      m_client_instance->getOrInsertBufferInCache(buffer, arg_index, device_index);
+      // // Use client-level buffer cache that persists across executions
+      // m_client_instance->getOrInsertBufferInCache(buffer, arg_index, device_index);
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
@@ -323,17 +323,23 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     
 
     // in a separate call in order to check if anything changed after getTensorFromStrategy - eg. if there is a redirect.
-    BufferInstance* cached_buffer = m_client_instance->getBufferFromCache(tensor_handle);
-    if (false &&(cached_buffer && cached_buffer->needsLayoutConversion)) {
+    // BufferInstance* cached_buffer = m_client_instance->getBufferFromCache(tensor_handle);
     // if (is_static_cache_tensor &&(cached_buffer && cached_buffer->needsLayoutConversion)) {
 
+    //   DLOG_F(LOG_DEBUG, "[LAYOUT] Converting layout for tensor handle %p (arg %zu)", 
+    //          tensor_handle, arg_index);
+    //   laid_out_tensor = convertTensorLayout(input_tensor, program_index,
+    //                                         arg_index, runtime_device);
+    //   cached_buffer->needsLayoutConversion = false;
+    //   cached_buffer->setRuntimeTensor(laid_out_tensor);
+    // }
+
+
+    // temporarily disable buffer caching
       DLOG_F(LOG_DEBUG, "[LAYOUT] Converting layout for tensor handle %p (arg %zu)", 
              tensor_handle, arg_index);
       laid_out_tensor = convertTensorLayout(input_tensor, program_index,
                                             arg_index, runtime_device);
-      cached_buffer->needsLayoutConversion = false;
-      cached_buffer->setRuntimeTensor(laid_out_tensor);
-    }
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime. (for the getTensorFromStrategy - replication?)
