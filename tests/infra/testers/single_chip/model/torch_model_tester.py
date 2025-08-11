@@ -76,7 +76,11 @@ class TorchModelTester(ModelTester):
     def _get_forward_method_args(self) -> Sequence[Any]:
         if isinstance(self._input_activations, torch.Tensor):
             return [self._input_activations]
+        if isinstance(self._input_activations, (tuple, list)):
+            return list(self._input_activations)
         return []
+
+
 
     # @override
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
