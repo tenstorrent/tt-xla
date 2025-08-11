@@ -29,6 +29,8 @@ from torch._dynamo import register_backend
 
 from tt_torch.tools.utils import CompilerConfig
 
+from torch.utils._pytree import tree_map
+
 import torch_xla
 import torch_xla.core.xla_model as xm
 
@@ -43,7 +45,10 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
-def xla_pass_pipeline(gm, example_inputs, compiler_config):
+# This function runs a series of passes on a torch GraphModule.
+# The passes here may be necesarry (depending on the model) to
+# convert a GraphModule into a form which tt-mlir can compile/execute.
+def torch_pass_pipeline(gm, example_inputs, compiler_config):
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
     compiled_graph = (
@@ -84,33 +89,6 @@ class XLAExecutor:
             else:
                 self.inputs.append(self.program.state_dict[input_spec.target].to("xla"))
 
-    def push_tensors_to_device(self, inputs, device):
-        if hasattr(inputs, "to"):
-            if device not in [inputs.device, inputs.device.type]:
-                return inputs.to(device)
-            else:
-                return inputs
-        elif isinstance(
-            inputs, dict
-        ):  # transformers input/output objects are subclasses of dict, however we still wish to return the same wrapper object
-            return type(inputs)(
-                **{k: self.push_tensors_to_device(v, device) for k, v in inputs.items()}
-            )
-        elif isinstance(inputs, collections.abc.Sequence):
-            return type(inputs)(
-                [self.push_tensors_to_device(i, device) for i in inputs]
-            )
-        elif hasattr(inputs, "key_cache") or hasattr(inputs, "value_cache"):
-            if hasattr(inputs, "key_cache"):
-                inputs.key_cache = self.push_tensors_to_device(inputs.key_cache, device)
-            if hasattr(inputs, "value_cache"):
-                inputs.value_cache = self.push_tensors_to_device(
-                    inputs.value_cache, device
-                )
-            return inputs
-        else:
-            return inputs
-
     def generate_arg_type_map_str(self, output_object):
         hlo_input_ids, _ = torch_xla._XLAC._get_tensors_xla_device_data_node(
             output_object
@@ -148,7 +126,7 @@ class XLAExecutor:
         self.arg_type_map_str = "main=" + ",".join(arg_types)
 
     def __call__(self, *args):
-        args = self.push_tensors_to_device(args, "xla")
+        args = tree_map(lambda x: x.to("xla"), args)
         inputs = self.inputs
         for idx in range(len(args)):
             inputs[self.user_input_indices[idx]] = args[idx]
@@ -163,7 +141,7 @@ class XLAExecutor:
 
         xm.mark_step()
         if self.compiler_config.push_outputs_to_cpu:
-            return self.push_tensors_to_device(output, "cpu")
+            return tree_map(lambda x: x.to("cpu"), output)
         return output
 
     def __del__(self):
@@ -177,5 +155,5 @@ def xla_backend(gm, example_inputs, options: CompilerConfig = None):
     if compiler_config is None:
         compiler_config = CompilerConfig()
 
-    program = xla_pass_pipeline(gm, example_inputs, compiler_config)
+    program = torch_pass_pipeline(gm, example_inputs, compiler_config)
     return XLAExecutor(program, compiler_config)
