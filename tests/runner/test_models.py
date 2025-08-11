@@ -5,7 +5,7 @@ import pytest
 import os
 import gc
 from tests.utils import skip_full_eval_test
-from tt_torch.tools.utils import CompilerConfig, CompileDepth, OpByOpBackend
+from tt_torch.tools.utils import CompilerConfig, CompileDepth
 from tests.runner.test_utils import (
     ModelStatus,
     import_model_loader_and_variant,
@@ -54,8 +54,8 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
     cc.consteval_parameters = True
     if op_by_op:
         cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
-        if op_by_op == OpByOpBackend.STABLEHLO:
-            cc.op_by_op_backend = OpByOpBackend.STABLEHLO
+        # if op_by_op == OpByOpBackend.STABLEHLO:
+        #     cc.op_by_op_backend = OpByOpBackend.STABLEHLO
 
     # Use the variant from the test_entry parameter
     loader = ModelLoader(variant=variant)
