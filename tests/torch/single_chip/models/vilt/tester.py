@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.vilt.pytorch import ModelLoader
+from third_party.tt_forge_models.vilt.question_answering.pytorch import ModelLoader
 
 
 class VILTTester(TorchModelTester):
