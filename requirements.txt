@@ -31,7 +31,7 @@ torch==2.7.0
 torch_xla==2.7.0
 torchvision
 torchxrayvision
-transformers
+transformers>=4.50.0,<4.53.0
 wheel
 
 # vgg model
@@ -39,3 +39,11 @@ vgg_pytorch
 
 # monodepth2 model
 matplotlib
+
+ultralytics # For yolo
+seaborn
+diffusers
+scikit-image>=0.24 # For DenseNet 121 HF XRay model
+ase==3.24.0 # For hippynn
+hippynn==0.0.3
+pycocotools # for yolox
