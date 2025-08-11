@@ -320,7 +320,7 @@ BufferInstance* ClientInstance::getOrInsertBufferInCache(
     // Cache miss - first time seeing this tensor handle
     DLOG_F(LOG_DEBUG, "[CLIENT_CACHE] Miss for tensor handle %p (arg %zu, device %zu)", 
            tensor_handle, arg_index, device_index);
-    buffer->logDimensions();
+    // buffer->logDimensions(); // I think this causes a tensor to be materialized at a bad time possibly.
     m_buffer_cache[tensor_handle] = buffer;
     return buffer;
   } else {
