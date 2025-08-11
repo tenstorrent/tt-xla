@@ -56,13 +56,14 @@ def load_pytorch_model_from_hf(model_id, config):
     return model
 
 
-def load_jax_model(config, pt_model):
+def load_jax_model(config):
     rng = nnx.Rngs(0)
     model = FlaxGemma3ForCausalLM(config, rngs=rng)
     model.from_hf(
         model_id,
         save_in_orbax=False,
-        remove_hf_after_conversion=False
+        remove_hf_after_conversion=False,
+        use_cache=True
     )
 
     return model
@@ -79,7 +80,7 @@ def run_jax_model(
     return jax_model.generate(
         input_ids=jax_input_ids,
         attention_mask=jax_attention_mask,
-        max_length=max_len,
+        max_new_tokens=max_len - seq_len,
         # position_ids=jax_position_ids,
     )
 
@@ -105,7 +106,7 @@ def run_comparison_test(model_id: str, prompt: str):
 
     jax_config = FlaxGemma3Config()
     jax_config.update(**config.text_config.to_dict())
-    jax_model = load_jax_model(jax_config, pt_model)
+    jax_model = load_jax_model(jax_config)
     jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(
         jax_model, pt_input_ids, pt_attention_mask, max_len
     )

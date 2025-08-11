@@ -11,7 +11,6 @@ from flax import nnx
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
-from gemma3.generation_utils import GenerationMixin
 
 @dataclass
 class Gemma3Config(BaseConfig):
@@ -76,8 +75,8 @@ class Gemma3Config(BaseConfig):
     rope_scaling: dict[str, Any] | None = None
     hidden_activation: str = "gelu_pytorch_tanh"
     use_cache: bool = True
-    param_dtype: Any = field(default=jnp.bfloat16, metadata={"dtype": True})
-    dtype: Any = field(default=jnp.bfloat16, metadata={"dtype": True})
+    param_dtype: Any = field(default=jnp.float32, metadata={"dtype": True})
+    dtype: Any = field(default=jnp.float32, metadata={"dtype": True})
 
     def __post_init__(self) -> None:
         if self.num_key_value_heads is None:
@@ -153,7 +152,7 @@ class Gemma3RMSNorm(nnx.Module):
     def __init__(self, dim: int, *, eps: float = 1e-6, rngs: nnx.Rngs):
         super().__init__()
         # Initialize weight/scale parameter to zeros, following the (1 + scale) pattern
-        self.weight = nnx.Param(jnp.zeros((dim,), dtype=jnp.bfloat16))
+        self.weight = nnx.Param(jnp.zeros((dim,), dtype=jnp.float32))
         self.eps = eps
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
@@ -213,29 +212,32 @@ class Gemma3RotaryEmbedding(nnx.Module):
             if self.is_local_attention:
                 base_freq = 10000.0  # Local attention uses fixed base frequency
 
-            if rope_scaling is not None:
-                rope_type = rope_scaling.get("rope_type", "default")
-                if rope_type != "default":
-                    scaling_factor = rope_scaling["factor"]
-                    if rope_type == "linear":
-                        base_freq = base_freq * scaling_factor
-                    elif rope_type == "dynamic":
-                        orig_max_pos = rope_scaling["original_max_position_embeddings"]
-                        base_freq = base_freq * (orig_max_pos / max_position_embeddings)
-                    elif rope_type == "yarn":
-                        # YARN (Yet Another RoPE extensioN)
-                        beta_fast = rope_scaling.get("beta_fast", 32.0)
-                        beta_slow = rope_scaling.get("beta_slow", 1.0)
-                        pos_ratio = (
-                            max_position_embeddings
-                            / rope_scaling["original_max_position_embeddings"]
-                        )
-                        alpha = (pos_ratio - 1) / (beta_fast * pos_ratio)
-                        base_freq = base_freq * (1 / (1 + alpha * beta_slow))
+            # if rope_scaling is not None:
+            #     rope_type = rope_scaling.get("rope_type", "default")
+            #     if rope_type != "default":
+            #         scaling_factor = rope_scaling["factor"]
+            #         if rope_type == "linear":
+            #             base_freq = base_freq * scaling_factor
+            #         elif rope_type == "dynamic":
+            #             orig_max_pos = rope_scaling["original_max_position_embeddings"]
+            #             base_freq = base_freq * (orig_max_pos / max_position_embeddings)
+            #         elif rope_type == "yarn":
+            #             # YARN (Yet Another RoPE extensioN)
+            #             beta_fast = rope_scaling.get("beta_fast", 32.0)
+            #             beta_slow = rope_scaling.get("beta_slow", 1.0)
+            #             pos_ratio = (
+            #                 max_position_embeddings
+            #                 / rope_scaling["original_max_position_embeddings"]
+            #             )
+            #             alpha = (pos_ratio - 1) / (beta_fast * pos_ratio)
+            #             base_freq = base_freq * (1 / (1 + alpha * beta_slow))
 
             self.inv_freq = 1.0 / (
                 base_freq ** (jnp.arange(0, self.dim, 2, dtype=jnp.float32) / self.dim)
             )
+            if not self.is_local_attention:
+                scaling_factor = rope_scaling["factor"]
+                self.inv_freq /= scaling_factor
 
         # Build cos and sin cached up to max_position_embeddings
         t = jnp.arange(self.max_position_embeddings, dtype=jnp.float32)
@@ -316,7 +318,7 @@ class Gemma3Attention(nnx.Module):
         self.head_dim = config.head_dim
 
         self.num_key_value_groups = self.num_heads // self.num_kv_heads
-        self.scaling = config.query_pre_attn_scalar
+        self.scaling = config.query_pre_attn_scalar**-0.5
         self.attn_logit_soft_cap = config.attn_logit_soft_cap
         self.is_local_attn = (
             self.config.layer_types[layer_idx] == "sliding_attention"
@@ -464,7 +466,9 @@ class Gemma3Attention(nnx.Module):
             attn_weights = self.apply_soft_cap(attn_weights, self.attn_logit_soft_cap)
 
         # --- Apply Mask ---
-        if attention_mask is not None and attention_mask.ndim == 4:
+        attention_mask = None
+        if False:
+        # if attention_mask is not None and attention_mask.ndim == 4:
             # Direct additive mask: shape [B, 1, q_len, kv_seq_len]
             attn_weights = attn_weights + attention_mask.astype(self.config.dtype)
         else:
@@ -609,7 +613,7 @@ class Gemma3DecoderLayer(nnx.Module):
         return hidden_states, updated_cache
 
 
-class Gemma3ForCausalLM(GenerationMixin, BaseModel):
+class Gemma3ForCausalLM(BaseModel):
     """Gemma3 model for causal language modeling."""
 
     config: Gemma3Config  # This helps to fix a mypy issue
@@ -755,3 +759,37 @@ class Gemma3ForCausalLM(GenerationMixin, BaseModel):
                 state["embed_tokens"].embedding.value = tensor  # type: ignore
             elif keys[2] == "norm":
                 state["norm"].weight.value = tensor  # type: ignore
+
+    def generate(
+        self,
+        input_ids,
+        attention_mask,
+        max_new_tokens=20,
+        eos_token_id=None,
+    ):
+        eos_token_id = (
+            eos_token_id
+            if eos_token_id is not None
+            else getattr(self.config, "eos_token_id", None)
+        )
+        # Initialize cache for faster generation
+        cache = None
+        generated = input_ids
+
+        for _ in range(max_new_tokens):
+            # Get logits and updated cache
+            logits, cache = self(
+                input_ids=generated,
+                cache=cache,
+                use_cache=False,  # Enable KV caching
+                deterministic=True,  # No dropout during inference
+            )
+            # Get next token (use argmax for simplicity)
+            next_token = jnp.argmax(logits[:, -1, :], axis=-1)
+            # Check if we hit the end of sequence
+            if next_token[0] == eos_token_id:
+                break
+            # Append next token
+            generated = jnp.concatenate([generated, next_token[:, None]], axis=1)
+
+        return generated
