@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Phi 4 model loader implementation for causal language modeling
+Phi 4 model loader implementation for sequence classification
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -23,11 +23,11 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available Phi 4 model variants."""
 
-    PHI_4 = "phi_4"
+    PHI_4 = "microsoft/phi-4"
 
 
 class ModelLoader(ForgeModel):
-    """Phi 4 model loader implementation for causal language modeling tasks."""
+    """Phi 4 model loader implementation for sequence classification tasks."""
 
     # Dictionary of available model variants
     _VARIANTS = {
@@ -60,17 +60,22 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="phi-4",
             variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.NLP_CAUSAL_LM,
+            task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
 
         Returns:
             The loaded tokenizer instance
@@ -83,6 +88,10 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+
+        # Set pad token as done in the test file
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
@@ -93,7 +102,7 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use its default dtype.
 
         Returns:
-            torch.nn.Module: The Phi 4 model instance for causal language modeling.
+            torch.nn.Module: The Phi 4 model instance for sequence classification.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -103,7 +112,14 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer(dtype_override)
 
         # Load pre-trained model from HuggingFace
-        model = AutoModelForCausalLM.from_pretrained(pretrained_model_name)
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+
+        model = AutoModelForSequenceClassification.from_pretrained(
+            pretrained_model_name, use_cache=False, **model_kwargs
+        )
+        model.eval()
 
         return model
 
@@ -115,63 +131,56 @@ class ModelLoader(ForgeModel):
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            dict: Input tensors that can be fed to the model.
+            List: Input tensors that can be fed to the model.
         """
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Set up sample messages
-        messages = [
-            {"role": "system", "content": "You are a helpful AI assistant."},
-            {
-                "role": "user",
-                "content": "Can you provide ways to eat combinations of bananas and dragonfruits?",
-            },
-        ]
+        # Input prompt from the test file
+        input_prompt = "the movie was great!"
 
-        # Apply chat template
-        result = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        )
+        inputs = self.tokenizer(input_prompt, return_tensors="pt")
 
-        # Handle both cases: when result is a tensor or a dict
-        if torch.is_tensor(result):
-            # Result is just input_ids tensor, create dict manually
-            inputs = {"input_ids": result, "attention_mask": torch.ones_like(result)}
-        else:
-            # Result is already a dict
-            inputs = result
+        # Return as list of tensors as expected by the test
+        sample_inputs = [inputs["input_ids"]]
 
-        # Add batch dimension
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        # Add batch dimension if needed
+        if batch_size > 1:
+            for i in range(len(sample_inputs)):
+                sample_inputs[i] = sample_inputs[i].repeat_interleave(batch_size, dim=0)
 
-        return inputs
+        return sample_inputs
 
-    # TODO - Verify this function correct (was AI_GENERATED)
-    def decode_output(self, outputs, dtype_override=None):
-        """Helper method to decode model outputs into human-readable text.
+    def decode_output(self, outputs, labels=None):
+        """Helper method to decode model outputs into human-readable predictions.
 
         Args:
-            outputs: Model output from a forward pass or generated token IDs
+            outputs: Model output from a forward pass (logits)
+            labels: Optional list of label names for decoding
 
         Returns:
-            str: Decoded output text
+            Dict: Predicted class information
         """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
-        # Check if outputs are token IDs (from generation) or logits
-        if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
-            decoded_output = self.tokenizer.decode(outputs)
-        else:
-            logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-            next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
-            decoded_output = self.tokenizer.decode(next_token_id)
+        # Get logits from outputs
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
 
-        return decoded_output
+        # Get predicted class
+        predicted_class_id = torch.argmax(logits, dim=-1)
+
+        # Apply softmax to get probabilities
+        probabilities = torch.softmax(logits, dim=-1)
+
+        result = {
+            "predicted_class_id": predicted_class_id.item(),
+            "probabilities": probabilities.squeeze().tolist(),
+        }
+
+        # If labels are provided, map indices to label names
+        if labels is not None:
+            result["predicted_label"] = labels[predicted_class_id.item()]
+
+        return result
