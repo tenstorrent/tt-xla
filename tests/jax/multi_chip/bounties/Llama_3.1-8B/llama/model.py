@@ -512,6 +512,9 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
                 maximum possible length for auto-regressive decoding. Defines the sequence length of the initialized
                 cache.
         """
+
+        print(f"🔧 KV Cache: Initializing cache with max_length={max_length}")
+        print("-----------------------------------")
         # init input variables to retrieve cache
         input_ids = jnp.ones((batch_size, max_length))
         attention_mask = jnp.ones_like(input_ids)
@@ -810,10 +813,8 @@ class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
         batch_size, seq_length = input_ids.shape
 
         past_key_values = self.init_cache(batch_size, max_length)
-        # Note that usually one would have to put 0's in the attention_mask for x > input_ids.shape[-1] and x < cache_length.
-        # But since GPTJ uses a causal mask, those positions are masked anyways.
-        # Thus we can create a single static attention_mask here, which is more efficient for compilation
         extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
+        print(f"🔧 KV Cache: Using max_length={max_length} (requested: {max_length})")
         if attention_mask is not None:
             position_ids = attention_mask.cumsum(axis=-1) - 1
             extended_attention_mask = lax.dynamic_update_slice(

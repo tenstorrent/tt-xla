@@ -155,125 +155,15 @@ def jax_load(
         tokenizer=tokenizer,
         max_seq_len=max_seq_length,
         n_layers=n_layers,
-        tensor_parallel_size=1,  # tp_size=1 = full model
-        tp_rank=0,
         verbose=True,
+        mesh=mesh,
     )
 
-    # Get devices from mesh
-    devices = mesh.devices.flatten()
-
-    def create_sharded_param(param_name, full_param, shard_axis):
-        """Create a sharded array directly from full parameter"""
-        if shard_axis == 0:  # Shard along first axis (e.g., vocab dimension)
-            sharding_spec = P("mp", None)
-        elif shard_axis == 1:  # Shard along second axis (e.g., output features)
-            sharding_spec = P(None, "mp")
-        else:  # Replicated
-            sharding_spec = P(None)
-
-        # Convert to JAX array and shard directly
-        full_array = jnp.asarray(full_param)
-        sharded_array = jax.device_put(
-            full_array, jax.sharding.NamedSharding(mesh, sharding_spec)
-        )
-        del full_array
-        gc.collect()
-
-        return sharded_array
-
-    # Build the sharded parameter tree directly from full weights
-    jax_params = {
-        "transformer": {
-            "wte": {
-                "embedding": create_sharded_param(
-                    "wte.embedding",
-                    full_weights["transformer"]["wte"]["embedding"],
-                    shard_axis=0,  # Shard along vocab dimension
-                )
-            },
-            "h": {},
-            "ln_f": full_weights["transformer"]["ln_f"],  # Replicated
-        },
-        "lm_head": {
-            "kernel": create_sharded_param(
-                "lm_head.kernel",
-                full_weights["lm_head"]["kernel"],
-                shard_axis=1,  # Shard along output dimension (second axis after transpose)
-            )
-        },
-    }
-
-    # Create sharded transformer layers directly from full weights
-    for layer_idx in range(n_layers):
-        layer_key = str(layer_idx)
-        full_layer = full_weights["transformer"]["h"][layer_key]
-
-        jax_params["transformer"]["h"][layer_key] = {
-            "attention": {
-                "wq": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.wq.kernel",
-                        full_layer["attention"]["wq"]["kernel"],
-                        shard_axis=1,  # Column parallel
-                    )
-                },
-                "wk": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.wk.kernel",
-                        full_layer["attention"]["wk"]["kernel"],
-                        shard_axis=1,  # Column parallel
-                    )
-                },
-                "wv": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.wv.kernel",
-                        full_layer["attention"]["wv"]["kernel"],
-                        shard_axis=1,  # Column parallel
-                    )
-                },
-                "wo": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.wo.kernel",
-                        full_layer["attention"]["wo"]["kernel"],
-                        shard_axis=0,  # Row parallel
-                    )
-                },
-            },
-            "feed_forward": {
-                "w1": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.w1.kernel",
-                        full_layer["feed_forward"]["w1"]["kernel"],
-                        shard_axis=1,  # Column parallel
-                    )
-                },
-                "w2": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.w2.kernel",
-                        full_layer["feed_forward"]["w2"]["kernel"],
-                        shard_axis=0,  # Row parallel
-                    )
-                },
-                "w3": {
-                    "kernel": create_sharded_param(
-                        f"h.{layer_key}.w3.kernel",
-                        full_layer["feed_forward"]["w3"]["kernel"],
-                        shard_axis=1,  # Column parallel
-                    )
-                },
-            },
-            "attention_norm": full_layer["attention_norm"],  # Replicated
-            "ffn_norm": full_layer["ffn_norm"],  # Replicated
-        }
-    del full_weights
-    gc.collect()
-
-    jax_params = freeze(jax_params)
+    full_weights = freeze(full_weights)
     model = FlaxLLaMAForCausalLM(config=jax_config, _do_init=False)
-    llama = LLaMA(params=jax_params, model=model, tokenizer=tokenizer, mesh=mesh)
+    llama = LLaMA(params=full_weights, model=model, tokenizer=tokenizer, mesh=mesh)
 
-    del jax_params
+    del full_weights
     gc.collect()
     return llama
 
@@ -337,7 +227,7 @@ def main(
     max_gen_len: int = 5,
     temperature: float = 0.0,
     top_p: float = 1.0,
-    n_layers: int = 32,
+    n_layers: int = 16,
     max_seq_length: int = 16,
     print_hlo: bool = False,
     monitor_memory: bool = True,
