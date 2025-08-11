@@ -11,6 +11,8 @@ safetensors==0.5.3
 tokenizers==0.21.1
 
 # Essential utilities
+torch==2.8.0
+numpy==2.2.5
 tqdm==4.67.1
 PyYAML==6.0.2
 requests==2.32.3
