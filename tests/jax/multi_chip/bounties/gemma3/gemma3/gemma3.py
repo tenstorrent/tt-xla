@@ -609,7 +609,7 @@ class Gemma3DecoderLayer(nnx.Module):
         return hidden_states, updated_cache
 
 
-class Gemma3ForCausalLM(GenerationMixin, BaseModel):
+class Gemma3ForCausalLM(BaseModel):
     """Gemma3 model for causal language modeling."""
 
     config: Gemma3Config  # This helps to fix a mypy issue
@@ -755,3 +755,32 @@ class Gemma3ForCausalLM(GenerationMixin, BaseModel):
                 state["embed_tokens"].embedding.value = tensor  # type: ignore
             elif keys[2] == "norm":
                 state["norm"].weight.value = tensor  # type: ignore
+
+    def generate(
+        self,
+        input_ids,
+        attention_mask,
+        max_new_tokens,
+        eos_token_id,
+    ):
+        # Initialize cache for faster generation
+        cache = None
+        generated = input_ids
+
+        for _ in range(max_new_tokens):
+            # Get logits and updated cache
+            logits, cache = self(
+                input_ids=generated,
+                cache=cache,
+                use_cache=True,  # Enable KV caching
+                deterministic=True,  # No dropout during inference
+            )
+            # Get next token (use argmax for simplicity)
+            next_token = jnp.argmax(logits[:, -1, :], axis=-1)
+            # Check if we hit the end of sequence
+            if next_token[0] == eos_token_id:
+                break
+            # Append next token
+            generated = jnp.concatenate([generated, next_token[:, None]], axis=1)
+
+        return generated
