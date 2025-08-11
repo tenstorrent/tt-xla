@@ -106,6 +106,11 @@ private:
   // scalar or not.
   void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Collect the compile option to enable EmitC as the backend.
+  // In v0, this ony exports code and uses the default path for execution.
+  void collectExportEmitC(
+      const std::unordered_map<std::string, std::string> &compile_options);
+
   // Collects the information about the sharding of specific inputs.
   void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
@@ -197,6 +202,9 @@ private:
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Exports the MLIR module via EmitC.
+  void exportToEmitC(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
@@ -231,6 +239,9 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // Flag to indicate whether to use EmitC as the backend.
+  bool m_use_emitc;
 };
 
 } // namespace tt::pjrt

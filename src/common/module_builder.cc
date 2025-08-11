@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <fstream>
 #include <numeric>
 #include <optional>
 
@@ -27,6 +28,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/Cpp/CppEmitter.h"
 #include "mlir/Transforms/Passes.h"
 
 // stablehlo includes
@@ -102,7 +104,9 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   m_status = tt_pjrt_status::kSuccess;
 
+
   auto compile_options = CompileOptions::parse(compile_options_map);
+
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -130,6 +134,10 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
+
+  if (compile_options.codegen_cpp) {
+    exportToEmitC(mlir_module);
+  }
 
   convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -206,6 +214,15 @@ void ModuleBuilder::runStableHLOPipeline(
 
   DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
   printModule(mlir_module);
+}
+
+void ModuleBuilder::collectExportEmitC(
+    const std::unordered_map<std::string, std::string> &compile_options) {
+  if (compile_options.find("use_emitc") != compile_options.end()) {
+    m_use_emitc = (compile_options.at("use_emitc") == "True");
+  } else {
+    m_use_emitc = false;
+  }
 }
 
 void ModuleBuilder::collectInputShardings(
@@ -740,4 +757,38 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   return mesh_op;
 }
 
+void ModuleBuilder::exportToEmitC(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+
+  mlir::OwningOpRef<mlir::ModuleOp> module_copy =
+      llvm::cast<mlir::ModuleOp>(mlir_module.get()->clone());
+
+  mlir::PassManager pm(module_copy.get()->getName(),
+                       mlir::PassManager::Nesting::Implicit);
+
+  mlir::tt::ttnn::createTTIRToEmitCPipeline(
+      pm, mlir::tt::ttnn::TTIRToEmitCPipelineOptions());
+
+  if (mlir::failed(pm.run(module_copy.get()))) {
+    std::cout << "Failed to run TTIR to EmitC pipeline" << std::endl;
+    abort();
+  }
+
+  std::string cppCode;
+  llvm::raw_string_ostream cppStream(cppCode);
+  if (mlir::failed(mlir::emitc::translateToCpp(module_copy.get(), cppStream))) {
+    std::cout << "Failed to translate MLIR module to C++" << std::endl;
+    abort();
+  }
+  cppStream.flush();
+
+  std::ofstream cppFile("generated_code.cpp");
+  if (cppFile.is_open()) {
+    cppFile << cppCode;
+    cppFile.close();
+    DLOG_F(LOG_DEBUG, "C++ code written to generated_code.cpp");
+  } else {
+    DLOG_F(ERROR, "Failed to open file for writing C++ code");
+  }
+}
 } // namespace tt::pjrt

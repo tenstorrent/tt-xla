@@ -14,6 +14,7 @@ CompileOptions CompileOptions::parse(
 
   options.enable_optimizer =
       internal::parseBoolOption(compile_options, "optimize");
+  options.codegen_cpp = internal::parseBoolOption(compile_options, "codegen_cpp");
 
   return options;
 }

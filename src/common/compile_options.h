@@ -11,6 +11,7 @@ struct CompileOptions {
   // Enables the ttmlir optimizer, i.e. the optimization passes and memory
   // layout analysis.
   bool enable_optimizer = false;
+  bool codegen_cpp = false;
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
