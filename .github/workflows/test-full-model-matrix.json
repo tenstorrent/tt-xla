@@ -1,8 +1,3 @@
 [
-    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
-    { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" },
     { "runs-on": "n150",        "name": "run_torch",         "dir": "./tests/torch/single_chip" }
 ]
