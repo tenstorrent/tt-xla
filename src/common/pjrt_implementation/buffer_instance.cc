@@ -484,11 +484,28 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
+  // Log source buffer shape and properties
+  std::string src_dims_str = "[";
+  for (size_t i = 0; i < buffer->getNumberOfDimensions(); ++i) {
+    if (i > 0) src_dims_str += ", ";
+    src_dims_str += std::to_string(buffer->getDimensionsRaw()[i]);
+  }
+  src_dims_str += "]";
+  
+  size_t required_size = buffer->getConvertedRuntimeTensorSize();
+  DLOG_F(LOG_DEBUG, "[BUFFER_TO_HOST] Source buffer shape: %s, data_type: %d, required_size: %zu bytes", 
+         src_dims_str.c_str(), static_cast<int>(buffer->getDataType()), required_size);
+
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    args->dst_size = buffer->getConvertedRuntimeTensorSize();
+    args->dst_size = required_size;
+    DLOG_F(LOG_DEBUG, "[BUFFER_TO_HOST] Query mode: returning required size %zu bytes", required_size);
     return nullptr;
   }
+
+  // Log destination buffer info
+  DLOG_F(LOG_DEBUG, "[BUFFER_TO_HOST] Destination buffer: dst_size=%zu bytes, dst_ptr=%p", 
+         args->dst_size, args->dst);
 
   return *ErrorInstance::makeError(
               buffer->copyToHost(
