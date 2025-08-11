@@ -30,5 +30,15 @@ timm
 torch==2.7.0
 torch_xla==2.7.0
 torchvision
-transformers
+transformers>=4.50.0,<4.53.0
 wheel
+
+ultralytics # For yolo
+seaborn
+matplotlib # For many models
+diffusers
+torchxrayvision==0.0.39
+scikit-image>=0.24 # For DenseNet 121 HF XRay model
+ase==3.24.0 # For hippynn
+hippynn==0.0.3
+pycocotools # for yolox
