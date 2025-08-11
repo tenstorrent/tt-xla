@@ -44,6 +44,9 @@ else()
         PATCH_COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
+        BUILD_COMMAND ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR}
+                   && ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- tt-alchemist-lib
+                   && ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- install-tt-alchemist-all
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
