@@ -13,17 +13,17 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import ModelVariant
+from .tester import BertTester
 
-from ..tester import BertTester
-
-VARIANT_NAME = "base"
+VARIANT_NAME = ModelVariant.BERT_BASE_UNCASED
 
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
     "bert",
     "base",
-    ModelTask.NLP_QA,
+    ModelTask.NLP_MASKED_LM,
     ModelSource.HUGGING_FACE,
 )
 
