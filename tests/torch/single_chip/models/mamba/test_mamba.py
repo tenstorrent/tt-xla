@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.mamba.pytorch import ModelVariant
 from .tester import MambaTester
 
-VARIANT_NAME = "state-spaces/mamba-790m-hf"
+VARIANT_NAME = ModelVariant.MAMBA_790M
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
