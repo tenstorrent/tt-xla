@@ -39,9 +39,9 @@ class ModelTester(BaseTester, ABC):
         self._workload: Workload = None
 
         super().__init__(comparison_config, framework)
-        self._initialize_all_components()
+        self._initialize_components()
 
-    def _initialize_all_components(self) -> None:
+    def _initialize_components(self) -> None:
         self._initialize_model()
         self._initialize_workload()
 

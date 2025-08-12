@@ -62,9 +62,9 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _initialize_all_components(self) -> None:
+    def _initialize_components(self) -> None:
         self._initialize_meshes()
-        super()._initialize_all_components()
+        super()._initialize_components()
 
     def _initialize_meshes(self) -> None:
         """Initializes `self._device_mesh` and `self._cpu_mesh`."""
