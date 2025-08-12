@@ -239,73 +239,81 @@ std::unordered_map<std::string, std::string>
 ClientInstance::extractCustomProtobufFields(
     const google::protobuf::UnknownFieldSet &unknown_fields) {
   std::unordered_map<std::string, std::string> result;
-
-  // The custom compiler options that are defined in through the jax.jit()
-  // function are stored in the field number 7 in the UnknownFieldSet.
   constexpr int kCustomCompilerOptionsFieldNumber = 7;
 
+  // Loop over all unknown fields
   for (int i = 0; i < unknown_fields.field_count(); ++i) {
     const google::protobuf::UnknownField &field = unknown_fields.field(i);
+
     // Currently, we only support the custom compiler options field that are in
     // the form of a dictionary, which is represented as a length_delimited
     // field.
     // TODO: See if we can support other types of custom fields in the future.
-    if (field.number() != kCustomCompilerOptionsFieldNumber ||
-        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-      continue;
-    }
+    if (field.number() == kCustomCompilerOptionsFieldNumber &&
+        field.type() == google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+      // Field #7: env_option_overrides (map<string, OptionOverrideProto>)
+      // Each map entry is a nested message with key/value inside.
 
-    google::protobuf::UnknownFieldSet custom_field_set;
-    google::protobuf::io::CodedInputStream input(
-        reinterpret_cast<const uint8_t *>(field.length_delimited().data()),
-        field.length_delimited().size());
-    custom_field_set.ParseFromCodedStream(&input);
+      const std::string &bytes = field.length_delimited();
 
-    std::string key;
-    std::string value;
+      google::protobuf::io::CodedInputStream cis(
+          reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size());
 
-    for (int j = 0; j < custom_field_set.field_count(); ++j) {
-      const google::protobuf::UnknownField &inner_field =
-          custom_field_set.field(j);
-      // In the inner field set, first field is the key and second field is the
-      // value. We expect both to be length-delimited fields (coming from a
-      // dictionary).
-      if (inner_field.number() == 1 &&
-          inner_field.type() ==
-              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        key = inner_field.length_delimited();
-      } else if (inner_field.number() == 2 &&
-                 inner_field.type() ==
-                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        google::protobuf::UnknownFieldSet custom_nested_set;
-        google::protobuf::io::CodedInputStream nested_input(
-            reinterpret_cast<const uint8_t *>(
-                inner_field.length_delimited().data()),
-            inner_field.length_delimited().size());
-        custom_nested_set.ParseFromCodedStream(&nested_input);
-        if (custom_nested_set.field_count() == 0 ||
-            custom_nested_set.field_count() > 1) {
-          // If the nested set has more than one field or is empty, it is not a
-          // simple key-value pair of strings, so we skip it for now.
-          continue;
-        }
-        const google::protobuf::UnknownField &value_field =
-            custom_nested_set.field(0);
-        if (value_field.type() ==
-            google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-          value = value_field.length_delimited();
+      google::protobuf::UnknownFieldSet map_entry_fields;
+      if (!map_entry_fields.MergeFromCodedStream(&cis)) {
+        continue;
+      }
+
+      std::string key;
+      std::string value;
+
+      for (int j = 0; j < map_entry_fields.field_count(); ++j) {
+        const auto &entry_field = map_entry_fields.field(j);
+
+        if (entry_field.number() == 1 &&
+            entry_field.type() ==
+                google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+          key = entry_field.length_delimited(); // string key
+        } else if (entry_field.number() == 2 &&
+                   entry_field.type() ==
+                       google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+          // This is OptionOverrideProto (value part)
+          const std::string &override_bytes = entry_field.length_delimited();
+          google::protobuf::io::CodedInputStream override_stream(
+              reinterpret_cast<const uint8_t *>(override_bytes.data()),
+              override_bytes.size());
+
+          google::protobuf::UnknownFieldSet value_fields;
+          if (value_fields.MergeFromCodedStream(&override_stream)) {
+            for (int k = 0; k < value_fields.field_count(); ++k) {
+              const auto &value_field = value_fields.field(k);
+              switch (value_field.number()) {
+              case 1:
+                value = value_field.length_delimited();
+                break; // string_field
+              case 2:
+                value = value_field.varint() ? "true" : "false";
+                break; // bool_field
+              case 3:
+                value = std::to_string(value_field.varint());
+                break; // int_field
+              case 4:
+                value = std::to_string(value_field.fixed64());
+                break; // double_field
+              }
+            }
+          }
         }
       }
-    }
 
-    if (!key.empty() && !value.empty()) {
-      result[key] = value;
+      if (!key.empty()) {
+        result[key] = value;
+      }
     }
   }
 
   return result;
 }
-
 namespace internal {
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
