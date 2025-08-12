@@ -119,7 +119,7 @@ class JaxMultichipOpTester(BaseTester):
             compiled_cpu_workload = self._compile(cpu_workload)
             cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
 
-        self._compare(device_res, cpu_res)
+        self._comparator.compare(device_res, cpu_res)
 
     # @override
     def _compile(self, workload: Workload) -> Workload:

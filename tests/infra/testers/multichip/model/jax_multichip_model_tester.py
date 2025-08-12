@@ -59,8 +59,8 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        self._initialize_meshes()
         super().__init__(comparison_config, run_mode)
+        self._initialize_meshes()
 
     def _initialize_meshes(self) -> None:
         """Initializes `self._device_mesh` and `self._cpu_mesh`."""
