@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.vgg.pytorch import ModelVariant
 from .tester import VGGTester
 
-VARIANT_NAME = "vgg19_bn"
+VARIANT_NAME = ModelVariant.VGG19_BN
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

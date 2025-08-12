@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.albert.masked_lm.pytorch import ModelVariant
 from ..tester import AlbertV2Tester
 
-VARIANT_NAME = "albert-xlarge-v2"
+VARIANT_NAME = ModelVariant.XLARGE_V2
 
 # TODO: Change to use ModelInfo from tt-forge-models
 MODEL_NAME = build_model_name(

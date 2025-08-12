@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.hrnet.pytorch import ModelVariant
 from .tester import HRNetTester
 
-VARIANT_NAME = "hrnet_w18_small"
+VARIANT_NAME = ModelVariant.HRNET_W18_SMALL
 
 
 MODEL_NAME = build_model_name(
