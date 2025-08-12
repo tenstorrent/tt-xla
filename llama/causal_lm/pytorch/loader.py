@@ -18,6 +18,7 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
+from ....tools.utils import pad_inputs
 
 
 class ModelVariant(StrEnum):
@@ -239,5 +240,48 @@ class ModelLoader(ForgeModel):
         # Replicate tensors for batch size
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        # Only convert dtype if explicitly requested
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = inputs[key].to(dtype_override)
+        # Pad input_ids and attention_mask
 
-        return inputs
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], 512)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], 512)
+
+        inputs["input_ids"] = padded_input_ids
+        inputs["attention_mask"] = padded_attention_mask
+        return inputs, seq_len
+
+    def decode_output(self, max_new_tokens, model, inputs, seq_len, tokenizer):
+        """Generates text .
+        Args:
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            model (torch.nn.Module): The language model used for token generation.
+            inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len), representing tokenized text.
+            seq_len (int): The current sequence length before generation starts.
+            tokenizer: The tokenizer used to decode token IDs into text.
+        """
+        current_pos = seq_len
+
+        for _ in range(max_new_tokens):
+            logits = model(*inputs)
+
+            if isinstance(logits, (list, tuple)):
+                logits = logits[0]
+
+            next_token_logits = logits[:, current_pos - 1, :]
+            next_token_id = torch.argmax(next_token_logits, dim=-1)
+
+            if next_token_id.item() == tokenizer.eos_token_id:
+                break
+
+            # Update input_ids and attention_mask
+            inputs[0][:, current_pos] = next_token_id
+            inputs[1][:, current_pos] = 1
+
+            current_pos += 1
+
+        valid_tokens = inputs[0][:, seq_len:current_pos].view(-1).tolist()
+        answer = tokenizer.decode(valid_tokens, skip_special_tokens=True)
+        return answer
