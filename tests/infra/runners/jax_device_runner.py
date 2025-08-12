@@ -25,14 +25,10 @@ class JaxDeviceRunner(DeviceRunner):
         return self._device_connector
 
     # @override
-    def _run_on_device(
-        self, workload: Workload, device_type: DeviceType, device_num: int = 0
-    ) -> Tensor:
-        device = self._device_connector.connect_device(device_type, device_num)
-        device_workload = self._put_on_device(workload, device=device)
+    def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
 
         with jax.default_device(device):
-            return device_workload.execute()
+            return workload.execute()
 
     # @override
     def _safely_put_workload_on_device(
@@ -82,28 +78,15 @@ class JaxDeviceRunner(DeviceRunner):
             workload.static_argnames,  # Unchanged.
         )
 
-    # @override
-    def _put_tensors_on_device(
-        self, device_type: DeviceType, tensors: Sequence[Tensor]
-    ) -> Sequence[Tensor]:
-        device = self._device_connector.connect_device(device_type)
-        return [jax.device_put(t, device) for t in tensors]
-
     def run_on_multichip_device(
         self, multichip_workload: JaxMultichipWorkload
     ) -> Tensor:
-        """Runs `multichip_workload` on a multichip device."""
-        return self._run_on_multichip_device(multichip_workload)
-
-    def _run_on_multichip_device(
-        self, multichip_workload: JaxMultichipWorkload
-    ) -> Tensor:
         """
-        Runs `workload` on a multichip device.
-
+        Runs `multichip_workload` on a multichip device.
         Depending on the sharding mode, we might put the workload directly on device, or
         leave it to jax to infer on the fly.
         """
+
         if multichip_workload.sharding_mode.requires_device_put:
             sharded_workload = self._put_multichip_workload_on_device(
                 multichip_workload

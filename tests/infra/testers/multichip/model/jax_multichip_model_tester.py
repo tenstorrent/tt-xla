@@ -51,9 +51,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         # TODO(mrakita): This should be a parameter of model tester, currently only this
         # mode is supported in compiler.
         self._sharding_mode = ShardingMode.INPUTS_AND_MODULE
-        # Placeholders for objects that will be set during
-        # `_initialize_all_components`. Easier to spot if located in constructor instead
-        # of dynamically creating them somewhere in methods.
+
         self._device_mesh: jax.sharding.Mesh = None
         self._cpu_mesh: jax.sharding.Mesh = None
         self._input_activations_partition_specs: PartitionSpec = None
@@ -61,12 +59,8 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode)
-
-    # @override
-    def _initialize_all_components(self) -> None:
         self._initialize_meshes()
-        super()._initialize_all_components()
+        super().__init__(comparison_config, run_mode)
 
     def _initialize_meshes(self) -> None:
         """Initializes `self._device_mesh` and `self._cpu_mesh`."""

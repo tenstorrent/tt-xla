@@ -31,9 +31,7 @@ class TorchModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        # Placeholders for objects that will be set during
-        # `_initialize_all_components`. Easier to spot if located in constructor instead
-        # of dynamically creating them somewhere in methods.
+
         self._input_activations: Dict | Sequence[Any] = None
 
         super().__init__(comparison_config, run_mode, Framework.TORCH)
@@ -85,7 +83,6 @@ class TorchModelTester(ModelTester):
         """Compiles `workload` for CPU."""
         return self._compile(workload)
 
-    # @override
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels.
 

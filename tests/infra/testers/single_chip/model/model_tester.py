@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Model
+from infra.utilities import Framework, Model, Tensor
 from infra.workloads import Workload
 
 from ...base_tester import BaseTester
@@ -34,16 +34,12 @@ class ModelTester(BaseTester, ABC):
     ) -> None:
         """Protected constructor for subclasses to use."""
         self._run_mode = run_mode
-        # Placeholders for objects that will be set during
-        # `_initialize_all_components`. Easier to spot if located in constructor instead
-        # of dynamically creating them somewhere in methods.
+
         self._model: Model = None
         self._workload: Workload = None
 
         super().__init__(comparison_config, framework)
 
-    # @override
-    def _initialize_all_components(self) -> None:
         self._initialize_model()
         self._initialize_workload()
 
@@ -61,6 +57,11 @@ class ModelTester(BaseTester, ABC):
         # Cache model inputs.
         self._cache_model_inputs()
 
+    @abstractmethod
+    def _get_model(self) -> Model:
+        """Returns model instance."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def _configure_model(self) -> None:
         """
         Configures model for inference *or* training, depending on chosen run mode.
@@ -69,6 +70,28 @@ class ModelTester(BaseTester, ABC):
             self._configure_model_for_inference()
         else:
             self._configure_model_for_training()
+
+    @staticmethod
+    @abstractmethod
+    def _configure_model_for_inference(model: Model) -> None:
+        """Configures `model` for inference."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @staticmethod
+    @abstractmethod
+    def _configure_model_for_training(model: Model) -> None:
+        """Configures `model` for training."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _cache_model_inputs(self) -> None:
+        """Caches model inputs."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _initialize_workload(self) -> None:
+        """Initializes `self._workload`."""
+        raise NotImplementedError("Subclasses must implement this method")
 
     def _get_forward_method_name(self) -> str:
         """
@@ -99,48 +122,28 @@ class ModelTester(BaseTester, ABC):
 
         self._compare(tt_res, cpu_res)
 
-    def _test_training(self):
-        """TODO"""
-        raise NotImplementedError("Support for training not implemented")
-
-    @abstractmethod
-    def _get_model(self) -> Model:
-        """Returns model instance."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @staticmethod
-    @abstractmethod
-    def _configure_model_for_inference(model: Model) -> None:
-        """Configures `model` for inference."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @staticmethod
-    @abstractmethod
-    def _configure_model_for_training(model: Model) -> None:
-        """Configures `model` for training."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @abstractmethod
-    def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @abstractmethod
-    def _get_input_activations(self) -> Dict | Sequence[Any]:
-        """Returns input activations."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
-    def _initialize_workload(self) -> None:
-        """Initializes `self._workload`."""
-        raise NotImplementedError("Subclasses must implement this method")
-
     @abstractmethod
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """Compiles `workload` for CPU."""
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
+        """Runs workload on CPU."""
+        return self._device_runner.run_on_cpu(compiled_workload)
+
     @abstractmethod
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
+        """Runs workload on TT device."""
+        return self._device_runner.run_on_tt_device(compiled_workload)
+
+    def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
+        """Compares device with golden output."""
+        self._comparator.compare(device_out, golden_out)
+
+    def _test_training(self):
+        """TODO"""
+        raise NotImplementedError("Support for training not implemented")

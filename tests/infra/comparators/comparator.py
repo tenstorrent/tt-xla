@@ -17,7 +17,7 @@ class Comparator(ABC):
     """
 
     def __init__(self, comparison_config: ComparisonConfig) -> None:
-        """Protected constructor for subclasses to use."""
+        """Initialize the comparator with comparison configuration."""
         self._comparison_config = comparison_config
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> None:

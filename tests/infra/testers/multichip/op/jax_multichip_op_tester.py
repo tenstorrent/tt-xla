@@ -63,9 +63,6 @@ class JaxMultichipOpTester(BaseTester):
         self._cpu_mesh: jax.sharding.Mesh = None
 
         super().__init__(comparison_config, Framework.JAX)
-
-    # @override
-    def _initialize_all_components(self) -> None:
         self._initialize_meshes()
 
     def _initialize_meshes(self) -> None:

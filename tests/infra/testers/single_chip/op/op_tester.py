@@ -24,12 +24,11 @@ class OpTester(BaseTester):
         """
         compiled_workload = self._compile(workload)
 
-        tt_res = self._run_on_tt_device(compiled_workload)
-        cpu_res = self._run_on_cpu(compiled_workload)
+        tt_res = self._device_runner.run_on_tt_device(compiled_workload)
+        cpu_res = self._device_runner.run_on_cpu(compiled_workload)
 
-        self._compare(tt_res, cpu_res)
+        self._comparator.compare(tt_res, cpu_res)
 
-    # @override
     def _compile(self, workload: Workload) -> Workload:
         """
         Compiles executable carried in `workload` based on framework.

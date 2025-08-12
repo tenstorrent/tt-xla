@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
-from infra.utilities import Framework, Tensor
+from infra.utilities import Framework
 from infra.workloads import Workload
 
 
@@ -30,11 +30,8 @@ class BaseTester(ABC):
         self._device_runner: DeviceRunner = None
         self._comparator: Comparator = None
 
-        # Automatically initialize framework-specific helpers. Leave to subclasses to
-        # override `_initialize_all_components` if there are more initialization steps.
+        # Automatically initialize framework-specific helpers
         self._initialize_framework_specific_helpers()
-        # Initialize rest of the class.
-        self._initialize_all_components()
 
     def _initialize_framework_specific_helpers(self) -> None:
         """
@@ -54,30 +51,3 @@ class BaseTester(ABC):
         self._comparator = ComparatorFactory.create_comparator(
             self._framework, self._comparison_config
         )
-
-    def _initialize_all_components(self) -> None:
-        """
-        Helper initialization method allowing subclasses to define a piece by piece
-        object construction.
-
-        Subclasses should override this method if there are more initialization steps
-        to do upon object creation.
-        """
-        pass
-
-    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
-        """Runs workload on CPU."""
-        return self._device_runner.run_on_cpu(compiled_workload)
-
-    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
-        """Runs workload on TT device."""
-        return self._device_runner.run_on_tt_device(compiled_workload)
-
-    def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
-        """Compares device with golden output."""
-        self._comparator.compare(device_out, golden_out)
-
-    @abstractmethod
-    def _compile(self, workload: Workload) -> Workload:
-        """Compiles `workload`."""
-        raise NotImplementedError("Subclasses must implement this method.")
