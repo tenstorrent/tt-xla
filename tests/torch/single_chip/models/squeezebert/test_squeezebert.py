@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.squeezebert.pytorch import ModelVariant
 from .tester import SqueezeBertTester
 
-VARIANT_NAME = "squeezebert/squeezebert-mnli"
+VARIANT_NAME = ModelVariant.MNLI
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
