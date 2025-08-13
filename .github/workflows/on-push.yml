@@ -1,0 +1,60 @@
+name: On push
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+permissions:
+  packages: write
+  checks: write
+
+jobs:
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+    secrets: inherit
+
+  spdx:
+    uses: ./.github/workflows/spdx.yml
+    secrets: inherit
+
+  build-image:
+    needs: [ pre-commit, spdx ]
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+
+  build-ttxla:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+
+  build-ttxla-wheel:
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/wheel-build.yml
+    secrets: inherit
+    name: "Build tt-xla manylinux wheel"
+    needs: [ build-image ]
+    with:
+      docker-tag: ${{ needs.build-image.outputs.docker-tag }}
+
+  test:
+    needs: [ build-image, build-ttxla ]
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    with:
+      test_mark: 'push'
+      run_id: ${{ github.run_id }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
