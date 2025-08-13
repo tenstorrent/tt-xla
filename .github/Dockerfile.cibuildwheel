@@ -51,5 +51,13 @@ WORKDIR $BUILD_DIR/$PROJECT_NAME
 # Show last 2 commits
 RUN git log -2
 
-RUN cmake -B env/build env && \
+# Build tt-mlir toolchain
+RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
+    cd third_party/tt-mlir/src/tt-mlir/ && \
+    source env/activate && \
+    cmake -B env/build env && \
     cmake --build env/build
+
+RUN source venv/activate && \
+    cmake -G Ninja -B build && \
+    cmake --build build
