@@ -11,6 +11,8 @@ from infra.utilities import ShardingMode, Framework
 from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
+
+
 @dataclass
 class JaxMultichipWorkload(Workload):
     """
@@ -29,7 +31,7 @@ class JaxMultichipWorkload(Workload):
         out_spec: Optional[PartitionSpec] = None,
         sharding_mode: Optional[ShardingMode] = None,
     ) -> None:
-        
+
         super().__init__(
             framework=Framework.JAX,
             executable=executable,

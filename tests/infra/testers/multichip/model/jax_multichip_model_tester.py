@@ -132,7 +132,9 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         Creates multichip workload from single chip workload created during class object
         setup and provided `mesh`.
         """
-        assert self._workload.is_jax, "Workload must be JAX workload to create JAX multichip workload"
+        assert (
+            self._workload.is_jax
+        ), "Workload must be JAX workload to create JAX multichip workload"
 
         in_specs = self._get_forward_method_arg_specs()
         out_spec = PartitionSpec()  # Assuming replicated outputs for now.

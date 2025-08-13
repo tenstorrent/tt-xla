@@ -72,8 +72,8 @@ class JaxDeviceRunner(DeviceRunner):
                 kwargs_on_device[key] = value
 
         return Workload(
-            framework=workload.framework, # Unchanged.
-            executable=workload.executable, # Unchanged.
+            framework=workload.framework,  # Unchanged.
+            executable=workload.executable,  # Unchanged.
             args=args_on_device,
             kwargs=kwargs_on_device,
             static_argnames=workload.static_argnames,

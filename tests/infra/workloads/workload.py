@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from infra.utilities import Framework, Model
 
 
-class Workload():
+class Workload:
     """Class encapsulating workload (executable/model with its inputs)."""
 
     def __init__(
@@ -20,7 +20,7 @@ class Workload():
         kwargs: Optional[Mapping[str, Any]] = None,
         static_argnames: Optional[Sequence[str]] = None,
     ) -> None:
-        
+
         self.framework = framework
 
         assert (
@@ -45,7 +45,7 @@ class Workload():
     @property
     def is_torch(self) -> bool:
         return self.framework == Framework.TORCH
-    
+
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
         return (

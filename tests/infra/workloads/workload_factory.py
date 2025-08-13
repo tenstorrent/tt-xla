@@ -24,8 +24,8 @@ class WorkloadFactory:
         kwargs: Optional[Mapping[str, Any]] = None,
         static_argnames: Optional[Sequence[str]] = None,
     ) -> Workload:
-        
+
         if not isinstance(framework, Framework):
             raise ValueError(f"Unsupported framework {framework}")
-        
+
         return Workload(framework, executable, model, args, kwargs, static_argnames)
