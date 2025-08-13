@@ -14,9 +14,18 @@ from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, Pcc
 class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
 
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
+    # @override
+    @staticmethod
+    @run_on_cpu(Framework.TORCH)
+    def _match_data_types(tensors: PyTree) -> PyTree:
+        return tree_map(
+            lambda tensor: (
+                tensor.to(torch.float32)
+                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32
+                else tensor
+            ),
+            tensors,
+        )
 
     # @override
     @staticmethod
@@ -40,27 +49,6 @@ class TorchComparator(Comparator):
         assert atol <= atol_config.required_atol, (
             f"Atol comparison failed. "
             f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
-        )
-
-    # @override
-    @staticmethod
-    @run_on_cpu(Framework.TORCH)
-    def _compare_allclose(
-        device_output: PyTree,
-        golden_output: PyTree,
-        allclose_config: AllcloseConfig,
-    ) -> None:
-        all_close = tree_map(
-            lambda x, y: torch.allclose(
-                x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
-            ),
-            device_output,
-            golden_output,
-        )
-        flat_close, _ = tree_flatten(all_close)
-        assert all(flat_close), (
-            f"Allclose comparison failed. "
-            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )
 
     # @override
@@ -94,12 +82,20 @@ class TorchComparator(Comparator):
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
-    def _match_data_types(tensors: PyTree) -> PyTree:
-        return tree_map(
-            lambda tensor: (
-                tensor.to(torch.float32)
-                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32
-                else tensor
+    def _compare_allclose(
+        device_output: PyTree,
+        golden_output: PyTree,
+        allclose_config: AllcloseConfig,
+    ) -> None:
+        all_close = tree_map(
+            lambda x, y: torch.allclose(
+                x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
             ),
-            tensors,
+            device_output,
+            golden_output,
+        )
+        flat_close, _ = tree_flatten(all_close)
+        assert all(flat_close), (
+            f"Allclose comparison failed. "
+            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )

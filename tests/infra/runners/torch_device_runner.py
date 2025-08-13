@@ -15,28 +15,13 @@ from .device_runner import DeviceRunner
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
-
     # @override
-    def _run_on_device(
-        self, workload: Workload, device_type: DeviceType, device_num: int = 0
-    ) -> Tensor:
-        device = self._device_connector.connect_device(device_type, device_num)
-        device_workload = self._put_on_device(workload, device=device)
-
+    def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
         # TODO this context manager disables gradient calculation to save memory. We
         # will need to enable it for training.
-        with torch.no_grad():
-            return device_workload.execute()
 
-    # @override
-    def _put_tensors_on_device(
-        self, device_type: DeviceType, tensors: Sequence[Tensor]
-    ) -> Sequence[Tensor]:
-        device = self._device_connector.connect_device(device_type)
-        return [t.to(device) for t in tensors]
+        with torch.no_grad():
+            return workload.execute()
 
     # @override
     def _safely_put_workload_on_device(
