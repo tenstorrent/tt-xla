@@ -38,6 +38,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._compiler_config = compiler_config
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
 
@@ -98,7 +99,7 @@ class TorchModelTester(ModelTester):
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(workload, backend="tt")
+        self._compile_for_backend(workload, backend="tt")
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
