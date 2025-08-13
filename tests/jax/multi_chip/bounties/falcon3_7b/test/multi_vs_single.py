@@ -4,37 +4,8 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoConfig
 from model.jax_config import *
-    
-def torch_to_jnp(tensor):
-    """
-    Convert a PyTorch tensor to a JAX array.
-    """
-    if isinstance(tensor, torch.Tensor):
-        return jnp.array(tensor.cpu().numpy())
-    else:
-        return jnp.array(tensor)
-
-def init_model(config, batch_size, max_len):
-    """
-    Initialize the Flax model from the PyTorch model.
-    """
-    flax_model = FlaxFalcon3ForCausalLM(config)
-    flax_params = flax_model.convert_from_hf_weights(
-        config=config,
-        batch_size=batch_size,
-        max_len=max_len,
-    )
-    return flax_model, flax_params
-
-def tokenize(model_name, prompt):
-    """
-    Prepare input for the PyTorch model.
-    """
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    inputs = tokenizer(prompt, return_tensors="pt")
-    input_ids = torch_to_jnp(inputs.input_ids)
-    attention_mask = torch_to_jnp(inputs.attention_mask)
-    return tokenizer, input_ids, attention_mask
+from utils.flax_utils import *
+from utils.data_utils import *
 
 def prepare_input(flax_model, input_ids, attention_mask, max_len):
     """
@@ -80,15 +51,6 @@ def run_model(flax_params, flax_model, input_ids, attention_mask, position_ids, 
     )
     return generated_ids
 
-def compare_results(torch_result: str, flax_result: str) -> str:
-    print("Model Result:\n", torch_result)
-    print("Sharded Model Result:\n", flax_result)
-    if torch_result == flax_result:
-        return "✅ Outputs match!"
-    else:
-        return "❌ Outputs do not match!"
-
-
 def run_test(model_name: str, prompt: str):
     """
     Run the test comparing Hugging Face and Flax models.
@@ -106,7 +68,7 @@ def run_test(model_name: str, prompt: str):
     
     batch_size, seq_len = input_ids.shape
     max_len = seq_len + 20  
-    model, params = init_model(
+    model, params = init_flax_model(
         config=config,
         batch_size=batch_size * 2,
         max_len=max_len,

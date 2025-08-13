@@ -16,7 +16,7 @@ def main(model_name: str, prompt: str):
     print("🪄  Initializing models...")
     config = AutoConfig.from_pretrained(
         model_name,
-        num_hidden_layers=2, # for easeier testing
+        num_hidden_layers=28, # set smaller for easeier testing
         torch_dtype=torch.float32,
     )
     tokenizer, input_ids, attention_mask = prepare_torch_input(model_name, prompt)

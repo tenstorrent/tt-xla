@@ -6,7 +6,7 @@ import torch
 from transformers import AutoConfig
 from utils.flax_utils import *
 from utils.torch_utils import *
-from utils.output_utils import compare_results
+from utils.data_utils import compare_results
 
 
 def run_test(model_name: str, prompt: str):
