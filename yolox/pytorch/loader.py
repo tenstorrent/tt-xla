@@ -5,19 +5,12 @@
 """
 YOLOX model loader implementation
 """
-import subprocess
-
-subprocess.run(
-    ["pip", "install", "yolox==0.3.0", "--no-deps"]
-)  # Install yolox==0.3.0 without installing its dependencies
 
 import torch
-from datasets import load_dataset
 import os
 from typing import Optional
 
 os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
-from yolox.data.data_augment import preproc as preprocess
 
 from ...config import (
     ModelConfig,
@@ -30,7 +23,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
-from .src.utils import print_detection_results
 
 
 class ModelVariant(StrEnum):
@@ -117,7 +109,7 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOX model instance.
         """
-        from yolox.exp import get_exp
+        from yolox.exp import get_exp  # Defer heavy import
 
         # Get the model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
@@ -156,6 +148,10 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Sample input tensor that can be fed to the model.
         """
+        # Deter imports so not required at model discovery time
+        from datasets import load_dataset
+        from yolox.data.data_augment import preproc as preprocess
+
         # Determine input shape based on model variant
         model_name = self._variant_config.pretrained_model_name
         if model_name in ["yolox_nano", "yolox_tiny"]:
@@ -191,4 +187,6 @@ class ModelLoader(ForgeModel):
         Returns:
             None: Prints the detection results
         """
+        from .src.utils import print_detection_results
+
         print_detection_results(co_out, self.ratio, self.input_shape)

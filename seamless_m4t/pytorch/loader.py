@@ -7,8 +7,6 @@ SeamlessM4T model loader implementation for speech-to-text translation
 import torch
 import urllib.request
 import io
-import torchaudio
-from transformers import AutoProcessor, SeamlessM4TModel, SeamlessM4TConfig
 from typing import Optional
 
 from ...base import ForgeModel
@@ -80,6 +78,8 @@ class ModelLoader(ForgeModel):
         Returns:
             tuple: (processor, config) instances
         """
+        from transformers import AutoProcessor, SeamlessM4TConfig
+
         model_name = self._variant_config.pretrained_model_name
 
         # Load config and processor
@@ -98,6 +98,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The SeamlessM4T text decoder submodule.
         """
+        from transformers import SeamlessM4TModel
+
         # Get the pretrained model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
 
@@ -125,6 +127,8 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input arguments that can be fed to the text decoder.
         """
+        import torchaudio
+
         # Ensure processor and full model are loaded
         if self.processor is None or self.full_model is None:
             raise RuntimeError(

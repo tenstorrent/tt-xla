@@ -8,7 +8,6 @@ YOLOv6 model loader implementation
 from typing import Optional
 
 from ...tools.utils import get_file
-from yolov6.layers.common import DetectBackend
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -85,6 +84,9 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, dtype_override=None):
+
+        from yolov6.layers.common import DetectBackend
+
         """Load and return the YOLOv6 model instance with default settings.
 
         Args:

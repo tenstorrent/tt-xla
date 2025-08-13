@@ -6,7 +6,6 @@ MLPMixer lucidrains model loader implementation for image classification
 https://github.com/lucidrains/mlp-mixer-pytorch
 """
 import torch
-from mlp_mixer_pytorch import MLPMixer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -80,6 +79,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: MLPMixer lucidrains model instance for image classification.
         """
+        from mlp_mixer_pytorch import MLPMixer
+
         model = MLPMixer(
             image_size=256,
             channels=3,

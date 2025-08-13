@@ -6,7 +6,6 @@ GLiNER model loader implementation
 """
 
 
-from gliner import GLiNER
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -59,6 +58,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The GLiNER model instance.
         """
+        from gliner import GLiNER
+
         model = GLiNER.from_pretrained(self.model_name)
         return model.batch_predict_entities
 

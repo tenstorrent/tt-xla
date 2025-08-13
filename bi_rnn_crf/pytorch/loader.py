@@ -5,7 +5,6 @@
 BiRNN-CRF model loader implementation for sequence tagging
 """
 import torch
-from bi_lstm_crf import BiRnnCrf
 from typing import Optional
 
 from ...base import ForgeModel
@@ -90,6 +89,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The BiRNN-CRF model instance for sequence tagging.
         """
+        from bi_lstm_crf import BiRnnCrf
+
         # Create the model with random weights
         model = BiRnnCrf(
             vocab_size=self.model_config["vocab_size"],
