@@ -40,6 +40,16 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       debug_build: ${{ matrix.build_type }}
 
+  build-ttxla-wheel:
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/wheel-build.yml
+    secrets: inherit
+    name: "Build tt-xla manylinux wheel"
+    needs: [ build-image ]
+    with:
+      docker-tag: ${{ needs.build-image.outputs.docker-tag }}
+
   test:
     needs: [ build-image, build-ttxla ]
     uses: ./.github/workflows/test.yml

@@ -11,11 +11,15 @@ on:
       docker-image:
         description: 'Docker image name'
         value: ${{ jobs.build-image.outputs.docker-image }}
+      docker-tag:
+        description: 'Docker tag'
+        value: ${{ jobs.build-image.outputs.docker-tag }}
 
 jobs:
   build-image:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
+      docker-tag: ${{ steps.build.outputs.docker-tag }}
     runs-on: ubuntu-latest
     name: "Build Docker Image"
     steps:
@@ -53,5 +57,7 @@ jobs:
           set pipefail
           .github/build-docker-images.sh | tee docker.log
           DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
+          DOCKER_TAG=$(.github/get-docker-tag.sh)
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
+          echo "docker-tag=$DOCKER_TAG" >> "$GITHUB_OUTPUT"

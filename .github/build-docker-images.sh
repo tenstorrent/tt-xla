@@ -8,6 +8,7 @@ set -e
 REPO=tenstorrent/tt-xla
 BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-22-04
 CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-22-04
+CIBW_IMAGE_NAME=ghcr.io/$REPO/tt-xla-manylinux-2-34
 
 # Compute the hash of the Dockerfile
 DOCKER_TAG=$(./.github/get-docker-tag.sh)
@@ -48,6 +49,7 @@ build_and_push() {
 
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base $ON_MAIN
 build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN
+build_and_push $CIBW_IMAGE_NAME .github/Dockerfile.cibuildwheel $ON_MAIN
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"
