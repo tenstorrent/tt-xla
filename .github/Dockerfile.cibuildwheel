@@ -18,7 +18,7 @@ RUN dnf install --refresh -y \
     yaml-cpp-devel boost-devel libcurl-devel \
     pandoc doxygen graphviz lcov perf \
     xz openmpi openmpi-devel protobuf-compiler \
-    protobuf-devel numactl-devel hwloc-devel 
+    protobuf-devel numactl-devel hwloc-devel
 
 RUN dnf clean all
 
