@@ -94,15 +94,19 @@ class TorchModelTester(ModelTester):
 
         Compiles for inductor backend by default.
         """
-        return self._compile_for_backend(workload, backend="tt")
+        return self._compile_for_backend(workload, backend="inductor")
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(workload, backend="tt")
+        return self._compile_for_backend(
+            workload, backend="tt", options=self._compiler_config
+        )
 
-    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
+    def _compile_for_backend(
+        self, workload: Workload, backend: str, options: Any = None
+    ) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert isinstance(workload, TorchWorkload) and workload.model is not None
-        workload.model.compile(backend=backend, options=self._compiler_config)
+        workload.model.compile(backend=backend, options=options)
         return workload
