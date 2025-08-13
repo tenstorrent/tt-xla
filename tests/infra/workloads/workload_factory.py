@@ -12,7 +12,7 @@ from .workload import Workload
 
 
 class WorkloadFactory:
-    """Factory creating Workloads based on provided framework."""
+    """Factory creating Workloads."""
 
     @staticmethod
     def create_workload(
