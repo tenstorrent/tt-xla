@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.t5.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.oft.pytorch import ModelLoader
 
 
-class T5Tester(TorchModelTester):
-    """Tester for T5 model."""
+class OFTTester(TorchModelTester):
+    """Tester for OFT model."""
 
     def __init__(
         self,
-        variant_name: ModelVariant,
+        variant_name: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
@@ -25,3 +25,12 @@ class T5Tester(TorchModelTester):
     # @override
     def _get_input_activations(self) -> Dict | Sequence[Any]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _get_forward_method_args(self) -> Sequence[Any]:
+        """
+        Overrides to handle tuple of tensors.
+        """
+        if isinstance(self._input_activations, tuple):
+            return list(self._input_activations)
+        return []

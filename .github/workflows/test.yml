@@ -28,11 +28,19 @@ on:
           [
             { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
             { "runs-on": "n150",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
-            { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "sh-run": "true" },
+            { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
+            { "runs-on": "p150b",       "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "use-shared-runners": "true" },
+            { "runs-on": "p150b",       "name": "run_torch",             "dir": "./tests/torch/single_chip", "use-shared-runners": "true"},
+            { "runs-on": "p150b",       "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
             { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "sh-run": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "sh-run": "true" }
+            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
           ]
+      use-shared-runners:
+        description: 'Use shared runners from Civ2'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
 
@@ -44,13 +52,13 @@ jobs:
       matrix:
         build: ${{ fromJson(inputs.test_matrix) }}
 
-    runs-on: ${{ matrix.build.sh-run && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-beta-ubuntu-2204-{0}-large-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     container:
-      image: ${{ matrix.build.sh-run && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -75,7 +83,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}${{ matrix.build.sh-run && '-shared' }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     - name: Set reusable strings
       id: strings
@@ -197,13 +205,5 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         files: coverage.info
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Upload test results to Codecov
-      if: steps.strings.outputs.do_codecov && (success() || failure())
-      uses: codecov/test-results-action@v1
-      with:
-        files: ${{ steps.strings.outputs.test_report_path }}
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}

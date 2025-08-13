@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.dla.pytorch import ModelVariant
 from .tester import DlaTester
 
-VARIANT_NAME = "dla34"
+VARIANT_NAME = ModelVariant.DLA34
 
 
 MODEL_NAME = build_model_name(

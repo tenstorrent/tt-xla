@@ -1,17 +1,21 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, Sequence
+
+import torch
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.t5.pytorch import ModelLoader, ModelVariant
+
+from third_party.tt_forge_models.alexnet.pytorch.loader import ModelLoader
 
 
-class T5Tester(TorchModelTester):
-    """Tester for T5 model."""
+class AlexNetTester(TorchModelTester):
+    """Tester for Alexnet model."""
 
     def __init__(
         self,
-        variant_name: ModelVariant,
+        variant_name: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:

@@ -12,19 +12,20 @@ from utils import (
     ModelTask,
     build_model_name,
     failed_ttmlir_compilation,
+    incorrect_result,
 )
 
-from ..tester import BertTester
+from .tester import HardNetTester
 
-VARIANT_NAME = "base"
+VARIANT_NAME = "hardnet68"
 
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bert",
-    "base",
-    ModelTask.NLP_QA,
-    ModelSource.HUGGING_FACE,
+    "hardnet",
+    "68",
+    ModelTask.CV_IMAGE_CLS,
+    ModelSource.TORCH_HUB,
 )
 
 
@@ -32,13 +33,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> BertTester:
-    return BertTester(VARIANT_NAME)
+def inference_tester() -> HardNetTester:
+    return HardNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BertTester:
-    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> HardNetTester:
+    return HardNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -50,15 +51,15 @@ def training_tester() -> BertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9871692657470703. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
-def test_torch_bert_inference(inference_tester: BertTester):
+def test_torch_hardnet_inference(inference_tester: HardNetTester):
     inference_tester.test()
 
 
@@ -70,5 +71,5 @@ def test_torch_bert_inference(inference_tester: BertTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bert_training(training_tester: BertTester):
+def test_torch_hardnet_training(training_tester: HardNetTester):
     training_tester.test()

@@ -13,17 +13,17 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-from third_party.tt_forge_models.falcon.pytorch.loader import ModelVariant
-from .tester import FalconTester
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import ModelVariant
+from .tester import BertTester
 
-VARIANT_NAME = ModelVariant.FALCON_1B
+VARIANT_NAME = ModelVariant.BERT_BASE_UNCASED
 
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "falcon",
+    "bert",
     "base",
-    ModelTask.NLP_CAUSAL_LM,
+    ModelTask.NLP_MASKED_LM,
     ModelSource.HUGGING_FACE,
 )
 
@@ -32,13 +32,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> FalconTester:
-    return FalconTester(VARIANT_NAME)
+def inference_tester() -> BertTester:
+    return BertTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> FalconTester:
-    return FalconTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> BertTester:
+    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,11 +54,11 @@ def training_tester() -> FalconTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: Failed to legalize operation 'stablehlo.reduce_window' "
-        "https://github.com/tenstorrent/tt-xla/issues/783"
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
     )
 )
-def test_torch_falcon_inference(inference_tester: FalconTester):
+def test_torch_bert_inference(inference_tester: BertTester):
     inference_tester.test()
 
 
@@ -70,5 +70,5 @@ def test_torch_falcon_inference(inference_tester: FalconTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_falcon_training(training_tester: FalconTester):
+def test_torch_bert_training(training_tester: BertTester):
     training_tester.test()

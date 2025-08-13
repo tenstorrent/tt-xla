@@ -15,9 +15,18 @@ from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, Pcc
 class JaxComparator(Comparator):
     """Comparator for JAX tensors/pytrees."""
 
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
+    # @override
+    @staticmethod
+    @run_on_cpu(Framework.JAX)
+    def _match_data_types(tensors: PyTree) -> PyTree:
+        return tree_map(
+            lambda tensor: (
+                tensor.astype("float32")
+                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float32"
+                else tensor
+            ),
+            tensors,
+        )
 
     # @override
     @staticmethod
@@ -41,27 +50,6 @@ class JaxComparator(Comparator):
         assert atol <= atol_config.required_atol, (
             f"Atol comparison failed. "
             f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
-        )
-
-    # @override
-    @staticmethod
-    @run_on_cpu(Framework.JAX)
-    def _compare_allclose(
-        device_output: PyTree,
-        golden_output: PyTree,
-        allclose_config: AllcloseConfig,
-    ) -> None:
-        all_close = tree_map(
-            lambda x, y: jnp.allclose(
-                x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
-            ),
-            device_output,
-            golden_output,
-        )
-        passed = jax.tree.reduce(lambda x, y: x and y, all_close)
-        assert passed, (
-            f"Allclose comparison failed. "
-            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )
 
     # @override
@@ -95,12 +83,20 @@ class JaxComparator(Comparator):
     # @override
     @staticmethod
     @run_on_cpu(Framework.JAX)
-    def _match_data_types(tensors: PyTree) -> PyTree:
-        return tree_map(
-            lambda tensor: (
-                tensor.astype("float32")
-                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float32"
-                else tensor
+    def _compare_allclose(
+        device_output: PyTree,
+        golden_output: PyTree,
+        allclose_config: AllcloseConfig,
+    ) -> None:
+        all_close = tree_map(
+            lambda x, y: jnp.allclose(
+                x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
             ),
-            tensors,
+            device_output,
+            golden_output,
+        )
+        passed = jax.tree.reduce(lambda x, y: x and y, all_close)
+        assert passed, (
+            f"Allclose comparison failed. "
+            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
         )

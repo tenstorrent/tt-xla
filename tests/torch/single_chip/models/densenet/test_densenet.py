@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.densenet.pytorch import ModelVariant
 from .tester import DenseNetTester
 
-VARIANT_NAME = "densenet121"
+VARIANT_NAME = ModelVariant.DENSENET121
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

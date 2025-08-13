@@ -7,7 +7,10 @@ from typing import Any, Dict, Sequence
 import torch
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
-from third_party.tt_forge_models.albert.masked_lm.pytorch import ModelLoader
+from third_party.tt_forge_models.albert.masked_lm.pytorch import (
+    ModelLoader,
+    ModelVariant,
+)
 
 
 class AlbertV2Tester(TorchModelTester):
@@ -15,7 +18,7 @@ class AlbertV2Tester(TorchModelTester):
 
     def __init__(
         self,
-        variant_name: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:

@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch import ModelVariant
 from .tester import Qwen2_5Tester
 
-VARIANT_NAME = "Qwen/Qwen2.5-1.5B"
+VARIANT_NAME = ModelVariant.QWEN_2_5_1_5B
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
