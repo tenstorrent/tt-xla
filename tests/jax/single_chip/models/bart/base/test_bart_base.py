@@ -14,8 +14,9 @@ from utils import (
 )
 
 from ..tester import FlaxBartForCausalLMTester
+from third_party.tt_forge_models.bart.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "facebook/bart-base"
+MODEL_VARIANT = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "bart",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_PATH)
+    return FlaxBartForCausalLMTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxBartForCausalLMTester(MODEL_VARIANT, RunMode.TRAINING)
 
 
 # ----- Tests -----
