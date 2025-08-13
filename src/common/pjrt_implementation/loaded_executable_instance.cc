@@ -198,7 +198,10 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  return tt::runtime::openMeshDevice(devices_mesh_shape);
+  tt::runtime::MeshDeviceOptions mesh_device_options;
+  mesh_device_options.meshShape = devices_mesh_shape;
+
+  return tt::runtime::openMeshDevice(mesh_device_options);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(

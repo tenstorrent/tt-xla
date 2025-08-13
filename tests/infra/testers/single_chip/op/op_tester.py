@@ -18,18 +18,41 @@ from ...base_tester import BaseTester
 class OpTester(BaseTester):
     """Specific single chip tester for ops."""
 
-    # -------------------- Public methods --------------------
-
     def test(self, workload: Workload) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
         compiled_workload = self._compile(workload)
 
-        tt_res = self._run_on_tt_device(compiled_workload)
-        cpu_res = self._run_on_cpu(compiled_workload)
+        tt_res = self._device_runner.run_on_tt_device(compiled_workload)
+        cpu_res = self._device_runner.run_on_cpu(compiled_workload)
 
-        self._compare(tt_res, cpu_res)
+        self._comparator.compare(tt_res, cpu_res)
+
+    def _compile(self, workload: Workload) -> Workload:
+        """
+        Compiles executable carried in `workload` based on framework.
+
+        Returns compiled workload.
+        """
+
+        def compile_jax_workload(workload: JaxWorkload) -> Workload:
+            workload.executable = jax.jit(
+                workload.executable, static_argnames=workload.static_argnames
+            )
+            return workload
+
+        def compile_torch_workload(workload: TorchWorkload) -> Workload:
+            assert workload.executable is not None
+            workload.executable = torch.compile(workload.executable, backend="openxla")
+            return workload
+
+        if self._framework == Framework.JAX:
+            assert isinstance(workload, JaxWorkload)
+            return compile_jax_workload(workload)
+        else:
+            assert isinstance(workload, TorchWorkload)
+            return compile_torch_workload(workload)
 
     def test_with_random_inputs(
         self,
@@ -55,34 +78,6 @@ class OpTester(BaseTester):
             self._framework, executable=f, args=inputs
         )
         self.test(workload)
-
-    # -------------------- Private methods --------------------
-
-    # @override
-    def _compile(self, workload: Workload) -> Workload:
-        """
-        Compiles executable carried in `workload` based on framework.
-
-        Returns compiled workload.
-        """
-
-        def compile_jax_workload(workload: JaxWorkload) -> Workload:
-            workload.executable = jax.jit(
-                workload.executable, static_argnames=workload.static_argnames
-            )
-            return workload
-
-        def compile_torch_workload(workload: TorchWorkload) -> Workload:
-            assert workload.executable is not None
-            workload.executable = torch.compile(workload.executable, backend="openxla")
-            return workload
-
-        if self._framework == Framework.JAX:
-            assert isinstance(workload, JaxWorkload)
-            return compile_jax_workload(workload)
-        else:
-            assert isinstance(workload, TorchWorkload)
-            return compile_torch_workload(workload)
 
 
 def run_op_test(

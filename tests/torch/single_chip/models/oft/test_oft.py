@@ -14,17 +14,16 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import BertTester
+from .tester import OFTTester
 
-VARIANT_NAME = "base"
-
+VARIANT_NAME = "oft"
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bert",
+    "oft",
     "base",
-    ModelTask.NLP_QA,
-    ModelSource.HUGGING_FACE,
+    ModelTask.CV_OBJECT_DET,
+    ModelSource.CUSTOM,
 )
 
 
@@ -32,13 +31,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> BertTester:
-    return BertTester(VARIANT_NAME)
+def inference_tester() -> OFTTester:
+    return OFTTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BertTester:
-    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> OFTTester:
+    return OFTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,11 +53,11 @@ def training_tester() -> BertTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
+        "Broadcasting rule violation for rank >= 5 : dim -5, Broadcast is supported upto rank 4, dim a: 8, dim b: 1 "
+        "https://github.com/tenstorrent/tt-xla/issues/821"
     )
 )
-def test_torch_bert_inference(inference_tester: BertTester):
+def test_torch_oft_inference(inference_tester: OFTTester):
     inference_tester.test()
 
 
@@ -70,5 +69,5 @@ def test_torch_bert_inference(inference_tester: BertTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bert_training(training_tester: BertTester):
+def test_torch_oft_training(training_tester: OFTTester):
     training_tester.test()

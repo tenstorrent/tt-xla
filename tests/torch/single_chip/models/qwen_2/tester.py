@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.qwen.token_classification.pytorch import ModelLoader
+from third_party.tt_forge_models.qwen_2.token_classification.pytorch import ModelLoader
 
 
 class Qwen2Tester(TorchModelTester):

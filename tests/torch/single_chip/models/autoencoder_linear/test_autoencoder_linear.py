@@ -11,34 +11,31 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
-from ..tester import BertTester
+from .tester import AutoencoderLinearTester
 
-VARIANT_NAME = "large"
-
+VARIANT_NAME = "autoencoder_linear"
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bert",
+    "autoencoder_linear",
     "base",
-    ModelTask.NLP_QA,
-    ModelSource.HUGGING_FACE,
+    ModelTask.CV_IMG_TO_IMG,
+    ModelSource.CUSTOM,
 )
-
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> BertTester:
-    return BertTester(VARIANT_NAME)
+def inference_tester() -> AutoencoderLinearTester:
+    return AutoencoderLinearTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BertTester:
-    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> AutoencoderLinearTester:
+    return AutoencoderLinearTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -50,15 +47,9 @@ def training_tester() -> BertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
-    )
-)
-def test_torch_bert_inference(inference_tester: BertTester):
+def test_torch_autoencoder_linear_inference(inference_tester: AutoencoderLinearTester):
     inference_tester.test()
 
 
@@ -70,5 +61,5 @@ def test_torch_bert_inference(inference_tester: BertTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bert_training(training_tester: BertTester):
+def test_torch_autoencoder_linear_training(training_tester: AutoencoderLinearTester):
     training_tester.test()

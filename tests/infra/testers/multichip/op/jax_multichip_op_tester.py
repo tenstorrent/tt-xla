@@ -44,8 +44,6 @@ class JaxMultichipOpTester(BaseTester):
             The sharding specification for the output tensor.
     """
 
-    # -------------------- Public methods --------------------
-
     def __init__(
         self,
         in_specs: tuple[jax.sharding.PartitionSpec],
@@ -65,23 +63,11 @@ class JaxMultichipOpTester(BaseTester):
         self._cpu_mesh: jax.sharding.Mesh = None
 
         super().__init__(comparison_config, Framework.JAX)
+        self._initialize_meshes()
 
-    def test(
-        self, device_workload: JaxMultichipWorkload, cpu_workload: JaxMultichipWorkload
-    ) -> None:
-        """
-        Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and
-        comparing the results.
-        """
-        with self._device_mesh:
-            compiled_device_workload = self._compile(device_workload)
-            device_res = self._run_on_multichip_device(compiled_device_workload)
-
-        with self._cpu_mesh:
-            compiled_cpu_workload = self._compile(cpu_workload)
-            cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
-
-        self._compare(device_res, cpu_res)
+    def _initialize_meshes(self) -> None:
+        self._device_mesh = self._get_tt_device_mesh()
+        self._cpu_mesh = self._get_cpu_device_mesh()
 
     def test_with_random_inputs(
         self,
@@ -118,15 +104,22 @@ class JaxMultichipOpTester(BaseTester):
         )
         self.test(device_workload, cpu_workload)
 
-    # -------------------- Private methods --------------------
+    def test(
+        self, device_workload: JaxMultichipWorkload, cpu_workload: JaxMultichipWorkload
+    ) -> None:
+        """
+        Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and
+        comparing the results.
+        """
+        with self._device_mesh:
+            compiled_device_workload = self._compile(device_workload)
+            device_res = self._run_on_multichip_device(compiled_device_workload)
 
-    # @override
-    def _initialize_all_components(self) -> None:
-        self._initialize_meshes()
+        with self._cpu_mesh:
+            compiled_cpu_workload = self._compile(cpu_workload)
+            cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
 
-    def _initialize_meshes(self) -> None:
-        self._device_mesh = self._get_tt_device_mesh()
-        self._cpu_mesh = self._get_cpu_device_mesh()
+        self._comparator.compare(device_res, cpu_res)
 
     # @override
     def _compile(self, workload: Workload) -> Workload:
