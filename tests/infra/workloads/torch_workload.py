@@ -14,8 +14,6 @@ from .workload import Workload
 class TorchWorkload(Workload):
     """Workload used with Torch."""
 
-    # -------------------- Public methods --------------------
-
     @staticmethod
     def create(
         executable: Optional[Callable] = None,
@@ -39,8 +37,6 @@ class TorchWorkload(Workload):
             # Carry only executable.
             return TorchWorkload(executable, None, args, kwargs)
 
-    # -------------------- Private methods --------------------
-
     def __init__(
         self,
         executable: Optional[Callable] = None,
@@ -53,8 +49,6 @@ class TorchWorkload(Workload):
 
         self.executable = executable
         self.model = model
-
-    # --- Overrides ---
 
     # @override
     def _execute(self) -> Any:

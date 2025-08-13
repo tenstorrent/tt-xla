@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.mlp_mixer.pytorch import ModelVariant
 from .tester import MLPMixerTester
 
-VARIANT_NAME = "mixer_s32_224"
+VARIANT_NAME = ModelVariant.MIXER_S32_224
 
 
 MODEL_NAME = build_model_name(

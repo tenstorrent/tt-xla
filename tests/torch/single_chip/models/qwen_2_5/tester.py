@@ -4,7 +4,10 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.qwen.casual_lm.pytorch import ModelLoader
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch import (
+    ModelLoader,
+    ModelVariant,
+)
 
 
 class Qwen2_5Tester(TorchModelTester):
@@ -12,7 +15,7 @@ class Qwen2_5Tester(TorchModelTester):
 
     def __init__(
         self,
-        variant_name: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:

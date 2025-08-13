@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,
@@ -11,34 +12,26 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
-from ..tester import BertTester
+from .tester import OpenposeTester
 
-VARIANT_NAME = "large"
-
+VARIANT_NAME = "lwopenpose2d_mobilenet_cmupan_coco"
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bert",
+    "openpose",
     "base",
-    ModelTask.NLP_QA,
-    ModelSource.HUGGING_FACE,
+    ModelTask.CV_KEYPOINT_DET,
+    ModelSource.CUSTOM,
 )
-
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> BertTester:
-    return BertTester(VARIANT_NAME)
-
-
-@pytest.fixture
-def training_tester() -> BertTester:
-    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def inference_tester() -> OpenposeTester:
+    return OpenposeTester(VARIANT_NAME)
 
 
 # ----- Tests -----
@@ -50,15 +43,9 @@ def training_tester() -> BertTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
-    )
-)
-def test_torch_bert_inference(inference_tester: BertTester):
+def test_torch_openpose_inference(inference_tester: OpenposeTester):
     inference_tester.test()
 
 
@@ -70,5 +57,5 @@ def test_torch_bert_inference(inference_tester: BertTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bert_training(training_tester: BertTester):
+def test_torch_openpose_training(training_tester: OpenposeTester):
     training_tester.test()

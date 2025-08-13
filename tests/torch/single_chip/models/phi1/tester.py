@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.phi1.pytorch import ModelLoader
+from third_party.tt_forge_models.phi1.causal_lm.pytorch import ModelLoader
 
 
 class Phi1Tester(TorchModelTester):
