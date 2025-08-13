@@ -16,7 +16,9 @@ class Comparator(ABC):
     Provides an abstract interface for framework specific subclasses to implement.
     """
 
-    # -------------------- Public methods --------------------
+    def __init__(self, comparison_config: ComparisonConfig) -> None:
+        """Initialize the comparator with comparison configuration."""
+        self._comparison_config = comparison_config
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> None:
         """
@@ -39,9 +41,11 @@ class Comparator(ABC):
                 device_output, golden_output, self._comparison_config.allclose
             )
 
-    # -------------------- Protected methods --------------------
-
-    # --- For subclasses to override ---
+    @staticmethod
+    @abstractmethod
+    def _match_data_types(tensors: PyTree) -> PyTree:
+        """Casts tensors to float32."""
+        raise NotImplementedError("Subclasses must implement this method")
 
     @staticmethod
     @abstractmethod
@@ -62,20 +66,6 @@ class Comparator(ABC):
 
     @staticmethod
     @abstractmethod
-    def _compare_allclose(
-        self,
-        device_output: PyTree,
-        golden_output: PyTree,
-        allclose_config: AllcloseConfig,
-    ) -> None:
-        """
-        Compares if device and golden output are element-wise equal within a tolerance.
-        Asserts if not.
-        """
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @staticmethod
-    @abstractmethod
     def _compare_pcc(
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> None:
@@ -87,12 +77,14 @@ class Comparator(ABC):
 
     @staticmethod
     @abstractmethod
-    def _match_data_types(tensors: PyTree) -> PyTree:
-        """Casts tensors to float32."""
+    def _compare_allclose(
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        allclose_config: AllcloseConfig,
+    ) -> None:
+        """
+        Compares if device and golden output are element-wise equal within a tolerance.
+        Asserts if not.
+        """
         raise NotImplementedError("Subclasses must implement this method")
-
-    # ----------------------------------
-
-    def __init__(self, comparison_config: ComparisonConfig) -> None:
-        """Protected constructor for subclasses to use."""
-        self._comparison_config = comparison_config

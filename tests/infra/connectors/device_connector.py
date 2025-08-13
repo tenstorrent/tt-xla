@@ -43,63 +43,6 @@ class DeviceConnector(ABC):
     _instance: DeviceConnector = None
     _lock = threading.Lock()
 
-    # -------------------- Public methods --------------------
-
-    def connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
-        """
-        Returns handle for device identified by `device_type`.
-
-        If there are multiple available devices of `device_type`, `device_num` makes it
-        possible to choose between them. By default, returns first available device.
-        """
-        assert (
-            device_type in self._supported_devices()
-        ), f"Unsupported device {device_type}"
-        assert device_num >= 0 and device_num < self._number_of_devices(device_type)
-
-        return self._connect_device(device_type, device_num)
-
-    def connect_tt_device(self, device_num: int = 0) -> Device:
-        """Returns TT device handle."""
-        return self.connect_device(DeviceType.TT, device_num)
-
-    def connect_cpu(self) -> Device:
-        """Returns CPU device handle."""
-        return self.connect_device(DeviceType.CPU)
-
-    def get_number_of_tt_devices(self) -> int:
-        """Returns number of available TT devices."""
-        return self._number_of_devices(DeviceType.TT)
-
-    def get_number_of_cpus(self) -> int:
-        """Returns number of available CPUs."""
-        return self._number_of_devices(DeviceType.CPU)
-
-    # -------------------- Protected methods --------------------
-
-    # --- For subclasses to override ---
-
-    @abstractmethod
-    def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
-        """Returns handle for device identified by `device_type`."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @abstractmethod
-    def _number_of_devices(self, device_type: DeviceType) -> int:
-        """Returns the number of available devices of specified type."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @abstractmethod
-    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
-        """
-        Registers custom TT plugin which will make TTDevice available.
-
-        Raises RuntimeError if registration failed.
-        """
-        raise NotImplementedError("Subclasses must implement this method")
-
-    # ----------------------------------
-
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             with cls._lock:
@@ -144,6 +87,37 @@ class DeviceConnector(ABC):
 
         return plugin_path
 
+    @abstractmethod
+    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
+        """
+        Registers custom TT plugin which will make TTDevice available.
+
+        Raises RuntimeError if registration failed.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def connect_tt_device(self, device_num: int = 0) -> Device:
+        """Returns TT device handle."""
+        return self.connect_device(DeviceType.TT, device_num)
+
+    def connect_cpu(self) -> Device:
+        """Returns CPU device handle."""
+        return self.connect_device(DeviceType.CPU)
+
+    def connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
+        """
+        Returns handle for device identified by `device_type`.
+
+        If there are multiple available devices of `device_type`, `device_num` makes it
+        possible to choose between them. By default, returns first available device.
+        """
+        assert (
+            device_type in self._supported_devices()
+        ), f"Unsupported device {device_type}"
+        assert device_num >= 0 and device_num < self._number_of_devices(device_type)
+
+        return self._connect_device(device_type, device_num)
+
     def _supported_devices(self) -> Sequence[DeviceType]:
         """Returns list of supported device types."""
         # NOTE The order here is important, JAX will respect that order to choose the
@@ -151,3 +125,21 @@ class DeviceConnector(ABC):
         # generate inputs on CPU etc. It also makes a difference in how JAX puts sharded
         # tensors on device (https://github.com/tenstorrent/tt-xla/issues/542).
         return [DeviceType.CPU, DeviceType.TT]
+
+    @abstractmethod
+    def _number_of_devices(self, device_type: DeviceType) -> int:
+        """Returns the number of available devices of specified type."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
+        """Returns handle for device identified by `device_type`."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def get_number_of_tt_devices(self) -> int:
+        """Returns number of available TT devices."""
+        return self._number_of_devices(DeviceType.TT)
+
+    def get_number_of_cpus(self) -> int:
+        """Returns number of available CPUs."""
+        return self._number_of_devices(DeviceType.CPU)
