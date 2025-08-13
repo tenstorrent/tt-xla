@@ -138,7 +138,8 @@ class ModelTester(BaseTester, ABC):
     ) -> Tensor:
         """Runs workload on TT device."""
         return self._device_runner.run_on_tt_device(
-            compiled_workload, explicitly_place_on_device=explicitly_place_on_device
+            compiled_workload,
+            explicitly_place_on_device=self._framework != Framework.TORCH,
         )
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
