@@ -83,7 +83,7 @@ def main(model_name: str, prompt: str):
     # Example usage
     config = AutoConfig.from_pretrained(
         model_name,
-        num_hidden_layers=28,
+        num_hidden_layers=28, # can be reduced for faster runtime
         torch_dtype=torch.float32
     )
 

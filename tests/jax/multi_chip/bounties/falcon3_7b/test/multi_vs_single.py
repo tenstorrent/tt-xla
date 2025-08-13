@@ -97,7 +97,9 @@ def run_test(model_name: str, prompt: str):
     device_mesh = create_device_mesh(dp_size=2, tp_size=4) 
     config = AutoConfig.from_pretrained(
         model_name,
-        num_hidden_layers=4,
+        # Reduces number of hidden layers for faster testing, but gives gibberish values
+        # just for comparison (uncomment line below to allow that) 
+        # num_hidden_layers=4,
         torch_dtype=torch.float32,
     )
     tokenizer, input_ids, attention_mask = tokenize(model_name, prompt)
@@ -143,11 +145,11 @@ def run_test(model_name: str, prompt: str):
     print("1️⃣  Flax model output:", outputs[0], sep='\n')
     print("🔢  Torch model output:", sharded_outputs[0], sep='\n')
     print("🈵  Decoding outputs...")
-    result_single = tokenizer.decode(outputs[0], skip_special_tokens=False)
-    result_multi = tokenizer.decode(sharded_outputs[0], skip_special_tokens=False)
+    result_single = tokenizer.batch_decode(outputs, skip_special_tokens=False)
+    result_multi = tokenizer.batch_decode(sharded_outputs, skip_special_tokens=False)
 
     print("🔍 Comparing outputs...")
-    print(compare_results(result_single, result_multi))
+    print(compare_results(result_single[0], result_multi[0]))
 
 
 if __name__ == "__main__":

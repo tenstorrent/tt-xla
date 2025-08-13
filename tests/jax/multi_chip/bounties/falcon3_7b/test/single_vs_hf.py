@@ -115,7 +115,9 @@ def run_test(model_name: str, prompt: str):
     print("🪄  Initializing models...")
     config = AutoConfig.from_pretrained(
         model_name,
-        num_hidden_layers=4,
+        # Reduces number of hidden layers for faster testing, but gives gibberish values
+        # just for comparison (uncomment line below to allow that) 
+        # num_hidden_layers=4,
         torch_dtype=torch.float32,
     )
     tokenizer, input_ids, attention_mask = prepare_torch_input(model_name, prompt)
@@ -150,13 +152,13 @@ def run_test(model_name: str, prompt: str):
     print("📦 Flax model output:", flax_output[0], sep='\n')
     print("📦 Torch model output:", torch_output[0], sep='\n')
     print("🈵 Decoding outputs...")
-    torch_result = tokenizer.decode(torch_output[0], skip_special_tokens=False)
+    torch_result = tokenizer.batch_decode(torch_output, skip_special_tokens=False)
     #torch_result = strip_output(torch_result, prompt)
-    flax_result = tokenizer.decode(flax_output[0], skip_special_tokens=False)
+    flax_result = tokenizer.batch_decode(flax_output, skip_special_tokens=False)
     #flax_result = strip_output(flax_result, prompt)
 
     print("🔍 Comparing outputs...")
-    print(compare_results(torch_result, flax_result))
+    print(compare_results(torch_result[0], flax_result[0]))
 
 
 if __name__ == "__main__":

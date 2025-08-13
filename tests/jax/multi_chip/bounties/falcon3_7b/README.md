@@ -272,10 +272,10 @@ The project includes comprehensive tests to ensure correctness:
 ```bash
 
 # Compare with HuggingFace official model reference
-python3 test.single_vs_hf
+python3 -m test.single_vs_hf
 
 # Test tensor parallel vs single model
-python3 test.multi_vs_single
+python3 -m test.multi_vs_single
 
 ```
 

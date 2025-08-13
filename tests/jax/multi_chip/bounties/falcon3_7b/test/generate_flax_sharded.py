@@ -84,7 +84,9 @@ def run_flax_model(
 def main(model_name: str, prompt: str):
     # Example usage
     config = AutoConfig.from_pretrained(model_name)
-    config.num_hidden_layers = 4  # Set to a smaller number for testing
+    # Reduces number of hidden layers for faster testing, but it gives gibberish values
+    # just for comparison (uncomment line below to allow that option) 
+    # num_hidden_layers=4,
     device_mesh = create_device_mesh(1, 8)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
