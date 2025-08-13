@@ -98,14 +98,18 @@ class TorchModelTester(ModelTester):
 
         Compiles for inductor backend by default.
         """
-        return self._compile_for_backend(workload, backend="tt")
+        return self._compile_for_backend(workload, backend="inductor")
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(workload, backend="tt")
+        return self._compile_for_backend(
+            workload, backend="tt", options=self._compiler_config
+        )
 
-    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
+    def _compile_for_backend(
+        self, workload: Workload, backend: str, options: Any = None
+    ) -> Workload:
         """JIT-compiles model into optimized kernels."""
 <<<<<<< HEAD
         assert workload.is_torch and workload.model is not None
@@ -113,6 +117,10 @@ class TorchModelTester(ModelTester):
         workload.model.compile(backend=backend)
 =======
         assert isinstance(workload, TorchWorkload) and workload.model is not None
+<<<<<<< HEAD
         workload.model.compile(backend=backend, options=self._compiler_config)
 >>>>>>> bcb1ed91 (Pipe through compile config)
+=======
+        workload.model.compile(backend=backend, options=options)
+>>>>>>> a4386af0 (Fix bug that would cause CPU run to execute on device accidentally)
         return workload
