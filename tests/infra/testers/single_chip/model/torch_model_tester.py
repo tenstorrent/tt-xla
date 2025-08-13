@@ -8,7 +8,7 @@ from typing import Any, Dict, Mapping, Sequence
 import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model
-from infra.workloads import TorchWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload, WorkloadFactory
 
 from .model_tester import ModelTester, RunMode
 
@@ -97,7 +97,7 @@ class TorchModelTester(ModelTester):
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
         """JIT-compiles model into optimized kernels."""
-        assert isinstance(workload, TorchWorkload) and workload.model is not None
+        assert workload.is_torch and workload.model is not None
 
         workload.model.compile(backend=backend)
         return workload

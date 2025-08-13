@@ -13,7 +13,7 @@ from infra.comparators import ComparisonConfig
 from infra.connectors import JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import PyTree, ShardingMode, Tensor
-from infra.workloads import JaxMultichipWorkload, JaxWorkload, Workload
+from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
 
@@ -132,7 +132,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         Creates multichip workload from single chip workload created during class object
         setup and provided `mesh`.
         """
-        assert isinstance(self._workload, JaxWorkload)
+        assert self._workload.is_jax, "Workload must be JAX workload to create JAX multichip workload"
 
         in_specs = self._get_forward_method_arg_specs()
         out_spec = PartitionSpec()  # Assuming replicated outputs for now.

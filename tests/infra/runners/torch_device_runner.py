@@ -7,7 +7,7 @@ from typing import Sequence
 import torch
 from infra.connectors import DeviceType
 from infra.utilities import Device, Tensor
-from infra.workloads import TorchWorkload, Workload
+from infra.workloads import Workload
 
 from .device_runner import DeviceRunner
 
@@ -32,7 +32,7 @@ class TorchDeviceRunner(DeviceRunner):
         puts model if workload is carrying one on device. Returns new workload which is
         "on device".
         """
-        assert isinstance(workload, TorchWorkload)
+        assert workload.is_torch, "Workload must be Torch workload to put on device"
 
         args_on_device = []
         kwargs_on_device = {}
@@ -52,9 +52,11 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
-        return TorchWorkload.create(
-            workload.executable,  # Unchanged.
-            workload.model,  # Moved to device if not None.
-            args_on_device,
-            kwargs_on_device,
+        # In Pytorch, we need to work with executable because of comparison (comparator.py -> compare() -> _match_data_types())
+        return Workload(
+            framework=workload.framework,
+            model=workload.model,  # Moved to device if not None.
+            executable=workload.executable,  # Unchanged.
+            args=args_on_device,
+            kwargs=kwargs_on_device,
         )

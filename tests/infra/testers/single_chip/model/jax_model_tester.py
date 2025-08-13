@@ -12,7 +12,7 @@ from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model, PyTree
-from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload, WorkloadFactory
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
@@ -108,7 +108,6 @@ class JaxModelTester(ModelTester):
         self._workload = WorkloadFactory.create_workload(
             self._framework,
             executable=forward_pass_method,
-            model=self._model,
             args=args,
             kwargs=kwargs,
             static_argnames=forward_static_args,
@@ -166,7 +165,7 @@ class JaxModelTester(ModelTester):
 
     def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
+        assert workload.is_jax, "Workload must be JAX workload to compile"
 
         workload.executable = jax.jit(
             workload.executable, static_argnames=workload.static_argnames
