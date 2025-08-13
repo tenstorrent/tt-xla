@@ -20,7 +20,7 @@ def main(model_name: str, prompt: str):
         torch_dtype=torch.float32,
     )
     tokenizer, input_ids, attention_mask = prepare_torch_input(model_name, prompt)
-
+    
     torch_model = init_torch_model(model_name, config)
     torch_output = run_torch_model(torch_model, input_ids, attention_mask)
     

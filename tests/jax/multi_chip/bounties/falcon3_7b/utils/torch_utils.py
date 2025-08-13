@@ -8,7 +8,7 @@ def init_torch_model(model_name: str, config):
     torch_model = AutoModelForCausalLM.from_pretrained(
         model_name,
         config=config,
-        device_map="auto",
+        device_map="cpu",
         torch_dtype=torch.float32,
     )
     return torch_model
