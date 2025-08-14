@@ -13,6 +13,7 @@ import threading
 import time
 
 import jax
+import torch
 import psutil
 import pytest
 import transformers
@@ -316,3 +317,10 @@ def monkeypatch_import(request):
         patch_config.patch()
 
     yield
+
+
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    torch.manual_seed(0)
+    yield
+    torch._dynamo.reset()
