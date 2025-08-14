@@ -9,6 +9,8 @@ import sys
 import threading
 import time
 
+import jax
+import torch
 import psutil
 import pytest
 from infra import DeviceConnectorFactory, Framework
@@ -255,3 +257,10 @@ def initialize_device_connectors():
 def monkeypatch_import(request):
     setup_monkey_patches()
     yield
+
+
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    torch.manual_seed(0)
+    yield
+    torch._dynamo.reset()
