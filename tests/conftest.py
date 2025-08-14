@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 
+import torch
 import psutil
 import pytest
 from infra import DeviceConnectorFactory, Framework
@@ -246,3 +247,9 @@ def initialize_device_connectors():
     """
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
+
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    torch.manual_seed(0)
+    yield
+    torch._dynamo.reset()
