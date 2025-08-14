@@ -12,6 +12,7 @@ import torch
 from PIL import Image
 from torchvision import transforms, models
 from typing import Optional
+from dataclasses import dataclass
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -24,6 +25,13 @@ from ...config import (
 from ...base import ForgeModel
 from .src.model import Model
 from ...tools.utils import get_file
+
+
+@dataclass
+class RetinaNetConfig(ModelConfig):
+    """Configuration specific to RetinaNet models"""
+
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
@@ -45,23 +53,31 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.RETINANET_RN18FPN: ModelConfig(
+        # Github variants
+        ModelVariant.RETINANET_RN18FPN: RetinaNetConfig(
             pretrained_model_name="retinanet_rn18fpn",
+            source=ModelSource.CUSTOM,
         ),
-        ModelVariant.RETINANET_RN34FPN: ModelConfig(
+        ModelVariant.RETINANET_RN34FPN: RetinaNetConfig(
             pretrained_model_name="retinanet_rn34fpn",
+            source=ModelSource.CUSTOM,
         ),
-        ModelVariant.RETINANET_RN50FPN: ModelConfig(
+        ModelVariant.RETINANET_RN50FPN: RetinaNetConfig(
             pretrained_model_name="retinanet_rn50fpn",
+            source=ModelSource.CUSTOM,
         ),
-        ModelVariant.RETINANET_RN101FPN: ModelConfig(
+        ModelVariant.RETINANET_RN101FPN: RetinaNetConfig(
             pretrained_model_name="retinanet_rn101fpn",
+            source=ModelSource.CUSTOM,
         ),
-        ModelVariant.RETINANET_RN152FPN: ModelConfig(
+        ModelVariant.RETINANET_RN152FPN: RetinaNetConfig(
             pretrained_model_name="retinanet_rn152fpn",
+            source=ModelSource.CUSTOM,
         ),
-        ModelVariant.RETINANET_RESNET50_FPN_V2: ModelConfig(
+        # Torchvision variants
+        ModelVariant.RETINANET_RESNET50_FPN_V2: RetinaNetConfig(
             pretrained_model_name="retinanet_resnet50_fpn_v2",
+            source=ModelSource.TORCHVISION,
         ),
     }
 
@@ -74,7 +90,7 @@ class ModelLoader(ForgeModel):
     }
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
@@ -86,12 +102,16 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        # Get source from variant config
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="retinanet",
             variant=variant,
             group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
-            source=ModelSource.HUGGING_FACE,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -135,25 +155,28 @@ class ModelLoader(ForgeModel):
 
         return checkpoint_path
 
-    def _is_torchvision_variant(self, variant):
-        """Check if variant is a torchvision variant."""
-        return variant in self._TORCHVISION_WEIGHTS
-
     def load_model(self, dtype_override=None):
-        """Load RetinaNet model based on variant type."""
+        """Load and return the RetinaNet model instance for this instance's variant.
 
-        # Get the pretrained model name from the instance's variant config
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
-        if self._is_torchvision_variant(self._variant):
+        Returns:
+            torch.nn.Module: The RetinaNet model instance.
+        """
+        # Get the pretrained model name and source from the instance's variant config
+        model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
+
+        if source == ModelSource.TORCHVISION:
             # Load torchvision model
             weight_name = self._TORCHVISION_WEIGHTS[self._variant]
             weights = getattr(models.detection, weight_name).DEFAULT
-            model = getattr(models.detection, pretrained_model_name)(weights=weights)
-        else:
-            # Load NVIDIA custom model
-            checkpoint_path = self._download_nvidia_model(pretrained_model_name)
-
+            model = getattr(models.detection, model_name)(weights=weights)
+        elif source == ModelSource.CUSTOM:
+            # Load custom model
+            checkpoint_path = self._download_nvidia_model(model_name)
             model = Model.load(checkpoint_path)
 
         model.eval()
@@ -164,11 +187,21 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Prepare sample input for RetinaNet model"""
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the RetinaNet model with this instance's variant settings.
 
-        if self._is_torchvision_variant(self._variant):
-            # Use torchvision preprocessing
+        Args:
+            dtype_override: Optional torch.dtype to override the inputs' default dtype.
+                           If not provided, inputs will use the default dtype (typically float32).
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor suitable for RetinaNet.
+        """
+        # Get the source from the instance's variant config
+        source = self._variant_config.source
+
+        if source == ModelSource.TORCHVISION:
             weight_name = self._TORCHVISION_WEIGHTS[self._variant]
             weights = getattr(models.detection, weight_name).DEFAULT
             preprocess = weights.transforms()
@@ -180,8 +213,7 @@ class ModelLoader(ForgeModel):
             image = Image.open(str(input_image)).convert("RGB")
             img_t = preprocess(image)
             batch_t = torch.unsqueeze(img_t, 0).contiguous()
-        else:
-            # Use NVIDIA custom preprocessing (similar to img_preprocess function)
+        elif source == ModelSource.CUSTOM:
             url = "https://i.ytimg.com/vi/q71MCWAEfL8/maxresdefault.jpg"
             pil_img = Image.open(requests.get(url, stream=True).raw)
             new_size = (640, 480)
@@ -198,6 +230,9 @@ class ModelLoader(ForgeModel):
 
             img = preprocess(pil_img)
             batch_t = img.unsqueeze(0)
+
+        # Replicate tensors for batch size
+        batch_t = batch_t.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

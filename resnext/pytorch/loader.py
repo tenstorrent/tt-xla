@@ -8,6 +8,7 @@ ResNeXt model loader implementation
 import torch
 from typing import Optional
 from dataclasses import dataclass
+from pytorchcv.model_provider import get_model as ptcv_get_model
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -28,15 +29,23 @@ from torchvision import transforms
 class ResNeXtConfig(ModelConfig):
     """Configuration specific to ResNeXt models"""
 
-    hub_source: str
+    source: ModelSource
+    hub_source: Optional[str] = None  # Only used for torch_hub models
 
 
 class ModelVariant(StrEnum):
     """Available ResNeXt model variants."""
 
+    # Torch Hub variants
     RESNEXT50_32X4D = "resnext50_32x4d"
     RESNEXT101_32X8D = "resnext101_32x8d"
     RESNEXT101_32X8D_WSL = "resnext101_32x8d_wsl"
+
+    # OSMR variants
+    RESNEXT14_32X4D_OSMR = "resnext14_32x4d"
+    RESNEXT26_32X4D_OSMR = "resnext26_32x4d"
+    RESNEXT50_32X4D_OSMR = "resnext50_32x4d"
+    RESNEXT101_64X4D_OSMR = "resnext101_64x4d"
 
 
 class ModelLoader(ForgeModel):
@@ -44,17 +53,38 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        # Torch Hub variants
         ModelVariant.RESNEXT50_32X4D: ResNeXtConfig(
             pretrained_model_name="resnext50_32x4d",
+            source=ModelSource.TORCH_HUB,
             hub_source="pytorch/vision:v0.10.0",
         ),
         ModelVariant.RESNEXT101_32X8D: ResNeXtConfig(
             pretrained_model_name="resnext101_32x8d",
+            source=ModelSource.TORCH_HUB,
             hub_source="pytorch/vision:v0.10.0",
         ),
         ModelVariant.RESNEXT101_32X8D_WSL: ResNeXtConfig(
             pretrained_model_name="resnext101_32x8d_wsl",
+            source=ModelSource.TORCH_HUB,
             hub_source="facebookresearch/WSL-Images",
+        ),
+        # OSMR variants
+        ModelVariant.RESNEXT14_32X4D_OSMR: ResNeXtConfig(
+            pretrained_model_name="resnext14_32x4d",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.RESNEXT26_32X4D_OSMR: ResNeXtConfig(
+            pretrained_model_name="resnext26_32x4d",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.RESNEXT50_32X4D_OSMR: ResNeXtConfig(
+            pretrained_model_name="resnext50_32x4d",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.RESNEXT101_64X4D_OSMR: ResNeXtConfig(
+            pretrained_model_name="resnext101_64x4d",
+            source=ModelSource.OSMR,
         ),
     }
 
@@ -83,12 +113,16 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        # Get source from variant config
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="resnext",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TORCH_HUB,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -102,12 +136,18 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The ResNeXt model instance.
         """
-        # Get the pretrained model name and hub source from the instance's variant config
+        # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
-        hub_source = self._variant_config.hub_source
+        source = self._variant_config.source
 
-        # Load model using torch.hub
-        model = torch.hub.load(hub_source, model_name)
+        if source == ModelSource.TORCH_HUB:
+            # Load model using torch.hub
+            hub_source = self._variant_config.hub_source
+            model = torch.hub.load(hub_source, model_name)
+        elif source == ModelSource.OSMR:
+            # Load model using pytorchcv
+            model = ptcv_get_model(model_name, pretrained=True)
+
         model.eval()
 
         # Only convert dtype if explicitly requested

@@ -2,89 +2,94 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ViT model loader implementation
+Swin model loader implementation
 """
 
-from transformers import AutoImageProcessor, ViTForImageClassification
-from torchvision import models
-from PIL import Image
-from typing import Optional
-from dataclasses import dataclass
-
-from ...config import (
+from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
-    ModelConfig,
     Framework,
     StrEnum,
 )
-from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from ....base import ForgeModel
+from torchvision import models
+import torch
+from PIL import Image
+from transformers import AutoModelForImageClassification, ViTImageProcessor
+from ....tools.utils import get_file, print_compiled_model_results
+from typing import Optional
+from dataclasses import dataclass
 
 
 @dataclass
-class ViTConfig(ModelConfig):
-    """Configuration specific to ViT models"""
+class SwinConfig(ModelConfig):
+    """Configuration specific to Swin models"""
 
     source: ModelSource
 
 
 class ModelVariant(StrEnum):
-    """Available ViT model variants."""
+    """Available Swin model variants."""
 
     # HuggingFace variants
-    BASE = "base"
-    LARGE = "large"
+    SWIN_TINY_HF = "microsoft/swin-tiny-patch4-window7-224"
+    SWINV2_TINY_HF = "microsoft/swinv2-tiny-patch4-window8-256"
 
     # Torchvision variants
-    VIT_B_16 = "vit_b_16"
-    VIT_B_32 = "vit_b_32"
-    VIT_L_16 = "vit_l_16"
-    VIT_L_32 = "vit_l_32"
-    VIT_H_14 = "vit_h_14"
+    SWIN_T = "swin_t"
+    SWIN_S = "swin_s"
+    SWIN_B = "swin_b"
+    SWIN_V2_T = "swin_v2_t"
+    SWIN_V2_S = "swin_v2_s"
+    SWIN_V2_B = "swin_v2_b"
 
 
 class ModelLoader(ForgeModel):
-    """ViT model loader implementation."""
+    """Swin model loader implementation."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         # HuggingFace variants
-        ModelVariant.BASE: ViTConfig(
-            pretrained_model_name="google/vit-base-patch16-224",
+        ModelVariant.SWIN_TINY_HF: SwinConfig(
+            pretrained_model_name="microsoft/swin-tiny-patch4-window7-224",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.LARGE: ViTConfig(
-            pretrained_model_name="google/vit-large-patch16-224",
+        ModelVariant.SWINV2_TINY_HF: SwinConfig(
+            pretrained_model_name="microsoft/swinv2-tiny-patch4-window8-256",
             source=ModelSource.HUGGING_FACE,
         ),
         # Torchvision variants
-        ModelVariant.VIT_B_16: ViTConfig(
-            pretrained_model_name="vit_b_16",
+        ModelVariant.SWIN_T: SwinConfig(
+            pretrained_model_name="swin_t",
             source=ModelSource.TORCHVISION,
         ),
-        ModelVariant.VIT_B_32: ViTConfig(
-            pretrained_model_name="vit_b_32",
+        ModelVariant.SWIN_S: SwinConfig(
+            pretrained_model_name="swin_s",
             source=ModelSource.TORCHVISION,
         ),
-        ModelVariant.VIT_L_16: ViTConfig(
-            pretrained_model_name="vit_l_16",
+        ModelVariant.SWIN_B: SwinConfig(
+            pretrained_model_name="swin_b",
             source=ModelSource.TORCHVISION,
         ),
-        ModelVariant.VIT_L_32: ViTConfig(
-            pretrained_model_name="vit_l_32",
+        ModelVariant.SWIN_V2_T: SwinConfig(
+            pretrained_model_name="swin_v2_t",
             source=ModelSource.TORCHVISION,
         ),
-        ModelVariant.VIT_H_14: ViTConfig(
-            pretrained_model_name="vit_h_14",
+        ModelVariant.SWIN_V2_S: SwinConfig(
+            pretrained_model_name="swin_v2_s",
+            source=ModelSource.TORCHVISION,
+        ),
+        ModelVariant.SWIN_V2_B: SwinConfig(
+            pretrained_model_name="swin_v2_b",
             source=ModelSource.TORCHVISION,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.SWIN_T
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -104,7 +109,7 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
 
         return ModelInfo(
-            model="vit",
+            model="swin",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
@@ -121,17 +126,17 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.image_processor = None
-        self.model = None
+        self._weights = None  # For torchvision models
 
     def load_model(self, dtype_override=None):
-        """Load and return the ViT model instance for this instance's variant.
+        """Load and return the Swin model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The ViT model instance.
+            torch.nn.Module: The Swin model instance.
         """
         # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
@@ -139,23 +144,21 @@ class ModelLoader(ForgeModel):
 
         if source == ModelSource.HUGGING_FACE:
             # Load model from HuggingFace
-            model = ViTForImageClassification.from_pretrained(model_name)
+            model = AutoModelForImageClassification.from_pretrained(model_name)
 
         elif source == ModelSource.TORCHVISION:
             # Load model from torchvision
-            # Get the weights class name (e.g., "vit_b_16" -> "ViT_B_16_Weights")
+            # Get the weights class name (e.g., "swin_t" -> "Swin_T_Weights")
             weight_class_name = model_name.upper() + "_Weights"
-            weight_class_name = weight_class_name.replace("VIT_", "ViT_")
+            weight_class_name = weight_class_name.replace("SWIN_", "Swin_")
 
             # Get the weights class and model function
             weights = getattr(models, weight_class_name).DEFAULT
             model_func = getattr(models, model_name)
             model = model_func(weights=weights)
+            self._weights = weights
 
         model.eval()
-
-        # Store model for potential use in post_processing
-        self.model = model
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -164,7 +167,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the ViT model with this instance's variant settings.
+        """Load and return sample inputs for the Swin model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
@@ -172,7 +175,7 @@ class ModelLoader(ForgeModel):
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for ViT.
+            torch.Tensor: Preprocessed input tensor suitable for Swin.
         """
         # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
@@ -185,24 +188,24 @@ class ModelLoader(ForgeModel):
         if source == ModelSource.HUGGING_FACE:
             # Initialize image processor if not already done
             if self.image_processor is None:
-                self.image_processor = AutoImageProcessor.from_pretrained(
-                    model_name, use_fast=True
-                )
+                self.image_processor = ViTImageProcessor.from_pretrained(model_name)
 
             # Preprocess image using HuggingFace image processor
             inputs = self.image_processor(
                 images=image, return_tensors="pt"
             ).pixel_values
-
         elif source == ModelSource.TORCHVISION:
-            # Get the weights class name for torchvision preprocessing
-            weight_class_name = model_name.upper() + "_Weights"
-            weight_class_name = weight_class_name.replace("VIT_", "ViT_")
+            # Use torchvision preprocessing
+            if self._weights is None:
+                # Need to load weights if not already loaded
+                # Get the weights class name (e.g., "swin_t" -> "Swin_T_Weights")
+                weight_class_name = model_name.upper() + "_Weights"
+                weight_class_name = weight_class_name.replace("SWIN_", "Swin_")
+                self._weights = getattr(models, weight_class_name).DEFAULT
 
-            # Get the weights and use their transforms
-            weights = getattr(models, weight_class_name).DEFAULT
-            preprocess = weights.transforms()
-            inputs = preprocess(image).unsqueeze(0)
+            preprocess = self._weights.transforms()
+            img_t = preprocess(image)
+            inputs = torch.unsqueeze(img_t, 0).contiguous()
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)
@@ -213,28 +216,5 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def post_processing(self, co_out):
-        """Print classification results.
-
-        Args:
-            co_out: Output from the compiled model
-        """
-        source = self._variant_config.source
-
-        if source == ModelSource.HUGGING_FACE:
-            logits = co_out[0]
-            predicted_class_indices = logits.argmax(-1)
-
-            # Handle both single and batch predictions
-            if predicted_class_indices.dim() == 0:  # Single prediction (scalar)
-                print(
-                    "Predicted class:",
-                    self.model.config.id2label[predicted_class_indices.item()],
-                )
-            else:  # Batch predictions
-                for i, idx in enumerate(predicted_class_indices):
-                    class_name = self.model.config.id2label[idx.item()]
-                    print(f"Batch {i}: Predicted class: {class_name}")
-
-        elif source == ModelSource.TORCHVISION:
-            print_compiled_model_results(co_out)
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)

@@ -23,12 +23,15 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file, print_compiled_model_results
+from .src.model import MLPMixer
+import torch
 
 
 @dataclass
 class MLPMixerConfig(ModelConfig):
     """Configuration specific to MLP Mixer models"""
 
+    source: ModelSource
     weights_available: bool = True
     use_21k_labels: bool = False
 
@@ -36,6 +39,7 @@ class MLPMixerConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available MLP Mixer model variants."""
 
+    # TIMM variants
     MIXER_B16_224 = "mixer_b16_224"
     MIXER_B16_224_IN21K = "mixer_b16_224_in21k"
     MIXER_B16_224_MIIL = "mixer_b16_224_miil"
@@ -48,66 +52,88 @@ class ModelVariant(StrEnum):
     MIXER_S32_224 = "mixer_s32_224"
     MIXER_B16_224_GOOG_IN21K = "mixer_b16_224.goog_in21k"
 
+    # GitHub variants
+    MIXER_GITHUB = "mixer_github"
+
 
 class ModelLoader(ForgeModel):
     """MLP Mixer model loader implementation."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        # TIMM variants
         ModelVariant.MIXER_B16_224: MLPMixerConfig(
             pretrained_model_name="mixer_b16_224",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_B16_224_IN21K: MLPMixerConfig(
             pretrained_model_name="mixer_b16_224_in21k",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=True,
         ),
         ModelVariant.MIXER_B16_224_MIIL: MLPMixerConfig(
             pretrained_model_name="mixer_b16_224_miil",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_B16_224_MIIL_IN21K: MLPMixerConfig(
             pretrained_model_name="mixer_b16_224_miil_in21k",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=True,
         ),
         ModelVariant.MIXER_B32_224: MLPMixerConfig(
             pretrained_model_name="mixer_b32_224",
+            source=ModelSource.TIMM,
             weights_available=False,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_L16_224: MLPMixerConfig(
             pretrained_model_name="mixer_l16_224",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_L16_224_IN21K: MLPMixerConfig(
             pretrained_model_name="mixer_l16_224_in21k",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=True,
         ),
         ModelVariant.MIXER_L32_224: MLPMixerConfig(
             pretrained_model_name="mixer_l32_224",
+            source=ModelSource.TIMM,
             weights_available=False,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_S16_224: MLPMixerConfig(
             pretrained_model_name="mixer_s16_224",
+            source=ModelSource.TIMM,
             weights_available=False,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_S32_224: MLPMixerConfig(
             pretrained_model_name="mixer_s32_224",
+            source=ModelSource.TIMM,
             weights_available=False,
             use_21k_labels=False,
         ),
         ModelVariant.MIXER_B16_224_GOOG_IN21K: MLPMixerConfig(
             pretrained_model_name="mixer_b16_224.goog_in21k",
+            source=ModelSource.TIMM,
             weights_available=True,
             use_21k_labels=True,
+        ),
+        # GitHub variants
+        ModelVariant.MIXER_GITHUB: MLPMixerConfig(
+            pretrained_model_name="mixer_github",
+            source=ModelSource.GITHUB,
+            weights_available=False,
+            use_21k_labels=False,
         ),
     }
 
@@ -136,12 +162,16 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        # Get source from variant config
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="mlp_mixer",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TIMM,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -157,10 +187,23 @@ class ModelLoader(ForgeModel):
         """
         # Get the pretrained model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
         weights_available = self._variant_config.weights_available
 
-        # Load model using timm with appropriate pretrained weights setting
-        model = timm.create_model(model_name, pretrained=weights_available)
+        if source == ModelSource.GITHUB:
+            # Load model using GitHub source implementation
+            model = MLPMixer(
+                image_size=256,
+                channels=3,
+                patch_size=16,
+                dim=512,
+                depth=12,
+                num_classes=1000,
+            )
+        else:
+            # Load model using timm with appropriate pretrained weights setting
+            model = timm.create_model(model_name, pretrained=weights_available)
+
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -183,30 +226,33 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for MLP Mixer.
         """
-        # Determine which image to use based on variant
+        source = self._variant_config.source
         use_21k_labels = self._variant_config.use_21k_labels
 
-        if use_21k_labels:
-            # Use different image for 21K variants
-            image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
+        if source == ModelSource.GITHUB:
+            inputs = torch.randn(1, 3, 256, 256)
         else:
-            # Use standard image for 1K variants
-            image_url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
+            if use_21k_labels:
+                # Use different image for 21K variants
+                image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
+            else:
+                # Use standard image for 1K variants
+                image_url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
 
-        # Get the Image
-        image_file = get_file(image_url)
-        image = Image.open(str(image_file)).convert("RGB")
+            # Get the Image
+            image_file = get_file(image_url)
+            image = Image.open(str(image_file)).convert("RGB")
 
-        # Use cached model if available, otherwise load it
-        if hasattr(self, "_cached_model") and self._cached_model is not None:
-            model_for_config = self._cached_model
-        else:
-            model_for_config = self.load_model(dtype_override)
+            # Use cached model if available, otherwise load it
+            if hasattr(self, "_cached_model") and self._cached_model is not None:
+                model_for_config = self._cached_model
+            else:
+                model_for_config = self.load_model(dtype_override)
 
-        # Preprocess image using model's data config
-        data_config = resolve_data_config({}, model=model_for_config)
-        transforms = create_transform(**data_config)
-        inputs = transforms(image).unsqueeze(0)
+            # Preprocess image using model's data config
+            data_config = resolve_data_config({}, model=model_for_config)
+            timm_transforms = create_transform(**data_config)
+            inputs = timm_transforms(image).unsqueeze(0)
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)

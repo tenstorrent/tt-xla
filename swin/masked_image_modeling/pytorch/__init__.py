@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MobilenetV2 PyTorch model implementation for Tenstorrent projects.
+Swin Masked Image Modeling PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
