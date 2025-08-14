@@ -13,15 +13,15 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.deit.pytorch.loader import ModelVariant
 from .tester import DeitTester
 
-VARIANT_NAME = "deit-base-patch16-224"
+VARIANT_NAME = ModelVariant.BASE
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
     "deit",
-    "base-patch16-224",
+    "base",
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )

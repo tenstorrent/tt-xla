@@ -12,10 +12,11 @@ from utils import (
     ModelTask,
     build_model_name,
 )
+from third_party.tt_forge_models.efficientnet.pytorch import ModelVariant
 
 from .tester import EfficientNetTester
 
-VARIANT_NAME = "efficientnet_b0"
+VARIANT_NAME = ModelVariant.B0
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

@@ -11,7 +11,6 @@ import gc
 import sys
 import threading
 import time
-from typing import Any
 
 import jax
 import psutil
@@ -20,6 +19,8 @@ import transformers
 import transformers.modeling_flax_utils
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
+from pathlib import Path
+from typing import Any
 
 
 def pytest_configure(config: pytest.Config):
@@ -187,7 +188,8 @@ def memory_usage_tracker(request):
     if request.config.getoption("--log-memory"):
         process = psutil.Process()
         # Initialize memory tracking variables
-        start_mem = process.memory_info().rss / (1024 * 1024)  # MB
+        vm = psutil.virtual_memory()
+        start_mem = (vm.total - vm.available) / (1024 * 1024)  # MB
         min_mem = start_mem
         max_mem = start_mem
         total_mem = start_mem
@@ -211,7 +213,8 @@ def memory_usage_tracker(request):
         tracking = False
         tracker_thread.join()
 
-        end_mem = process.memory_info().rss / (1024 * 1024)  # MB
+        vm = psutil.virtual_memory()
+        end_mem = (vm.total - vm.available) / (1024 * 1024)  # MB
         min_mem = min(min_mem, end_mem)
         max_mem = max(max_mem, end_mem)
         total_mem += end_mem
@@ -234,7 +237,8 @@ def memory_usage_tracker(request):
     libc.malloc_trim(0)
 
     if request.config.getoption("--log-memory"):
-        after_gc = process.memory_info().rss / (1024 * 1024)
+        vm = psutil.virtual_memory()
+        after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
 
 

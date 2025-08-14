@@ -12,10 +12,10 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.resnext.pytorch import ModelVariant
 from .tester import ResnextTester
 
-VARIANT_NAME = "resnext50_32x4d"
+VARIANT_NAME = ModelVariant.RESNEXT50_32X4D
 
 
 MODEL_NAME = build_model_name(

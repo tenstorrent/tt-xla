@@ -53,7 +53,7 @@ def training_tester() -> RegNetTester:
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 1404928 B L1 buffer "
-        "across 1 banks, where each bank needs to store 1404928 B"
+        "across 1 banks, where each bank needs to store 1404928 B "
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )

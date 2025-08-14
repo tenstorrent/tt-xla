@@ -17,7 +17,7 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
 #include "tt/runtime/workarounds.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
@@ -198,7 +198,10 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  return tt::runtime::openMeshDevice(devices_mesh_shape);
+  tt::runtime::MeshDeviceOptions mesh_device_options;
+  mesh_device_options.meshShape = devices_mesh_shape;
+
+  return tt::runtime::openMeshDevice(mesh_device_options);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
@@ -241,7 +244,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
-        mlir::tt::sharding_utils::MeshSharding::fillStrategyMapFromSharding(
+        LoadedExecutableInstance::fillStrategyMapFromSharding(
             m_executable_image->getInputSharding(arg_index), num_devices);
     if (mlir::failed(strategy)) {
       DLOG_F(ERROR, "Failed to fill strategy map from sharding");
@@ -264,6 +267,41 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+mlir::FailureOr<std::unordered_map<std::string, std::string>>
+LoadedExecutableInstance::fillStrategyMapFromSharding(
+    const mlir::tt::sharding_utils::MeshSharding &meshSharding,
+    size_t num_devices) {
+  std::unordered_map<std::string, std::string> strategy;
+  mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
+  if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
+    // If there is only one device, the output will be replicated, but there is
+    // no need to replicate.
+    if (num_devices == 1) {
+      strategy["strategy"] = "identity";
+    } else {
+      strategy["strategy"] = "replicate";
+      strategy["replication_factor"] = std::to_string(num_devices);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
+    llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
+    assert(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1);
+    if (mesh_shape_data.size() == 1) {
+      strategy["strategy"] = "shard";
+      strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);
+    }
+    if (mesh_shape_data.size() == 2) {
+      strategy["strategy"] = "shard_2d";
+      strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
+      strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
+    }
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
+    strategy["strategy"] = "identity";
+  } else {
+    return mlir::failure();
+  }
+  return strategy;
 }
 
 // TODO: We are using std::maps with strings as that is the way it is defined in
@@ -301,13 +339,12 @@ tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     std::vector<tt::runtime::Tensor> untilized_output =
         tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
 
-    // If the output is a replicated scalar, we expect only one tensor on
-    // output, so we need to fill the rest of the output tensors with the same
-    // tensors, to match the number of devices.
+    // If the output is a replicated scalar or tensor, we expect only one tensor
+    // on output, so we need to fill the rest of the output tensors with the
+    // same tensors, to match the number of devices.
     if (untilized_output.size() != num_devices) {
-      // If the output is not a scalar throw an error.
-      if (getOutputShape(output_index).size() > 0 ||
-          untilized_output.size() > 1) {
+      // If the size of the output is not 1 nor num_devices, we have an error.
+      if (untilized_output.size() > 1) {
         DLOG_F(ERROR,
                "Untilize to host produced invalid number of output tensors: "
                "expected %zu, got %zu",
@@ -368,20 +405,19 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return outputShape;
   }
-
-  llvm::ArrayRef<int64_t> shard_shape = outputSharding.getShardShape();
-  assert(shard_shape.size() == outputShape.size() &&
+  llvm::SmallVector<int64_t> output_sharding_shard_shape =
+      outputSharding.getShardShape();
+  assert(output_sharding_shard_shape.size() == outputShape.size() &&
          "Output sharding shape doesn't match the output shape");
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    assert(outputShape[i] % shard_shape[i] == 0 &&
+    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
            "Output shape is not divisible by the sharding shape");
-    outputShape[i] /= shard_shape[i];
+    outputShape[i] /= output_sharding_shard_shape[i];
   }
 
   return outputShape;
 }
-
 namespace internal {
 
 PJRT_Error *

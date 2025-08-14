@@ -94,6 +94,7 @@ jobs:
       test_mark: 'push'
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      use-shared-runners: false # Run PR on VMs
 
   check-all-green:
     if: always()

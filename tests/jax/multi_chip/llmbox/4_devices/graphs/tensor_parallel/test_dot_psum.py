@@ -28,6 +28,7 @@ from utils import failed_fe_compilation
         ((8192, 784), (784, 2048), (2048,), (1, 4), ("batch", "model")),
     ],
 )
+# Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.psum
 @pytest.mark.parametrize(
     "sharding_mode",
     [

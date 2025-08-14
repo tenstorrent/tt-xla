@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.falcon.pytorch.loader import ModelVariant
 from .tester import FalconTester
 
-VARIANT_NAME = "base"
+VARIANT_NAME = ModelVariant.FALCON_1B
 
 
 MODEL_NAME = build_model_name(

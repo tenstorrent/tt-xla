@@ -8,6 +8,7 @@ on:
       - "On push"
       - "Build and Test"
       - "On nightly"
+      - "Performance Benchmark"
     types:
       - completed
 

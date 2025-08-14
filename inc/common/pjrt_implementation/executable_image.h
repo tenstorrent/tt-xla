@@ -19,7 +19,7 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
@@ -35,9 +35,8 @@ public:
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&executable_name, size_t num_partitions, size_t num_replicas,
-      size_t num_devices_to_utilize,
+      std::string &&original_mlir_code, std::string &&executable_name,
+      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
@@ -54,9 +53,6 @@ public:
   const std::string &getOriginalMlirCode() const {
     return m_original_mlir_code;
   }
-
-  // Returns TTIR code produced by the compiler, stored for serialization.
-  const std::string &getTTIRMlirCode() const { return m_ttir_mlir_code; }
 
   // Returns a name that identifies the executable.
   const std::string &getExecutableName() const { return m_executable_name; }
@@ -121,9 +117,8 @@ private:
   // compiler.
   ExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&executable_name, size_t num_partitions, size_t num_replicas,
-      size_t num_devices_to_utilize,
+      std::string &&original_mlir_code, std::string &&executable_name,
+      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
@@ -137,9 +132,6 @@ private:
   // Original mlir code produced by the compiler, stored for debugging
   // purposes.
   std::string m_original_mlir_code;
-
-  // TTIR code produced by the compiler, stored for serialization purposes.
-  std::string m_ttir_mlir_code;
 
   // A name that identifies the executable.
   std::string m_executable_name;

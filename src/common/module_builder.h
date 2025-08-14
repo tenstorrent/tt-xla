@@ -11,6 +11,7 @@
 #include <string>
 
 // llvm mlir includes
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
@@ -18,11 +19,13 @@
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// shardy includes
+#include "shardy/dialect/sdy/ir/dialect.h"
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
 #define TTMLIR_ENABLE_STABLEHLO 1
-#include "ttmlir/Conversion/StableHLOToTTIR/ShardingUtils.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
 #include "status.h"
@@ -87,9 +90,6 @@ public:
   // MLIR program format name. This would ideally be defined in PJRT API header.
   static const std::string c_mlir_format_name;
 
-  // Returns TTIR code of the module.
-  const std::string &getTTIRCode() const { return m_ttir_code; }
-
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -97,6 +97,9 @@ private:
 
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Runs StableHLO pipeline with mesh shape configuration.
+  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
@@ -107,10 +110,6 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Gets shardy mesh attribute from the mesh op and adjusts it to 2D mesh in
-  // case of 1D mesh so that the rest of our compiler logic can assume 2D mesh.
-  mlir::sdy::MeshAttr getAdjustedShardyMeshAttribute(mlir::sdy::MeshOp mesh_op);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -165,9 +164,6 @@ private:
   // Collect output sharding if we are using Shardy.
   void
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Collect the mlir code of the module in TTIR format.
-  void collectTTIRCode(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Checks if the StableHLO code is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
@@ -233,9 +229,6 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
-
-  // Hold the ttir code of the module.
-  std::string m_ttir_code;
 };
 
 } // namespace tt::pjrt

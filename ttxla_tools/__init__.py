@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .ttxla_tools import serialize_function_to_mlir
+from .ttxla_tools import serialize_function_to_binary

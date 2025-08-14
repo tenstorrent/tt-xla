@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.gpt_neo.pytorch import ModelLoader
+from third_party.tt_forge_models.gpt_neo.causal_lm.pytorch import ModelLoader
 
 
 class GPTNeoTester(TorchModelTester):

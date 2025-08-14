@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.segformer.pytorch import ModelVariant
 from .tester import SegformerTester
 
-VARIANT_NAME = "nvidia/mit-b0"
+VARIANT_NAME = ModelVariant.MIT_B0
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

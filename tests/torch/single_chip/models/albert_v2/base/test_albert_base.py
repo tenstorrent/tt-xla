@@ -14,9 +14,10 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
+from third_party.tt_forge_models.albert.masked_lm.pytorch import ModelVariant
 from ..tester import AlbertV2Tester
 
-VARIANT_NAME = "albert-base-v2"
+VARIANT_NAME = ModelVariant.BASE_V2
 
 # TODO: Change to use ModelInfo from tt-forge-models
 MODEL_NAME = build_model_name(

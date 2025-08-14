@@ -12,10 +12,11 @@ from utils import (
     ModelTask,
     build_model_name,
 )
+from third_party.tt_forge_models.ghostnet.pytorch import ModelVariant
 
 from .tester import GhostNetTester
 
-VARIANT_NAME = "base"
+VARIANT_NAME = ModelVariant.GHOSTNET_100
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
