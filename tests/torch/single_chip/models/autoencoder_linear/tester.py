@@ -2,19 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
-
-import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
-from third_party.tt_forge_models.bert.masked_lm.jax import ModelLoader, ModelVariant
+from typing import Any, Dict, Sequence
+from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+from third_party.tt_forge_models.autoencoder_linear.pytorch import ModelLoader
 
 
-class FlaxBertForMaskedLMTester(JaxModelTester):
-    """Tester for BERT model variants on masked language modeling task."""
+class AutoencoderLinearTester(TorchModelTester):
+    """Tester for AutoencoderLinear model."""
 
     def __init__(
         self,
-        variant_name: ModelVariant,
+        variant_name: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
@@ -26,5 +24,5 @@ class FlaxBertForMaskedLMTester(JaxModelTester):
         return self._model_loader.load_model()
 
     # @override
-    def _get_input_activations(self) -> Dict[str, jax.Array]:
+    def _get_input_activations(self) -> Dict | Sequence[Any]:
         return self._model_loader.load_inputs()

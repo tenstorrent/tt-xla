@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import FlaxBeitForImageClassificationTester
+from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
 
-MODEL_PATH = "microsoft/beit-large-patch16-224"
+VARIANT_NAME = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "beit",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -52,7 +53,7 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=4.011739730834961. Required: atol=0.16 "
+        "PCC comparison failed. Calculated: pcc0.09154801815748215. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
