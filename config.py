@@ -55,12 +55,14 @@ class ModelTask(StrEnum):
     CV_MASK_GEN = "cv_mask_gen"
     CV_KEYPOINT_DET = "cv_keypoint_det"
     CV_KNOW_DISTILL = "cv_know_distill"
+    CV_PANOPTIC_SEG = "cv_panoptic_seg"
     MM_IMAGE_CAPT = "mm_image_capt"
     MM_DOC_QA = "mm_doc_qa"
     MM_VISUAL_QA = "mm_visual_qa"
     MM_TTS = "mm_tts"
     MM_IMAGE_TTT = "mm_image_ttt"
     MM_VIDEO_TTT = "mm_video_ttt"
+    MM_MASKED_LM = "mm_masked_lm"
 
 
 class ModelSource(StrEnum):

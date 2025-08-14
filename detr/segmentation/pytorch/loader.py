@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
             model="detr_segmentation",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.CV_SEMANTIC_SEG,
+            task=ModelTask.CV_PANOPTIC_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
