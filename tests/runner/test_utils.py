@@ -10,6 +10,7 @@ import inspect
 from enum import Enum
 import collections
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from tt_torch.tools.utils import CompilerConfig
 
 # from tt_torch.tools.utils import OpByOpBackend
 
@@ -205,7 +206,16 @@ class DynamicTester(TorchModelTester):
             RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
         )
 
-        super().__init__(comparison_config=comparison_config, run_mode=run_mode)
+        compiler_config_to_use = (
+            self.compiler_config
+            if self.compiler_config is not None
+            else CompilerConfig()
+        )
+        super().__init__(
+            comparison_config=comparison_config,
+            run_mode=run_mode,
+            compiler_config=compiler_config_to_use,
+        )
 
     def _load_model(self):
         # Check if load_model method supports dtype_override parameter
@@ -236,15 +246,6 @@ class DynamicTester(TorchModelTester):
 
     def _get_forward_method_kwargs(self):
         return super()._get_forward_method_kwargs()
-
-    # Ensure compiler options are propagated to backend
-    def _compile_for_tt_device(self, workload):
-        assert workload.model is not None
-        if self.compiler_config is not None:
-            workload.model.compile(backend="tt", options=self.compiler_config)
-        else:
-            workload.model.compile(backend="tt")
-        return workload
 
     # --- Compatibility wrappers expected by test_models ---
 
