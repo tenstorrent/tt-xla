@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -13,29 +13,29 @@ from utils import (
     build_model_name,
 )
 
-from ..tester import FlaxBertForMaskedLMTester
-from third_party.tt_forge_models.bert.masked_lm.jax import ModelVariant
+from .tester import AutoencoderLinearTester
 
-MODEL_VARIANT = ModelVariant.LARGE
+VARIANT_NAME = "autoencoder_linear"
+
 MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "bert",
-    "large",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
+    Framework.TORCH,
+    "autoencoder_linear",
+    "base",
+    ModelTask.CV_IMG_TO_IMG,
+    ModelSource.CUSTOM,
 )
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> FlaxBertForMaskedLMTester:
-    return FlaxBertForMaskedLMTester(MODEL_VARIANT)
+def inference_tester() -> AutoencoderLinearTester:
+    return AutoencoderLinearTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> FlaxBertForMaskedLMTester:
-    return FlaxBertForMaskedLMTester(MODEL_VARIANT, RunMode.TRAINING)
+def training_tester() -> AutoencoderLinearTester:
+    return AutoencoderLinearTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -49,7 +49,7 @@ def training_tester() -> FlaxBertForMaskedLMTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_flax_bert_large_inference(inference_tester: FlaxBertForMaskedLMTester):
+def test_torch_autoencoder_linear_inference(inference_tester: AutoencoderLinearTester):
     inference_tester.test()
 
 
@@ -61,5 +61,5 @@ def test_flax_bert_large_inference(inference_tester: FlaxBertForMaskedLMTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_flax_bert_large_training(training_tester: FlaxBertForMaskedLMTester):
+def test_torch_autoencoder_linear_training(training_tester: AutoencoderLinearTester):
     training_tester.test()
