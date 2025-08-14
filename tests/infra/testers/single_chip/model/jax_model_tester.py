@@ -170,7 +170,7 @@ class JaxModelTester(ModelTester):
             except Exception as e:
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
 
-# @override
+    # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
