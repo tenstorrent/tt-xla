@@ -1,7 +1,7 @@
 # Getting Started with Docker
 This document walks you through how to set up TT-XLA using a Docker image. There are two other available options for getting started:
-* [Installing a Wheel](getting_started.md) - if you do not want to use Docker, and prefer to use a virtual environment by itself instead, use this method.
-* [Building from Source](getting_started_build_from_source.md) - if you plan to develop TT-XLA further, you must build from source, and should use this method.
+* [Installing a Wheel](https://docs.tenstorrent.com/tt-xla/getting_started.html#installing-a-wheel-and-running-an-example) - if you do not want to use Docker, and prefer to use a virtual environment by itself instead, use this method.
+* [Building from Source](https://docs.tenstorrent.com/tt-xla/getting_started_build_from_source.html) - if you plan to develop TT-XLA further, you must build from source, and should use this method.
 
 The following topics are covered:
 
@@ -11,23 +11,7 @@ The following topics are covered:
 * [Where to Go Next](#where-to-go-next)
 
 ## Configuring Hardware
-Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, this section of the walkthrough shows you how to do a quick setup using TT-Installer.
-
-1. Configure your hardware with TT-Installer using the [Quick Installation section here.](https://docs.tenstorrent.com/getting-started/README.html#quick-installation)
-
-2. Reboot your machine.
-
-3. Please ensure that after you run this script, after you complete reboot, you activate the virtual environment it sets up - ```source ~/.tenstorrent-venv/bin/activate```.
-
-4. When your environment is running, to check that everything is configured, type the following:
-
-```bash
-tt-smi
-```
-
-You should see the Tenstorrent System Management Interface. It allows you to view real-time stats, diagnostics, and health info about your Tenstorrent device.
-
-![TT-SMI](./imgs/tt_smi.png)
+Before setup can happen, you must configure your hardware. You can skip this section if you already completed the configuration steps. Otherwise, follow the instructions on the [Getting Started page](getting_started.md#configuring-hardware).
 
 ## Setting up the Docker Container
 This section walks through the installation steps for using a Docker container for your project.
@@ -62,8 +46,10 @@ newgrp docker
 docker run -it --rm \
   --device /dev/tenstorrent \
   -v /dev/hugepages-1G:/dev/hugepages-1G \
-  ghcr.io/tenstorrent/tt-forge/tt-xla-slim:latest
+  ghcr.io/tenstorrent/tt-xla-slim:latest
 ```
+
+>**NOTE:** You cannot isolate devices in containers. You must pass through all devices even if you are only using one. You can do this by passing ```--device /dev/tenstorrent```. Do not try to pass ```--device /dev/tenstorrent/1``` or similar, as this type of device-in-container isolation will result in fatal errors later on during execution.
 
 5. If you want to check that it is running, open a new tab with the **Same Command** option and run the following:
 
@@ -94,7 +80,7 @@ git submodule update --init --recursive
 
 4. Navigate back out of the TT-Forge directory.
 
-5. Run a model. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be. For this model, the **demo.py** for **opt_125m** is used. The **requirements.txt** file shows that you need to install **flax** and **transformers**:
+5. Run a model. For this example, the **demo.py** for **opt_125m** is used. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be.  The **requirements.txt** file shows that you need to install **flax** and **transformers**:
 
 ```bash
 pip install flax transformers

@@ -1,4 +1,4 @@
-name: Performance Benchmark in TT-Forge
+name: Performance Benchmark
 
 on:
   workflow_dispatch:
@@ -19,6 +19,10 @@ on:
         description: "Only run tests with name that contains"
         required: false
         type: string
+      sh-runner:
+        description: "Run on shared runner"
+        required: false
+        type: boolean
 
 permissions:
   packages: write
@@ -38,9 +42,11 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
-  run-perf-benchmarks:
+  set-inputs:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.set-inputs.outputs.ref }}
     steps:
       - id: set-inputs
         run: |
@@ -53,10 +59,14 @@ jobs:
               echo "ref=${{ inputs.tt_forge_branch }}" >> $GITHUB_OUTPUT
             fi
           fi
-      - name: Trigger Perf Benchmark workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          token: ${{ secrets.GH_TOKEN }}
-          repository: tenstorrent/tt-forge
-          event-type: trigger-workflow
-          client-payload: '{"project": "tt-xla", "run_id": "${{ github.run_id }}", "ref": "${{ steps.set-inputs.outputs.ref }}", "test_filter": "${{ inputs.test_filter }}"}'
+  perf-benchmark:
+    needs: set-inputs
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+        project: tt-xla
+        run_id: ${{ github.run_id }}
+        run_id_source: tt-xla
+        ref: ${{ needs.set-inputs.outputs.ref }}
+        test-filter: ${{ inputs.test_filter }}
+        sh-runner: ${{ inputs.sh-runner }}

@@ -16,8 +16,6 @@ from .workload import Workload
 class WorkloadFactory:
     """Factory creating Workloads based on provided framework."""
 
-    # -------------------- Public methods --------------------
-
     @staticmethod
     def create_workload(
         framework: Framework,

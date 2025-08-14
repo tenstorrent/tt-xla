@@ -24,7 +24,7 @@ from utils import Category, failed_ttmlir_compilation
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "failed to legalize operation 'ttir.reverse "
         "https://github.com/tenstorrent/tt-xla/issues/503"

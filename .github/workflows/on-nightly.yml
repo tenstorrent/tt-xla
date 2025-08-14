@@ -6,7 +6,7 @@ on:
       test_group_cnt:
         description: 'Test group count'
         required: false
-        default: "3"
+        default: "4"
         type: choice
         options:
           - "1"
@@ -60,6 +60,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
+      use-shared-runners: true # Run nightly tests on Civ2
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -80,11 +81,30 @@ jobs:
         env:
           TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
         run: |
-          SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
-          TEST_MATRIX_PATH=".github/workflows/test-full-model-matrix.json"
-          TESTS_TO_PARALLELIZE='[{"runs-on": "n150", "name": "run_jax"}]'
-          python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT > modified-matrix.json
-          echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
+            TEST_MATRIX_PATH=".github/workflows/test-full-model-matrix.json"
+            TESTS_TO_PARALLELIZE='[
+              {
+                "runs-on": "n150",
+                "name": "run_jax",
+                "dir": "./tests/jax/single_chip",
+                "extra_test_marks": "not large"
+              },
+              {
+                "runs-on": "n150",
+                "name": "run_large_jax_models",
+                "dir": "./tests/jax/single_chip",
+                "extra_test_marks": "large",
+                "use-shared-runners": "true"
+              },
+              {
+                "runs-on": "n150",
+                "name": "run_torch",
+                "dir": "./tests/torch/single_chip"
+              }
+            ]'
+            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
+            echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test_full_model:
     uses: ./.github/workflows/test.yml
@@ -97,6 +117,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
+      use-shared-runners: true # Run full model tests on Civ2
 
   fail-notify:
     if: always()

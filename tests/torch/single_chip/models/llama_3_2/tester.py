@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.llama.pytorch import ModelLoader
+from third_party.tt_forge_models.llama.causal_lm.pytorch import ModelLoader
 
 
 class Llama32Tester(TorchModelTester):

@@ -9,13 +9,13 @@ import os
 import pickle
 
 
-def serialize_function_to_mlir(func, binary_file_path, *args, **kwargs):
+def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
     """
     Serialize a JAX function to binary format.
 
     Args:
-        func: The function to write mlir for
-        binary_file_path: Path to save the mlir code
+        func: The function to serialize to binary
+        binary_file_path: Path to save the binary data
         *args: Sample arguments for compilation
         **kwargs: Sample keyword arguments for compilation
     """
@@ -60,8 +60,9 @@ def serialize_function_to_mlir(func, binary_file_path, *args, **kwargs):
     unloaded_executable, _, _ = unpickler.load()
 
     flatbuffer_binary = unloaded_executable.xla_executable
-    decoded_str = flatbuffer_binary.decode("utf-8")
 
-    os.makedirs(os.path.dirname(binary_file_path), exist_ok=True)
-    with open(binary_file_path, "w") as f:
-        f.write(decoded_str)
+    dirname = os.path.dirname(binary_file_path)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    with open(binary_file_path, "wb") as f:
+        f.write(flatbuffer_binary)

@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.regnet.pytorch import ModelVariant
 from .tester import RegnetTester
 
-VARIANT_NAME = "facebook/regnet-y-040"
+VARIANT_NAME = ModelVariant.Y_040
 
 
 MODEL_NAME = build_model_name(
