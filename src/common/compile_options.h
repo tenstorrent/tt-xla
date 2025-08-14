@@ -17,8 +17,12 @@ struct CompileOptions {
 };
 
 namespace internal {
+
+// Parse out the value of one specific boolean flag from the options map.
 bool parseBoolOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     std::string option_name);
-}
+
+} // namespace internal
+
 } // namespace tt::pjrt
