@@ -28,6 +28,7 @@
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
+#include "compile_options.h"
 #include "status.h"
 
 namespace tt::pjrt {
@@ -129,7 +130,8 @@ private:
 
   // Converts TTIR module to TTNN module.
   void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
-                             mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+                             mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                             const CompileOptions &compile_options);
 
   // Creates flatbuffer binary from the built TTNN module.
   void
