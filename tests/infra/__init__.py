@@ -31,8 +31,6 @@ from .utilities import (
 )
 from .workloads import (
     JaxMultichipWorkload,
-    JaxWorkload,
-    TorchWorkload,
     Workload,
     WorkloadFactory,
 )
