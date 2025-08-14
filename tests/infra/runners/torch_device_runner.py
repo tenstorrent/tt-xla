@@ -11,6 +11,26 @@ from infra.workloads import TorchWorkload, Workload
 
 from .device_runner import DeviceRunner
 
+# Move individual tensors to the specified device, while preserving the structure of the input collection.
+def to_device(tensor_collection, device: Device):
+    result = []
+    assert isinstance(
+        tensor_collection, (list, tuple)
+    ), f"Expected tensor_collection to be a list or tuple, got {type(tensor_collection)}"
+    for item in tensor_collection:
+        if isinstance(item, (list)):
+            result.append(to_device(item, device))
+        elif isinstance(item, tuple):
+            result.append(to_device(item, device))
+        else:
+            if not isinstance(item, Tensor):
+                result.append(item)
+                continue
+            result.append(item.to(device))
+
+    result = result if isinstance(tensor_collection, list) else tuple(result)
+    return result
+
 
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
@@ -37,11 +57,7 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        for arg in workload.args:
-            try:
-                args_on_device.append(arg.to(device))
-            except:
-                args_on_device.append(arg)
+        args_on_device = to_device(workload.args, device)
 
         for key, value in workload.kwargs.items():
             try:
