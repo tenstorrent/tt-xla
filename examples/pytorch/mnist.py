@@ -2,30 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-
 import torch
 import torch_xla.core.xla_model as xm
-from torch_xla.experimental import plugins
+import torch_xla.runtime as xr
 
 from tests.torch.single_chip.models.mnist.cnn.dropout.model_implementation import (
     MNISTCNNDropoutModel,
 )
-
-# --------------------------------
-# Plugin registration
-# --------------------------------
-os.environ["PJRT_DEVICE"] = "TT"
-os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-
-
-class TTPjrtPlugin(plugins.DevicePlugin):
-    def library_path(self):
-        return os.path.join(os.getcwd(), "build/src/tt/pjrt_plugin_tt.so")
-
-
-plugins.register_plugin("TT", TTPjrtPlugin())
-
 
 # --------------------------------
 # Test run
@@ -59,4 +42,5 @@ def mnist():
 # main
 # --------------------------------
 if __name__ == "__main__":
+    xr.set_device_type("TT")
     mnist()

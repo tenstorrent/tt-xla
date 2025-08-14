@@ -4,19 +4,12 @@
 
 from __future__ import annotations
 
-import importlib.util
-import os
 import threading
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Sequence
 
 from infra.utilities import Device
-
-from python_package import TT_PJRT_PLUGIN_NAME
-
-# Relative path to PJRT plugin for TT devices built from source.
-TT_PJRT_PLUGIN_BUILD_RELPATH = f"build/src/tt/{TT_PJRT_PLUGIN_NAME}"
 
 
 class DeviceType(Enum):
@@ -52,57 +45,7 @@ class DeviceConnector(ABC):
         return cls._instance
 
     def __init__(self) -> None:
-        wheel_plugin_path = self._find_plugin_path_from_wheel()
-        build_plugin_path = os.path.join(os.getcwd(), TT_PJRT_PLUGIN_BUILD_RELPATH)
-
-        if (
-            wheel_plugin_path is None or not os.path.exists(wheel_plugin_path)
-        ) and not os.path.exists(build_plugin_path):
-            raise FileNotFoundError(
-                f"Could not find TT PJRT plugin either from wheel installation or from "
-                f"local build at {build_plugin_path}"
-            )
-
-        self._register_plugin(wheel_plugin_path, build_plugin_path)
-
-    def _find_plugin_path_from_wheel(self):
-        """Finds path to the plugin installed from wheel."""
-        # Try and see if plugin was installed from a wheel.
-        # First check if 'jax_plugins' package exists to avoid ModuleNotFoundError.
-        jax_plugins_spec = importlib.util.find_spec("jax_plugins")
-        if jax_plugins_spec is None:
-            return None
-
-        # Check if the wheel-installed jax plugin exists.
-        plugin_spec = importlib.util.find_spec("jax_plugins.pjrt_plugin_tt")
-        if plugin_spec is None:
-            return None
-
-        # Plugin should be in the same directory as the module's __init__.py file.
-        plugin_path = os.path.join(
-            os.path.dirname(plugin_spec.origin), TT_PJRT_PLUGIN_NAME
-        )
-        if not os.path.exists(plugin_path):
-            return None
-
-        return plugin_path
-
-    @abstractmethod
-    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
-        """
-        Registers custom TT plugin which will make TTDevice available.
-
-        Raises RuntimeError if registration failed.
-        """
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def connect_tt_device(self, device_num: int = 0) -> Device:
-        """Returns TT device handle."""
-        return self.connect_device(DeviceType.TT, device_num)
-
-    def connect_cpu(self) -> Device:
-        """Returns CPU device handle."""
-        return self.connect_device(DeviceType.CPU)
+        pass
 
     def connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
         """
