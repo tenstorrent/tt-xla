@@ -42,6 +42,9 @@ on:
         default: false
         type: boolean
 
+env:
+  IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
+
 jobs:
 
   # Run tests on TT hardware
@@ -56,9 +59,6 @@ jobs:
 
     # Keep this name in sync with the fetch-job-id step
     name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
-
-    env:
-      IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
 
     container:
       image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
