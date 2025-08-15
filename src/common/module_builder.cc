@@ -15,14 +15,8 @@
 // loguru includes
 #include "loguru/loguru.hpp"
 
-// tt-alchemist includes (using C API directly due to visibility issues)
-extern "C" {
-void *tt_alchemist_TTAlchemist_getInstance();
-bool tt_alchemist_TTAlchemist_generateCpp(void *instance,
-                                          const char *input_file,
-                                          const char *output_dir, bool is_local,
-                                          const char *pipeline_options);
-}
+// tt-alchemist includes (dynamically loaded to avoid LLVM conflicts)
+#include <dlfcn.h>
 
 // llvm includes
 #include "llvm/Support/Casting.h"
@@ -789,10 +783,43 @@ void ModuleBuilder::exportToEmitC(
   mlir_file.close();
 
   // Use tt-alchemist C API to generate standalone C++ solution
-  void *alchemist_instance = tt_alchemist_TTAlchemist_getInstance();
-  bool success = tt_alchemist_TTAlchemist_generateCpp(
-      alchemist_instance, temp_mlir_file.string().c_str(),
-      model_dir.string().c_str(), false, "");
+  // Load dynamically to avoid LLVM command line option conflicts
+  // Try to load from the install directory first
+  std::string project_dir = std::string(PROJECT_SOURCE_DIR);
+  std::string lib_path =
+      project_dir + "/third_party/tt-mlir/install/lib/libtt-alchemist-lib.so";
+  void *alchemist_lib = dlopen(lib_path.c_str(), RTLD_LAZY);
+  if (!alchemist_lib) {
+    // Fallback to system search path
+    alchemist_lib = dlopen("libtt-alchemist-lib.so", RTLD_LAZY);
+  }
+  if (!alchemist_lib) {
+    DLOG_F(ERROR, "Failed to load tt-alchemist library: %s", dlerror());
+    abort();
+  }
+
+  // Get function pointers
+  typedef void *(*getInstance_t)();
+  typedef bool (*generateCpp_t)(void *, const char *, const char *, bool,
+                                const char *);
+
+  getInstance_t getInstance = (getInstance_t)dlsym(
+      alchemist_lib, "tt_alchemist_TTAlchemist_getInstance");
+  generateCpp_t generateCpp = (generateCpp_t)dlsym(
+      alchemist_lib, "tt_alchemist_TTAlchemist_generateCpp");
+
+  if (!getInstance || !generateCpp) {
+    DLOG_F(ERROR, "Failed to find tt-alchemist functions: %s", dlerror());
+    dlclose(alchemist_lib);
+    abort();
+  }
+
+  void *alchemist_instance = getInstance();
+  bool success =
+      generateCpp(alchemist_instance, temp_mlir_file.string().c_str(),
+                  model_dir.string().c_str(), false, "");
+
+  dlclose(alchemist_lib);
 
   if (success) {
     DLOG_F(INFO,

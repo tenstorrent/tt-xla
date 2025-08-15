@@ -54,6 +54,10 @@ add_dependencies(TTPJRTCommon
     loguru
 )
 
+target_compile_definitions(TTPJRTCommon PRIVATE
+    PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
+
 target_include_directories(TTPJRTCommon PUBLIC
     ${Protobuf_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/inc
@@ -72,7 +76,6 @@ target_link_libraries(TTPJRTCommon PUBLIC
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libtt-alchemist-lib.so
 )
 
 target_link_directories(TTPJRTCommon PUBLIC
