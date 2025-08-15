@@ -56,6 +56,7 @@ def _current(scope: str) -> DecompositionTable:
     else:
         return dict(CUSTOM_DECOMPOSITION_TABLE)
 
+
 def _get_decomp_stack(scope: str) -> List[DecompositionTable]:
     try:
         return getattr(_decomp_local, scope)
@@ -305,6 +306,7 @@ def split_with_sizes(
         start_idx += length
     return splits
 
+
 # TODO: Test if this is still necesarry when compiling via torch-xla
 def masked_fill_tensor(input, mask, value):
     if value.device != input.device:
@@ -379,9 +381,9 @@ def _get_custom_decopositions() -> DecompositionTable:
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls agains constant tensors.
         # They are necesarry as the default aten decompositions
-        # use gather, which we cannot lower from ttir-to ttnn 
+        # use gather, which we cannot lower from ttir-to ttnn
         # in the form presented by this decomposition.
-        # The better (and more performant) solution to this is 
+        # The better (and more performant) solution to this is
         # to fuse the gather-based pattern in tt-mlir to the correct
         # interpolation op.
         aten.upsample_nearest1d.vec: upsample_nearest_vec,
@@ -396,10 +398,8 @@ def _get_custom_decopositions() -> DecompositionTable:
         aten.upsample_linear1d.default: upsample_linear_default,
         aten.upsample_bilinear2d.default: upsample_linear_default,
         aten.upsample_trilinear3d.default: upsample_linear_default,
-
         # TODO: Test if this is still necesarry when compiling via torch-xla
         aten.adaptive_avg_pool2d.default: aten._adaptive_avg_pool2d,
-
         # TODO: Test if this is still necesarry when compiling via torch-xla
         aten.avg_pool2d.default: avg_pool2d,
         aten.split_with_sizes.default: split_with_sizes,
