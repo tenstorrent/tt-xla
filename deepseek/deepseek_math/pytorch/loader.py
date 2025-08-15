@@ -48,6 +48,7 @@ class ModelLoader(ForgeModel):
         """Initialize ModelLoader with a specified variant."""
         super().__init__(variant)
         self.tokenizer = None
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -100,14 +101,15 @@ class ModelLoader(ForgeModel):
             messages, add_generation_prompt=True, return_tensors="pt"
         )
         inputs, seq_len = pad_inputs(input_ids)
-        return inputs, seq_len
+        self.seq_len = seq_len
+        return inputs
 
-    def decode_output(self, max_new_tokens, model, inputs, seq_len, tokenizer):
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
         """Generate text output using no-cache generation loop."""
         return generate_no_cache(
             max_new_tokens=max_new_tokens,
             model=model,
             input_ids=inputs,
-            seq_len=seq_len,
+            seq_len=self.seq_len,
             tokenizer=tokenizer,
         )

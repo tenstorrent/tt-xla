@@ -56,6 +56,7 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.tokenizer = None
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -120,21 +121,21 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
         padded_inputs, seq_len = pad_inputs(inputs)
+        self.seq_len = seq_len
 
-        return padded_inputs, seq_len
+        return padded_inputs
 
-    def decode_output(self, max_new_tokens, model, inputs, seq_len, tokenizer):
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
         """Generates text .
 
         Args:
             max_new_tokens (int): The maximum number of new tokens to generate.
             model (torch.nn.Module): The language model used for token generation.
             inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len), representing tokenized text.
-            seq_len (int): The current sequence length before generation starts.
             tokenizer: The tokenizer used to decode token IDs into text.
 
         """
         generated_text = generate_no_cache(
-            max_new_tokens, model, inputs, seq_len, tokenizer
+            max_new_tokens, model, inputs, self.seq_len, tokenizer
         )
         return generated_text

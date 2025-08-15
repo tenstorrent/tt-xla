@@ -7,6 +7,7 @@ Llama model loader implementation for causal language modeling.
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
+import torch
 
 from ....config import (
     LLMModelConfig,
@@ -122,6 +123,7 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.tokenizer = None
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -221,12 +223,13 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors suitable for causal LM.
         """
-        # Ensure tokenizer is initialized
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
 
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
+
+        # Ensure tokenizer is initialized
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
         # For causal LM, we need both input_ids and attention_mask
         inputs = self.tokenizer(
@@ -240,29 +243,35 @@ class ModelLoader(ForgeModel):
         # Replicate tensors for batch size
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
+            # Only cast when the override dtype category matches the tensor's category
+            override_is_float = dtype_override.is_floating_point
             for key in inputs:
-                inputs[key] = inputs[key].to(dtype_override)
-        # Pad input_ids and attention_mask
+                if override_is_float and inputs[key].is_floating_point():
+                    inputs[key] = inputs[key].to(dtype_override)
+                elif (not override_is_float) and (not inputs[key].is_floating_point()):
+                    inputs[key] = inputs[key].to(dtype_override)
 
+        # Pad input_ids and attention_mask
         padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], 512)
         padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], 512)
+        self.seq_len = seq_len
 
         inputs["input_ids"] = padded_input_ids
         inputs["attention_mask"] = padded_attention_mask
-        return inputs, seq_len
+        return inputs
 
-    def decode_output(self, max_new_tokens, model, inputs, seq_len, tokenizer):
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
         """Generates text .
         Args:
             max_new_tokens (int): The maximum number of new tokens to generate.
             model (torch.nn.Module): The language model used for token generation.
             inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len), representing tokenized text.
-            seq_len (int): The current sequence length before generation starts.
             tokenizer: The tokenizer used to decode token IDs into text.
         """
-        current_pos = seq_len
+        current_pos = self.seq_len
 
         for _ in range(max_new_tokens):
             logits = model(*inputs)
@@ -282,6 +291,6 @@ class ModelLoader(ForgeModel):
 
             current_pos += 1
 
-        valid_tokens = inputs[0][:, seq_len:current_pos].view(-1).tolist()
+        valid_tokens = inputs[0][:, self.seq_len : current_pos].view(-1).tolist()
         answer = tokenizer.decode(valid_tokens, skip_special_tokens=True)
         return answer
