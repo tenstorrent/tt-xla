@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <numeric>
 #include <optional>
@@ -104,9 +105,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   m_status = tt_pjrt_status::kSuccess;
 
-
   auto compile_options = CompileOptions::parse(compile_options_map);
-
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -782,13 +781,18 @@ void ModuleBuilder::exportToEmitC(
   }
   cppStream.flush();
 
-  std::ofstream cppFile("generated_code.cpp");
+  std::filesystem::path model_dir = "model";
+  std::filesystem::create_directories(model_dir);
+
+  std::filesystem::path cpp_file_path = model_dir / "generated_code.cpp";
+  std::ofstream cppFile(cpp_file_path);
   if (cppFile.is_open()) {
     cppFile << cppCode;
     cppFile.close();
-    DLOG_F(LOG_DEBUG, "C++ code written to generated_code.cpp");
+    DLOG_F(LOG_DEBUG, "C++ code written to %s", cpp_file_path.string().c_str());
   } else {
-    DLOG_F(ERROR, "Failed to open file for writing C++ code");
+    DLOG_F(ERROR, "Failed to open file for writing C++ code at %s",
+           cpp_file_path.string().c_str());
   }
 }
 } // namespace tt::pjrt
