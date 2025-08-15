@@ -142,6 +142,7 @@ jobs:
         TEST_GROUP_CNT: ${{ matrix.build.test_group_cnt || 1}}
         TEST_GROUP_ID: ${{ matrix.build.test_group_id || 1}}
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       shell: bash
       run: |
         source venv/activate
