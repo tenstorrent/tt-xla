@@ -22,6 +22,12 @@ RUN dnf install --refresh -y \
 
 RUN dnf clean all
 
+# Install Clang-17
+RUN wget https://apt.llvm.org/llvm.sh && \
+    chmod u+x llvm.sh && \
+    ./llvm.sh 17 && \
+    dnf install clang-17 lld-17 clang-tools-extra-17 -y
+
 # Install Ninja
 ENV NINJA_VERSION="1.11.1"
 ENV NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/ninja-linux.zip"
@@ -58,6 +64,7 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     cmake -B env/build env && \
     cmake --build env/build
 
+# Build tt-xla
 RUN source venv/activate && \
     cmake -G Ninja -B build && \
     cmake --build build
