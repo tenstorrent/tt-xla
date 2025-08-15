@@ -45,7 +45,7 @@ def torch_pass_pipeline(gm, example_inputs, compiler_config):
 
     # We use `export_for_training` here as we plan to use this flow to compile trainign graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
-    # functionality in torch.export in a future PyTorch release: 
+    # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     compiled_graph = (
         torch.export.export_for_training(gm, tuple(example_inputs), strict=False)
@@ -85,6 +85,7 @@ class XLAExecutor:
        torch-xla will continue to trace torch ops, which is not what
        the user will have indended by marking a model for compile.
     """
+
     def __init__(self, program, compiler_config):
         self.program = program
         self.compiler_config = compiler_config

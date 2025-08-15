@@ -23,6 +23,7 @@ def bypass_assert_tensor_metadata(gm):
             gm.graph.erase_node(node)
     return gm
 
+
 def run_shape_prop(gm, example_inputs):
     """
     Propagates shape information for each node through the graph bassed on
@@ -75,7 +76,7 @@ def bypass_redundant_cast(gm):
 
 
 def bypass_dtype_promotion(gm, compiler_config):
-    """ 
+    """
     Removes casting of nodes to float32 unless they were explicitly cast by the user.
     Pytorch insists on casting params to float32, even though the user may have specified a different dtype,
     and forcing certain decomposition (i.e. adaptive_avg_pool2d) to be in float32
@@ -125,7 +126,7 @@ def constant_fold(gm):
        a model which is already on an XLA device rather than a CPU device.
           - However, if `constant_fold` is run on a model which is already on an XLA device,
             the compute involved with constant-folding would be performed on the XLA device
-            as well, which can be problematic if any of those computations cannot be 
+            as well, which can be problematic if any of those computations cannot be
             compiled through tt-mlir.
     2. Some ops which are constant-foldable cannot be consumed by tt-mlir, so eliminating
        them here is useful. Remedies for this in the future would include handling them with
