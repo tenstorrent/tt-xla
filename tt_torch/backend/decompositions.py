@@ -20,24 +20,6 @@ DecompositionOpsList = Sequence[
 _decomp_local = threading.local()
 
 
-def _get_decomp_stack(scope: str) -> List[DecompositionTable]:
-    try:
-        return getattr(_decomp_local, scope)
-    except AttributeError:
-        stack: List[DecompositionTable] = []
-        setattr(_decomp_local, scope, stack)
-        return stack
-
-
-def _current(scope: str) -> DecompositionTable:
-    """Gets the current decomposition table (which may be the default)."""
-    stack = _get_decomp_stack(scope)
-    if stack:
-        return dict(stack[-1])
-    else:
-        return dict(CUSTOM_DECOMPOSITION_TABLE)
-
-
 @contextlib.contextmanager
 def _extend_context_manager(
     scope: str,
@@ -64,6 +46,23 @@ def _extend_context_manager(
         assert (
             popped is table
         ), "contextmanager unbalanced: popped different that pushed"
+
+
+def _current(scope: str) -> DecompositionTable:
+    """Gets the current decomposition table (which may be the default)."""
+    stack = _get_decomp_stack(scope)
+    if stack:
+        return dict(stack[-1])
+    else:
+        return dict(CUSTOM_DECOMPOSITION_TABLE)
+
+def _get_decomp_stack(scope: str) -> List[DecompositionTable]:
+    try:
+        return getattr(_decomp_local, scope)
+    except AttributeError:
+        stack: List[DecompositionTable] = []
+        setattr(_decomp_local, scope, stack)
+        return stack
 
 
 # This method is derived from the implementation of jax.image.resize in JAX:
@@ -280,9 +279,7 @@ def avg_pool2d(
     return NotImplemented
 
 
-# TODO: Remove this decomposition when aten.as_strided can properly be lowered to stablehlo.slice in torch-mlir
-# This is the decomposition of aten.split_with_sizes as it was in PyTorch 2.5. In pytorch 2.6, the use of `narrow`
-# (which gets decomposed to `slice`) was replaced with `as_strided` which cannot yet be lowered to stablehlo.
+# TODO: Test if this is still necesarry when compiling via torch-xla
 def split_with_sizes(
     self: torch.Tensor, split_sizes: List[int], dim: int = 0
 ) -> List[torch.Tensor]:
@@ -308,6 +305,7 @@ def split_with_sizes(
         start_idx += length
     return splits
 
+# TODO: Test if this is still necesarry when compiling via torch-xla
 def masked_fill_tensor(input, mask, value):
     if value.device != input.device:
         value = value.to(input.device)
@@ -315,6 +313,9 @@ def masked_fill_tensor(input, mask, value):
     return NotImplemented
 
 
+# Squeeze is defined as an aten::prim op in some circumstances. This
+# causes issues during the passes we run on the GraphModule in `torch_pass_pipeline`.
+# This decomposition converts the squeeze to a reshape.
 def squeeze(input, dims):
     shape = input.shape
     newshape = [s for i, s in enumerate(shape) if i not in dims]
@@ -375,6 +376,14 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decopositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        # Interpolation decompositions here perform interpolation
+        # using a series of matmuls agains constant tensors.
+        # They are necesarry as the default aten decompositions
+        # use gather, which we cannot lower from ttir-to ttnn 
+        # in the form presented by this decomposition.
+        # The better (and more performant) solution to this is 
+        # to fuse the gather-based pattern in tt-mlir to the correct
+        # interpolation op.
         aten.upsample_nearest1d.vec: upsample_nearest_vec,
         aten.upsample_nearest2d.vec: upsample_nearest_vec,
         aten.upsample_nearest3d.vec: upsample_nearest_vec,
@@ -387,7 +396,11 @@ def _get_custom_decopositions() -> DecompositionTable:
         aten.upsample_linear1d.default: upsample_linear_default,
         aten.upsample_bilinear2d.default: upsample_linear_default,
         aten.upsample_trilinear3d.default: upsample_linear_default,
+
+        # TODO: Test if this is still necesarry when compiling via torch-xla
         aten.adaptive_avg_pool2d.default: aten._adaptive_avg_pool2d,
+
+        # TODO: Test if this is still necesarry when compiling via torch-xla
         aten.avg_pool2d.default: avg_pool2d,
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
