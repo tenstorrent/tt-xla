@@ -36,7 +36,6 @@ def test_simple_mm(bias):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
         )
     )
 
@@ -67,7 +66,6 @@ def test_simple_mm_eager(bias):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
@@ -161,7 +159,6 @@ def test_conv2d_eager(
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
@@ -258,11 +255,6 @@ def test_eltwise_unary(op):
 
 @pytest.mark.parametrize("op", eltwise_unary_ops)
 def test_eltwise_unary_eager(op):
-    if op is torch.erf:
-        pytest.skip(
-            "erf not decomposed in eager execution. Becomes `stablehlo.custom_call(@mhlo.erf)` which we do not yet lower to ttir"
-        )
-
     class Unary(torch.nn.Module):
         def forward(self, x):
             return op(x)
@@ -286,7 +278,6 @@ def test_eltwise_unary_eager(op):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.01),
-            pcc=PccConfig(enabled=False, required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
@@ -363,7 +354,6 @@ def test_eltwise_binary(op):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
-            pcc=PccConfig(enabled=False, required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
@@ -403,7 +393,6 @@ def test_eltwise_binary_eager(op):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
-            pcc=PccConfig(enabled=False, required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
