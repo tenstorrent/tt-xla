@@ -52,15 +52,15 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       debug_build: ${{ matrix.build_type }}
 
-  # nightly_tests:
-  #   uses: ./.github/workflows/test.yml
-  #   secrets: inherit
-  #   needs: [ build-image, build-ttxla ]
-  #   with:
-  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
-  #     run_id: ${{ github.run_id }}
-  #     test_mark: 'nightly'
-  #     use-shared-runners: true # Run nightly tests on Civ2
+  nightly_tests:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
+      test_mark: 'nightly'
+      use-shared-runners: true # Run nightly tests on Civ2
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -84,6 +84,19 @@ jobs:
             SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
             TEST_MATRIX_PATH=".github/workflows/test-full-model-matrix.json"
             TESTS_TO_PARALLELIZE='[
+              {
+                "runs-on": "n150",
+                "name": "run_jax",
+                "dir": "./tests/jax/single_chip",
+                "extra_test_marks": "not large"
+              },
+              {
+                "runs-on": "n150",
+                "name": "run_large_jax_models",
+                "dir": "./tests/jax/single_chip",
+                "extra_test_marks": "large",
+                "use-shared-runners": "true"
+              },
               {
                 "runs-on": "n150",
                 "name": "run_torch",
