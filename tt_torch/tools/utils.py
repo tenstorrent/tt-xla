@@ -80,6 +80,10 @@ class CompilerConfig:
             self.cleanup_old_files()
 
     def cleanup_old_files(self):
+        """
+        Delete temporary files which were used to store information regarding
+        the compilation of a model.
+        """
         try:
             sanitized_model_name = sanitize_filename(self._model_name)
             if not sanitized_model_name:
