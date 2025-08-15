@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TT_XLA_SRC_COMMON_COMPILE_OPTIONS_H_
+#define TT_XLA_SRC_COMMON_COMPILE_OPTIONS_H_
+
 #include <string>
 #include <unordered_map>
 
@@ -27,3 +30,5 @@ bool parseBoolOption(
 } // namespace internal
 
 } // namespace tt::pjrt
+
+#endif // TT_XLA_SRC_COMMON_COMPILE_OPTIONS_H_

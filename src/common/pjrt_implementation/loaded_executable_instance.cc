@@ -11,6 +11,8 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <filesystem>
+#include <fstream>
 #include <numeric>
 
 // tt-mlir includes
@@ -21,10 +23,111 @@
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
+#include "common/compile_options.h"
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+// Helper function to dump tensor data to disk as raw bytes
+void dumpTensorToFile(const tt::runtime::Tensor &tensor, size_t tensor_index,
+                      const std::string &output_dir) {
+  try {
+    // Create output directory if it doesn't exist
+    std::filesystem::create_directories(output_dir);
+
+    // Get tensor metadata using runtime API
+    std::vector<std::uint32_t> tensor_shape =
+        tt::runtime::getTensorShape(tensor);
+    std::vector<std::byte> data_buffer =
+        tt::runtime::getTensorDataBuffer(tensor);
+    std::uint32_t element_size = tt::runtime::getTensorElementSize(tensor);
+    tt::target::DataType data_type = tt::runtime::getTensorDataType(tensor);
+
+    if (data_buffer.empty()) {
+      DLOG_F(WARNING, "Tensor %zu has empty data buffer", tensor_index);
+      return;
+    }
+
+    // Calculate number of elements
+    size_t num_elements = 1;
+    for (auto dim : tensor_shape) {
+      num_elements *= dim;
+    }
+
+    // Generate filenames
+    std::string bin_filename =
+        output_dir + "/arg" + std::to_string(tensor_index) + ".bin";
+    std::string txt_filename =
+        output_dir + "/arg" + std::to_string(tensor_index) + ".txt";
+
+    // Write raw binary data
+    std::ofstream bin_file(bin_filename, std::ios::binary);
+    if (!bin_file) {
+      DLOG_F(ERROR, "Failed to open binary file: %s", bin_filename.c_str());
+      return;
+    }
+    bin_file.write(reinterpret_cast<const char *>(data_buffer.data()),
+                   data_buffer.size());
+    bin_file.close();
+
+    // Convert data type to string
+    std::string dtype_str;
+    switch (data_type) {
+    case tt::target::DataType::Float32:
+      dtype_str = "float32";
+      break;
+    case tt::target::DataType::Int32:
+      dtype_str = "int32";
+      break;
+    case tt::target::DataType::UInt16:
+      dtype_str = "uint16";
+      break;
+    case tt::target::DataType::UInt32:
+      dtype_str = "uint32";
+      break;
+    case tt::target::DataType::Int8:
+      dtype_str = "int8";
+      break;
+    case tt::target::DataType::UInt8:
+      dtype_str = "uint8";
+      break;
+    case tt::target::DataType::Float16:
+      dtype_str = "float16";
+      break;
+    case tt::target::DataType::BFloat16:
+      dtype_str = "bfloat16";
+      break;
+    default:
+      dtype_str = "unknown_" + std::to_string(static_cast<int>(data_type));
+      break;
+    }
+
+    // Write text descriptor
+    std::ofstream txt_file(txt_filename);
+    if (!txt_file) {
+      DLOG_F(ERROR, "Failed to open text file: %s", txt_filename.c_str());
+      return;
+    }
+
+    txt_file << "dtype=" << dtype_str << std::endl;
+    txt_file << "num_elems=" << num_elements << std::endl;
+    txt_file << "shape=";
+    for (size_t i = 0; i < tensor_shape.size(); ++i) {
+      if (i > 0)
+        txt_file << ",";
+      txt_file << tensor_shape[i];
+    }
+    txt_file << std::endl;
+    txt_file.close();
+  } catch (const std::exception &e) {
+    DLOG_F(ERROR, "Failed to dump tensor %zu: %s", tensor_index, e.what());
+  }
+}
+
+} // anonymous namespace
 
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
@@ -114,6 +217,17 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
+  }
+
+  if (m_executable_image->getCompileOptions().codegen_cpp) {
+    std::string executable_name = m_executable_image->getExecutableName();
+    std::string output_dir = "model/inputs";
+    DLOG_F(LOG_DEBUG, "Codegen C++ enabled, dumping %zu input tensors to %s",
+           input_tensors.size(), output_dir.c_str());
+
+    for (size_t i = 0; i < input_tensors.size(); ++i) {
+      dumpTensorToFile(input_tensors[i], i, output_dir);
+    }
   }
 
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(

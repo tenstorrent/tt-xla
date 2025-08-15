@@ -164,6 +164,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
+  auto parsed_compile_options = CompileOptions::parse(compile_options);
+
   tt_pjrt_status compile_status = m_module_builder->buildModule(
       mlir_code, m_cached_system_descriptor_path, compile_options);
   if (!tt_pjrt_status_is_ok(compile_status)) {
@@ -192,7 +194,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
           m_module_builder->getIsOutputScalar(),
-          m_module_builder->getOutputDataTypes());
+          m_module_builder->getOutputDataTypes(), parsed_compile_options);
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`

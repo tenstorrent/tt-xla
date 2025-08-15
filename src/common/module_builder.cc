@@ -784,7 +784,7 @@ void ModuleBuilder::exportToEmitC(
   std::filesystem::path model_dir = "model";
   std::filesystem::create_directories(model_dir);
 
-  std::filesystem::path cpp_file_path = model_dir / "generated_code.cpp";
+  std::filesystem::path cpp_file_path = model_dir / "ttnn-standalone.cpp";
   std::ofstream cppFile(cpp_file_path);
   if (cppFile.is_open()) {
     cppFile << cppCode;

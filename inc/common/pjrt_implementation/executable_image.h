@@ -21,6 +21,9 @@
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
+// tt-xla includes
+#include "common/compile_options.h"
+
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
@@ -42,7 +45,8 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      const CompileOptions &compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -112,6 +116,9 @@ public:
     return m_output_memory_kinds_sizes;
   }
 
+  // Returns the compile options used to create this executable.
+  const CompileOptions &getCompileOptions() const { return m_compile_options; }
+
 private:
   // Constructs executable image instance from the information given by the
   // compiler.
@@ -124,7 +131,8 @@ private:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      const CompileOptions &compile_options);
 
   // Flatbuffer binary produced by the compiler.
   tt::runtime::Binary m_flatbuffer_binary;
@@ -182,6 +190,9 @@ private:
   // Holds the information about the individual sizes of the memory kind strings
   // of the outputs.
   std::vector<size_t> m_output_memory_kinds_sizes;
+
+  // Compile options used to create this executable.
+  CompileOptions m_compile_options;
 };
 
 } // namespace tt::pjrt
