@@ -7,6 +7,7 @@
 #define TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
 
 // c++ standard library includes
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -204,6 +205,10 @@ private:
 
   // Exports the MLIR module via EmitC.
   void exportToEmitC(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Generate standalone build system for EmitC output (similar to tt-alchemist)
+  void generateStandaloneBuildSystem(const std::filesystem::path &output_dir,
+                                     const std::string &cpp_code);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;

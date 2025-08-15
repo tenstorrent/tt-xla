@@ -72,6 +72,7 @@ target_link_libraries(TTPJRTCommon PUBLIC
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libtt-alchemist-lib.so
 )
 
 target_link_directories(TTPJRTCommon PUBLIC

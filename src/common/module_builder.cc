@@ -15,9 +15,19 @@
 // loguru includes
 #include "loguru/loguru.hpp"
 
+// tt-alchemist includes (using C API directly due to visibility issues)
+extern "C" {
+void *tt_alchemist_TTAlchemist_getInstance();
+bool tt_alchemist_TTAlchemist_generateCpp(void *instance,
+                                          const char *input_file,
+                                          const char *output_dir, bool is_local,
+                                          const char *pipeline_options);
+}
+
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -759,40 +769,61 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
 void ModuleBuilder::exportToEmitC(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 
-  mlir::OwningOpRef<mlir::ModuleOp> module_copy =
-      llvm::cast<mlir::ModuleOp>(mlir_module.get()->clone());
-
-  mlir::PassManager pm(module_copy.get()->getName(),
-                       mlir::PassManager::Nesting::Implicit);
-
-  mlir::tt::ttnn::createTTIRToEmitCPipeline(
-      pm, mlir::tt::ttnn::TTIRToEmitCPipelineOptions());
-
-  if (mlir::failed(pm.run(module_copy.get()))) {
-    std::cout << "Failed to run TTIR to EmitC pipeline" << std::endl;
-    abort();
-  }
-
-  std::string cppCode;
-  llvm::raw_string_ostream cppStream(cppCode);
-  if (mlir::failed(mlir::emitc::translateToCpp(module_copy.get(), cppStream))) {
-    std::cout << "Failed to translate MLIR module to C++" << std::endl;
-    abort();
-  }
-  cppStream.flush();
-
   std::filesystem::path model_dir = "model";
   std::filesystem::create_directories(model_dir);
 
-  std::filesystem::path cpp_file_path = model_dir / "ttnn-standalone.cpp";
-  std::ofstream cppFile(cpp_file_path);
-  if (cppFile.is_open()) {
-    cppFile << cppCode;
-    cppFile.close();
+  // Save MLIR to a temporary file that tt-alchemist can read
+  std::filesystem::path temp_mlir_file = model_dir / "temp_input.mlir";
+  std::string mlir_string;
+  llvm::raw_string_ostream mlir_stream(mlir_string);
+  mlir_module.get()->print(mlir_stream);
+  mlir_stream.flush();
+
+  std::ofstream mlir_file(temp_mlir_file);
+  if (!mlir_file.is_open()) {
+    DLOG_F(ERROR, "Failed to create temporary MLIR file: %s",
+           temp_mlir_file.string().c_str());
+    abort();
+  }
+  mlir_file << mlir_string;
+  mlir_file.close();
+
+  // Use tt-alchemist C API to generate standalone C++ solution
+  void *alchemist_instance = tt_alchemist_TTAlchemist_getInstance();
+  bool success = tt_alchemist_TTAlchemist_generateCpp(
+      alchemist_instance, temp_mlir_file.string().c_str(),
+      model_dir.string().c_str(), false, "");
+
+  if (success) {
+    DLOG_F(INFO,
+           "Successfully generated standalone solution using tt-alchemist");
+    DLOG_F(INFO, "To build and run: cd %s && ./run",
+           model_dir.string().c_str());
+  } else {
+    DLOG_F(ERROR, "Failed to generate standalone solution using tt-alchemist");
+    abort();
+  }
+
+  // Clean up temporary file
+  std::filesystem::remove(temp_mlir_file);
+}
+
+void ModuleBuilder::generateStandaloneBuildSystem(
+    const std::filesystem::path &output_dir, const std::string &cpp_code) {
+  DLOG_F(INFO, "generateStandaloneBuildSystem: This method is deprecated, use "
+               "tt-alchemist directly via exportToEmitC");
+
+  // Fallback: just write the C++ code
+  std::filesystem::path cpp_file_path = output_dir / "ttnn-standalone.cpp";
+  std::ofstream cpp_file(cpp_file_path);
+  if (cpp_file.is_open()) {
+    cpp_file << cpp_code;
+    cpp_file.close();
     DLOG_F(LOG_DEBUG, "C++ code written to %s", cpp_file_path.string().c_str());
   } else {
-    DLOG_F(ERROR, "Failed to open file for writing C++ code at %s",
+    DLOG_F(ERROR, "Failed to create C++ file: %s",
            cpp_file_path.string().c_str());
   }
 }
+
 } // namespace tt::pjrt
