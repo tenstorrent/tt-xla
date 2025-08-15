@@ -212,6 +212,12 @@ class CMakeBuildPy(build_py):
             "build",
             "-DCODE_COVERAGE=" + code_coverage,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_C_COMPILER=clang",
+            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DTTMLIR_ENABLE_RUNTIME=ON",
+            "-DTTMLIR_ENABLE_STABLEHLO=ON",
+            "-DTT_RUNTIME_ENABLE_PERF_TRACE=ON",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
