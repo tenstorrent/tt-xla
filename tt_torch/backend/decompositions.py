@@ -20,32 +20,32 @@ DecompositionOpsList = Sequence[
 _decomp_local = threading.local()
 
 
-@contextlib.contextmanager
-def _extend_context_manager(
-    scope: str,
-    *,
-    from_current: bool = True,
-    add_ops: Optional[DecompositionOpsList] = None,
-    remove_ops: Optional[DecompositionOpsList] = None,
-):
-    table: DecompositionTable
-    if from_current:
-        table = dict(_current(scope))
-    else:
-        table = {}
-    if add_ops:
-        table.update(get_decompositions(add_ops))
-    if remove_ops:
-        remove_decompositions(table, remove_ops)  # type: ignore
-    stack = _get_decomp_stack(scope)
-    stack.append(table)
-    try:
-        yield table
-    finally:
-        popped = stack.pop()
-        assert (
-            popped is table
-        ), "contextmanager unbalanced: popped different that pushed"
+# @contextlib.contextmanager
+# def _extend_context_manager(
+#     scope: str,
+#     *,
+#     from_current: bool = True,
+#     add_ops: Optional[DecompositionOpsList] = None,
+#     remove_ops: Optional[DecompositionOpsList] = None,
+# ):
+#     table: DecompositionTable
+#     if from_current:
+#         table = dict(_current(scope))
+#     else:
+#         table = {}
+#     if add_ops:
+#         table.update(get_decompositions(add_ops))
+#     if remove_ops:
+#         remove_decompositions(table, remove_ops)  # type: ignore
+#     stack = _get_decomp_stack(scope)
+#     stack.append(table)
+#     try:
+#         yield table
+#     finally:
+#         popped = stack.pop()
+#         assert (
+#             popped is table
+#         ), "contextmanager unbalanced: popped different that pushed"
 
 
 def _current(scope: str) -> DecompositionTable:
