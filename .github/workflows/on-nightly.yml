@@ -122,6 +122,7 @@ jobs:
   fail-notify:
     if: always()
     needs:
+      - nightly_tests
       - test_full_model
       - build-image
       - build-ttxla
