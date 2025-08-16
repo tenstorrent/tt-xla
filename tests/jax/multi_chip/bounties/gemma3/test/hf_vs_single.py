@@ -79,7 +79,7 @@ def run_jax_model(
     return jax_model.generate(
         input_ids=jax_input_ids,
         attention_mask=jax_attention_mask,
-        max_length=max_len,
+        max_new_tokens=max_len - seq_len,
         # position_ids=jax_position_ids,
     )
 

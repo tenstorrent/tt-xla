@@ -763,6 +763,11 @@ class Gemma3ForCausalLM(BaseModel):
         max_new_tokens,
         eos_token_id,
     ):
+        eos_token_id = (
+            eos_token_id
+            if eos_token_id is not None
+            else getattr(self.config, "eos_token_id", None)
+        )
         # Initialize cache for faster generation
         cache = None
         generated = input_ids
