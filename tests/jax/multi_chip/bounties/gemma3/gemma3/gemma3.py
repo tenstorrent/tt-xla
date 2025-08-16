@@ -11,7 +11,6 @@ from flax import nnx
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
-from gemma3.generation_utils import GenerationMixin
 
 @dataclass
 class Gemma3Config(BaseConfig):
@@ -760,8 +759,8 @@ class Gemma3ForCausalLM(BaseModel):
         self,
         input_ids,
         attention_mask,
-        max_new_tokens,
-        eos_token_id,
+        max_new_tokens=20,
+        eos_token_id=None,
     ):
         eos_token_id = (
             eos_token_id

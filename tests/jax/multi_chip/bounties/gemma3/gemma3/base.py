@@ -108,7 +108,7 @@ class BaseModel(nnx.Module):
 
     @staticmethod
     def download_from_hf(
-        repo_id: str, local_dir: str, token: str | None = None, force_download: bool = False
+        repo_id: str, local_dir: str | None = None, token: str | None = None, force_download: bool = False
     ) -> None:
         """Downloads the model from the Hugging Face Hub.
 
@@ -124,10 +124,11 @@ class BaseModel(nnx.Module):
         """
         logger.info(f"Attempting to download {repo_id} from Hugging Face Hub to {local_dir}.")
         try:
-            snapshot_download(
-                repo_id, local_dir=local_dir, token=token, force_download=force_download
-            )
+            local_dir = snapshot_download(
+                            repo_id, local_dir=local_dir, token=token, force_download=force_download
+                        )
             logger.info(f"Successfully downloaded {repo_id} to {local_dir}.")
+            return local_dir
         except Exception as e:
             logger.error(f"Failed to download {repo_id}: {e}")
             raise
@@ -157,6 +158,7 @@ class BaseModel(nnx.Module):
         force_download: bool = False,
         save_in_orbax: bool = True,
         remove_hf_after_conversion: bool = True,
+        use_cache: bool = False,
     ) -> None:
         """Downloads the model from the Hugging Face Hub and returns a new instance of the model.
 
@@ -187,11 +189,16 @@ class BaseModel(nnx.Module):
                     + " Set force_download to Tru to run conversion again."
                 )
 
+        if use_cache:
+            assert remove_hf_after_conversion == False, (
+                "Don't remove hf model after conversion when use_cache is True"
+            )
+            local_dir = None
         logger.debug(f"Local Hugging Face model directory set to: {local_dir}")
 
-        BaseModel.download_from_hf(
-            model_repo_or_id, local_dir, token=token, force_download=force_download
-        )
+        local_dir = BaseModel.download_from_hf(
+                        model_repo_or_id, local_dir, token=token, force_download=force_download
+                    )
         logger.info(f"Initiating weight iteration from safetensors in {local_dir}")
         weights = BaseModel.iter_safetensors(local_dir)
         state = self.state
