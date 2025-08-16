@@ -32,3 +32,16 @@ torch_xla==2.7.0
 torchvision
 transformers
 wheel
+
+# For yolo
+ultralytics
+seaborn
+
+# For many models
+matplotlib
+
+mlp_mixer_pytorch
+diffusers
+gliner
+bi_lstm_crf
+torchaudio
