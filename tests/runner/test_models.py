@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import os
-import gc
 from tests.runner.test_utils import (
     ModelStatus,
-    import_model_loader_and_variant,
     DynamicTorchModelTester,
     setup_test_discovery,
     create_test_id_generator,
+    record_model_test_properties,
+    update_test_metadata_for_exception,
 )
 from tests.runner.requirements import RequirementsManager
+from infra import RunMode
+from tests.utils import BringupStatus
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -19,9 +21,12 @@ PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
 MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 
 
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
-    "mode",
-    ["eval"],
+    "run_mode",
+    [RunMode.INFERENCE],
+    ids=["inference"],
 )
 @pytest.mark.parametrize(
     "op_by_op",
@@ -33,46 +38,48 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     test_entries,
     ids=create_test_id_generator(MODELS_ROOT),
 )
-def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
+def test_all_models(
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
+):
+
     loader_path = test_entry["path"]
-    variant_info = test_entry["variant_info"]
+    variant, ModelLoader = test_entry["variant_info"]
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
-        # FIXME - Consider cleaning this up, avoid call to import_model_loader_and_variant.
-        if variant_info:
-            # Unpack the tuple we stored earlier
-            variant, ModelLoader, ModelVariant = variant_info
-        else:
-            # For models without variants
-            ModelLoader, _ = import_model_loader_and_variant(loader_path, MODELS_ROOT)
-            variant = None
 
-        # Use the variant from the test_entry parameter
+        # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
-
-        # Get model name from the ModelLoader's ModelInfo
         model_info = ModelLoader.get_model_info(variant=variant)
-        print(f"model_name: {model_info.name} status: {test_metadata.status}")
+        print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
-        # FIXME - Add some support for skipping tests.
-        # if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
-        #     skip_full_eval_test(
-        #         record_property,
-        #         model_info.name,
-        #         bringup_status=test_metadata.skip_bringup_status,
-        #         reason=test_metadata.skip_reason,
-        #         model_group=model_info.group,
-        #         forge_models_test=True,
-        #     )
+        succeeded = False
+        try:
+            # Only run the actual model test if not marked for skip. The record properties
+            # function in finally block will always be called and handles the pytest.skip.
+            if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+                tester = DynamicTorchModelTester(
+                    run_mode,
+                    loader=loader,
+                    comparison_config=test_metadata.to_comparison_config(),
+                )
 
-        tester = DynamicTorchModelTester(
-            mode,
-            loader=loader,
-            **test_metadata.to_tester_args(),
-        )
+                tester.test()
+                succeeded = True
 
-        tester.test()
-
-    # Cleanup memory after each test to prevent memory leaks
-    gc.collect()
+        except Exception as e:
+            err = capfd.readouterr().err
+            # Record runtime failure info so it can be reflected in report properties
+            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            raise
+        finally:
+            # If we mark tests with xfail at collection time, then this isn't hit.
+            # Always record properties and handle skip/xfail cases uniformly
+            record_model_test_properties(
+                record_property,
+                request,
+                model_info=model_info,
+                test_metadata=test_metadata,
+                run_mode=run_mode,
+                test_passed=succeeded,
+            )
