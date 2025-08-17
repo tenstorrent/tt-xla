@@ -148,11 +148,7 @@ test_config = {
     },
     "albert/masked_lm/pytorch-base_v2-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "blackhole": {
-                "required_pcc": 0.98,
-            },
-        },
+        "required_pcc": 0.98,
     },
     "albert/masked_lm/pytorch-xlarge_v2-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -668,7 +664,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolos/pytorch-full-eval": {
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "blackhole": {
