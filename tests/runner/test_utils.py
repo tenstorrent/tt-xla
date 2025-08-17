@@ -8,8 +8,8 @@ import importlib.util
 import torch
 import inspect
 from enum import Enum
-from tests.utils import ModelTester
-from tt_torch.tools.utils import OpByOpBackend
+import collections
+from infra import ComparisonConfig, RunMode, TorchModelTester
 
 
 class ModelStatus(Enum):
@@ -34,7 +34,7 @@ class ModelTestConfig:
         # Arguments to ModelTester
         self.required_pcc = self._resolve("required_pcc", default=None)
         self.assert_pcc = self._resolve("assert_pcc", default=None)
-        # FIXME - Consider enabling atol checking.
+        # TODO(kmabee) - Consider enabling atol checking.
         self.assert_atol = self._resolve("assert_atol", default=False)
         self.relative_atol = self._resolve("relative_atol", default=None)
 
@@ -149,7 +149,50 @@ def generate_test_id(test_entry, models_root):
         return model_path
 
 
-class DynamicTester(ModelTester):
+class DynamicTorchModelTester(TorchModelTester):
+    def __init__(
+        self,
+        mode: str,
+        *,
+        loader,
+        assert_pcc: bool | None = None,
+        assert_atol: bool | None = None,
+        required_pcc: float | None = None,
+        relative_atol: float | None = None,
+    ) -> None:
+        self.loader = loader
+
+        # Build comparison config from provided args
+        comparison_config = ComparisonConfig()
+        # PCC settings
+        if assert_pcc is False:
+            comparison_config.pcc.disable()
+        else:
+            comparison_config.pcc.enable()
+        if required_pcc is not None:
+            comparison_config.pcc.required_pcc = required_pcc
+        # Absolute tolerance
+        if assert_atol:
+            comparison_config.atol.enable()
+        # Allclose tolerance from relative_atol (treat as atol override)
+        if relative_atol is not None:
+            comparison_config.allclose.enable()
+            comparison_config.allclose.atol = relative_atol
+        # Map mode string to RunMode
+        run_mode = (
+            RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
+        )
+
+        compiler_config_to_use = (
+            self.compiler_config
+            if self.compiler_config is not None
+            else CompilerConfig()
+        )
+        super().__init__(
+            comparison_config=comparison_config,
+            run_mode=run_mode,
+        )
+
     def _load_model(self):
         # Check if load_model method supports dtype_override parameter
         sig = inspect.signature(self.loader.load_model)
@@ -166,6 +209,20 @@ class DynamicTester(ModelTester):
         else:
             return self.loader.load_inputs()
 
+    # --- TorchModelTester interface implementations ---
+
+    def _get_model(self):
+        return self._load_model()
+
+    def _get_input_activations(self):
+        return self._load_inputs()
+
+    def _get_forward_method_args(self):
+        return super()._get_forward_method_args()
+
+    def _get_forward_method_kwargs(self):
+        return super()._get_forward_method_kwargs()
+
 
 def setup_models_path(project_root):
     """Setup models root path and add to sys.path for imports."""
@@ -181,7 +238,22 @@ def setup_models_path(project_root):
 def discover_loader_paths(models_root):
     """Discover all loader.py files in the models directory."""
     loader_paths = {}
+
+    # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
+    # Surya OCR imports and initializes torch_xla runtime which causes issues
+    # https://github.com/tenstorrent/tt-xla/issues/1166
+    excluded_model_dirs = {"suryaocr"}
+
     for root, dirs, files in os.walk(models_root):
+
+        model_dir_name = os.path.basename(os.path.dirname(root))
+        if model_dir_name in excluded_model_dirs:
+            print(
+                f"Workaround to exclude model: {model_dir_name} from discovery. Issue #1166",
+                flush=True,
+            )
+            continue
+
         if os.path.basename(root) == "pytorch" and "loader.py" in files:
             loader_paths[os.path.join(root, "loader.py")] = []
 
