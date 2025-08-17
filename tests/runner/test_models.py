@@ -4,12 +4,10 @@
 import pytest
 import os
 import gc
-from tests.utils import skip_full_eval_test
-from tt_torch.tools.utils import CompilerConfig, CompileDepth, OpByOpBackend
 from tests.runner.test_utils import (
     ModelStatus,
     import_model_loader_and_variant,
-    DynamicTester,
+    DynamicTorchModelTester,
     setup_test_discovery,
     create_test_id_generator,
 )
@@ -28,9 +26,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.parametrize(
     "op_by_op",
     [None],
-    ids=["full"],
-    # [OpByOpBackend.STABLEHLO, OpByOpBackend.TORCH, None],
-    # ids=["op_by_op_stablehlo", "op_by_op_torch", "full"],
+    ids=["full"],  # When op-by-op flow is required/supported, add here.
 )
 @pytest.mark.parametrize(
     "test_entry",
@@ -52,13 +48,6 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
             ModelLoader, _ = import_model_loader_and_variant(loader_path, MODELS_ROOT)
             variant = None
 
-        cc = CompilerConfig()
-        cc.enable_consteval = True
-        cc.consteval_parameters = True
-        if op_by_op:
-            cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
-            cc.op_by_op_backend = op_by_op
-
         # Use the variant from the test_entry parameter
         loader = ModelLoader(variant=variant)
 
@@ -66,30 +55,24 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"model_name: {model_info.name} status: {test_metadata.status}")
 
-        if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
-            skip_full_eval_test(
-                record_property,
-                cc,
-                model_info.name,
-                bringup_status=test_metadata.skip_bringup_status,
-                reason=test_metadata.skip_reason,
-                model_group=model_info.group,
-                forge_models_test=True,
-            )
+        # FIXME - Add some support for skipping tests.
+        # if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        #     skip_full_eval_test(
+        #         record_property,
+        #         model_info.name,
+        #         bringup_status=test_metadata.skip_bringup_status,
+        #         reason=test_metadata.skip_reason,
+        #         model_group=model_info.group,
+        #         forge_models_test=True,
+        #     )
 
-        tester = DynamicTester(
-            model_info.name,
+        tester = DynamicTorchModelTester(
             mode,
             loader=loader,
-            model_info=model_info,
-            compiler_config=cc,
-            record_property_handle=record_property,
-            forge_models_test=True,
             **test_metadata.to_tester_args(),
         )
 
-        results = tester.test_model()
-        tester.finalize()
+        tester.test()
 
     # Cleanup memory after each test to prevent memory leaks
     gc.collect()
