@@ -10,6 +10,7 @@ import inspect
 from enum import Enum
 import collections
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from tests.utils import BringupStatus, Category
 
 
 class ModelStatus(Enum):
@@ -42,11 +43,10 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
-        self.skip_reason = self._resolve("skip_reason", default="Unknown Reason")
-        self.skip_bringup_status = self._resolve(
-            "skip_bringup_status", default="FAILED_RUNTIME"
+        self.reason = self._resolve("reason", default="Unknown Reason")
+        self.bringup_status = self._resolve(
+            "bringup_status", default=BringupStatus.UNKNOWN
         )
-        self.xfail_reason = self._resolve("xfail_reason", default="Unknown Reason")
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -153,7 +153,7 @@ class DynamicTester(TorchModelTester):
     def __init__(
         self,
         model_name: str,
-        mode: str,
+        run_mode: RunMode,
         *,
         loader,
         model_info=None,
@@ -186,16 +186,7 @@ class DynamicTester(TorchModelTester):
         if relative_atol is not None:
             comparison_config.allclose.enable()
             comparison_config.allclose.atol = relative_atol
-        # Map mode string to RunMode
-        run_mode = (
-            RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
-        )
 
-        compiler_config_to_use = (
-            self.compiler_config
-            if self.compiler_config is not None
-            else CompilerConfig()
-        )
         super().__init__(
             comparison_config=comparison_config,
             run_mode=run_mode,
@@ -301,3 +292,58 @@ def create_test_id_generator(models_root):
         return generate_test_id(test_entry, models_root)
 
     return _generate_test_id
+
+
+def record_model_test_properties(
+    record_property,
+    request,
+    *,
+    model_info,
+    test_metadata,
+    run_mode: RunMode = RunMode.INFERENCE,
+):
+    """
+    Record standard runtime properties for model tests and optionally control flow.
+
+    - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
+      plus owner and group properties.
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.bringup_status and call pytest.skip(reason).
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, set bringup_status to a failure value and leave execution to xfail via marker.
+    """
+
+    # Determine bringup status and reason based on test status
+    reason = None
+    if test_metadata.status in [
+        ModelStatus.NOT_SUPPORTED_SKIP,
+        ModelStatus.KNOWN_FAILURE_XFAIL,
+    ]:
+        bringup_status = getattr(test_metadata, "bringup_status", BringupStatus.UNKNOWN)
+        reason = getattr(test_metadata, "reason", "Not specified")
+    else:
+        # Tests marked EXPECTED_PASSING or new UNSPECIFIED tests
+        bringup_status = BringupStatus.PASSED
+
+    tags = {
+        "test_name": str(request.node.originalname),
+        "specific_test_case": str(request.node.name),
+        "category": str(Category.MODEL_TEST),
+        "model_name": str(model_info.name),
+        "run_mode": str(run_mode),
+        "bringup_status": str(bringup_status),
+    }
+
+    # If we have an explanatory reason, include it as a top-level property too for convenience
+    if reason:
+        record_property("reason", reason)
+
+    # Write properties
+    record_property("tags", tags)
+    record_property("owner", "tt-xla")
+    if hasattr(model_info, "group") and model_info.group is not None:
+        record_property("group", str(model_info.group))
+
+    # Control flow for NOT_SUPPORTED_SKIP
+    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        import pytest
+
+        pytest.skip(reason)
