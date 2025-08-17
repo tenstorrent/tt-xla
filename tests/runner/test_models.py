@@ -5,7 +5,7 @@ import pytest
 import os
 import gc
 from tests.utils import skip_full_eval_test
-from tt_torch.tools.utils import CompilerConfig, CompileDepth, OpByOpBackend
+from tt_torch.tools.utils import CompilerConfig, CompileDepth
 from tests.runner.test_utils import (
     ModelStatus,
     import_model_loader_and_variant,
@@ -29,6 +29,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     "op_by_op",
     [None],
     ids=["full"],
+    # FIXME - Consider adding when op-by-op flow is working/supported in tt-xla.
     # [OpByOpBackend.STABLEHLO, OpByOpBackend.TORCH, None],
     # ids=["op_by_op_stablehlo", "op_by_op_torch", "full"],
 )
@@ -55,9 +56,10 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
         cc = CompilerConfig()
         cc.enable_consteval = True
         cc.consteval_parameters = True
-        if op_by_op:
-            cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
-            cc.op_by_op_backend = op_by_op
+        # FIXME - Add back when op-by-op flow is working/supported in tt-xla.
+        # if op_by_op:
+        #     cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
+        #     cc.op_by_op_backend = op_by_op
 
         # Use the variant from the test_entry parameter
         loader = ModelLoader(variant=variant)
