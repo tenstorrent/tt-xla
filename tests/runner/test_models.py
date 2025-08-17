@@ -4,7 +4,6 @@
 import pytest
 import os
 import gc
-from tests.utils import skip_full_eval_test
 from tt_torch.tools.utils import CompilerConfig, CompileDepth
 from tests.runner.test_utils import (
     ModelStatus,
@@ -12,8 +11,10 @@ from tests.runner.test_utils import (
     DynamicTester,
     setup_test_discovery,
     create_test_id_generator,
+    record_model_test_properties,
 )
 from tests.runner.requirements import RequirementsManager
+from infra import RunMode
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -21,9 +22,12 @@ PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
 MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 
 
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
-    "mode",
-    ["eval"],
+    "run_mode",
+    [RunMode.INFERENCE],
+    ids=["inference"],
 )
 @pytest.mark.parametrize(
     "op_by_op",
@@ -38,7 +42,9 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     test_entries,
     ids=create_test_id_generator(MODELS_ROOT),
 )
-def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
+def test_all_models(
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request
+):
     loader_path = test_entry["path"]
     variant_info = test_entry["variant_info"]
 
@@ -65,33 +71,39 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
         loader = ModelLoader(variant=variant)
 
         # Get model name from the ModelLoader's ModelInfo
+        # FIXME - Consider catching exceptions here and still reporting on failed tests.
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"model_name: {model_info.name} status: {test_metadata.status}")
 
-        if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
-            skip_full_eval_test(
+        try:
+            # Only run the actual model test if not marked for skip. The record properties
+            # function in finally block will always be called and handles the pytest.skip.
+            if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+                tester = DynamicTester(
+                    model_info.name,
+                    run_mode,
+                    loader=loader,
+                    model_info=model_info,
+                    compiler_config=cc,
+                    record_property_handle=record_property,
+                    forge_models_test=True,
+                    **test_metadata.to_tester_args(),
+                )
+
+                results = tester.test_model()
+                tester.finalize()
+                # FIXME - Consider catching exceptions here and using as failed reason
+
+        finally:
+            # If we mark tests with xfail at collection time, then this isn't hit.
+            # Always record properties and handle skip/xfail cases uniformly
+            record_model_test_properties(
                 record_property,
-                cc,
-                model_info.name,
-                bringup_status=test_metadata.skip_bringup_status,
-                reason=test_metadata.skip_reason,
-                model_group=model_info.group,
-                forge_models_test=True,
+                request,
+                model_info=model_info,
+                test_metadata=test_metadata,
+                run_mode=run_mode,
             )
-
-        tester = DynamicTester(
-            model_info.name,
-            mode,
-            loader=loader,
-            model_info=model_info,
-            compiler_config=cc,
-            record_property_handle=record_property,
-            forge_models_test=True,
-            **test_metadata.to_tester_args(),
-        )
-
-        results = tester.test_model()
-        tester.finalize()
 
     # Cleanup memory after each test to prevent memory leaks
     gc.collect()
