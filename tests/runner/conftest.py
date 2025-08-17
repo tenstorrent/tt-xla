@@ -16,7 +16,7 @@ def pytest_addoption(parser):
         "--arch",
         action="store",
         default=None,
-        help="Target architecture (e.g., blackhole, wormhole) for which to match via arch_overrides in test_config.py",
+        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config.py",
     )
     parser.addoption(
         "--validate-test-config",
@@ -24,11 +24,6 @@ def pytest_addoption(parser):
         default=False,
         help="Fail if test_config.py and collected test IDs are out of sync",
     )
-
-
-@pytest.fixture(autouse=True)
-def log_test_name(request):
-    print(f"\nRunning {request.node.nodeid}", flush=True)
 
 
 @pytest.fixture
@@ -52,14 +47,14 @@ def pytest_collection_modifyitems(config, items):
         meta = ModelTestConfig(test_config.get(nodeid), arch)
         item._test_meta = meta  # attach for fixture access
 
-        # Uncomment this to print info for each test.
+        # Uncomment this to print info for each test collected.
         # print(f"DEBUG nodeid: {nodeid} meta.status: {meta.status}")
 
         if meta.status == ModelStatus.EXPECTED_PASSING:
             item.add_marker(pytest.mark.expected_passing)
         elif meta.status == ModelStatus.KNOWN_FAILURE_XFAIL:
             item.add_marker(pytest.mark.known_failure_xfail)
-            item.add_marker(pytest.mark.xfail(strict=True, reason=meta.xfail_reason))
+            item.add_marker(pytest.mark.xfail(strict=True, reason=meta.reason))
         elif meta.status == ModelStatus.NOT_SUPPORTED_SKIP:
             item.add_marker(pytest.mark.not_supported_skip)
         elif meta.status == ModelStatus.UNSPECIFIED:
