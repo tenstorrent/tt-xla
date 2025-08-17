@@ -10,6 +10,7 @@ import inspect
 from enum import Enum
 import collections
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from tests.utils import BringupStatus, Category
 
 
 class ModelStatus(Enum):
@@ -42,11 +43,10 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
-        self.skip_reason = self._resolve("skip_reason", default="Unknown Reason")
-        self.skip_bringup_status = self._resolve(
-            "skip_bringup_status", default="FAILED_RUNTIME"
+        self.reason = self._resolve("reason", default="Unknown Reason")
+        self.bringup_status = self._resolve(
+            "bringup_status", default=BringupStatus.UNKNOWN
         )
-        self.xfail_reason = self._resolve("xfail_reason", default="Unknown Reason")
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -54,17 +54,59 @@ class ModelTestConfig:
             return overrides[self.arch][key]
         return self.data.get(key, default)
 
-    def to_tester_args(self):
-        args = {}
-        if self.assert_pcc is not None:
-            args["assert_pcc"] = self.assert_pcc
-        if self.assert_atol is not None:
-            args["assert_atol"] = self.assert_atol
+    def to_comparison_config(self) -> ComparisonConfig:
+        """Build a ComparisonConfig directly from this test metadata."""
+        config = ComparisonConfig()
+        if self.assert_pcc is False:
+            config.pcc.disable()
+        else:
+            config.pcc.enable()
         if self.required_pcc is not None:
-            args["required_pcc"] = self.required_pcc
+            config.pcc.required_pcc = self.required_pcc
+        if self.assert_atol:
+            config.atol.enable()
         if self.relative_atol is not None:
-            args["relative_atol"] = self.relative_atol
-        return args
+            config.allclose.enable()
+            config.allclose.atol = self.relative_atol
+        return config
+
+
+# Helper to capture runtime failures and map them to bringup status
+def update_test_metadata_for_exception(
+    test_metadata, exc: Exception, stderr: str
+) -> None:
+    """
+    Inspect exception message, stderr and set `runtime_bringup_status` and `runtime_reason` on `test_metadata`.
+    """
+    try:
+        message = str(exc)
+    except Exception:
+        message = repr(exc)
+
+    msg = message.lower() if message else ""
+    err = (stderr or "").lower()
+    print(f"KCM Found exception: {repr(exc)} message: {msg} stderr: {err}")
+
+    # Attempt to classify various exception types. Not robust, could be improved.
+    if isinstance(exc, AssertionError) and "comparison failed" in msg:
+        status = BringupStatus.INCORRECT_RESULT
+    elif isinstance(exc, RuntimeError):
+        if (
+            "failed to legalize" in err
+            or "stablehlo" in err
+            or "mhlo" in err
+            or "mlir" in err
+        ):
+            status = BringupStatus.FAILED_TTMLIR_COMPILATION
+        elif "bad statusor access" in msg or "internal: error code: 13" in msg:
+            status = BringupStatus.FAILED_RUNTIME
+        else:
+            status = BringupStatus.FAILED_RUNTIME
+    else:
+        status = BringupStatus.UNKNOWN
+
+    setattr(test_metadata, "runtime_bringup_status", status)
+    setattr(test_metadata, "runtime_reason", message)
 
 
 def get_models_root(project_root):
@@ -84,7 +126,7 @@ def get_models_root(project_root):
     return fallback
 
 
-def import_model_loader_and_variant(loader_path, models_root):
+def import_model_loader(loader_path, models_root):
     # Import the base module first to ensure it's available
     models_parent = os.path.dirname(models_root)
     if models_parent not in sys.path:
@@ -112,84 +154,46 @@ def import_model_loader_and_variant(loader_path, models_root):
     sys.modules[module_path] = mod
     spec.loader.exec_module(mod)
 
-    # Find ModelVariant class in the module
-    ModelVariant = None
-    for name, obj in mod.__dict__.items():
-        if name == "ModelVariant":
-            ModelVariant = obj
-            break
-
-    return mod.ModelLoader, ModelVariant
+    return mod.ModelLoader
 
 
 def get_model_variants(loader_path, loader_paths, models_root):
     try:
-        # Import both the ModelLoader and ModelVariant class from the same module
-        ModelLoader, ModelVariant = import_model_loader_and_variant(
-            loader_path, models_root
-        )
+        # Import the ModelLoader class from the module
+        ModelLoader = import_model_loader(loader_path, models_root)
         variants = ModelLoader.query_available_variants()
-        for variant in variants.keys():
-            # Store the variant, ModelLoader class, and ModelVariant class together
-            loader_paths[loader_path].append((variant, ModelLoader, ModelVariant))
+
+        # Store variant_name, ModelLoader together for usage, or empty one if no variants found.
+        if variants:
+            for variant_name in variants.keys():
+                loader_paths[loader_path].append((variant_name, ModelLoader))
+        else:
+            loader_paths[loader_path].append((None, ModelLoader))
 
     except Exception as e:
         print(f"Cannot import path: {loader_path}: {e}")
 
 
 def generate_test_id(test_entry, models_root):
-    """Generate test ID from test entry."""
+    """Generate test ID from test entry with optional variant."""
     model_path = os.path.relpath(os.path.dirname(test_entry["path"]), models_root)
     variant_info = test_entry["variant_info"]
-
-    if variant_info:
-        variant, _, _ = variant_info  # Unpack the tuple to get just the variant
-        return f"{model_path}-{variant}"
-    else:
-        return model_path
+    variant_name = variant_info[0] if variant_info else None
+    return f"{model_path}-{variant_name}" if variant_name else model_path
 
 
 class DynamicTorchModelTester(TorchModelTester):
     def __init__(
         self,
-        mode: str,
+        run_mode: RunMode,
         *,
         loader,
-        assert_pcc: bool | None = None,
-        assert_atol: bool | None = None,
-        required_pcc: float | None = None,
-        relative_atol: float | None = None,
+        comparison_config: ComparisonConfig | None = None,
     ) -> None:
         self.loader = loader
 
-        # Build comparison config from provided args
-        comparison_config = ComparisonConfig()
-        # PCC settings
-        if assert_pcc is False:
-            comparison_config.pcc.disable()
-        else:
-            comparison_config.pcc.enable()
-        if required_pcc is not None:
-            comparison_config.pcc.required_pcc = required_pcc
-        # Absolute tolerance
-        if assert_atol:
-            comparison_config.atol.enable()
-        # Allclose tolerance from relative_atol (treat as atol override)
-        if relative_atol is not None:
-            comparison_config.allclose.enable()
-            comparison_config.allclose.atol = relative_atol
-        # Map mode string to RunMode
-        run_mode = (
-            RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
-        )
-
-        compiler_config_to_use = (
-            self.compiler_config
-            if self.compiler_config is not None
-            else CompilerConfig()
-        )
         super().__init__(
-            comparison_config=comparison_config,
+            comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
         )
 
@@ -268,16 +272,10 @@ def create_test_entries(loader_paths):
     """Create test entries combining loader paths and variants."""
     test_entries = []
 
-    # Store variant info along with the ModelLoader and ModelVariant classes
+    # Store variant tuple along with the ModelLoader
     for loader_path, variant_tuples in loader_paths.items():
-        if variant_tuples:  # Model has variants
-            for variant_tuple in variant_tuples:
-                # Each tuple contains (variant, ModelLoader, ModelVariant)
-                test_entries.append(
-                    {"path": loader_path, "variant_info": variant_tuple}
-                )
-        else:  # Model has no variants
-            test_entries.append({"path": loader_path, "variant_info": None})
+        for variant_info in variant_tuples:
+            test_entries.append({"path": loader_path, "variant_info": variant_info})
 
     return test_entries
 
@@ -298,3 +296,74 @@ def create_test_id_generator(models_root):
         return generate_test_id(test_entry, models_root)
 
     return _generate_test_id
+
+
+def record_model_test_properties(
+    record_property,
+    request,
+    *,
+    model_info,
+    test_metadata,
+    run_mode: RunMode = RunMode.INFERENCE,
+    test_passed: bool = False,
+):
+    """
+    Record standard runtime properties for model tests and optionally control flow.
+
+    - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
+      plus owner and group properties.
+    - Passing tests (test_passed=True) always record bringup_status=PASSED, ignoring configured/static values.
+    - Failing tests classify bringup info in this order:
+      1) Runtime: use test_metadata.runtime_bringup_status/runtime_reason when both are present
+      2) Static: else use test_metadata.bringup_status/reason from config when both are present
+      3) Default: else use UNKNOWN/"Not specified"
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from static/default logic and call pytest.skip(reason).
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, leave execution to xfail via marker; properties still reflect runtime/static/default classification.
+    """
+
+    # Determine bringup status and reason based on runtime/test outcome
+    reason = None
+
+    # Highest priority: explicit pass outcome overrides config
+    if test_passed:
+        bringup_status = BringupStatus.PASSED
+    else:
+        runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
+        runtime_reason = getattr(test_metadata, "runtime_reason", None)
+        static_bringup_status = getattr(test_metadata, "bringup_status", None)
+        static_reason = getattr(test_metadata, "reason", None)
+
+        if runtime_bringup_status and runtime_reason:
+            bringup_status = runtime_bringup_status
+            reason = runtime_reason or "Runtime failure"
+        elif static_bringup_status and static_reason:
+            bringup_status = static_bringup_status
+            reason = static_reason
+        else:
+            bringup_status = BringupStatus.UNKNOWN
+            reason = "Not specified"
+
+    tags = {
+        "test_name": str(request.node.originalname),
+        "specific_test_case": str(request.node.name),
+        "category": str(Category.MODEL_TEST),
+        "model_name": str(model_info.name),
+        "run_mode": str(run_mode),
+        "bringup_status": str(bringup_status),
+    }
+
+    # If we have an explanatory reason, include it as a top-level property too for convenience
+    if reason:
+        record_property("reason", reason)
+
+    # Write properties
+    record_property("tags", tags)
+    record_property("owner", "tt-xla")
+    if hasattr(model_info, "group") and model_info.group is not None:
+        record_property("group", str(model_info.group))
+
+    # Control flow for NOT_SUPPORTED_SKIP
+    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        import pytest
+
+        pytest.skip(reason)
