@@ -8,8 +8,11 @@ import importlib.util
 import torch
 import inspect
 from enum import Enum
-from tests.utils import ModelTester
-from tt_torch.tools.utils import OpByOpBackend
+import collections
+from infra import ComparisonConfig, RunMode, TorchModelTester
+from tt_torch.tools.utils import CompilerConfig
+
+# from tt_torch.tools.utils import OpByOpBackend
 
 
 class ModelStatus(Enum):
@@ -149,7 +152,71 @@ def generate_test_id(test_entry, models_root):
         return model_path
 
 
-class DynamicTester(ModelTester):
+class DynamicTester(TorchModelTester):
+    def __init__(
+        self,
+        model_name: str,
+        mode: str,
+        *,
+        loader,
+        model_info=None,
+        compiler_config=None,
+        record_property_handle=None,
+        forge_models_test: bool | None = None,
+        assert_pcc: bool | None = None,
+        assert_atol: bool | None = None,
+        required_pcc: float | None = None,
+        relative_atol: float | None = None,
+    ) -> None:
+        self.model_name = model_name
+        self.loader = loader
+        self.model_info = model_info
+        self.compiler_config = compiler_config
+        self.record_property_handle = record_property_handle
+        self.forge_models_test = forge_models_test
+
+        # Attach metadata to compiler config if provided
+        if self.compiler_config is not None:
+            try:
+                if self.model_info is not None and hasattr(self.model_info, "name"):
+                    self.compiler_config.model_name = self.model_info.name
+                if callable(self.record_property_handle):
+                    self.compiler_config.record_property = self.record_property_handle
+            except Exception:
+                pass
+
+        # Build comparison config from provided args
+        comparison_config = ComparisonConfig()
+        # PCC settings
+        if assert_pcc is False:
+            comparison_config.pcc.disable()
+        else:
+            comparison_config.pcc.enable()
+        if required_pcc is not None:
+            comparison_config.pcc.required_pcc = required_pcc
+        # Absolute tolerance
+        if assert_atol:
+            comparison_config.atol.enable()
+        # Allclose tolerance from relative_atol (treat as atol override)
+        if relative_atol is not None:
+            comparison_config.allclose.enable()
+            comparison_config.allclose.atol = relative_atol
+        # Map mode string to RunMode
+        run_mode = (
+            RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
+        )
+
+        compiler_config_to_use = (
+            self.compiler_config
+            if self.compiler_config is not None
+            else CompilerConfig()
+        )
+        super().__init__(
+            comparison_config=comparison_config,
+            run_mode=run_mode,
+            compiler_config=compiler_config_to_use,
+        )
+
     def _load_model(self):
         # Check if load_model method supports dtype_override parameter
         sig = inspect.signature(self.loader.load_model)
@@ -165,6 +232,30 @@ class DynamicTester(ModelTester):
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         else:
             return self.loader.load_inputs()
+
+    # --- TorchModelTester interface implementations ---
+
+    def _get_model(self):
+        return self._load_model()
+
+    def _get_input_activations(self):
+        return self._load_inputs()
+
+    def _get_forward_method_args(self):
+        return super()._get_forward_method_args()
+
+    def _get_forward_method_kwargs(self):
+        return super()._get_forward_method_kwargs()
+
+    # --- Compatibility wrappers expected by test_models ---
+
+    def test_model(self):
+        # Execute the standardized test flow
+        return self.test()
+
+    def finalize(self):
+        # Placeholder for symmetry with original runner API
+        pass
 
 
 def setup_models_path(project_root):
