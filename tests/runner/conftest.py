@@ -16,7 +16,7 @@ def pytest_addoption(parser):
         "--arch",
         action="store",
         default=None,
-        help="Target architecture (e.g., blackhole, wormhole) for which to match via arch_overrides in test_config.py",
+        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config.py",
     )
     parser.addoption(
         "--validate-test-config",
@@ -59,7 +59,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.expected_passing)
         elif meta.status == ModelStatus.KNOWN_FAILURE_XFAIL:
             item.add_marker(pytest.mark.known_failure_xfail)
-            item.add_marker(pytest.mark.xfail(strict=True, reason=meta.xfail_reason))
+            item.add_marker(pytest.mark.xfail(strict=True, reason=meta.reason))
         elif meta.status == ModelStatus.NOT_SUPPORTED_SKIP:
             item.add_marker(pytest.mark.not_supported_skip)
         elif meta.status == ModelStatus.UNSPECIFIED:
