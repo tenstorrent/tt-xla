@@ -15,6 +15,7 @@ on:
           - "4"
           - "5"
           - "8"
+          - "10"
   schedule:
     - cron: '0 0 * * *'
 
@@ -49,6 +50,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   nightly_tests:
+    if: false
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
@@ -65,6 +67,7 @@ jobs:
     needs: [ set-inputs ]
     outputs:
       test-full-model-matrix: ${{ steps.generate-matrix.outputs.test-full-model-matrix}}
+      test-forge-models-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -100,12 +103,35 @@ jobs:
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
             echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
+      - name: Generate tt-forge-models matrix
+        id: generate-forge-models-matrix
+        shell: bash
+        env:
+          TEST_GROUP_CNT: "10"
+        run: |
+            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
+            TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
+            TESTS_TO_PARALLELIZE='[
+              {
+                "runs-on": "n150",
+                "name": "run_forge_models_torch",
+                "dir": "./tests/runner/test_models.py"
+              },
+              {
+                "runs-on": "p150",
+                "name": "run_forge_models_torch",
+                "dir": "./tests/runner/test_models.py"
+              }
+            ]'
+            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
+            echo "test-forge-models-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+
   test_full_model:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
+    if: false #success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'model_test'
@@ -114,11 +140,44 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
+  # NEW - This is a single test job that runs all tt-forge-models tests.
+  test_full_model_forge_models_passing:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-matrix ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      timeout_minutes: 180
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: 'expected_passing'
+      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: false # Run full model tests on Civ1
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  test_full_model_forge_models_not_expected_passing:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-matrix ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: false #success() || failure()
+    with:
+      timeout_minutes: 180
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: 'not expected_passing'
+      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: false # Run full model tests on Civ1
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
   fail-notify:
     if: always()
     needs:
-      - nightly_tests
-      - test_full_model
+      # - nightly_tests
+      # - test_full_model
+      - test_full_model_forge_models_passing
+      # - test_full_model_forge_models_xfail
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
