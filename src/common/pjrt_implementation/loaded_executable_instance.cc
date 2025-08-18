@@ -11,6 +11,7 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <numeric>
 
 // tt-mlir includes
@@ -29,16 +30,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    tt::runtime::Device parent_mesh) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        tt::runtime::Device parent_mesh)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   std::move(parent_mesh)) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               std::move(parent_mesh));
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -157,9 +162,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-
   return tt_pjrt_status::kSuccess;
 }
 
@@ -200,15 +202,8 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // https://github.com/tenstorrent/tt-xla/issues/502
 
   tt::runtime::MeshDeviceOptions mesh_device_options;
-  mesh_device_options.meshShape = devices_mesh_shape;
 
-  if (mesh_shape_num_devices > 1) {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
-  } else {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-  }
-
-  return tt::runtime::openMeshDevice(mesh_device_options);
+  return m_parent_mesh;
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
@@ -267,7 +262,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
     if (laid_out_tensor.data != input_tensor.data) {
+      std::cerr << "Setting retain to false for laid out tensor: " << std::endl;
       tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
+    } else {
+      auto *buffer = BufferInstance::unwrap(argument_lists[0][arg_index]);
+      if (buffer->getRuntimeTensor().handle != laid_out_tensor.handle) {
+        buffer->setRuntimeTensor(laid_out_tensor);
+      }
     }
 
     input_tensors.push_back(laid_out_tensor);
@@ -323,7 +324,7 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
 
   tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
       arg_tensors, strategy, m_executable_image->getDevicesMeshShape());
-  tt::runtime::setTensorRetain(tensor, /*retain=*/false);
+  tt::runtime::setTensorRetain(tensor, /*retain=*/true);
 
   return tensor;
 }

@@ -93,6 +93,10 @@ public:
     return m_runtime_tensor;
   }
 
+  void setRuntimeTensor(const tt::runtime::Tensor &tensor) {
+    m_runtime_tensor = tensor;
+  }
+
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
