@@ -197,7 +197,6 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.TIMM:
-            # Use cached model if available, otherwise load it
             if hasattr(self, "_cached_model") and self._cached_model is not None:
                 model_for_config = self._cached_model
             else:
@@ -220,9 +219,6 @@ class ModelLoader(ForgeModel):
                 ]
             )
             inputs = preprocess(image).unsqueeze(0)
-
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

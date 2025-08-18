@@ -10,6 +10,8 @@ from typing import Optional
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from PIL import Image
+from torchvision import transforms
+from pytorchcv.model_provider import get_model as ptcv_get_model
 
 from ...config import (
     ModelConfig,
@@ -22,11 +24,20 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file, print_compiled_model_results
+from dataclasses import dataclass
+
+
+@dataclass
+class HRNetConfig(ModelConfig):
+    """Configuration specific to HRNet models"""
+
+    source: ModelSource = ModelSource.TIMM
 
 
 class ModelVariant(StrEnum):
     """Available HRNet model variants."""
 
+    # TIMM variants
     HRNET_W18_SMALL = "hrnet_w18_small"
     HRNET_W18_SMALL_V2 = "hrnet_w18_small_v2"
     HRNET_W18 = "hrnet_w18"
@@ -38,41 +49,100 @@ class ModelVariant(StrEnum):
     HRNET_W64 = "hrnet_w64"
     HRNET_W18_MS_AUG_IN1K = "hrnet_w18.ms_aug_in1k"
 
+    # OSMR (pytorchcv) variants
+    HRNET_W18_SMALL_V1_OSMR = "hrnet_w18_small_v1"
+    HRNET_W18_SMALL_V2_OSMR = "hrnet_w18_small_v2"
+    HRNETV2_W18_OSMR = "hrnetv2_w18"
+    HRNETV2_W30_OSMR = "hrnetv2_w30"
+    HRNETV2_W32_OSMR = "hrnetv2_w32"
+    HRNETV2_W40_OSMR = "hrnetv2_w40"
+    HRNETV2_W44_OSMR = "hrnetv2_w44"
+    HRNETV2_W48_OSMR = "hrnetv2_w48"
+    HRNETV2_W64_OSMR = "hrnetv2_w64"
+
 
 class ModelLoader(ForgeModel):
     """HRNet model loader implementation."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.HRNET_W18_SMALL: ModelConfig(
+        # TIMM variants
+        ModelVariant.HRNET_W18_SMALL: HRNetConfig(
             pretrained_model_name="hrnet_w18_small",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W18_SMALL_V2: ModelConfig(
+        ModelVariant.HRNET_W18_SMALL_V2: HRNetConfig(
             pretrained_model_name="hrnet_w18_small_v2",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W18: ModelConfig(
+        ModelVariant.HRNET_W18: HRNetConfig(
             pretrained_model_name="hrnet_w18",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W30: ModelConfig(
+        ModelVariant.HRNET_W30: HRNetConfig(
             pretrained_model_name="hrnet_w30",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W32: ModelConfig(
+        ModelVariant.HRNET_W32: HRNetConfig(
             pretrained_model_name="hrnet_w32",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W40: ModelConfig(
+        ModelVariant.HRNET_W40: HRNetConfig(
             pretrained_model_name="hrnet_w40",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W44: ModelConfig(
+        ModelVariant.HRNET_W44: HRNetConfig(
             pretrained_model_name="hrnet_w44",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W48: ModelConfig(
+        ModelVariant.HRNET_W48: HRNetConfig(
             pretrained_model_name="hrnet_w48",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W64: ModelConfig(
+        ModelVariant.HRNET_W64: HRNetConfig(
             pretrained_model_name="hrnet_w64",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.HRNET_W18_MS_AUG_IN1K: ModelConfig(
+        ModelVariant.HRNET_W18_MS_AUG_IN1K: HRNetConfig(
             pretrained_model_name="hrnet_w18.ms_aug_in1k",
+            source=ModelSource.TIMM,
+        ),
+        # OSMR variants
+        ModelVariant.HRNET_W18_SMALL_V1_OSMR: HRNetConfig(
+            pretrained_model_name="hrnet_w18_small_v1",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNET_W18_SMALL_V2_OSMR: HRNetConfig(
+            pretrained_model_name="hrnet_w18_small_v2",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W18_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w18",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W30_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w30",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W32_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w32",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W40_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w40",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W44_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w44",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W48_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w48",
+            source=ModelSource.OSMR,
+        ),
+        ModelVariant.HRNETV2_W64_OSMR: HRNetConfig(
+            pretrained_model_name="hrnetv2_w64",
+            source=ModelSource.OSMR,
         ),
     }
 
@@ -101,12 +171,13 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        source = cls._VARIANTS[variant].source
         return ModelInfo(
             model="hrnet",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_KEYPOINT_DET,
-            source=ModelSource.TIMM,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -122,9 +193,14 @@ class ModelLoader(ForgeModel):
         """
         # Get the pretrained model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        # Load model using timm
-        model = timm.create_model(model_name, pretrained=True)
+        # Load model using appropriate source
+        if source == ModelSource.TIMM:
+            model = timm.create_model(model_name, pretrained=True)
+        else:
+            model = ptcv_get_model(model_name, pretrained=True)
+
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -147,22 +223,38 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for HRNet.
         """
+        source = self._variant_config.source
+
         # Get the Image
         image_file = get_file(
             "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
         )
-        image = Image.open(image_file)
+        image = Image.open(image_file).convert("RGB")
 
-        # Use cached model if available, otherwise load it
-        if hasattr(self, "_cached_model") and self._cached_model is not None:
-            model_for_config = self._cached_model
+        if source == ModelSource.TIMM:
+            # Use cached model if available, otherwise load it
+            if hasattr(self, "_cached_model") and self._cached_model is not None:
+                model_for_config = self._cached_model
+            else:
+                model_for_config = self.load_model(dtype_override)
+
+            # Preprocess image using model's data config
+            data_config = resolve_data_config({}, model=model_for_config)
+            data_transforms = create_transform(**data_config)
+            inputs = data_transforms(image).unsqueeze(0)
         else:
-            model_for_config = self.load_model(dtype_override)
-
-        # Preprocess image using model's data config
-        data_config = resolve_data_config({}, model=model_for_config)
-        transforms = create_transform(**data_config)
-        inputs = transforms(image).unsqueeze(0)
+            # Use standard torchvision preprocessing for OSMR
+            preprocess = transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+            inputs = preprocess(image).unsqueeze(0)
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)
