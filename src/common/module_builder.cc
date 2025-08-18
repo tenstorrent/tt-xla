@@ -835,22 +835,4 @@ void ModuleBuilder::exportToEmitC(
   std::filesystem::remove(temp_mlir_file);
 }
 
-void ModuleBuilder::generateStandaloneBuildSystem(
-    const std::filesystem::path &output_dir, const std::string &cpp_code) {
-  DLOG_F(INFO, "generateStandaloneBuildSystem: This method is deprecated, use "
-               "tt-alchemist directly via exportToEmitC");
-
-  // Fallback: just write the C++ code
-  std::filesystem::path cpp_file_path = output_dir / "ttnn-standalone.cpp";
-  std::ofstream cpp_file(cpp_file_path);
-  if (cpp_file.is_open()) {
-    cpp_file << cpp_code;
-    cpp_file.close();
-    DLOG_F(LOG_DEBUG, "C++ code written to %s", cpp_file_path.string().c_str());
-  } else {
-    DLOG_F(ERROR, "Failed to create C++ file: %s",
-           cpp_file_path.string().c_str());
-  }
-}
-
 } // namespace tt::pjrt
