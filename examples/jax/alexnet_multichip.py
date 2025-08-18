@@ -30,7 +30,7 @@ def register_pjrt_plugin():
     """Registers TT PJRT plugin."""
 
     plugin_path = os.path.join(
-        os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
+        os.path.dirname(__file__), "../../build/src/tt/pjrt_plugin_tt.so"
     )
     if not os.path.exists(plugin_path):
         raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
