@@ -14,62 +14,10 @@ DecompositionOpsList = Sequence[
     Union[torch._ops.OperatorBase, torch._ops.OpOverloadPacket]
 ]
 
-# Manages "scopes" for decompositions used. Each unique scope is an attribute on
-# the _decomp_local. If the attribute is missing, then the default
-# decompositions are used. The scope "aot" is used for all AOT cases.
-_decomp_local = threading.local()
-
-
-# @contextlib.contextmanager
-# def _extend_context_manager(
-#     scope: str,
-#     *,
-#     from_current: bool = True,
-#     add_ops: Optional[DecompositionOpsList] = None,
-#     remove_ops: Optional[DecompositionOpsList] = None,
-# ):
-#     table: DecompositionTable
-#     if from_current:
-#         table = dict(_current(scope))
-#     else:
-#         table = {}
-#     if add_ops:
-#         table.update(get_decompositions(add_ops))
-#     if remove_ops:
-#         remove_decompositions(table, remove_ops)  # type: ignore
-#     stack = _get_decomp_stack(scope)
-#     stack.append(table)
-#     try:
-#         yield table
-#     finally:
-#         popped = stack.pop()
-#         assert (
-#             popped is table
-#         ), "contextmanager unbalanced: popped different that pushed"
-
-
-def _current(scope: str) -> DecompositionTable:
-    """Gets the current decomposition table (which may be the default)."""
-    stack = _get_decomp_stack(scope)
-    if stack:
-        return dict(stack[-1])
-    else:
-        return dict(CUSTOM_DECOMPOSITION_TABLE)
-
-
-def _get_decomp_stack(scope: str) -> List[DecompositionTable]:
-    try:
-        return getattr(_decomp_local, scope)
-    except AttributeError:
-        stack: List[DecompositionTable] = []
-        setattr(_decomp_local, scope, stack)
-        return stack
-
-
 # This method is derived from the implementation of jax.image.resize in JAX:
 #     https://github.com/jax-ml/jax/blob/354bd5271077654af983965c8e01ee462ce4ce91/jax/_src/image/scale.py#L52
 #
-# I've modified it to use numpy rather than JAX. I've also added the ability
+# I've modified it to use torch rather than JAX. I've also added the ability
 # to generate a weight matrix that allows the matmul to be identical to to
 # torch's upsample_bilinear2d when align_corners=True.
 # This logic was derived from @brentyi's implementation in:
