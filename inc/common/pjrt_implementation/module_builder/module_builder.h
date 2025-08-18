@@ -221,6 +221,8 @@ private:
   // Creates argument type map based on collected input argument roles.
   llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
   createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  // Checks if IR printing should be enabled based on TT_TORCH_IR_LOG_LEVEL environment variable.
+  bool shouldEnableIRPrinting() const;
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
