@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
-#define TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
+#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
+#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
 
 // c++ standard library includes
 #include <memory>
@@ -23,17 +23,20 @@
 
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
-// tt-mlir includes
-#include "tt/runtime/types.h"
 
+// tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
+#include "common/status.h"
 #include "compile_options.h"
-#include "status.h"
 
-namespace tt::pjrt {
+namespace tt::pjrt::module_builder {
+
+// MLIR program format name. This would ideally be defined in PJRT API header.
+extern const std::string c_mlir_format_name;
 
 // Enum to represent the role of input arguments
 enum class InputArgumentRole {
@@ -101,9 +104,6 @@ public:
     return m_input_argument_roles;
   }
 
-  // MLIR program format name. This would ideally be defined in PJRT API header.
-  static const std::string c_mlir_format_name;
-
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -112,11 +112,8 @@ private:
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Runs StableHLO pipeline with mesh shape configuration.
-  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
-  // Runs TT-XLA specific pipelines on the MLIR module.
-  void runTTXLAPipelines(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  // Runs frontend specific SHLO pipeline on the MLIR module.
+  void runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
@@ -131,6 +128,10 @@ private:
   // Collects the information about input argument roles (weight vs input).
   void
   collectInputArgumentRoles(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Runs compiler StableHLO pipeline on the MLIR module.
+  void
+  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -260,6 +261,6 @@ private:
   std::vector<InputArgumentRole> m_input_argument_roles;
 };
 
-} // namespace tt::pjrt
+} // namespace tt::pjrt::module_builder
 
-#endif // TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
