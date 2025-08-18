@@ -13,19 +13,16 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import ModelVariant
+from third_party.tt_forge_models.config import ModelInfo, Parallelism
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
+    ModelVariant,
+    ModelLoader,
+)
 from .tester import BertTester
 
 VARIANT_NAME = ModelVariant.BERT_BASE_UNCASED
 
-
-MODEL_NAME = build_model_name(
-    Framework.TORCH,
-    "bert",
-    "base",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+MODEL_INFO = ModelLoader._get_model_info("base")
 
 
 # ----- Fixtures -----
@@ -47,9 +44,9 @@ def training_tester() -> BertTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
@@ -65,9 +62,9 @@ def test_torch_bert_inference(inference_tester: BertTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_torch_bert_training(training_tester: BertTester):
