@@ -15,8 +15,9 @@ from utils import (
 )
 
 from .tester import SWINTester
+from third_party.tt_forge_models.swin.image_classification.pytorch import ModelVariant
 
-VARIANT_NAME = "swin_t"
+VARIANT_NAME = ModelVariant.SWIN_T
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
