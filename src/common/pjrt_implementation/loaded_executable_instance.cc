@@ -336,10 +336,10 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
 
     // temporarily disable buffer caching
-      DLOG_F(LOG_DEBUG, "[LAYOUT] Converting layout for tensor handle %p (arg %zu)", 
-             tensor_handle, arg_index);
-      laid_out_tensor = convertTensorLayout(input_tensor, program_index,
-                                            arg_index, runtime_device);
+    DLOG_F(LOG_DEBUG, "[LAYOUT] Converting layout for tensor handle %p (arg %zu)", 
+            tensor_handle, arg_index);
+    laid_out_tensor = convertTensorLayout(input_tensor, program_index,
+                                          arg_index, runtime_device);
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime. (for the getTensorFromStrategy - replication?)
@@ -394,7 +394,23 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::vector<tt::runtime::Tensor> &arg_tensors,
     const std::unordered_map<std::string, std::string> &strategy) {
-  if (strategy.at("strategy") == "identity") {
+  
+  // Log tensor strategy and shape info
+  std::string strategy_name = strategy.at("strategy");
+  // std::string shape_str = "[";
+  // if (!arg_tensors.empty()) {
+  //   auto shape = arg_tensors.front().shape;
+  //   for (size_t i = 0; i < shape.size(); ++i) {
+  //     if (i > 0) shape_str += ",";
+  //     shape_str += std::to_string(shape[i]);
+  //   }
+  // }
+  // shape_str += "]";
+  // DLOG_F(LOG_DEBUG, "[STRATEGY] %s for tensor shape %s", strategy_name.c_str(), shape_str.c_str());
+  DLOG_F(LOG_DEBUG, "[STRATEGY] Found tensor with strategy %s", strategy_name.c_str());
+
+
+  if (strategy_name == "identity") {
     return arg_tensors.front();
   }
 

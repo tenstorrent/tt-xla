@@ -178,6 +178,12 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   // Detect Shardy by looking at the meshes attribute in module.
   if (isUsingShardy(mlir_module)) {
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
+
+    shardy_pm.getContext()->disableMultithreading();
+    if (shouldEnableIRPrinting()) {
+      shardy_pm.enableIRPrinting();
+    }
+
     mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
     if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
       DLOG_F(ERROR,
@@ -198,6 +204,13 @@ void ModuleBuilder::runStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
+
+
+  stablehlo_pipeline_pm.getContext()->disableMultithreading();
+  if (shouldEnableIRPrinting()) {
+    stablehlo_pipeline_pm.enableIRPrinting();
+  }
+
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
@@ -444,7 +457,12 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
-
+    
+  shlo_to_ttir_pm.getContext()->disableMultithreading();
+  if (shouldEnableIRPrinting()) {
+    shlo_to_ttir_pm.enableIRPrinting();
+  }
+  
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
     m_status = tt_pjrt_status::kInternal;
@@ -581,6 +599,11 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
+
+  ttir_to_ttnn_pm.getContext()->disableMultithreading();
+  if (shouldEnableIRPrinting()) {
+    ttir_to_ttnn_pm.enableIRPrinting();
+  }
 
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
@@ -738,6 +761,11 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
+}
+
+bool ModuleBuilder::shouldEnableIRPrinting() const {
+  const char *log_level = std::getenv("TT_TORCH_IR_LOG_LEVEL");
+  return log_level && std::string(log_level) == "DEBUG";
 }
 
 } // namespace tt::pjrt

@@ -197,6 +197,9 @@ private:
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Checks if IR printing should be enabled based on TT_TORCH_IR_LOG_LEVEL environment variable.
+  bool shouldEnableIRPrinting() const;
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
