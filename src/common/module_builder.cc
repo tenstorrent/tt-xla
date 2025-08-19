@@ -97,10 +97,12 @@ ModuleBuilder::ModuleBuilder()
 tt_pjrt_status ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
-    const std::unordered_map<std::string, std::string> &compile_options) {
+    const std::unordered_map<std::string, std::string> &compile_options_map) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
+
+  auto compile_options = CompileOptions::parse(compile_options_map);
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -129,7 +131,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
-  convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
+  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -538,10 +540,15 @@ void ModuleBuilder::collectNumDevicesToUtilize(
 
 void ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const CompileOptions &compile_options) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+
+  options.optimizerPassEnabled = compile_options.enable_optimizer;
+  options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
+
   options.systemDescPath = system_descriptor_path.data();
 
   // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856

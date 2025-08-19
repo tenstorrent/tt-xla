@@ -11,12 +11,12 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import AlbertV2Tester
+from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
 
-MODEL_PATH = "albert/albert-large-v2"
+VARIANT_NAME = ModelVariant.LARGE_V2
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "albert_v2",
@@ -31,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH)
+    return AlbertV2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH, RunMode.TRAINING)
+    return AlbertV2Tester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,14 +48,7 @@ def training_tester() -> AlbertV2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.9827062487602234. Required: pcc=0.99 "
-        "Issue due to the fusing of the softmax op "
-        "https://github.com/tenstorrent/tt-xla/issues/927"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_albert_v2_large_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()

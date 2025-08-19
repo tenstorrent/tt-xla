@@ -42,6 +42,9 @@ on:
         default: false
         type: boolean
 
+env:
+  IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
+
 jobs:
 
   # Run tests on TT hardware
@@ -141,6 +144,8 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         TEST_GROUP_CNT: ${{ matrix.build.test_group_cnt || 1}}
         TEST_GROUP_ID: ${{ matrix.build.test_group_id || 1}}
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       shell: bash
       run: |
         source venv/activate

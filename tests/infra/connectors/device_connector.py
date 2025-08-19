@@ -78,6 +78,9 @@ class DeviceConnector(ABC):
         if plugin_spec is None:
             return None
 
+        if plugin_spec.origin is None:
+            return None
+
         # Plugin should be in the same directory as the module's __init__.py file.
         plugin_path = os.path.join(
             os.path.dirname(plugin_spec.origin), TT_PJRT_PLUGIN_NAME

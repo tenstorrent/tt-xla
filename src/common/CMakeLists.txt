@@ -33,6 +33,7 @@ add_library(TTPJRTCommon
     "platform.cc"
     "module_builder.cc"
     "plugin_attributes.cc"
+    "compile_options.cc"
     "pjrt_implementation/api_bindings.cc"
     "pjrt_implementation/buffer_instance.cc"
     "pjrt_implementation/client_instance.cc"
