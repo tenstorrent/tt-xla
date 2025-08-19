@@ -2,7 +2,6 @@ black
 clang-format
 cmake
 datasets
-diffusers
 einops
 flax==0.10.4
 fsspec
@@ -33,3 +32,6 @@ torch_xla==2.7.0
 torchvision
 transformers
 wheel
+
+#flux model
+diffusers
