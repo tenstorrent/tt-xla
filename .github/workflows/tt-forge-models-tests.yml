@@ -1,6 +1,9 @@
-name: TT-Forge Model Tests Wrapper
+name: TT-Forge Model Tests
 
 on:
+  push:
+    branches:
+      - "**"
   workflow_dispatch:  # Manual trigger
     inputs:
       reuse-build-run-id:
@@ -67,19 +70,19 @@ jobs:
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
-      docker-image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
       tests-filter: ${{ inputs.tests-filter-passing }}
       num-splits: ${{ fromJSON(inputs.num-splits-passing) }}
       runners: ${{ inputs.runners }}
-      run-id: ${{ inputs.reuse-build-run-id || github.run_id }}
+      run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
   test-not-passing-tt-forge-models:
     if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
     needs: [build-image, build-ttxla]
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
-      docker-image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
       tests-filter: ${{ inputs.tests-filter-not-passing }}
       num-splits: ${{ fromJSON(inputs.num-splits-not-passing) }}
       runners: ${{ inputs.runners }}
-      run-id: ${{ inputs.reuse-build-run-id || github.run_id }}
+      run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
