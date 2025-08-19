@@ -37,7 +37,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa -y && \
     lcov \
     unzip \
     doxygen \
-    protobuf-compiler
+    protobuf-compiler \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
 
