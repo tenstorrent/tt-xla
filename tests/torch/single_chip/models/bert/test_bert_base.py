@@ -22,7 +22,7 @@ from .tester import BertTester
 
 VARIANT_NAME = ModelVariant.BERT_BASE_UNCASED
 
-MODEL_INFO = ModelLoader._get_model_info("base")
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
