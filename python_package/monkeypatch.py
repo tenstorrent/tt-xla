@@ -132,6 +132,23 @@ def setup_mark_weight_primitive():
             try:
                 if hasattr(x, "owner") and x.owner is not None:
                     defining_op = x.owner
+                    # Drill down trough all unary ops that are not `func.call`.
+                    # Flax apply is also used to setup parameter sharing.
+                    # This happens with in and out embedding tying for example.
+                    # This means ops like transpose can appear before tt.mark.
+                    while (
+                        defining_op
+                        and hasattr(defining_op, "name")
+                        and defining_op.name != "func.call"
+                    ):
+                        if (
+                            hasattr(defining_op, "operands")
+                            and len(defining_op.operands) == 1
+                        ):
+                            defining_op = defining_op.operands[0].owner
+                        else:
+                            break
+
                     if hasattr(defining_op, "name") and defining_op.name == "func.call":
                         if hasattr(defining_op, "attributes"):
                             attrs = defining_op.attributes
