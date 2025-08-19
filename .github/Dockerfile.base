@@ -14,7 +14,7 @@ RUN apt-get update && \
     python3.11-dev \
     python3.11-venv \
     python3.11-distutils \
-    python3.11-pip \
+    python3-pip \
     git \
     git-lfs \
     libhwloc-dev \
@@ -37,10 +37,12 @@ RUN apt-get update && \
     curl \
     lcov \
     unzip \
-    doxygen \
     protobuf-compiler \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Ensure pip is available for Python 3.11
+RUN python3.11 -m ensurepip --upgrade
 
 
 # Install clang 17
