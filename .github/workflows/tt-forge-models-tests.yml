@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [true , false]
+        build_type: [false]
     uses: ./.github/workflows/build.yml
     name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
@@ -66,7 +66,7 @@ jobs:
 
   test-passing-tt-forge-models:
     needs: [build-image, build-ttxla]
-    if: ${{ always() && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
+    if: ${{ always() && (inputs.reuse-build-run-id || needs.build-ttxla.result == 'success') }}
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
@@ -76,7 +76,7 @@ jobs:
       runners: ${{ inputs.runners }}
       run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
   test-not-passing-tt-forge-models:
-    if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
+    if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build-ttxla.result == 'success') }}
     needs: [build-image, build-ttxla]
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
