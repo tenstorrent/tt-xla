@@ -359,7 +359,7 @@ setup(
         f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
         "ttxla_tools": os.path.join("..", "ttxla_tools"),
     },
-    python_requires=">=3.10, <3.11",
+    python_requires=">=3.11, <3.12",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
