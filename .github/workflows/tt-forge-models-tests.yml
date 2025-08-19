@@ -51,7 +51,7 @@ jobs:
     secrets: inherit
 
   build-ttxla:
-    if: ${{ !inputs.reuse-build-run-id }}  # Only run if not reusing artifacts
+    if: ${{ !inputs['reuse-build-run-id'] }}  # Only run if not reusing artifacts
     strategy:
       fail-fast: false
       matrix:
@@ -66,23 +66,23 @@ jobs:
 
   test-passing-tt-forge-models:
     needs: [build-image, build-ttxla]
-    if: ${{ always() && (inputs.reuse-build-run-id || needs.build-ttxla.result == 'success') }}
+    if: ${{ always() && (inputs['reuse-build-run-id'] || needs.build-ttxla.result == 'success') }}
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      tests-filter: ${{ inputs.tests-filter-passing }}
-      num-splits: ${{ fromJSON(inputs.num-splits-passing) }}
+      tests-filter: ${{ inputs['tests-filter-passing'] }}
+      num-splits: ${{ fromJSON(inputs['num-splits-passing'] || '8') }}
       runners: ${{ inputs.runners }}
-      run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
+      run_id: ${{ inputs['reuse-build-run-id'] || github.run_id }}
   test-not-passing-tt-forge-models:
-    if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build-ttxla.result == 'success') }}
+    if: ${{ always() && inputs['run-not-passing-tests'] && (inputs['reuse-build-run-id'] || needs.build-ttxla.result == 'success') }}
     needs: [build-image, build-ttxla]
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      tests-filter: ${{ inputs.tests-filter-not-passing }}
-      num-splits: ${{ fromJSON(inputs.num-splits-not-passing) }}
+      tests-filter: ${{ inputs['tests-filter-not-passing'] }}
+      num-splits: ${{ fromJSON(inputs['num-splits-not-passing'] || '4') }}
       runners: ${{ inputs.runners }}
-      run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
+      run_id: ${{ inputs['reuse-build-run-id'] || github.run_id }}
