@@ -71,8 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         build: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-        # runner: ${{ fromJson(inputs.runners || '["wormhole","blackhole"]') }}
-        runner: ${{ fromJson(inputs.runners || '["wormhole"]') }}
+        runner: ${{ fromJson(inputs.runners) }}
     name: "run-models ${{ matrix.runner == 'wormhole' && 'wh' || matrix.runner == 'blackhole' && 'bh' || 'unk' }} (${{ matrix.build.name }}) - ${{ inputs.tests-filter }}"
     runs-on: ${{ matrix.runner == 'wormhole' && matrix.build.wh-runner || matrix.runner == 'blackhole' && matrix.build.bh-runner || 'n150'}}
     container:
