@@ -1,0 +1,203 @@
+name: Run TT Forge Models Tests
+
+on:
+  workflow_call:
+    inputs:
+      reuse-build-run-id:
+        description: 'Reuse build artifacts from specific run ID (skips build job)'
+        required: false
+        type: string
+      docker-image:
+        description: 'Docker image to use for build'
+        required: true
+        type: string
+      tests-filter:
+        description: 'Filter to apply to the test run'
+        required: false
+        type: string
+        default: "expected_passing"
+      num-splits:
+        description: 'Number of splits for pytest'
+        required: false
+        type: number
+        default: 4
+      runners:
+        description: 'JSON array of runners. Example: ["wormhole"] or ["wormhole","blackhole"]'
+        required: false
+        type: string
+        default: '["wormhole","blackhole"]'
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+
+env:
+  # Model files accessed via get_file() are cached here.
+  DOCKER_CACHE_ROOT: /mnt/dockercache
+
+permissions:
+  packages: write
+  checks: write
+
+jobs:
+
+  # Dynamically generate matrix based on number of groups
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          NUM_GROUPS=${{ inputs.num-splits }}
+          MATRIX_JSON=$(jq -n --argjson n "$NUM_GROUPS" '
+            [range(1; $n + 1)] |
+            map({
+              "wh-runner": "wormhole_b0",
+              "bh-runner": "p150",
+              "name": ("grp_" + tostring),
+              "group": .
+            })')
+          printf "matrix=%s\n" "$(echo "$MATRIX_JSON" | jq -c)" >> "$GITHUB_OUTPUT"
+
+  tests:
+    timeout-minutes: 340
+    needs: generate-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+        runner: ${{ fromJson(inputs.runners) }}
+    name: "test exec models ${{ matrix.runner == 'wormhole' && 'wh' || matrix.runner == 'blackhole' && 'bh' || 'unk' }} (${{ matrix.build.name }}) - ${{ inputs.tests-filter }}"
+    runs-on: ${{ matrix.runner == 'wormhole' && matrix.build.wh-runner || matrix.runner == 'blackhole' && matrix.build.bh-runner || 'wormhole_b0'}}
+    container:
+      image: ${{ inputs.docker-image }}
+      options: --user root --device /dev/tenstorrent/0 --shm-size=2gb
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for runner # Check if we need to skip testing when a wh-runner is not set for wormhole run or a bh-runner on blackhole run
+      run: |
+        if [ "${{ matrix.runner }}" = "wormhole" ] && [ -n "${{ matrix.build.wh-runner }}" ]; then
+          echo "RUN_TEST=wormhole" >> $GITHUB_ENV
+        elif [ "${{ matrix.runner }}" = "blackhole" ] && [ -n "${{ matrix.build.bh-runner }}" ]; then
+          echo "RUN_TEST=blackhole" >> $GITHUB_ENV
+        else
+          echo "RUN_TEST=skip" >> $GITHUB_ENV
+        fi
+
+    - name: Fetch job id
+      id: fetch-job-id
+      if: ${{ env.RUN_TEST != 'skip' }}
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "test exec models ${{ matrix.runner == 'wormhole' && 'wh' || matrix.runner == 'blackhole' && 'bh' || 'unk' }} (${{ matrix.build.name }}) - ${{ inputs.tests-filter }}"
+
+    - name: Set reusable strings
+      id: strings
+      if: ${{ env.RUN_TEST != 'skip' }}
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "install-dir=$(pwd)/install" >> "$GITHUB_OUTPUT"
+        echo "dist-dir=$(pwd)/dist" >> "$GITHUB_OUTPUT"
+        echo "job-id=$JOB_ID" >> "$GITHUB_OUTPUT"
+        echo "test_report_path_models=report_models_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+    - name: Git safe dir
+      if: ${{ env.RUN_TEST != 'skip' }}
+      run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+    - name: Use build artifacts
+      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+      if: ${{ env.RUN_TEST != 'skip' }}
+      with:
+        name: install-artifacts
+        path: install
+        run_id: ${{ inputs.reuse-build-run-id || github.run_id }}
+
+    - name: Extract build artifacts
+      if: ${{ env.RUN_TEST != 'skip' }}
+      shell: bash
+      run: |
+        cd install
+        if [ -f artifact.tar ]; then
+          echo "Extracting artifact.tar..."
+          tar -xf artifact.tar
+          ls -la
+        else
+          echo "artifact.tar not found, listing contents:"
+          ls -la
+        fi
+
+    - name: install tt-torch
+      if: ${{ env.RUN_TEST != 'skip' }}
+      shell: bash
+      run: |
+        source env/activate
+        mkdir -p ${{ steps.strings.outputs.dist-dir }}
+        mv install/wheels/* ${{ steps.strings.outputs.dist-dir }}
+        pip install ${{ steps.strings.outputs.dist-dir }}/*.whl
+
+    - name: Set pytest command
+      if: ${{ env.RUN_TEST != 'skip' }}
+      shell: bash
+      run: |
+        BASE_PYTEST_CMD="tests/runner/test_models.py \
+          -m \"${{ inputs.tests-filter }}\" \
+          --xfail-tb \
+          --log-memory-usage \
+          --arch ${{ env.RUN_TEST }} \
+          --splits ${{ inputs.num-splits }} \
+          --group ${{ matrix.build.group }} \
+          --splitting-algorithm least_duration \
+          --durations-path .test_durations"
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+
+    - name: Collect Tests
+      if: ${{ env.RUN_TEST != 'skip' }}
+      shell: bash
+      run: |
+        source env/activate
+        echo "Collecting tests for group ${{ matrix.build.group }}..."
+        pytest --collect-only -q ${{ env.BASE_PYTEST_CMD }}
+
+    - name: Run Model Test
+      if: ${{ env.RUN_TEST != 'skip' }}
+      env:
+        HF_HOME: ${{ env.DOCKER_CACHE_ROOT }}/huggingface
+        TORCH_HOME: ${{ env.DOCKER_CACHE_ROOT }}/torch
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      shell: bash
+      run: |
+        source env/activate
+        pytest --durations=0 -v -rA ${{ env.BASE_PYTEST_CMD }} --junit-xml=${{ steps.strings.outputs.test_report_path_models }} | tee pytest.log
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: ${{ (success() || failure()) && env.RUN_TEST != 'skip' }}
+      with:
+        name: test-log-${{ matrix.runner }}-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}-${{ inputs.tests-filter }}
+        path: pytest.log
+
+    - name: Upload Memory Usage Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: memory-usage-${{ matrix.runner }}-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}-${{ inputs.tests-filter }}
+        path: pytest-memory-usage.csv
+
+    - name: Upload Test Report Models
+      uses: actions/upload-artifact@v4
+      if: ${{ (success() || failure()) && env.RUN_TEST != 'skip' }}
+      with:
+        name: test-reports-models-${{ matrix.runner }}-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}-${{ inputs.tests-filter }}
+        path: ${{ steps.strings.outputs.test_report_path_models }}
