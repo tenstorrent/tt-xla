@@ -1,0 +1,78 @@
+name: TT-Forge Model Tests Wrapper
+
+on:
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      reuse-build-run-id:
+        description: 'Reuse build artifacts from specific run ID (skips build job)'
+        required: false
+        type: string
+      tests-filter-passing:
+        description: 'Filter for passing tests'
+        required: false
+        type: string
+        default: "expected_passing"
+      num-splits-passing:
+        description: 'Number of splits for passing tests'
+        required: false
+        type: number
+        default: 8
+      run-not-passing-tests:
+        description: 'Run not passing tests'
+        required: false
+        type: boolean
+        default: false
+      tests-filter-not-passing:
+        description: 'Filter for not passing tests'
+        required: false
+        type: string
+        default: "not expected_passing"
+      num-splits-not-passing:
+        description: 'Number of splits for not passing tests'
+        required: false
+        type: number
+        default: 4
+      runners:
+        description: 'JSON array of runners. Example: ["wormhole"] or ["wormhole","blackhole"]'
+        required: false
+        type: string
+        default: '["wormhole","blackhole"]'
+
+permissions:
+  packages: write
+  checks: write
+
+jobs:
+  docker-build:
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+  build:
+    if: ${{ !inputs.reuse-build-run-id }}  # Only run if not reusing artifacts
+    needs: docker-build
+    uses: ./.github/workflows/run-build.yml
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+      setup-args: "--code_coverage --include-models --build_perf"
+  test-passing-tt-forge-models:
+    needs: [docker-build, build]
+    if: ${{ always() && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
+    uses: ./.github/workflows/run-tt-forge-models-tests.yml
+    secrets: inherit
+    with:
+      reuse-build-run-id: ${{ inputs.reuse-build-run-id }}
+      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+      tests-filter: ${{ inputs.tests-filter-passing }}
+      num-splits: ${{ fromJSON(inputs.num-splits-passing) }}
+      runners: ${{ inputs.runners }}
+  test-not-passing-tt-forge-models:
+    if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
+    needs: [docker-build, build]
+    uses: ./.github/workflows/run-tt-forge-models-tests.yml
+    secrets: inherit
+    with:
+      reuse-build-run-id: ${{ inputs.reuse-build-run-id }}
+      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+      tests-filter: ${{ inputs.tests-filter-not-passing }}
+      num-splits: ${{ fromJSON(inputs.num-splits-not-passing) }}
+      runners: ${{ inputs.runners }}
