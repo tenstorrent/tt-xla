@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include "compile_options.h"
+#include "common/pjrt_implementation/module_builder/compile_options.h"
 
 // c++ standard library includes
 #include <algorithm>
