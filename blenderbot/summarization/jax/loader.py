@@ -34,19 +34,15 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BLENDERBOT_3B: LLMModelConfig(
             pretrained_model_name="facebook/blenderbot-3B",
-            max_length=128,
         ),
         ModelVariant.BLENDERBOT_SMALL_90M: LLMModelConfig(
             pretrained_model_name="facebook/blenderbot_small-90M",
-            max_length=128,
         ),
         ModelVariant.BLENDERBOT_1B_DISTILL: LLMModelConfig(
             pretrained_model_name="facebook/blenderbot-1B-distill",
-            max_length=128,
         ),
         ModelVariant.BLENDERBOT_400M_DISTILL: LLMModelConfig(
             pretrained_model_name="facebook/blenderbot-400M-distill",
-            max_length=128,
         ),
     }
 

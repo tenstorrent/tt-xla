@@ -37,19 +37,15 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE_V2: LLMModelConfig(
             pretrained_model_name="albert/albert-base-v2",
-            max_length=128,
         ),
         ModelVariant.LARGE_V2: LLMModelConfig(
             pretrained_model_name="albert/albert-large-v2",
-            max_length=128,
         ),
         ModelVariant.XLARGE_V2: LLMModelConfig(
             pretrained_model_name="albert/albert-xlarge-v2",
-            max_length=128,
         ),
         ModelVariant.XXLARGE_V2: LLMModelConfig(
             pretrained_model_name="albert/albert-xxlarge-v2",
-            max_length=128,
         ),
     }
 
@@ -155,15 +151,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
         # Create tokenized inputs for the masked language modeling task
         inputs = self.tokenizer(
             self.sample_text,
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
             return_tensors="jax",
         )
 

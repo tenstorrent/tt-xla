@@ -152,7 +152,7 @@ class ModelConfig:
 class LLMModelConfig(ModelConfig):
     """Configuration specific to language models"""
 
-    max_length: int
+    max_length: Optional[int] = None
     attention_mechanism: Optional[str] = None
     sliding_window: Optional[int] = None
 

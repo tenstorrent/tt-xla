@@ -8,7 +8,7 @@ from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -30,10 +30,10 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BASE: ModelConfig(
+        ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="google/bigbird-base-trivia-itc",
         ),
-        ModelVariant.LARGE: ModelConfig(
+        ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="google/bigbird-roberta-large",
         ),
     }
@@ -59,7 +59,6 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self._tokenizer = None
         self._model_name = self._variant_config.pretrained_model_name
-        self._max_length = 384
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
@@ -150,9 +149,6 @@ class ModelLoader(ForgeModel):
         inputs = self._tokenizer(
             self.question,
             self.context,
-            max_length=self._max_length,
-            padding="max_length",
-            truncation=True,
             return_tensors="jax",
         )
 

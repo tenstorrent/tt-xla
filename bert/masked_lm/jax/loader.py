@@ -35,11 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-base-uncased",
-            max_length=128,
         ),
         ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-large-uncased",
-            max_length=128,
         ),
     }
 
@@ -142,15 +140,9 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
         # Create tokenized inputs for the masked language modeling task
         inputs = self._tokenizer(
             self.sample_text,
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
             return_tensors="jax",
         )
 
