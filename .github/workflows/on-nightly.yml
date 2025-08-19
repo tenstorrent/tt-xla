@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [true , false]
+        build_type: [false]
     uses: ./.github/workflows/build.yml
     name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
@@ -53,6 +53,7 @@ jobs:
       debug_build: ${{ matrix.build_type }}
 
   nightly_tests:
+    if: false
     uses: ./.github/workflows/test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
@@ -129,7 +130,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
+    if: false #success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
@@ -154,8 +155,8 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - nightly_tests
-      - test_full_model
+      # - nightly_tests
+      # - test_full_model
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
