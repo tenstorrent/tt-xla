@@ -4,9 +4,10 @@
 
 #include "compile_options.h"
 
+// c++ standard library includes
 #include <algorithm>
 
-namespace tt::pjrt {
+namespace tt::pjrt::module_builder {
 
 CompileOptions CompileOptions::parse(
     const std::unordered_map<std::string, std::string> &compile_options) {
@@ -19,6 +20,7 @@ CompileOptions CompileOptions::parse(
 }
 
 namespace internal {
+
 bool parseBoolOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     std::string option_name) {
@@ -31,5 +33,7 @@ bool parseBoolOption(
   }
   return false;
 }
+
 } // namespace internal
-} // namespace tt::pjrt
+
+} // namespace tt::pjrt::module_builder
