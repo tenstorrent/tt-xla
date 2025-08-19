@@ -7,29 +7,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install Python 3.11 + dependencies and common build tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        software-properties-common \
         wget curl git git-lfs jq unzip \
         build-essential ninja-build ccache pkg-config \
         libhwloc-dev libtbb-dev libcapstone-dev libyaml-cpp-dev libboost-all-dev \
         libgtest-dev cmake doxygen graphviz patchelf lcov pandoc \
         protobuf-compiler linux-tools-generic \
-        ca-certificates && \
-    add-apt-repository ppa:deadsnakes/ppa -y && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+        ca-certificates \
         python3.11 \
         python3.11-dev \
         python3.11-venv \
         python3.11-distutils \
-        && \
-    # Symlinks so "python3" and "python" point to Python 3.11
-    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    # Ensure pip is available and up-to-date
-    python3.11 -m ensurepip --upgrade && \
-    python3.11 -m pip install --upgrade pip setuptools wheel && \
-    # Clean up apt cache
-    rm -rf /var/lib/apt/lists/*
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && python3.11 -m ensurepip --upgrade \
+    && python3.11 -m pip install --upgrade pip setuptools wheel \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
