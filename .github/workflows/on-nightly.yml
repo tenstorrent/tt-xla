@@ -105,6 +105,24 @@ jobs:
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
             echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
+      - name: Generate tt-forge-models matrix
+        id: generate-forge-models-matrix
+        shell: bash
+        env:
+          TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
+        run: |
+            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
+            TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
+            TESTS_TO_PARALLELIZE='[
+              {
+                "runs-on": "n150",
+                "name": "run_models_passing",
+                "dir": "./tests/runner/test_models.py",
+              },
+            ]'
+            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
+            echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+
   test_full_model:
     uses: ./.github/workflows/test.yml
     secrets: inherit
@@ -117,6 +135,20 @@ jobs:
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
+
+  # NEW - This is a single test job that runs all tt-forge-models tests.
+  test_forge_models:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-forge-models-matrix ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
+      test_mark: 'model_test'
+      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-matrix }}
+      use-shared-runners: true # Run full model tests on Civ2
 
   fail-notify:
     if: always()

@@ -21,6 +21,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
 MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 
 
+@pytest.mark.model_test
 @pytest.mark.parametrize(
     "mode",
     ["eval"],
