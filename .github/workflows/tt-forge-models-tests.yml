@@ -43,36 +43,43 @@ permissions:
   checks: write
 
 jobs:
-  docker-build:
+  build-image:
     uses: ./.github/workflows/build-image.yml
     secrets: inherit
-  build:
+
+  build-ttxla:
     if: ${{ !inputs.reuse-build-run-id }}  # Only run if not reusing artifacts
-    needs: docker-build
-    uses: ./.github/workflows/run-build.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [true , false]
+    uses: ./.github/workflows/build.yml
+    name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
+    needs: build-image
     with:
-      docker-image: ${{ needs.docker-build.outputs.docker-image }}
-      setup-args: "--code_coverage --include-models --build_perf"
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: ${{ matrix.build_type }}
+
   test-passing-tt-forge-models:
-    needs: [docker-build, build]
+    needs: [build-image, build-ttxla]
     if: ${{ always() && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
-      reuse-build-run-id: ${{ inputs.reuse-build-run-id }}
-      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+      docker-image: ${{ needs.build-image.outputs.docker-image }}
       tests-filter: ${{ inputs.tests-filter-passing }}
       num-splits: ${{ fromJSON(inputs.num-splits-passing) }}
       runners: ${{ inputs.runners }}
+      run-id: ${{ inputs.reuse-build-run-id || github.run_id }}
   test-not-passing-tt-forge-models:
     if: ${{ always() && inputs.run-not-passing-tests && (inputs.reuse-build-run-id || needs.build.result == 'success') }}
-    needs: [docker-build, build]
+    needs: [build-image, build-ttxla]
     uses: ./.github/workflows/run-tt-forge-models-tests.yml
     secrets: inherit
     with:
-      reuse-build-run-id: ${{ inputs.reuse-build-run-id }}
-      docker-image: ${{ needs.docker-build.outputs.docker-image }}
+      docker-image: ${{ needs.build-image.outputs.docker-image }}
       tests-filter: ${{ inputs.tests-filter-not-passing }}
       num-splits: ${{ fromJSON(inputs.num-splits-not-passing) }}
       runners: ${{ inputs.runners }}
+      run-id: ${{ inputs.reuse-build-run-id || github.run_id }}
