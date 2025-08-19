@@ -71,9 +71,9 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      tests-filter: ${{ inputs['tests-filter-passing'] }}
+      tests-filter: ${{ inputs['tests-filter-passing'] || 'expected_passing' }}
       num-splits: ${{ fromJSON(inputs['num-splits-passing'] || '8') }}
-      runners: ${{ inputs.runners }}
+      runners: ${{ inputs.runners || '["wormhole"]' }}
       run_id: ${{ inputs['reuse-build-run-id'] || github.run_id }}
   test-not-passing-tt-forge-models:
     if: ${{ always() && inputs['run-not-passing-tests'] && (inputs['reuse-build-run-id'] || needs.build-ttxla.result == 'success') }}
@@ -82,7 +82,7 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      tests-filter: ${{ inputs['tests-filter-not-passing'] }}
+      tests-filter: ${{ inputs['tests-filter-not-passing'] || 'not expected_passing' }}
       num-splits: ${{ fromJSON(inputs['num-splits-not-passing'] || '4') }}
-      runners: ${{ inputs.runners }}
+      runners: ${{ inputs.runners || '["wormhole"]' }}
       run_id: ${{ inputs['reuse-build-run-id'] || github.run_id }}
