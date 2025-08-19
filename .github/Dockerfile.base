@@ -5,9 +5,10 @@ SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-RUN add-apt-repository ppa:deadsnakes/ppa -y && \
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && apt-get install -y \
-    software-properties-common \
     build-essential \
     python3.11 \
     python3.11-dev \
