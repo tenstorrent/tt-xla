@@ -11,7 +11,6 @@ jaxtyping
 librosa
 lit
 loguru
-matplotlib
 ml_collections
 ninja
 pillow
@@ -33,3 +32,6 @@ torch_xla==2.7.0
 torchvision
 transformers
 wheel
+
+#monodepth2 model
+matplotlib
