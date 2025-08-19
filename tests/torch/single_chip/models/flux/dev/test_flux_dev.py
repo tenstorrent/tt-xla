@@ -43,6 +43,7 @@ def training_tester() -> FluxTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -51,16 +52,17 @@ def training_tester() -> FluxTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-# @pytest.mark.xfail(
-#     reason=failed_ttmlir_compilation(
-#         "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-#         "https://github.com/tenstorrent/tt-xla/issues/735"
-#     )
-# )
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
+        "https://github.com/tenstorrent/tt-xla/issues/735"
+    )
+)
 def test_torch_flux_dev_inference(inference_tester: FluxTester):
     inference_tester.test()
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
