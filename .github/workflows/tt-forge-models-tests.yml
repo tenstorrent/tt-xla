@@ -1,9 +1,9 @@
 name: TT-Forge Model Tests
 
 on:
-  # push:
-  #   branches:
-  #     - "**"
+  push:
+    branches:
+      - "**"
   workflow_dispatch:  # Manual trigger
     inputs:
       reuse-build-run-id:
