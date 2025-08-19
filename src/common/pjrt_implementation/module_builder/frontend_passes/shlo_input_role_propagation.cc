@@ -50,7 +50,12 @@ void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
   // We are marking only function arguments so we expect call op operands to be
   // block arguments of the FuncOp.
   auto block_arg = mlir::dyn_cast<mlir::BlockArgument>(value);
-  assert(block_arg && "CallOp operand not a BlockArgument");
+  if (!block_arg) {
+    // It can happen that some arguments are first passed trough some Op and
+    // then marked again. Therefore it is not a bug if something other than a
+    // block arg makes it in here.
+    return;
+  }
   auto *parent_op = block_arg.getOwner()->getParentOp();
   auto arg_index = block_arg.getArgNumber();
   auto parent_func_op = mlir::dyn_cast<mlir::func::FuncOp>(parent_op);
