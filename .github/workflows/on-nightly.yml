@@ -69,6 +69,7 @@ jobs:
     needs: [ set-inputs ]
     outputs:
       test-full-model-matrix: ${{ steps.generate-matrix.outputs.test-full-model-matrix}}
+      test-forge-models-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -118,11 +119,11 @@ jobs:
               {
                 "runs-on": "n150",
                 "name": "run_models_passing",
-                "dir": "./tests/runner/test_models.py",
-              },
+                "dir": "./tests/runner/test_models.py"
+              }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
-            echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+            echo "test-forge-models-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test_full_model:
     uses: ./.github/workflows/test.yml
@@ -141,14 +142,14 @@ jobs:
   test_forge_models:
     uses: ./.github/workflows/test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-forge-models-matrix ]
+    needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
-      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-matrix }}
+      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: true # Run full model tests on Civ2
 
   fail-notify:
