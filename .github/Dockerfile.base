@@ -25,7 +25,7 @@ RUN apt-get update && \
 # Install clang 17
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        lsb-release software-properties-common gnupg && \
+        lsb-release software-properties-common gnupg python3-apt && \
     wget https://apt.llvm.org/llvm.sh && \
     chmod u+x llvm.sh && \
     ./llvm.sh 17 && \
