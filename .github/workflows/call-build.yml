@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Build tt-xla"
     outputs:
-      wheel_url: ${{ steps.upload-wheel.outputs.artifact-url }}/zip
+      wheel_url: ${{ format('https://api.github.com/repos/{0}/actions/artifacts/{1}/zip', github.repository, steps.upload-wheel.outputs.artifact-id) }}
     container:
       image: ${{ inputs.docker_image }}
 
