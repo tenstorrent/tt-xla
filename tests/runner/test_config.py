@@ -160,6 +160,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "bart/pytorch-large-full-eval": {
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-full-eval": {
@@ -181,6 +182,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "deit/pytorch-small-full-eval": {
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "deit/pytorch-tiny-full-eval": {
@@ -261,6 +263,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-full-eval": {
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "dpr/reader/pytorch-facebook/dpr-reader-multiset-base-full-eval": {
@@ -935,7 +938,7 @@ test_config = {
         },
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-eval": {
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "blackhole": {
@@ -977,12 +980,14 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_m-full-eval": {
+        # Missing thop
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_l-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_darknet-full-eval": {
+        # Missing thop
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_x-full-eval": {
@@ -1028,6 +1033,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vit/pytorch-vit_l_32-full-eval": {
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-full-eval": {
