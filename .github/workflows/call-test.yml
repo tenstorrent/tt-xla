@@ -66,7 +66,7 @@ jobs:
     runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+    name: "${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     container:
       image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -94,7 +94,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "run-tests ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+        job_name: "${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
 
     - name: Set reusable strings
       id: strings
@@ -136,16 +136,9 @@ jobs:
           --dir build \
           --name ${{ inputs.build_artifact_name }}
 
-    - name: Run tests
-      env:
-        HF_HOME: /mnt/dockercache/huggingface
-        TEST_GROUP_CNT: ${{ matrix.build.test_group_cnt || 1}}
-        TEST_GROUP_ID: ${{ matrix.build.test_group_id || 1}}
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    - name: Set pytest command
       shell: bash
       run: |
-        source venv/activate
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         if [[ "${{ matrix.build.name }}" == "run_torch" || "${{ matrix.build.name }}" == "run_large_jax_models" ]]; then
@@ -158,14 +151,32 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
-        pytest $PYTEST_FORKED --log-memory -sv \
-                ${{ matrix.build.dir }}  \
-                -m "$MARKS" \
-                --splits $TEST_GROUP_CNT \
-                --group $TEST_GROUP_ID \
-                --splitting-algorithm least_duration \
-                --junitxml=${{ steps.strings.outputs.test_report_path }} \
-                2>&1 | tee pytest.log
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory -sv \
+          ${{ matrix.build.dir }} \
+          -m \"$MARKS\" \
+          --splits ${{ matrix.build.test_group_cnt || 1}} \
+          --group ${{ matrix.build.test_group_id || 1}} \
+          --splitting-algorithm least_duration"
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+
+    - name: Collect Tests
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
+        pytest --collect-only -q ${{ env.BASE_PYTEST_CMD }}
+
+    - name: Run tests
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      shell: bash
+      run: |
+        source venv/activate
+        pytest ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               2>&1 | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
