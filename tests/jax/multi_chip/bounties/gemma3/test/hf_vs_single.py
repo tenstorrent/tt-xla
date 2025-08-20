@@ -70,7 +70,11 @@ def load_jax_model(config):
 
 
 def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
-    return pt_model.generate(pt_input_ids, attention_mask=pt_attention_mask)
+    return pt_model.generate(
+        pt_input_ids,
+        attention_mask=pt_attention_mask,
+        do_sample=False,
+    )
 
 
 def run_jax_model(
@@ -94,7 +98,7 @@ def run_comparison_test(model_id: str, prompt: str):
     config = AutoConfig.from_pretrained(model_id)
     config.text_config.num_hidden_layers = 2
     config.vision_config.num_hidden_layers = 2
-    config._attn_implementation = "eager"
+    config.text_config._attn_implementation = "eager"
 
     pt_input_ids, pt_attention_mask, tokenizer = prepare_pytorch_inputs(
         model_id, prompt
