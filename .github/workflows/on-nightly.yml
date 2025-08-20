@@ -100,7 +100,7 @@ jobs:
               {
                 "runs-on": "p150",
                 "name": "run_torch"
-              },
+              }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
             echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
