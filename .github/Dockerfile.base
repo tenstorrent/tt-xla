@@ -23,12 +23,18 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install clang 17
-RUN wget https://apt.llvm.org/llvm.sh && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        gnupg \
+        lsb-release && \
+    wget https://apt.llvm.org/llvm.sh && \
     chmod u+x llvm.sh && \
     ./llvm.sh 17 && \
-    apt install -y libc++-17-dev libc++abi-17-dev && \
-    ln -s /usr/bin/clang-17 /usr/bin/clang && \
-    ln -s /usr/bin/clang++-17 /usr/bin/clang++
+    apt-get install -y --no-install-recommends libc++-17-dev libc++abi-17-dev && \
+    ln -sf /usr/bin/clang-17 /usr/bin/clang && \
+    ln -sf /usr/bin/clang++-17 /usr/bin/clang++ && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
 RUN python3 -m pip install --no-cache-dir cmake
