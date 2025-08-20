@@ -152,7 +152,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'expected_passing'
       test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
-      use-shared-runners: true # Run full model tests on Civ2
+      use-shared-runners: false # Run full model tests on Civ1 (for now)
 
   test_full_model_forge_models_xfail:
     uses: ./.github/workflows/test.yml
@@ -166,7 +166,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'not expected_passing'
       test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
-      use-shared-runners: true # Run full model tests on Civ2
+      use-shared-runners: false # Run full model tests on Civ1 (for now)
 
   fail-notify:
     if: always()
