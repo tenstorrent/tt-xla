@@ -52,7 +52,7 @@ def training_tester() -> AutoencoderLinearTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "failing only in BlackHole HW. PCC comparison failed. Calculated: pcc=0.039223916828632355. Required: pcc=0.99"
+        "PCC comparison failed on Blackhole. Calculated: pcc=0.039223916828632355. Required: pcc=0.99."
         "https://github.com/tenstorrent/tt-xla/issues/1038"
     )
 )
