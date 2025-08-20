@@ -51,10 +51,9 @@ jobs:
     secrets: inherit
 
   build-xla:
-    if: inputs.rebuild_xla
+    needs: build-image
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
-    needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
@@ -135,7 +134,7 @@ jobs:
   test:
     if: always() && !cancelled()
     uses: ./.github/workflows/call-test.yml
-    needs: [build-image,test-setup]
+    needs: [build-image,test-setup,build-xla]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
