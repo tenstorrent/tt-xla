@@ -155,12 +155,19 @@ jobs:
           fi
         done
 
+        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
         if [[ -n "${{ matrix.build.extra_test_marks }}" ]]; then
           MARKS="${{ inputs.test_mark }} and ${{ matrix.build.extra_test_marks }}"
         else
           MARKS="${{ inputs.test_mark }}"
         fi
-        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory -sv \
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
           ${{ matrix.build.dir }} \
           -m \"$MARKS\" \
           --splits ${{ matrix.build.test_group_cnt || 1}} \
