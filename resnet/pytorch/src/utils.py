@@ -21,10 +21,7 @@ def run_and_print_results(framework_model, compiled_model, inputs):
 
     results = []
     for i, image in enumerate(inputs):
-        processed_inputs = processor(image, return_tensors="pt")["pixel_values"].to(
-            torch.bfloat16
-        )
-
+        processed_inputs = processor(image, return_tensors="pt")["pixel_values"]
         cpu_logits = framework_model(processed_inputs)[0]
         cpu_conf, cpu_idx = cpu_logits.softmax(-1).max(-1)
         cpu_pred = label_dict.get(cpu_idx.item(), "Unknown")

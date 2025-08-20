@@ -59,7 +59,7 @@ class ModelLoader(ForgeModel):
             model="llava",
             variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.MULTIMODAL_CONDITIONAL_GENERATION,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )

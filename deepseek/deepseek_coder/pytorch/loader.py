@@ -72,7 +72,7 @@ class ModelLoader(ForgeModel):
             model="deepseek_coder",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.QA,
+            task=ModelTask.NLP_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )

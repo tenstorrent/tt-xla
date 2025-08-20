@@ -5,8 +5,6 @@
 YOLOv5 model loader implementation
 """
 import torch
-from torchvision import transforms
-from datasets import load_dataset
 from typing import Optional
 
 from ...config import (
@@ -19,6 +17,11 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
+from ...tools.utils import get_file
+import cv2
+import numpy as np
+from .src.utils import data_preprocessing, data_postprocessing
+from PIL import Image
 
 
 class ModelVariant(StrEnum):
@@ -117,26 +120,22 @@ class ModelLoader(ForgeModel):
             input_size: Optional input size (width and height) to override the default size of 640.
 
         Returns:
-            torch.Tensor: Sample input tensor that can be fed to the model.
+            tuple: A tuple containing:
+                - ims: List of input images
+                - n: Number of input samples
+                - files: Filenames
+                - shape0: Image shape
+                - shape1: Inference shape
+                - batch_tensor: Input tensor that can be fed to the model
         """
 
-        # Load dataset
-        dataset = load_dataset(
-            "huggingface/cats-image", split="test"
-        )  # cats-image is a dataset of 1000 images of cats
+        image_path = get_file("http://images.cocodataset.org/val2017/000000397133.jpg")
+        image_sample = cv2.imread(str(image_path))
+        image_sample = Image.fromarray(np.uint8(image_sample)).convert("RGB")
 
-        # Get first image from dataset
-        image = dataset[0]["image"]
-
-        # Preprocess the image
-        transform = transforms.Compose(
-            [
-                transforms.Resize((input_size, input_size)),
-                transforms.ToTensor(),
-            ]
+        ims, n, files, shape0, shape1, img_tensor = data_preprocessing(
+            image_sample, size=(input_size, input_size)
         )
-
-        img_tensor = transform(image).unsqueeze(0)  # Add batch dimension
 
         # Replicate tensors for batch size
         batch_tensor = img_tensor.repeat_interleave(batch_size, dim=0)
@@ -145,4 +144,35 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             batch_tensor = batch_tensor.to(dtype_override)
 
-        return batch_tensor
+        return ims, n, files, shape0, shape1, batch_tensor
+
+    def post_process(
+        self, ims, pixel_values_shape, output, framework_model, n, shape0, shape1, files
+    ):
+
+        """Post-process YOLOv5 model outputs to extract detection results.
+
+        Args:
+            ims: List of input images
+            pixel_values_shape: Shape of the input pixel values
+            output: compiled model output
+            framework_model: The YOLOv5 model instance
+            n: Number of input samples
+            shape0: Image shape
+            shape1: Inference shape
+            files: Filenames
+
+        """
+
+        results = data_postprocessing(
+            ims,
+            pixel_values_shape,
+            output,
+            framework_model,
+            n,
+            shape0,
+            shape1,
+            files,
+        )
+
+        print("Predictions:\n", results.pandas().xyxy)

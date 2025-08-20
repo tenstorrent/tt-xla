@@ -60,9 +60,9 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         task = (
-            ModelTask.TEXT_GENERATION
+            ModelTask.NLP_CAUSAL_LM
             if variant == ModelVariant.GPT2_BASE
-            else ModelTask.SEQUENCE_CLASSIFICATION
+            else ModelTask.NLP_TEXT_CLS
         )
 
         return ModelInfo(

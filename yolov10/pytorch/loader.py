@@ -21,6 +21,7 @@ from ...config import (
 from ...base import ForgeModel
 from torch.hub import load_state_dict_from_url
 from ultralytics.nn.tasks import DetectionModel
+from ...tools.utils import yolo_postprocess
 
 
 class ModelVariant(StrEnum):
@@ -133,3 +134,14 @@ class ModelLoader(ForgeModel):
             batch_tensor = batch_tensor.to(dtype_override)
 
         return batch_tensor
+
+    def post_process(self, co_out):
+        """Post-process YOLOv10 model outputs to extract detection results.
+
+        Args:
+            co_out: Raw model output tensor from YOLOv10 forward pass.
+
+        Returns:
+            Post-processed detection results.
+        """
+        return yolo_postprocess(co_out)
