@@ -66,7 +66,7 @@ jobs:
     runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+    name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }}) - ${{ github.run_id }}"
 
     container:
       image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -94,7 +94,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }})"
+        job_name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ matrix.build.test_group_id }}) - ${{ github.run_id }}"
 
     - name: Set reusable strings
       id: strings
@@ -141,11 +141,13 @@ jobs:
       run: |
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
-        if [[ "${{ matrix.build.name }}" == "run_torch" || "${{ matrix.build.name }}" == "run_large_jax_models" ]]; then
-          PYTEST_FORKED="--forked"
-        else
-          PYTEST_FORKED=""
-        fi
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models_torch; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
         if [[ -n "${{ matrix.build.extra_test_marks }}" ]]; then
           MARKS="${{ inputs.test_mark }} and ${{ matrix.build.extra_test_marks }}"
         else
