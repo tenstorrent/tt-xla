@@ -6,13 +6,14 @@ on:
       test_group_cnt:
         description: 'Test group count'
         required: false
-        default: "4"
+        default: "5"
         type: choice
         options:
           - "1"
           - "2"
           - "3"
           - "4"
+          - "5"
           - "8"
   schedule:
     - cron: '0 0 * * *'
@@ -86,21 +87,27 @@ jobs:
             TESTS_TO_PARALLELIZE='[
               {
                 "runs-on": "n150",
-                "name": "run_jax",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "not large"
+                "name": "run_jax"
               },
               {
                 "runs-on": "n150",
-                "name": "run_large_jax_models",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "large",
-                "use-shared-runners": "true"
+                "name": "run_large_jax_models"
               },
               {
                 "runs-on": "n150",
-                "name": "run_torch",
-                "dir": "./tests/torch/single_chip"
+                "name": "run_torch"
+              },
+              {
+                "runs-on": "p150b",
+                "name": "run_jax"
+              },
+              {
+                "runs-on": "p150b",
+                "name": "run_torch"
+              },
+              {
+                "runs-on": "p150b",
+                "name": "run_large_jax_models"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
