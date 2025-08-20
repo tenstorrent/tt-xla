@@ -8,12 +8,14 @@
 // c++ standard library includes
 #include <cassert>
 
-// loguru includes
-#include "loguru/loguru.hpp"
+// llvm includes
+#include "llvm/ADT/StringRef.h"
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/Value.h"
 
 // tt-xla includes
 #include "common/status.h"
@@ -45,33 +47,50 @@ namespace internal {
 
 const std::string c_tt_mark_function_prefix = "tt.mark_";
 
-void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
+void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
                             mlir::StringAttr role_attr) {
-  // We are marking only function arguments so we expect call op operands to be
-  // block arguments of the FuncOp.
-  auto block_arg = mlir::dyn_cast<mlir::BlockArgument>(value);
-  if (!block_arg) {
-    // It can happen that some arguments are first passed trough some Op and
-    // then marked again. Therefore it is not a bug if something other than a
-    // block arg makes it in here.
+  // We are marking only inputs to model's `apply` function, so we expect call
+  // op arguments to be block arguments of the FuncOp corresponding to `apply`
+  // function in the model graph. Sometimes model can be defined as a
+  // composition of smaller model parts with their own `apply` function, and its
+  // `apply` function can call `apply` functions of those model parts passing
+  // them its inputs as arguments. That would lead to multiple mark calls being
+  // produced for the same input, and those other calls could end up inlined
+  // into main graph in which case the argument will not be a block argument but
+  // instead a result of other ops which transform the original input. Since it
+  // is enough to propagate the role for input only once (from the root `apply`
+  // function) we can ignore the other marks coming from internal `apply` calls.
+  auto block_argument = mlir::dyn_cast<mlir::BlockArgument>(argument);
+  if (!block_argument) {
     return;
   }
-  auto *parent_op = block_arg.getOwner()->getParentOp();
-  auto arg_index = block_arg.getArgNumber();
-  auto parent_func_op = mlir::dyn_cast<mlir::func::FuncOp>(parent_op);
-  assert(parent_func_op && "CallOp operand not a BlockArgument of FuncOp");
 
-  parent_func_op.setArgAttr(arg_index, c_input_role_attr_name, role_attr);
+  mlir::Operation *parent_op = block_argument.getOwner()->getParentOp();
+  uint32_t arg_index = block_argument.getArgNumber();
+  if (auto parent_func_op = mlir::dyn_cast<mlir::func::FuncOp>(parent_op)) {
+    parent_func_op.setArgAttr(arg_index, c_input_role_attr_name, role_attr);
 
-  // Find all call sites of this function and propagate upward.
-  auto funcName = parent_func_op.getSymName();
-  module.walk([&](mlir::func::CallOp call_op) {
-    if (call_op.getCallee() == funcName &&
-        arg_index < call_op.getNumOperands()) {
-      mlir::Value callerArg = call_op.getOperand(arg_index);
-      propagateRoleAttribute(module, callerArg, role_attr);
-    }
-  });
+    // In case when graph parts are moved to separate private functions and mark
+    // calls end up in some of them, we need to propagate the input role
+    // attribute upwards through the call chain up to the module root public
+    // function arguments.
+    llvm::StringRef funcName = parent_func_op.getSymName();
+    module.walk([&](mlir::func::CallOp call_op) {
+      if (call_op.getCallee() == funcName &&
+          arg_index < call_op.getNumOperands()) {
+        mlir::Value callerArg = call_op.getOperand(arg_index);
+        propagateRoleAttribute(module, callerArg, role_attr);
+      }
+    });
+  } else {
+    // Sometimes graph can be transformed after mark calls are inserted, where
+    // they end up wrapped in some op body, for example wrapped by
+    // `sdy.manual_computation` op. In that case we need to propagate the input
+    // role attribute upwards through the call chain up to the module root
+    // public function arguments.
+    mlir::Value op_operand = parent_op->getOperand(arg_index);
+    propagateRoleAttribute(module, op_operand, role_attr);
+  }
 }
 
 void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {

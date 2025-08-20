@@ -19,8 +19,8 @@ namespace tt::pjrt::module_builder::frontend_passes {
 
 extern const std::string c_input_role_attr_name;
 
-// Propagates tt.input_role attributes from func.call operations to function
-// arguments.
+// Propagates tt.input_role attributes from tt.mark func.call operations upwards
+// to the module root public function arguments.
 void propagateInputRoleAttributes(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
@@ -28,7 +28,7 @@ namespace internal {
 
 // Helper function to recursively propagate tt.input_role attribute upward
 // through call chain.
-void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value value,
+void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
                             mlir::StringAttr roleAttr);
 
 // Inlines all private tt.mark_* functions to eliminate unnecessary function
