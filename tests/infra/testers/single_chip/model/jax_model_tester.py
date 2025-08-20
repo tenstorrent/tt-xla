@@ -40,10 +40,12 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        use_optimizer: bool = False,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
+        self._use_optimizer = use_optimizer
 
         super().__init__(comparison_config, run_mode, Framework.JAX)
 
@@ -154,25 +156,6 @@ class JaxModelTester(ModelTester):
         """
         return []
 
-    # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(workload)
-
-    # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        return self._compile(workload)
-
-    def _compile(self, workload: Workload) -> Workload:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
-
-        workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
-        )
-        return workload
-
     def __del__(self):
         if hasattr(self, "_model_path"):
             try:
@@ -186,3 +169,24 @@ class JaxModelTester(ModelTester):
                 )
             except Exception as e:
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert isinstance(workload, JaxWorkload)
+        workload.executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
+            compiler_options={"optimize": str(self._use_optimizer)},
+        )
+        return workload
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert isinstance(workload, JaxWorkload)
+        workload.executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
+        )
+        return workload
