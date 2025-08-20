@@ -4,55 +4,70 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python 3.11 + dependencies and common build tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        wget curl git git-lfs jq unzip \
-        build-essential ninja-build ccache pkg-config \
-        libhwloc-dev libtbb-dev libcapstone-dev libyaml-cpp-dev libboost-all-dev \
-        libgtest-dev cmake doxygen graphviz patchelf lcov pandoc \
-        protobuf-compiler linux-tools-generic \
-        ca-certificates \
-        python3.11 \
-        python3.11-dev \
-        python3.11-venv \
-        python3-dev \
-        python3-pip \
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    build-essential \
+    python3-apt \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    git \
+    git-lfs \
+    libhwloc-dev \
+    pandoc \
+    libtbb-dev \
+    libcapstone-dev \
+    pkg-config \
+    linux-tools-generic \
+    ninja-build \
+    wget \
+    libgtest-dev \
+    cmake \
+    ccache \
+    doxygen \
+    graphviz \
+    patchelf \
+    libyaml-cpp-dev \
+    libboost-all-dev \
+    jq \
+    curl \
+    lcov \
+    unzip \
+    doxygen \
+    protobuf-compiler \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python \
-    && python3.11 -m pip install --upgrade pip setuptools wheel \
-    && rm -rf /var/lib/apt/lists/*
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
 
 # Install clang 17
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        software-properties-common \
-        gnupg \
-        lsb-release && \
-    wget https://apt.llvm.org/llvm.sh && \
-    chmod u+x llvm.sh && \
-    ./llvm.sh 17 && \
-    apt-get install -y --no-install-recommends libc++-17-dev libc++abi-17-dev && \
-    ln -sf /usr/bin/clang-17 /usr/bin/clang && \
-    ln -sf /usr/bin/clang++-17 /usr/bin/clang++ && \
-    rm -rf /var/lib/apt/lists/*
+RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" | tee /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y clang-17 libc++-17-dev libc++abi-17-dev && \
+    ln -s /usr/bin/clang-17 /usr/bin/clang && \
+    ln -s /usr/bin/clang++-17 /usr/bin/clang++
 
-# Install Python packages
-RUN python3 -m pip install --no-cache-dir cmake
+# Install python packages
+RUN wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && rm get-pip.py && python3 -m pip install cmake
 
 # Install Googletest
 RUN git clone https://github.com/google/googletest.git -b release-1.12.1 && \
     cd googletest && \
-    cmake -S . -B build -DBUILD_GMOCK=OFF && \
-    cmake --build build && \
-    cmake --install build && \
-    cd .. && rm -rf googletest
+    mkdir build && \
+    cd build && \
+    cmake .. -DBUILD_GMOCK=OFF && \
+    make && \
+    make install && \
+    cd ../.. && \
+    rm -rf googletest
 
-# Install mpi-ulfm from the Tenstorrent repository
+# Install mpi-ulfm from the tenstorrent repository
 RUN set -eux; \
+    apt-get update && \
+    apt-get install -y -f \
+        wget ca-certificates && \
     TMP_DIR="$(mktemp -d)" && \
     DEB_URL="https://github.com/dmakoviichuk-tt/mpi-ulfm/releases/download/v5.0.7-ulfm/openmpi-ulfm_5.0.7-1_amd64.deb" && \
     wget -qO "$TMP_DIR/ompi.deb" "$DEB_URL" && \
-    apt-get update && \
     apt-get install -f -y "$TMP_DIR/ompi.deb" && \
-    rm -rf "$TMP_DIR" /var/lib/apt/lists/*
+    rm -rf "$TMP_DIR"
