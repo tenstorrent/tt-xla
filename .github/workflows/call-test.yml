@@ -47,6 +47,11 @@ on:
         description: 'Name of the build artifact'
         required: true
         type: string
+      timeout_minutes:
+        description: 'Timeout minutes for the test job'
+        required: false
+        default: 120
+        type: number
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
@@ -57,7 +62,7 @@ jobs:
 
   # Run tests on TT hardware
   run-tests:
-    timeout-minutes: 120
+    timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
     strategy:
       fail-fast: false
       matrix:

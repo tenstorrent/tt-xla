@@ -146,6 +146,7 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
+      timeout_minutes: 240
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'expected_passing'
@@ -159,6 +160,7 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
+      timeout_minutes: 240
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'not expected_passing'
