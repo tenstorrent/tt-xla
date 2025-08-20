@@ -108,6 +108,7 @@ jobs:
         id: generate-forge-models-matrix
         shell: bash
         env:
+          # FIXME - Consider hardcoding this to preferred value.
           TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
         run: |
             SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
@@ -115,7 +116,7 @@ jobs:
             TESTS_TO_PARALLELIZE='[
               {
                 "runs-on": "n150",
-                "name": "run_models_passing",
+                "name": "run_forge_models_torch",
                 "dir": "./tests/runner/test_models.py"
               }
             ]'
@@ -138,7 +139,7 @@ jobs:
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
 
   # NEW - This is a single test job that runs all tt-forge-models tests.
-  test_forge_models:
+  test_full_model_forge_models_passing:
     uses: ./.github/workflows/test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
@@ -147,7 +148,20 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
-      test_mark: 'model_test'
+      test_mark: 'expected_passing'
+      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: true # Run full model tests on Civ2
+
+  test_full_model_forge_models_xfail:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-matrix ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ github.run_id }}
+      test_mark: 'not expected_passing'
       test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: true # Run full model tests on Civ2
 
@@ -156,6 +170,8 @@ jobs:
     needs:
       # - nightly_tests
       # - test_full_model
+      - test_full_model_forge_models_passing
+      - test_full_model_forge_models_xfail
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest

@@ -1,3 +1,3 @@
 [
-    { "runs-on": "n150",        "name": "run_models_passing",  "dir": "./tests/runner/test_models.py", "extra_test_marks": "expected_passing"}
+    { "runs-on": "n150",        "name": "run_forge_models_torch",  "dir": "./tests/runner/test_models.py"}
 ]
