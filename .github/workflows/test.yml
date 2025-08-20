@@ -49,6 +49,7 @@ on:
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
+  DOCKER_CACHE_ROOT: /mnt/dockercache
 
 jobs:
 
