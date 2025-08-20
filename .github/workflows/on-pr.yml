@@ -82,7 +82,6 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override}}
       debug_build: ${{ matrix.build_type }}
-      enable_artifact_upload: ${{ matrix.build_type }}
 
   test:
     needs: [ check-files, build-image, build-ttxla ]

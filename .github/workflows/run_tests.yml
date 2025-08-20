@@ -142,4 +142,4 @@ jobs:
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
-      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
+      wheel_url: ${{ needs.build-xla.outputs.wheel_url }}
