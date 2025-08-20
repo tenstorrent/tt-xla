@@ -209,8 +209,6 @@ class Gemma3RotaryEmbedding(nnx.Module):
         else:
             # Default RoPE or other scaling types
             base_freq = self.theta
-            if self.is_local_attention:
-                base_freq = 10000.0  # Local attention uses fixed base frequency
 
             # if rope_scaling is not None:
             #     rope_type = rope_scaling.get("rope_type", "default")
@@ -361,7 +359,7 @@ class Gemma3Attention(nnx.Module):
         self.rope = Gemma3RotaryEmbedding(
             dim=config.head_dim,
             max_position_embeddings=config.max_position_embeddings,
-            theta=config.rope_theta,
+            theta=config.rope_local_base_freq if self.is_local_attn else config.rope_theta,
             rope_scaling=config.rope_scaling,
             is_local_attention=self.is_local_attn,
         )
@@ -466,9 +464,7 @@ class Gemma3Attention(nnx.Module):
             attn_weights = self.apply_soft_cap(attn_weights, self.attn_logit_soft_cap)
 
         # --- Apply Mask ---
-        attention_mask = None
-        if False:
-        # if attention_mask is not None and attention_mask.ndim == 4:
+        if attention_mask is not None and attention_mask.ndim == 4:
             # Direct additive mask: shape [B, 1, q_len, kv_seq_len]
             attn_weights = attn_weights + attention_mask.astype(self.config.dtype)
         else:
@@ -745,20 +741,20 @@ class Gemma3ForCausalLM(BaseModel):
             if keys[2] == "layers" and int(keys[3]) < num_layers:
                 if keys[4] == "self_attn":
                     if keys[5] == "k_norm" or keys[5] == "q_norm":
-                        state["layers"][int(keys[3])][keys[4]][keys[5]]["weight"].value = tensor  # type: ignore
+                        state["layers"][int(keys[3])][keys[4]][keys[5]]["weight"].value = tensor.astype(self.config.param_dtype)  # type: ignore
                     else:
-                        state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T  # type: ignore
+                        state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T.astype(self.config.param_dtype)  # type: ignore
                 elif keys[4] == "mlp":
-                    state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T  # type: ignore
+                    state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T.astype(self.config.param_dtype)  # type: ignore
                 elif keys[4] == "input_layernorm" or \
                     keys[4] == "post_attention_layernorm" or \
                     keys[4] == "post_feedforward_layernorm" or \
                     keys[4] == "pre_feedforward_layernorm":
-                    state["layers"][int(keys[3])][keys[4]]["weight"].value = tensor  # type: ignore
+                    state["layers"][int(keys[3])][keys[4]]["weight"].value = tensor.astype(self.config.param_dtype)  # type: ignore
             elif keys[2] == "embed_tokens":
-                state["embed_tokens"].embedding.value = tensor  # type: ignore
+                state["embed_tokens"].embedding.value = tensor.astype(self.config.param_dtype)  # type: ignore
             elif keys[2] == "norm":
-                state["norm"].weight.value = tensor  # type: ignore
+                state["norm"].weight.value = tensor.astype(self.config.param_dtype)  # type: ignore
 
     def generate(
         self,
@@ -775,13 +771,14 @@ class Gemma3ForCausalLM(BaseModel):
         # Initialize cache for faster generation
         cache = None
         generated = input_ids
+        next_token = input_ids
 
         for _ in range(max_new_tokens):
             # Get logits and updated cache
             logits, cache = self(
-                input_ids=generated,
+                input_ids=next_token,
                 cache=cache,
-                use_cache=False,  # Enable KV caching
+                use_cache=True,  # Enable KV caching
                 deterministic=True,  # No dropout during inference
             )
             # Get next token (use argmax for simplicity)
@@ -789,7 +786,8 @@ class Gemma3ForCausalLM(BaseModel):
             # Check if we hit the end of sequence
             if next_token[0] == eos_token_id:
                 break
+            next_token = next_token[:, None]  # Add sequence dimension
             # Append next token
-            generated = jnp.concatenate([generated, next_token[:, None]], axis=1)
+            generated = jnp.concatenate([generated, next_token], axis=1)
 
         return generated

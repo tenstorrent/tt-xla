@@ -4,7 +4,7 @@ flax==0.10.6
 optax==0.2.4
 
 # Hugging Face for reference comparison
-transformers==4.51.3
+transformers==4.55.2
 accelerate==1.7.0
 huggingface-hub==0.31.2
 safetensors==0.5.3
