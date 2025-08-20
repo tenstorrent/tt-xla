@@ -73,7 +73,7 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [true , false]
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
     needs: [ check-files, build-image ]
@@ -87,7 +87,7 @@ jobs:
   test:
     needs: [ check-files, build-image, build-ttxla ]
     if: needs.check-files.outputs.skip == 'false'
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       codecov: true
@@ -95,6 +95,7 @@ jobs:
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run PR on VMs
+      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
 
   check-all-green:
     if: always()

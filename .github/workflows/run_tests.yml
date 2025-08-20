@@ -52,7 +52,7 @@ jobs:
 
   build-xla:
     if: inputs.rebuild_xla
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     secrets: inherit
     needs: build-image
     with:
@@ -134,7 +134,7 @@ jobs:
 
   test:
     if: always() && !cancelled()
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     needs: [build-image,test-setup]
     secrets: inherit
     with:
@@ -142,3 +142,4 @@ jobs:
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
+      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}

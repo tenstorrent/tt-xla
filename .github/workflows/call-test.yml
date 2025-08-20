@@ -41,6 +41,10 @@ on:
         required: false
         default: false
         type: boolean
+      wheel_url:
+        description: 'Wheel URL for the tests'
+        required: true
+        type: string
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
@@ -104,40 +108,29 @@ jobs:
           echo "build=release" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Download build artifacts
-      if: steps.strings.outputs.do_codecov
-      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-      with:
-        name: build-artifacts
-        path: build
-        github_token: ${{ github.token }}
+    # - name: Download build artifacts
+    #   if: steps.strings.outputs.do_codecov
+    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
+    #   with:
+    #     name: build-artifacts
+    #     path: build
+    #     github_token: ${{ github.token }}
 
-    - name: Download wheel
-      if: ${{ inputs.run_id }}
-      uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-      with:
-        name: xla-whl-${{ steps.strings.outputs.build }}
-        run_id: ${{ inputs.run_id }}
-        github_token: ${{ github.token }}
-
-    - name: Find and download alternative wheel
-      if: ${{ !inputs.run_id }}
-      uses: dawidd6/action-download-artifact@v9
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        workflow_conclusion: success
-        workflow_search: true
-        workflow: on-push.yml
-        name: xla-whl-codecov
-        repo: tenstorrent/tt-xla
-        check_artifacts: true
-        search_artifacts: true
-
-    - name: Install wheel
+    - name: Download and install wheel
       shell: bash
       run: |
+        echo "Downloading wheel from: ${{ inputs.wheel_url }}"
+        curl -L -H "Authorization: token ${{ github.token }}" \
+             -H "Accept: application/vnd.github.v3+json" \
+             "${{ inputs.wheel_url }}" \
+             --output wheel.zip
+        unzip wheel.zip
+        echo "Downloaded wheel files:"
+        ls -la *.whl
+        
+        echo "Installing wheel..."
         source venv/activate
-        pip install ${{ steps.strings.outputs.work-dir }}/pjrt_plugin_tt*.whl
+        pip install *.whl
 
     - name: Run tests
       env:

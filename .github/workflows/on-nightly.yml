@@ -45,7 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [true , false]
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     name: "Build tt-xla (debug=${{ matrix.build_type }})"
     secrets: inherit
     needs: build-image
@@ -54,7 +54,7 @@ jobs:
       debug_build: ${{ matrix.build_type }}
 
   nightly_tests:
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
@@ -62,6 +62,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
       use-shared-runners: true # Run nightly tests on Civ2
+      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -114,7 +115,7 @@ jobs:
             echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test_full_model:
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
@@ -125,6 +126,7 @@ jobs:
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: true # Run full model tests on Civ2
+      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
 
   fail-notify:
     if: always()

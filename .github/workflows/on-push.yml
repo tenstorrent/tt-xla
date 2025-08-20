@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [true , false]
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     secrets: inherit
     name: "Build tt-xla (debug=${{ matrix.build_type }})"
     needs: [ build-image ]
@@ -42,9 +42,10 @@ jobs:
 
   test:
     needs: [ build-image, build-ttxla ]
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       test_mark: 'push'
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
