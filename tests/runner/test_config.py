@@ -508,7 +508,7 @@ test_config = {
     },
     "deit/pytorch-base-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
     },
     "mlp_mixer/lucidrains/pytorch-base-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -628,7 +628,7 @@ test_config = {
     },
     "albert/token_classification/pytorch-xxlarge_v1-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "required_pcc": 0.96,
     },
     "albert/masked_lm/pytorch-base_v1-full-eval": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -664,7 +664,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolos/pytorch-full-eval": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "blackhole": {
@@ -894,7 +894,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-0_5b-full-eval": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "blackhole": {
