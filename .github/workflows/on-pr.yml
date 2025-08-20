@@ -85,7 +85,7 @@ jobs:
       debug_build: true
 
   test:
-    needs: [ check-files, build-image, build-ttxla ]
+    needs: [ check-files, build-image, build-ttxla-codecov ]
     if: needs.check-files.outputs.skip == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
@@ -95,7 +95,7 @@ jobs:
       run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run PR on VMs
-      wheel_url: ${{ needs.build-ttxla.outputs.wheel_url }}
+      wheel_url: ${{ needs.build-ttxla-codecov.outputs.wheel_url }}
 
   check-all-green:
     if: always()
@@ -104,12 +104,12 @@ jobs:
       - spdx
       - check-files
       - build-image
-      - build-ttxla
+      - build-ttxla-codecov
       - test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla, test
+        allowed-skips: build-image, build-ttxla-codecov, test
         jobs: ${{ toJSON(needs) }}
