@@ -1,0 +1,170 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import torch
+import time
+import operator
+
+from .decompositions import (
+    CUSTOM_DECOMPOSITION_TABLE,
+)
+import os
+import tempfile
+import multiprocessing as mp
+import re
+import pickle
+import faulthandler
+import collections
+from .passes import (
+    bypass_redundant_getitem,
+    bypass_dtype_promotion,
+    bypass_redundant_cast,
+    rectify_buffer_inplace_copy,
+    run_shape_prop,
+    constant_fold,
+    bypass_assert_tensor_metadata,
+)
+
+from torch.export.graph_signature import InputKind
+from torch._dynamo import register_backend
+
+from tt_torch.tools.utils import CompilerConfig
+
+from torch.utils._pytree import tree_map
+
+import torch_xla
+import torch_xla.core.xla_model as xm
+
+
+# This function runs a series of passes on a torch GraphModule.
+# The passes here may be necesarry (depending on the model) to
+# convert a GraphModule into a form which tt-mlir can compile/execute.
+def torch_pass_pipeline(gm, example_inputs, compiler_config):
+    decompositions = torch._decomp.core_aten_decompositions()
+    decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+
+    # We use `export_for_training` here as we plan to use this flow to compile trainign graphs.
+    # In addition to that, the functionality in `export_for_training` will become the default
+    # functionality in torch.export in a future PyTorch release:
+    # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
+    compiled_graph = (
+        torch.export.export_for_training(gm, tuple(example_inputs), strict=False)
+        .run_decompositions(decompositions)
+        .module()
+    )
+
+    compiled_graph = bypass_dtype_promotion(compiled_graph, compiler_config)
+    run_shape_prop(compiled_graph, example_inputs)
+    compiled_graph = bypass_redundant_cast(compiled_graph)
+
+    if compiler_config.enable_consteval:
+        compiled_graph = constant_fold(compiled_graph)
+    elif compiler_config.consteval_parameters:
+        raise Exception("consteval_parameters is enabled but enable_consteval is not")
+
+    compiled_graph = bypass_redundant_getitem(compiled_graph)
+    compiled_graph = rectify_buffer_inplace_copy(compiled_graph)
+    compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
+    program = torch.export.export(compiled_graph, tuple(example_inputs), strict=False)
+
+    return program
+
+
+class XLAExecutor:
+    """
+    This class is used to execute a compiled program on an XLA device.
+    It is responsible for:
+    1. Pushing the model weights to the device
+    2. Placing user inputs on device upon calling
+    3. Executing the GraphModule
+    4. Generating arg type map string for the output so tt-mlir can
+       generate consteval graphs
+    5. Signalling to torch-xla to cut the graph at the model output.
+       This is necesarry as if the user passes the output of this model
+       to other torch operations WITHOUT moving the output to CPU,
+       torch-xla will continue to trace torch ops, which is not what
+       the user will have indended by marking a model for compile.
+    """
+
+    def __init__(self, program, compiler_config):
+        self.program = program
+        self.compiler_config = compiler_config
+        self.arg_type_map_str = None
+
+        self.inputs = []
+        self.user_input_indices = []
+        for idx, input_spec in enumerate(self.program._graph_signature.input_specs):
+            if input_spec.kind == InputKind.USER_INPUT:
+                self.inputs.append(None)
+                self.user_input_indices.append(idx)
+            else:
+                self.inputs.append(self.program.state_dict[input_spec.target].to("xla"))
+
+    def generate_arg_type_map_str(self, output_object):
+        hlo_input_ids, _ = torch_xla._XLAC._get_tensors_xla_device_data_node(
+            output_object
+        )
+
+        # xm.get_stablehlo(output_object) gives a graph with just as many inputs as in hlo_input_ids
+
+        hlo_input_positions = [id - min(hlo_input_ids) for id in hlo_input_ids]
+
+        def get_kind_str(kind):
+            if kind == InputKind.USER_INPUT:
+                return "input"
+            elif kind == InputKind.PARAMETER:
+                return "parameter"
+            else:
+                return "constant"
+
+        arg_types = []
+        output_args = [o.arg for o in self.program.graph_signature.output_specs]
+        for idx in range(len(hlo_input_positions)):
+            if hlo_input_positions[idx] < len(self.program.graph_signature.input_specs):
+                in_spec = self.program.graph_signature.input_specs[
+                    hlo_input_positions[idx]
+                ]
+
+                # If an input is passed right through to the output, it will not be
+                # captured as an argument
+                if in_spec.arg in output_args:
+                    continue
+
+                arg_types.append(get_kind_str(in_spec.kind))
+            else:
+                arg_types.append("constant")
+
+        self.arg_type_map_str = "main=" + ",".join(arg_types)
+
+    def __call__(self, *args):
+        args = tree_map(lambda x: x.to("xla"), args)
+        inputs = self.inputs
+        for idx in range(len(args)):
+            inputs[self.user_input_indices[idx]] = args[idx]
+
+        output = self.program.graph_module(*inputs)
+
+        if self.compiler_config.arg_type_map_override:
+            if self.arg_type_map_str is None:
+                self.generate_arg_type_map_str(output)
+            if os.environ.get("ARG_TYPE_MAP_OVERRIDE") != self.arg_type_map_str:
+                os.environ["ARG_TYPE_MAP_OVERRIDE"] = self.arg_type_map_str
+
+        xm.mark_step()
+        if self.compiler_config.push_outputs_to_cpu:
+            return tree_map(lambda x: x.to("cpu"), output)
+        return output
+
+    def __del__(self):
+        # Remove the arg type map override environment variable
+        os.environ.pop("ARG_TYPE_MAP_OVERRIDE", None)
+
+
+@register_backend(name="tt")
+def xla_backend(gm, example_inputs, options: CompilerConfig = None):
+    compiler_config = options
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+
+    program = torch_pass_pipeline(gm, example_inputs, compiler_config)
+    return XLAExecutor(program, compiler_config)
