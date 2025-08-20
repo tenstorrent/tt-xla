@@ -1,0 +1,6 @@
+# xfail_linear_OUT_OF_MEMORY ids
+
+linear-CONST_EVAL_PASS-{'in_features': 1, 'out_features': 590, 'bias': True, 'dtype': None}-(10, 10, 10000, 1)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 1, 'out_features': 590, 'bias': False, 'dtype': None}-(10, 10, 10000, 1)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 1, 'out_features': 508, 'bias': True, 'dtype': None}-(10, 10, 10000, 1)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 1, 'out_features': 508, 'bias': False, 'dtype': None}-(10, 10, 10000, 1)-None-None

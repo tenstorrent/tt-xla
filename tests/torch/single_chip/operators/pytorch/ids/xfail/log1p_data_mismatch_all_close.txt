@@ -1,0 +1,131 @@
+# xfail_log1p_DATA_MISMATCH_ALL_CLOSE ids
+
+log1p-FROM_HOST-None-(1, 100)-None-None
+log1p-FROM_HOST-None-(1, 500)-None-None
+log1p-FROM_HOST-None-(1, 1000)-None-None
+log1p-FROM_HOST-None-(1, 1920)-None-None
+log1p-FROM_HOST-None-(1, 10000)-None-None
+log1p-FROM_HOST-None-(1, 64)-None-None
+log1p-FROM_HOST-None-(1, 96)-None-None
+log1p-FROM_HOST-None-(45, 17)-None-None
+log1p-FROM_HOST-None-(64, 1)-None-None
+log1p-FROM_HOST-None-(100, 100)-None-None
+log1p-FROM_HOST-None-(1000, 100)-None-None
+log1p-FROM_HOST-None-(10, 1000)-None-None
+log1p-FROM_HOST-None-(9920, 1)-None-None
+log1p-FROM_HOST-None-(10000, 1)-None-None
+log1p-FROM_HOST-None-(32, 64)-None-None
+log1p-FROM_HOST-None-(160, 96)-None-None
+log1p-FROM_HOST-None-(17, 41)-None-None
+log1p-FROM_HOST-None-(89, 3)-None-None
+log1p-FROM_HOST-None-(1, 45, 17)-None-None
+log1p-FROM_HOST-None-(1, 64, 1)-None-None
+log1p-FROM_HOST-None-(1, 100, 100)-None-None
+log1p-FROM_HOST-None-(1, 1000, 100)-None-None
+log1p-FROM_HOST-None-(1, 10, 1000)-None-None
+log1p-FROM_HOST-None-(1, 9920, 1)-None-None
+log1p-FROM_HOST-None-(1, 10000, 1)-None-None
+log1p-FROM_HOST-None-(1, 32, 64)-None-None
+log1p-FROM_HOST-None-(1, 160, 96)-None-None
+log1p-FROM_HOST-None-(1, 17, 41)-None-None
+log1p-FROM_HOST-None-(1, 89, 3)-None-None
+log1p-FROM_HOST-None-(11, 45, 17)-None-None
+log1p-FROM_HOST-None-(11, 1, 23)-None-None
+log1p-FROM_HOST-None-(11, 64, 1)-None-None
+log1p-FROM_HOST-None-(100, 100, 100)-None-None
+log1p-FROM_HOST-None-(10, 1000, 100)-None-None
+log1p-FROM_HOST-None-(10, 10000, 1)-None-None
+log1p-FROM_HOST-None-(32, 32, 64)-None-None
+log1p-FROM_HOST-None-(64, 160, 96)-None-None
+log1p-FROM_HOST-None-(11, 17, 41)-None-None
+log1p-FROM_HOST-None-(13, 89, 3)-None-None
+log1p-FROM_HOST-None-(1, 11, 45, 17)-None-None
+log1p-FROM_HOST-None-(1, 11, 1, 23)-None-None
+log1p-FROM_HOST-None-(1, 11, 64, 1)-None-None
+log1p-FROM_HOST-None-(1, 100, 100, 100)-None-None
+log1p-FROM_HOST-None-(1, 10, 1000, 100)-None-None
+log1p-FROM_HOST-None-(1, 1, 10, 1000)-None-None
+log1p-FROM_HOST-None-(1, 1, 9920, 1)-None-None
+log1p-FROM_HOST-None-(1, 10, 10000, 1)-None-None
+log1p-FROM_HOST-None-(1, 32, 32, 64)-None-None
+log1p-FROM_HOST-None-(1, 64, 160, 96)-None-None
+log1p-FROM_HOST-None-(1, 11, 17, 41)-None-None
+log1p-FROM_HOST-None-(1, 13, 89, 3)-None-None
+log1p-FROM_HOST-None-(3, 11, 45, 17)-None-None
+log1p-FROM_HOST-None-(4, 11, 1, 23)-None-None
+log1p-FROM_HOST-None-(5, 11, 64, 1)-None-None
+log1p-FROM_HOST-None-(6, 100, 100, 100)-None-None
+log1p-FROM_HOST-None-(7, 10, 1000, 100)-None-None
+log1p-FROM_HOST-None-(8, 1, 10, 1000)-None-None
+log1p-FROM_HOST-None-(9, 1, 9920, 1)-None-None
+log1p-FROM_HOST-None-(10, 10, 10000, 1)-None-None
+log1p-FROM_HOST-None-(11, 32, 32, 64)-None-None
+log1p-FROM_HOST-None-(12, 64, 160, 96)-None-None
+log1p-FROM_HOST-None-(13, 11, 17, 41)-None-None
+log1p-FROM_HOST-None-(14, 13, 89, 3)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 4)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 23)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 500)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1000)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1920)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 10000)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 96)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(45, 17)-None-None
+log1p-CONST_EVAL_PASS-None-(64, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(100, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1000, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(10, 1000)-None-None
+log1p-CONST_EVAL_PASS-None-(9920, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(10000, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(32, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(160, 96)-None-None
+log1p-CONST_EVAL_PASS-None-(17, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(89, 3)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 45, 17)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1, 23)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 64, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 100, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1000, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 10, 1000)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 9920, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 10000, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 32, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 160, 96)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 17, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 89, 3)-None-None
+log1p-CONST_EVAL_PASS-None-(11, 45, 17)-None-None
+log1p-CONST_EVAL_PASS-None-(11, 1, 23)-None-None
+log1p-CONST_EVAL_PASS-None-(11, 64, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(100, 100, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(10, 1000, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(10, 10000, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(32, 32, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(64, 160, 96)-None-None
+log1p-CONST_EVAL_PASS-None-(11, 17, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(13, 89, 3)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 11, 45, 17)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 11, 1, 23)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 11, 64, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 100, 100, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 10, 1000, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1, 10, 1000)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 1, 9920, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 10, 10000, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 32, 32, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 64, 160, 96)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 11, 17, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(1, 13, 89, 3)-None-None
+log1p-CONST_EVAL_PASS-None-(3, 11, 45, 17)-None-None
+log1p-CONST_EVAL_PASS-None-(2, 2, 3, 4)-None-None
+log1p-CONST_EVAL_PASS-None-(4, 11, 1, 23)-None-None
+log1p-CONST_EVAL_PASS-None-(5, 11, 64, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(7, 10, 1000, 100)-None-None
+log1p-CONST_EVAL_PASS-None-(8, 1, 10, 1000)-None-None
+log1p-CONST_EVAL_PASS-None-(9, 1, 9920, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(10, 10, 10000, 1)-None-None
+log1p-CONST_EVAL_PASS-None-(11, 32, 32, 64)-None-None
+log1p-CONST_EVAL_PASS-None-(13, 11, 17, 41)-None-None
+log1p-CONST_EVAL_PASS-None-(14, 13, 89, 3)-None-None

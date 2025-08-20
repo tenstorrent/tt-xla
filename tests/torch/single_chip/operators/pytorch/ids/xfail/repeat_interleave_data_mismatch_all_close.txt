@@ -1,0 +1,54 @@
+# xfail_repeat_interleave_DATA_MISMATCH_ALL_CLOSE ids
+
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 0}-(1, 17)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 0}-(1, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 8, 'dim': 1}-(1, 500)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 7, 'dim': 1}-(1, 1000)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 0}-(1, 10000)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 6, 'dim': 0}-(1, 96)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 7, 'dim': 0}-(1, 41)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 4, 'dim': 1}-(1, 3)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 8, 'dim': 0}-(3, 4)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 0}-(100, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(1000, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 0}-(10, 1000)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 0}-(9920, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 0}-(10000, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 5, 'dim': 0}-(32, 64)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(160, 96)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 1}-(17, 41)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 8, 'dim': 1}-(1, 3, 4)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(1, 100, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 2}-(1, 1000, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(1, 10, 1000)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 2}-(1, 9920, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(1, 10000, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 5, 'dim': 2}-(1, 32, 64)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 0}-(1, 160, 96)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 7, 'dim': 0}-(2, 3, 4)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 2}-(11, 45, 17)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 2}-(11, 1, 23)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(11, 64, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(100, 100, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(10, 1000, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 2}-(10, 10000, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 7, 'dim': 3}-(1, 2, 3, 4)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 2}-(1, 11, 45, 17)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 3}-(1, 11, 1, 23)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(1, 11, 64, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(1, 100, 100, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(1, 10, 1000, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 10, 'dim': 1}-(1, 1, 10, 1000)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 2}-(1, 1, 9920, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 2}-(1, 10, 10000, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 9, 'dim': 1}-(2, 2, 3, 4)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 6, 'dim': 0}-(4, 11, 1, 23)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 3}-(5, 11, 64, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 6, 'dim': 2}-(6, 100, 100, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 4, 'dim': 2}-(7, 10, 1000, 100)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 4, 'dim': 1}-(9, 1, 9920, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 2, 'dim': 0}-(10, 10, 10000, 1)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 7, 'dim': 0}-(11, 32, 32, 64)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 3, 'dim': 2}-(13, 11, 17, 41)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 5, 'dim': 3}-(14, 13, 89, 3)-None-None
+repeat_interleave-CONST_EVAL_PASS-{'repeats': 58, 'dim': 2}-(1, 1, 1, 58)-None-None

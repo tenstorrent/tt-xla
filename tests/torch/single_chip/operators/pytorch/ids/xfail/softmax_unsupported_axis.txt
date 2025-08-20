@@ -1,0 +1,20 @@
+# xfail_softmax_UNSUPPORTED_AXIS ids
+
+softmax-FROM_ANOTHER_OP-{'dim': 0}-(1, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(1, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 0}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 1}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 0}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -2}-(1, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -3}-(1, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -4}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -2}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -3}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -4}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': -2}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': -3}-(1, 2, 3, 4)-None-None
+softmax-CONST_EVAL_PASS-{'dim': -4}-(1, 2, 3, 4)-None-None

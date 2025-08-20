@@ -1,0 +1,273 @@
+# xfail_div_DATA_MISMATCH_ALL_CLOSE ids
+
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 500)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 500)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1920)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1920)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 10000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 10000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(3, 11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(3, 11, 45, 17)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(2, 2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(2, 2, 3, 4)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(4, 11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(4, 11, 1, 23)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(5, 11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(5, 11, 64, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(6, 100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(6, 100, 100, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(7, 10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(7, 10, 1000, 100)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(8, 1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(8, 1, 10, 1000)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(9, 1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(9, 1, 9920, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(10, 10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(10, 10, 10000, 1)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(11, 32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(11, 32, 32, 64)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(12, 64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(12, 64, 160, 96)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(13, 11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(13, 11, 17, 41)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(14, 13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'floor'}-(14, 13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 500)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 500)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 1920)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 1920)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 10000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 10000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(1, 13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(1, 13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(3, 11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(3, 11, 45, 17)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(4, 11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(4, 11, 1, 23)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(5, 11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(5, 11, 64, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(6, 100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(6, 100, 100, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(8, 1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(8, 1, 10, 1000)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(9, 1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(9, 1, 9920, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(11, 32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(11, 32, 32, 64)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(12, 64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(12, 64, 160, 96)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(13, 11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(13, 11, 17, 41)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(14, 13, 89, 3)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(14, 13, 89, 3)-None-None
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.float32-HiFi4
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.float32-HiFi4
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.bfloat16-HiFi4

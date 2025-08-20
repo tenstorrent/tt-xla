@@ -1,0 +1,17 @@
+# xfail_squeeze_CANNOT_SQUEEZE_AXIS_NOT_ONE ids
+
+squeeze-FROM_ANOTHER_OP-{'dim': 0}-(2, 1, 2, 1, 2)-None-None
+squeeze-FROM_ANOTHER_OP-{'dim': 2}-(100, 1, 100, 1)-None-None
+squeeze-FROM_ANOTHER_OP-{'dim': 1}-(84, 25, 100, 1, 41)-None-None
+squeeze-FROM_ANOTHER_OP-{'dim': 2}-(84, 25, 100, 1, 41)-None-None
+squeeze-FROM_ANOTHER_OP-{'dim': 0}-(5, 5, 5, 5, 5)-None-None
+squeeze-FROM_HOST-{'dim': 0}-(2, 1, 2, 1, 2)-None-None
+squeeze-FROM_HOST-{'dim': 2}-(100, 1, 100, 1)-None-None
+squeeze-FROM_HOST-{'dim': 1}-(84, 25, 100, 1, 41)-None-None
+squeeze-FROM_HOST-{'dim': 2}-(84, 25, 100, 1, 41)-None-None
+squeeze-FROM_HOST-{'dim': 0}-(5, 5, 5, 5, 5)-None-None
+squeeze-CONST_EVAL_PASS-{'dim': 0}-(2, 1, 2, 1, 2)-None-None
+squeeze-CONST_EVAL_PASS-{'dim': 2}-(100, 1, 100, 1)-None-None
+squeeze-CONST_EVAL_PASS-{'dim': 1}-(84, 25, 100, 1, 41)-None-None
+squeeze-CONST_EVAL_PASS-{'dim': 2}-(84, 25, 100, 1, 41)-None-None
+squeeze-CONST_EVAL_PASS-{'dim': 0}-(5, 5, 5, 5, 5)-None-None

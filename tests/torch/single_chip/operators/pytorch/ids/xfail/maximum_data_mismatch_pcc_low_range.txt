@@ -1,0 +1,3 @@
+# xfail_maximum_DATA_MISMATCH_PCC_LOW_RANGE ids
+
+maximum-FROM_HOST-None-(1, 2, 3, 4)-torch.int64-HiFi4

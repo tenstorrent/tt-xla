@@ -1,0 +1,14 @@
+# xfail_conv2d_CIRCULAR_BUFFER_EXCEEDS_L1 ids
+
+conv2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_HOST-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_HOST-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': True, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_HOST-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-FROM_HOST-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None
+conv2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 17, 'kernel_size': (19, 14), 'stride': 1, 'padding': (18, 13), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 64, 160, 96)-None-None

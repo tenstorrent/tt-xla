@@ -1,0 +1,14 @@
+# xfail_div_VERIFICATION_FAILED_SPECIAL_VALUES ids
+
+div-FROM_ANOTHER_OP-{'rounding_mode': 'trunc'}-(7, 10, 1000, 100)-None-None
+div-FROM_ANOTHER_OP-{'rounding_mode': 'floor'}-(7, 10, 1000, 100)-None-None
+div-FROM_ANOTHER_OP-{'rounding_mode': None}-(7, 10, 1000, 100)-None-None
+div-FROM_ANOTHER_OP-{}-(7, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(7, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(7, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': None}-(7, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{}-(7, 10, 1000, 100)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'trunc'}-(10, 10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': 'floor'}-(10, 10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{'rounding_mode': None}-(10, 10, 10000, 1)-None-None
+div-CONST_EVAL_PASS-{}-(10, 10, 10000, 1)-None-None

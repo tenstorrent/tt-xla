@@ -1,0 +1,42 @@
+# xfail_softmax_DATA_MISMATCH_ALL_CLOSE ids
+
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(13, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(3, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(2, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 1}-(1, 4)-None-None
+softmax-FROM_HOST-{'dim': 1}-(3, 4)-None-None
+softmax-FROM_HOST-{'dim': 1}-(89, 3)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 2}-(2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 2}-(13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 3}-(2, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(1, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(3, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(2, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(2, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.float32-HiFi4
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.bfloat16-HiFi4

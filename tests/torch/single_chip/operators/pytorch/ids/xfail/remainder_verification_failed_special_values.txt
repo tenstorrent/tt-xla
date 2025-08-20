@@ -1,0 +1,6 @@
+# xfail_remainder_VERIFICATION_FAILED_SPECIAL_VALUES ids
+
+remainder-FROM_ANOTHER_OP-None-(7, 10, 1000, 100)-None-None
+remainder-FROM_HOST-None-(12, 64, 160, 96)-None-None
+remainder-CONST_EVAL_PASS-None-(7, 10, 1000, 100)-None-None
+remainder-CONST_EVAL_PASS-None-(10, 10, 10000, 1)-None-None

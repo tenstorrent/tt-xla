@@ -1,0 +1,18 @@
+# xfail_sub_DTYPE_MISMATCH ids
+
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+sub-FROM_HOST-{'alpha': 0.17234435}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+sub-FROM_HOST-{'alpha': 589.34546459345}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+sub-FROM_HOST-{'alpha': 0.17234435}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+sub-FROM_HOST-{'alpha': 589.34546459345}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+sub-FROM_HOST-{'alpha': 0.17234435}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+sub-FROM_HOST-{'alpha': 589.34546459345}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+sub-FROM_HOST-{'alpha': 0.17234435}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+sub-FROM_HOST-{'alpha': 589.34546459345}-(1, 2, 3, 4)-torch.bfloat16-HiFi4

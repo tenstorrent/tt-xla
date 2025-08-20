@@ -1,0 +1,38 @@
+# xfail_avg_pool_2d_OUT_OF_MEMORY ids
+
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (28, 13), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (16, 27), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 32), 'stride': (10, 9), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (28, 13), 'stride': (90, 6), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (28, 13), 'stride': (6, 8), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (26, 32), 'stride': (10, 9), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (28, 13), 'stride': (90, 6), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (28, 13), 'stride': (6, 8), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 32), 'stride': (10, 9), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (28, 13), 'stride': (90, 6), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (28, 13), 'stride': (6, 8), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None

@@ -1,0 +1,2 @@
+# Detected 2025-06-20 (crash in ci)
+square-FROM_HOST-None-(1, 2, 3, 4)-torch.float16-HiFi4

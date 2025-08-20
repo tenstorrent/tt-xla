@@ -1,0 +1,3 @@
+# xfail_layer_norm_UNHANDLED_CASE_NONE ids
+
+layer_norm-FROM_HOST-{'normalized_shape': (4,), 'bias': False}-(1, 2, 3, 4)-None-None

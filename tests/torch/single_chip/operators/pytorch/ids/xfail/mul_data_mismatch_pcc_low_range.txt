@@ -1,0 +1,5 @@
+# xfail_mul_DATA_MISMATCH_PCC_LOW_RANGE ids
+
+mul-FROM_HOST-None-(1, 2, 3, 4)-torch.int8-HiFi4
+mul-FROM_HOST-None-(1, 2, 3, 4)-torch.int32-HiFi4
+mul-FROM_HOST-None-(1, 2, 3, 4)-torch.int64-HiFi4

@@ -1,0 +1,5 @@
+# xfail_rsqrt_DATA_MISMATCH_AUTOMATIC ids
+
+rsqrt-FROM_HOST-None-(1, 2, 3, 4)-torch.int8-HiFi4
+rsqrt-FROM_HOST-None-(1, 2, 3, 4)-torch.int32-HiFi4
+rsqrt-FROM_HOST-None-(1, 2, 3, 4)-torch.int64-HiFi4

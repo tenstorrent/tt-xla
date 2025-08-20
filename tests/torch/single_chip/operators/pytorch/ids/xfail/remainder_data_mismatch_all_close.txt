@@ -1,0 +1,11 @@
+# xfail_remainder_DATA_MISMATCH_ALL_CLOSE ids
+
+remainder-FROM_HOST-None-(100, 100, 100)-None-None
+remainder-FROM_HOST-None-(10, 1000, 100)-None-None
+remainder-FROM_HOST-None-(64, 160, 96)-None-None
+remainder-FROM_HOST-None-(1, 100, 100, 100)-None-None
+remainder-FROM_HOST-None-(1, 10, 1000, 100)-None-None
+remainder-FROM_HOST-None-(1, 64, 160, 96)-None-None
+remainder-FROM_HOST-None-(6, 100, 100, 100)-None-None
+remainder-FROM_HOST-None-(7, 10, 1000, 100)-None-None
+remainder-FROM_HOST-None-(10, 10, 10000, 1)-None-None

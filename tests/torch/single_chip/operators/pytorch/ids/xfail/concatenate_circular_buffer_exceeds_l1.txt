@@ -1,0 +1,6 @@
+# xfail_concatenate_CIRCULAR_BUFFER_EXCEEDS_L1 ids
+
+concatenate-FROM_ANOTHER_OP-{'dim': 1}-((1, 10000), (1, 10000), (1, 10000))-None-None
+concatenate-FROM_ANOTHER_OP-{'dim': 1}-((1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000))-None-None
+concatenate-FROM_HOST-{'dim': 1}-((1, 10000), (1, 10000), (1, 10000))-None-None
+concatenate-FROM_HOST-{'dim': 1}-((1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000), (1, 10000))-None-None

@@ -1,0 +1,10 @@
+# xfail_sub_DATA_MISMATCH_PCC_LOW_RANGE ids
+
+sub-FROM_HOST-{'alpha': 1}-(1, 2, 3, 4)-torch.int8-HiFi4
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.int8-HiFi4
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.int8-HiFi4
+sub-FROM_HOST-{}-(1, 2, 3, 4)-torch.int8-HiFi4
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.int32-HiFi4
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.int32-HiFi4
+sub-FROM_HOST-{'alpha': -37}-(1, 2, 3, 4)-torch.int64-HiFi4
+sub-FROM_HOST-{'alpha': 37}-(1, 2, 3, 4)-torch.int64-HiFi4

@@ -1,0 +1,38 @@
+# xfail_linear_DATA_MISMATCH_ALL_CLOSE ids
+
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 365, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 365, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 65, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 65, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 1, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 10000, 'out_features': 1, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 471, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 471, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 550, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 550, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 1117, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_ANOTHER_OP-{'in_features': 100, 'out_features': 1117, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 365, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 365, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 65, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 65, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 1, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 10000, 'out_features': 1, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 471, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 471, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 550, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 550, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 1117, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-FROM_HOST-{'in_features': 100, 'out_features': 1117, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 365, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 365, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 65, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 65, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 1, 'bias': True, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 10000, 'out_features': 1, 'bias': False, 'dtype': None}-(1, 10000)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 471, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 471, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 550, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 550, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 1117, 'bias': True, 'dtype': None}-(7, 10, 1000, 100)-None-None
+linear-CONST_EVAL_PASS-{'in_features': 100, 'out_features': 1117, 'bias': False, 'dtype': None}-(7, 10, 1000, 100)-None-None

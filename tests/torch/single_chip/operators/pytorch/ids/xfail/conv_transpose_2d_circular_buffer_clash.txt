@@ -1,0 +1,14 @@
+# xfail_conv_transpose_2d_CIRCULAR_BUFFER_CLASH ids
+
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 7, 'kernel_size': (26, 23), 'stride': 1, 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(1, 10, 1000, 100)-None-None

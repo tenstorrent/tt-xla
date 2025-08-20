@@ -1,0 +1,179 @@
+# xfail_avg_pool_2d_PAD_BIGGER_THAN_HALF_OF_KERNEL ids
+
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (9, 1), 'stride': 1, 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 32), 'stride': 1, 'padding': (8, 14), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 21), 'stride': 1, 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (54, 1), 'stride': 1, 'padding': (13, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 1), 'stride': 1, 'padding': (24, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 5), 'stride': 1, 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (6, 4), 'stride': 1, 'padding': (3, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (17, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': 1, 'padding': (21, 1), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 43), 'stride': 1, 'padding': (0, 3), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (53, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (74, 1), 'stride': 1, 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 20), 'stride': 1, 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 13), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (10, 1), 'stride': 1, 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': False, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (14, 5), 'stride': (6, 2), 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (9, 1), 'stride': (5, 1), 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 21), 'stride': (2, 105), 'padding': (0, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (54, 1), 'stride': (848, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (10, 17), 'stride': (3, 2), 'padding': (5, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 5), 'stride': (3, 5), 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (17, 1), 'stride': (7, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': (25, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 43), 'stride': (2, 27), 'padding': (0, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (53, 1), 'stride': (379, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 20), 'stride': (6, 6), 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 13), 'stride': (3, 4), 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (14, 5), 'stride': (6, 2), 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (9, 1), 'stride': (5, 1), 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 21), 'stride': (2, 105), 'padding': (0, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (54, 1), 'stride': (848, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (10, 17), 'stride': (3, 2), 'padding': (5, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 5), 'stride': (3, 5), 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (17, 1), 'stride': (7, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': (25, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 43), 'stride': (2, 27), 'padding': (0, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (53, 1), 'stride': (379, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (1, 20), 'stride': (6, 6), 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (2, 13), 'stride': (3, 4), 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (14, 5), 'stride': (6, 2), 'padding': (5, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (9, 1), 'stride': (5, 1), 'padding': (1, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 21), 'stride': (2, 105), 'padding': (0, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (54, 1), 'stride': (848, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (10, 17), 'stride': (3, 2), 'padding': (5, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 5), 'stride': (3, 5), 'padding': (0, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (17, 1), 'stride': (7, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(5, 11, 64, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (59, 4), 'stride': (174, 11), 'padding': (25, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 43), 'stride': (2, 27), 'padding': (0, 14), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (53, 1), 'stride': (379, 1), 'padding': (19, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': (8, 0), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(10, 10, 10000, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 20), 'stride': (6, 6), 'padding': (0, 8), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 13), 'stride': (3, 4), 'padding': (0, 6), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (11, 5), 'stride': 1, 'padding': (5, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (15, 23), 'stride': 1, 'padding': (7, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (29, 9), 'stride': 1, 'padding': (14, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (3, 23), 'stride': 1, 'padding': (1, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 64, 160, 96)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (3, 7), 'stride': 1, 'padding': (1, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (25, 3), 'stride': 1, 'padding': (12, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 13, 89, 3)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (15, 31), 'stride': 1, 'padding': (7, 15), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (61, 19), 'stride': 1, 'padding': (30, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (3, 45), 'stride': 1, 'padding': (1, 22), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (3, 19), 'stride': 1, 'padding': (1, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (17, 19), 'stride': 1, 'padding': (8, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (3, 9), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (11, 3), 'stride': 1, 'padding': (5, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (11, 5), 'stride': 1, 'padding': (5, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (15, 23), 'stride': 1, 'padding': (7, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (29, 9), 'stride': 1, 'padding': (14, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (3, 23), 'stride': 1, 'padding': (1, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 64, 160, 96)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (3, 7), 'stride': 1, 'padding': (1, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (25, 3), 'stride': 1, 'padding': (12, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 13, 89, 3)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (15, 31), 'stride': 1, 'padding': (7, 15), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (61, 19), 'stride': 1, 'padding': (30, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (3, 45), 'stride': 1, 'padding': (1, 22), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (3, 19), 'stride': 1, 'padding': (1, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (17, 19), 'stride': 1, 'padding': (8, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (3, 9), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (11, 3), 'stride': 1, 'padding': (5, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (11, 5), 'stride': 1, 'padding': (5, 2), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 45, 17)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (15, 23), 'stride': 1, 'padding': (7, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (29, 9), 'stride': 1, 'padding': (14, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (3, 23), 'stride': 1, 'padding': (1, 11), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (19, 15), 'stride': 1, 'padding': (9, 7), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 64, 160, 96)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (3, 7), 'stride': 1, 'padding': (1, 3), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (25, 3), 'stride': 1, 'padding': (12, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(1, 13, 89, 3)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (7, 3), 'stride': 1, 'padding': (3, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(3, 11, 45, 17)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (15, 31), 'stride': 1, 'padding': (7, 15), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(6, 100, 100, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (61, 19), 'stride': 1, 'padding': (30, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(7, 10, 1000, 100)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (3, 45), 'stride': 1, 'padding': (1, 22), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(8, 1, 10, 1000)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (3, 19), 'stride': 1, 'padding': (1, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(11, 32, 32, 64)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (17, 19), 'stride': 1, 'padding': (8, 9), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(12, 64, 160, 96)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (3, 9), 'stride': 1, 'padding': (1, 4), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(13, 11, 17, 41)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (11, 3), 'stride': 1, 'padding': (5, 1), 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(14, 13, 89, 3)-None-None

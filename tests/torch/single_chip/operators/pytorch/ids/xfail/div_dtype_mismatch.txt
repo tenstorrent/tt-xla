@@ -1,0 +1,8 @@
+# xfail_div_DTYPE_MISMATCH ids
+
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.int8-HiFi4
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.int8-HiFi4
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.int32-HiFi4
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.int32-HiFi4
+div-FROM_HOST-{'rounding_mode': 'trunc'}-(1, 2, 3, 4)-torch.int64-HiFi4
+div-FROM_HOST-{'rounding_mode': 'floor'}-(1, 2, 3, 4)-torch.int64-HiFi4
