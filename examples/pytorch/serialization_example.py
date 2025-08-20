@@ -7,9 +7,10 @@ import os
 import torch
 import torch.nn as nn
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from torch_xla.experimental import plugins
 
-from ttxla_tools.torch import parse_from_cache, parse_from_cache_to_disk
+from ttxla_tools.torch import parse_from_cache_to_disk
 
 # --------------------------------
 # Plugin registration
@@ -59,6 +60,8 @@ plugins.register_plugin("TT", TTPjrtPlugin(plugin_path))
 
 # ------------------------------------------------------------
 
+xr.initialize_cache(f"{os.getcwd()}/cachedir")
+
 
 class SimpleModel(nn.Module):
     def forward(self, x, y):
@@ -67,16 +70,10 @@ class SimpleModel(nn.Module):
 
 device = xm.xla_device()
 model = SimpleModel().to(device)
-x = torch.randn(
-    3,
-    4,
-).to(device)
-y = torch.randn(
-    3,
-    4,
-).to(device)
+x = torch.randn(3, 4).to(device)
+y = torch.randn(3, 4).to(device)
 output = model(x, y)
+output.to("cpu")
 
 
-ttir_mlir, ttnn_mlir, flatbuffer_binary = parse_from_cache("/tmp/xla_cache")
-parse_from_cache_to_disk("output/model", "/tmp/xla_cache")
+parse_from_cache_to_disk("output/model", f"{os.getcwd()}/cachedir")
