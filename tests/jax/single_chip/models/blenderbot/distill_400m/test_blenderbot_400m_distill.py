@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import BlenderBotTester
+from third_party.tt_forge_models.blenderbot.summarization.jax.loader import ModelVariant
 
-MODEL_PATH = "facebook/blenderbot-400M-distill"
+VARIANT_NAME = ModelVariant.BLENDERBOT_400M_DISTILL
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "blenderbot",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH)
+    return BlenderBotTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return BlenderBotTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -51,8 +52,8 @@ def training_tester() -> BlenderBotTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386 "
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
 def test_blenderbot_400m_distill_inference(inference_tester: BlenderBotTester):
