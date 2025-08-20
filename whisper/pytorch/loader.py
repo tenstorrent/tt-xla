@@ -6,7 +6,13 @@ Whisper model loader implementation
 """
 
 import torch
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from transformers import (
+    WhisperProcessor,
+    WhisperForConditionalGeneration,
+    WhisperModel,
+    AutoFeatureExtractor,
+)
+from datasets import load_dataset
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -29,6 +35,8 @@ class ModelVariant(StrEnum):
     WHISPER_SMALL = "openai/whisper-small"
     WHISPER_MEDIUM = "openai/whisper-medium"
     WHISPER_LARGE = "openai/whisper-large"
+    WHISPER_LARGE_V3 = "openai/whisper-large-v3"
+    WHISPER_LARGE_V3_TURBO = "openai/whisper-large-v3-turbo"
 
 
 class ModelLoader(ForgeModel):
@@ -50,6 +58,12 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.WHISPER_LARGE: ModelConfig(
             pretrained_model_name="openai/whisper-large",
+        ),
+        ModelVariant.WHISPER_LARGE_V3: ModelConfig(
+            pretrained_model_name="openai/whisper-large-v3",
+        ),
+        ModelVariant.WHISPER_LARGE_V3_TURBO: ModelConfig(
+            pretrained_model_name="openai/whisper-large-v3-turbo",
         ),
     }
 
@@ -89,46 +103,71 @@ class ModelLoader(ForgeModel):
 
         # Configuration parameters
         self.processor = None
+        self.feature_extractor = None
 
     def load_model(self, dtype_override=None):
         """Load a Whisper model from Hugging Face."""
 
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
-        # Initialize processor first with default or overridden dtype
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
 
-        self.processor = WhisperProcessor.from_pretrained(
-            pretrained_model_name,
-            use_cache=False,
-            return_dict=False,
-            **processor_kwargs
-        )
-
-        # Load pre-trained model from HuggingFace
+        # Common model kwargs
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = WhisperForConditionalGeneration.from_pretrained(
-            pretrained_model_name, use_cache=False, **model_kwargs
-        )
+        if self._variant == ModelVariant.WHISPER_LARGE_V3:
+            self.feature_extractor = AutoFeatureExtractor.from_pretrained(
+                pretrained_model_name
+            )
+            model = WhisperModel.from_pretrained(
+                pretrained_model_name, return_dict=False, **model_kwargs
+            )
+        else:
+            processor_kwargs = {}
+            if dtype_override is not None:
+                processor_kwargs["torch_dtype"] = dtype_override
+
+            self.processor = WhisperProcessor.from_pretrained(
+                pretrained_model_name,
+                use_cache=False,
+                return_dict=False,
+                **processor_kwargs
+            )
+            model = WhisperForConditionalGeneration.from_pretrained(
+                pretrained_model_name, use_cache=False, **model_kwargs
+            )
+
         model.eval()
         return model
 
     def load_inputs(self):
         """Generate sample inputs for Whisper model."""
 
-        # Ensure processor is initialized
-        if self.processor is None:
-            self.load_model()  # This will initialize the processor
-        weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
-        sample = torch.load(weights_pth, weights_only=False)
-        sample_audio = sample["audio"]["array"]
+        if self._variant == ModelVariant.WHISPER_LARGE_V3:
 
-        inputs = self.processor(sample_audio, return_tensors="pt")
-        input_features = inputs.input_features
+            if self.feature_extractor is None:
+                self.load_model()  # This will initialize the feature_extractor
 
-        return input_features
+            ds = load_dataset(
+                "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
+            )
+            input_audio = self.feature_extractor(
+                ds[0]["audio"]["array"], return_tensors="pt"
+            )
+            input_features = input_audio.input_features
+
+            return input_features
+        else:
+
+            if self.processor is None:
+                self.load_model()  # This will initialize the processor
+
+            weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
+            sample = torch.load(weights_pth, weights_only=False)
+            sample_audio = sample["audio"]["array"]
+
+            inputs = self.processor(sample_audio, return_tensors="pt")
+            input_features = inputs.input_features
+
+            return input_features
