@@ -56,7 +56,7 @@ on:
     outputs:
         wheel_url:
             description: 'URL of the uploaded wheel artifact'
-            value: ${{ needs.check-existing-artifact.outputs.wheel_url || jobs.build-ttxla.outputs.wheel_url }}
+            value: ${{ jobs.check-existing-artifact.outputs.wheel_url || jobs.build-ttxla.outputs.wheel_url }}
 
 jobs:
   check-existing-artifact:
