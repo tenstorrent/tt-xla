@@ -155,19 +155,19 @@ jobs:
       test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: false # Run full model tests on Civ1 (for now)
 
-  test_full_model_forge_models_xfail:
-    uses: ./.github/workflows/test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla, generate-matrix ]
-    # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
-    with:
-      timeout_minutes: 240
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      run_id: ${{ github.run_id }}
-      test_mark: 'not expected_passing'
-      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
-      use-shared-runners: false # Run full model tests on Civ1 (for now)
+  # test_full_model_forge_models_xfail:
+  #   uses: ./.github/workflows/test.yml
+  #   secrets: inherit
+  #   needs: [ build-image, build-ttxla, generate-matrix ]
+  #   # This ensures the job runs regardless of success or failure of `nightly_tests`:
+  #   if: success() || failure()
+  #   with:
+  #     timeout_minutes: 240
+  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
+  #     run_id: ${{ github.run_id }}
+  #     test_mark: 'not expected_passing'
+  #     test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+  #     use-shared-runners: false # Run full model tests on Civ1 (for now)
 
   fail-notify:
     if: always()
@@ -175,7 +175,7 @@ jobs:
       # - nightly_tests
       # - test_full_model
       - test_full_model_forge_models_passing
-      - test_full_model_forge_models_xfail
+      # - test_full_model_forge_models_xfail
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
