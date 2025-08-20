@@ -108,23 +108,15 @@ jobs:
           echo "build=release" >> "$GITHUB_OUTPUT"
         fi
 
-    # - name: Download build artifacts
-    #   if: steps.strings.outputs.do_codecov
-    #   uses: tenstorrent/tt-forge/.github/actions/download-artifact@main
-    #   with:
-    #     name: build-artifacts
-    #     path: build
-    #     github_token: ${{ github.token }}
-
     - name: Download and install wheel
       shell: bash
       run: |
         echo "Downloading wheel from: ${{ inputs.wheel_url }}"
         curl -L -H "Authorization: token ${{ github.token }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             "${{ inputs.wheel_url }}" \
-             --output wheel.zip
+           -o wheel.zip \
+           "${{ inputs.wheel_url }}"
         unzip wheel.zip
+        rm wheel.zip
         echo "Downloaded wheel files:"
         ls -la *.whl
 

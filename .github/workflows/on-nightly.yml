@@ -41,17 +41,12 @@ jobs:
     secrets: inherit
 
   build-ttxla:
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [true , false]
     uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    name: "Build tt-xla"
     secrets: inherit
     needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: ${{ matrix.build_type }}
 
   nightly_tests:
     uses: ./.github/workflows/call-test.yml

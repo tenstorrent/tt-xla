@@ -99,6 +99,7 @@ jobs:
             download_url=$(echo "$response" | jq -r '.artifacts[0].archive_download_url')
             echo "url=${download_url}" >> "$GITHUB_OUTPUT"
             echo "Found existing artifact: ${{ steps.generate-name.outputs.whl_artifact_name }}"
+            echo "Artifact URL: $download_url"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "url=" >> "$GITHUB_OUTPUT"
@@ -112,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Build tt-xla"
     outputs:
-      wheel_url: ${{ steps.upload-wheel.outputs.artifact-url }}
+      wheel_url: ${{ steps.upload-wheel.outputs.artifact-url + "/zip"}}
     container:
       image: ${{ inputs.docker_image }}
 

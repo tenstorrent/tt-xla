@@ -69,19 +69,14 @@ jobs:
       mlir_override: ${{ inputs.mlir_override}}
 
   build-ttxla-codecov:
-    # strategy:
-    #   fail-fast: false
-    #   matrix:
-    #     build_type: [true , false]
     uses: ./.github/workflows/call-build.yml
-    # name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    name: "Build tt-xla with code coverage"
     secrets: inherit
     needs: [ check-files, build-image ]
     if: needs.check-files.outputs.skip == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override}}
-      # debug_build: ${{ matrix.build_type }}
       debug_build: true
 
   test:
