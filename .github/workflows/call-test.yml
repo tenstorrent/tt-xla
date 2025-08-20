@@ -161,6 +161,13 @@ jobs:
           --splitting-algorithm least_duration"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
+    - name: Install System Deps for Forge Models Tests
+      if: ${{ matrix.build.name == 'run_forge_models_torch' }}
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
     - name: Collect Tests
       shell: bash
       run: |
