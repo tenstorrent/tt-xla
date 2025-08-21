@@ -46,6 +46,12 @@ class RequirementsManager:
         return RequirementsManager(req_path)
 
     def __enter__(self) -> "RequirementsManager":
+        # Dump here.
+        try:
+            freeze_text = RequirementsManager._pip_freeze_text()
+            _dbg("[Requirements] __enter__ (start) pip freeze:\n" + freeze_text)
+        except Exception as e:
+            _dbg(f"[Requirements] __enter__ (start) pip freeze failed: {e}")
         if not self.requirements_path:
             return self
 
@@ -82,6 +88,12 @@ class RequirementsManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         try:
+            # Dump here.
+            try:
+                freeze_text = RequirementsManager._pip_freeze_text()
+                _dbg("[Requirements] __exit__ (start) pip freeze:\n" + freeze_text)
+            except Exception as e:
+                _dbg(f"[Requirements] __exit__ (start) pip freeze failed: {e}")
             if not self.requirements_path:
                 return
 
@@ -179,6 +191,22 @@ class RequirementsManager:
             env=env,
         )
         return RequirementsManager._parse_freeze(proc.stdout)
+
+    @staticmethod
+    def _pip_freeze_text() -> str:
+        cmd = (sys.executable, "-m", "pip", "freeze")
+        env = os.environ.copy()
+        env.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+        _dbg("[Requirements] pip freeze (text)")
+        proc = subprocess.run(
+            " ".join(map(str, cmd)),
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        return proc.stdout
 
     @staticmethod
     def _parse_freeze(text: str) -> Dict[str, str]:
