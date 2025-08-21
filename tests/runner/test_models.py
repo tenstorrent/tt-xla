@@ -4,7 +4,6 @@
 import pytest
 import os
 import gc
-from tests.utils import skip_full_eval_test
 from tt_torch.tools.utils import CompilerConfig, CompileDepth
 from tests.runner.test_utils import (
     ModelStatus,
@@ -12,6 +11,7 @@ from tests.runner.test_utils import (
     DynamicTester,
     setup_test_discovery,
     create_test_id_generator,
+    record_model_test_properties,
 )
 from tests.runner.requirements import RequirementsManager
 
@@ -22,6 +22,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 
 
 @pytest.mark.model_test
+@pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
     "mode",
     ["eval"],
@@ -39,7 +40,9 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     test_entries,
     ids=create_test_id_generator(MODELS_ROOT),
 )
-def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
+def test_all_models(
+    test_entry, mode, op_by_op, record_property, test_metadata, request
+):
     loader_path = test_entry["path"]
     variant_info = test_entry["variant_info"]
 
@@ -69,30 +72,30 @@ def test_all_models(test_entry, mode, op_by_op, record_property, test_metadata):
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"model_name: {model_info.name} status: {test_metadata.status}")
 
-        if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
-            skip_full_eval_test(
-                record_property,
-                cc,
+        # Skipped models will avoid running and just report results and pytest.skip
+        if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+
+            tester = DynamicTester(
                 model_info.name,
-                bringup_status=test_metadata.skip_bringup_status,
-                reason=test_metadata.skip_reason,
-                model_group=model_info.group,
+                mode,
+                loader=loader,
+                model_info=model_info,
+                compiler_config=cc,
+                record_property_handle=record_property,
                 forge_models_test=True,
+                **test_metadata.to_tester_args(),
             )
 
-        tester = DynamicTester(
-            model_info.name,
-            mode,
-            loader=loader,
-            model_info=model_info,
-            compiler_config=cc,
-            record_property_handle=record_property,
-            forge_models_test=True,
-            **test_metadata.to_tester_args(),
-        )
+            results = tester.test_model()
+            tester.finalize()
 
-        results = tester.test_model()
-        tester.finalize()
+        # Record properties and handle skip/xfail cases uniformly
+        record_model_test_properties(
+            record_property,
+            request,
+            model_info=model_info,
+            test_metadata=test_metadata,
+        )
 
     # Cleanup memory after each test to prevent memory leaks
     gc.collect()
