@@ -8,10 +8,13 @@
 // c++ standard library includes
 #include <cassert>
 #include <cstdlib>
+#include <memory>
 #include <numeric>
 #include <optional>
+#include <variant>
 
 // loguru includes
+#include "common/status.h"
 #include "loguru/loguru.hpp"
 
 // llvm includes
@@ -57,6 +60,7 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/executable_image.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
 namespace tt::pjrt::module_builder {
@@ -64,8 +68,7 @@ namespace tt::pjrt::module_builder {
 const std::string c_mlir_format_name = "mlir";
 
 ModuleBuilder::ModuleBuilder()
-    : m_context(std::make_unique<mlir::MLIRContext>()),
-      m_flatbuffer_binary(nullptr), m_status(tt_pjrt_status::kSuccess) {
+    : m_context(std::make_unique<mlir::MLIRContext>()) {
   // Register all the required dialects and passes.
   mlir::DialectRegistry registry;
 
@@ -92,60 +95,84 @@ ModuleBuilder::ModuleBuilder()
   m_context->appendDialectRegistry(registry);
 }
 
-tt_pjrt_status ModuleBuilder::buildModule(
+std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
     const std::unordered_map<std::string, std::string> &compile_options_map) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
-  m_status = tt_pjrt_status::kSuccess;
+  tt_pjrt_status status = tt_pjrt_status::kSuccess;
+
+  auto executable = ExecutableImage::make();
 
   auto compile_options = CompileOptions::parse(compile_options_map);
+  executable->m_compile_options = compile_options;
 
-  mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  auto result = createVHLOModule(mlir_code);
+  status = std::get<tt_pjrt_status>(result);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+  auto mlir_module =
+      std::move(std::get<mlir::OwningOpRef<mlir::ModuleOp>>(result));
+
+  executable->m_original_mlir_code = std::string(mlir_code);
+
+  status = convertFromVHLOToSHLO(mlir_module);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  convertFromVHLOToSHLO(mlir_module);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  status = runFrontendSHLOPipeline(mlir_module);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  runFrontendSHLOPipeline(mlir_module);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  status = collectInputShardings(mlir_module, executable.get());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  collectInputShardings(mlir_module);
-  collectOutputShardings(mlir_module);
-  collectInputArgumentRoles(mlir_module);
-  collectOutputTypes(mlir_module);
-
-  runCompilerStableHLOPipeline(mlir_module);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  status = collectOutputShardings(mlir_module, executable.get());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  convertFromSHLOToTTIR(mlir_module);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  collectInputArgumentRoles(mlir_module, executable.get());
+  collectNumArguments(mlir_module, executable.get());
+  collectOutputTypes(mlir_module, executable.get());
+
+  status = runCompilerStableHLOPipeline(mlir_module);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  collectMeshShape(mlir_module);
-  collectNumDevicesToUtilize(mlir_module);
-
-  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
-  if (!tt_pjrt_status_is_ok(m_status)) {
-    return m_status;
+  status = convertFromSHLOToTTIR(mlir_module, executable.get());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
-  createFlatbufferBinary(mlir_module);
+  collectMeshShape(mlir_module, executable.get());
+  collectNumDevicesToUtilize(mlir_module, executable.get());
 
-  return m_status;
+  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                 compile_options, executable.get());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  status = createFlatbufferBinary(mlir_module, executable.get());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  executable->validate();
+
+  return {status, std::move(executable)};
 }
 
-mlir::OwningOpRef<mlir::ModuleOp>
+std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
 ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
   mlir::OwningOpRef<mlir::ModuleOp> vhlo_module =
       mlir::parseSourceString<mlir::ModuleOp>(
@@ -154,17 +181,16 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
 
   if (!vhlo_module) {
     DLOG_F(ERROR, "Failed to create VHLO module from the input program code");
-    m_status = tt_pjrt_status::kInternal;
-    return nullptr;
+    return {tt_pjrt_status::kInternal, nullptr};
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
   printModule(vhlo_module);
 
-  return vhlo_module;
+  return {tt_pjrt_status::kSuccess, std::move(vhlo_module)};
 }
 
-void ModuleBuilder::convertFromVHLOToSHLO(
+tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
 
@@ -174,21 +200,25 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::runFrontendSHLOPipeline(
+tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 
-  m_status = frontend_passes::annotateArgumentAttributes(mlir_module);
+  tt_pjrt_status status =
+      frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
+
+  return status;
 }
 
 std::string
@@ -200,15 +230,16 @@ ModuleBuilder::getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   return mlir_code;
 }
 
-void ModuleBuilder::collectInputShardings(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  m_input_shardings.clear();
-  isUsingShardy(module) ? collectInputShardingsShardy(module)
-                        : collectInputShardingsGSPMD(module);
+tt_pjrt_status ModuleBuilder::collectInputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
+  return isUsingShardy(module) ? collectInputShardingsShardy(module, executable)
+                               : collectInputShardingsGSPMD(module, executable);
 }
 
-void ModuleBuilder::collectInputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectInputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
@@ -220,21 +251,23 @@ void ModuleBuilder::collectInputShardingsGSPMD(
   }
 
   mlir::LogicalResult result =
-      createShardingsFromGSPMD(gspmd_attributes, m_input_shardings);
+      createShardingsFromGSPMD(gspmd_attributes, executable->m_input_sharding);
   if (result.failed()) {
-    m_status = tt_pjrt_status::kInternal;
+    DLOG_F(ERROR, "Failed to create input shardings from GSPMD attributes");
+    return tt_pjrt_status::kInternal;
   }
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::collectInputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectInputShardingsShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!mesh_op.has_value()) {
     DLOG_F(ERROR, "Failed to find mesh op in the module");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
   mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
@@ -251,21 +284,25 @@ void ModuleBuilder::collectInputShardingsShardy(
   }
 
   mlir::LogicalResult result = createShardingsFromShardy(
-      shardy_attributes, shardy_mesh, m_input_shardings);
+      shardy_attributes, shardy_mesh, executable->m_input_sharding);
   if (result.failed()) {
-    m_status = tt_pjrt_status::kInternal;
+    DLOG_F(ERROR, "Failed to create input shardings from Shardy attributes");
+    return tt_pjrt_status::kInternal;
   }
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::collectOutputShardings(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  m_output_shardings.clear();
-  isUsingShardy(module) ? collectOutputShardingsShardy(module)
-                        : collectOutputShardingsGSPMD(module);
+tt_pjrt_status ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
+  return isUsingShardy(module)
+             ? collectOutputShardingsShardy(module, executable)
+             : collectOutputShardingsGSPMD(module, executable);
 }
 
-void ModuleBuilder::collectOutputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectOutputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
@@ -276,21 +313,23 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
   }
 
   mlir::LogicalResult result =
-      createShardingsFromGSPMD(gspmd_attributes, m_output_shardings);
+      createShardingsFromGSPMD(gspmd_attributes, executable->m_output_sharding);
   if (result.failed()) {
-    m_status = tt_pjrt_status::kInternal;
+    DLOG_F(ERROR, "Failed to create output shardings from GSPMD attributes");
+    return tt_pjrt_status::kInternal;
   }
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::collectOutputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectOutputShardingsShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!mesh_op.has_value()) {
     DLOG_F(ERROR, "Failed to find mesh op in the module");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
   mlir::sdy::MeshAttr shardy_mesh = mesh_op->getMesh();
@@ -305,15 +344,18 @@ void ModuleBuilder::collectOutputShardingsShardy(
     }
   }
   mlir::LogicalResult result = createShardingsFromShardy(
-      shardy_attributes, shardy_mesh, m_output_shardings);
+      shardy_attributes, shardy_mesh, executable->m_output_sharding);
   if (result.failed()) {
-    m_status = tt_pjrt_status::kInternal;
+    DLOG_F(ERROR, "Failed to create output shardings from Shardy attributes");
+    return tt_pjrt_status::kInternal;
   }
+  return tt_pjrt_status::kSuccess;
 }
 
 void ModuleBuilder::collectInputArgumentRoles(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  m_input_argument_roles.clear();
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
+  executable->m_input_argument_roles.clear();
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
@@ -325,10 +367,12 @@ void ModuleBuilder::collectInputArgumentRoles(
           arg_index, mlir::tt::ttcore::ArgumentTypeAttr::name);
 
       if (role_attr && role_attr.getValue() == "weight") {
-        m_input_argument_roles.push_back(InputArgumentRole::kWeight);
+        executable->m_input_argument_roles.push_back(
+            tt::pjrt::InputArgumentRole::kWeight);
       } else {
         // Default to input if attribute is not present or not "weight"
-        m_input_argument_roles.push_back(InputArgumentRole::kInput);
+        executable->m_input_argument_roles.push_back(
+            tt::pjrt::InputArgumentRole::kInput);
       }
 
       // Remove the ttcore.argument_type attribute after collecting it
@@ -341,18 +385,58 @@ void ModuleBuilder::collectInputArgumentRoles(
 }
 
 void ModuleBuilder::collectOutputTypes(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  m_is_output_scalar.clear();
-  m_output_data_types.clear();
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
 
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (const mlir::Type &returnType :
          func_op.getFunctionType().getResults()) {
-      m_is_output_scalar.push_back(isScalarType(returnType));
-      m_output_data_types.push_back(
+      executable->m_output_types.push_back(
           tt::pjrt::data_type_utils::convertMLIRToPJRTDataType(returnType));
+    }
+  }
+}
+
+void ModuleBuilder::collectNumArguments(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::collectNumArguments");
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  assert(publicFuncOps.size() == 1 && "Expected exactly one public function");
+
+  mlir::func::FuncOp &func_op = publicFuncOps[0];
+
+  executable->m_num_inputs = func_op.getNumArguments();
+  executable->m_num_outputs = func_op.getNumResults();
+
+  for (size_t result_index = 0; result_index < func_op.getNumResults();
+       ++result_index) {
+    mlir::Type result_type = func_op.getFunctionType().getResult(result_index);
+
+    if (auto ranked_tensor_type =
+            mlir::dyn_cast<mlir::RankedTensorType>(result_type)) {
+
+      llvm::ArrayRef<int64_t> shape = ranked_tensor_type.getShape();
+      std::vector<std::uint32_t> output_shape;
+
+      for (int64_t dim : shape) {
+        assert(dim != mlir::ShapedType::kDynamic &&
+               "Dynamic dimensions not supported");
+        output_shape.push_back(static_cast<std::uint32_t>(dim));
+      }
+
+      executable->m_output_dimensions.emplace_back(output_shape);
+      executable->m_output_ranks.push_back(output_shape.size());
+
+      for (std::uint32_t dim : output_shape) {
+        executable->m_output_dimensions_flat.push_back(
+            static_cast<std::int64_t>(dim));
+      }
+    } else {
+      assert(false && "Expected ranked tensor type for function result");
     }
   }
 }
@@ -454,7 +538,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
   return llvm::LogicalResult::success();
 }
 
-void ModuleBuilder::runCompilerStableHLOPipeline(
+tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
@@ -466,16 +550,18 @@ void ModuleBuilder::runCompilerStableHLOPipeline(
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
   printModule(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::convertFromSHLOToTTIR(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    ExecutableImage *executable) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
@@ -490,25 +576,27 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
-  m_ttir_mlir = getMlirCode(mlir_module);
+  executable->m_ttir_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
 }
 
 void ModuleBuilder::collectMeshShape(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
   mlir::tt::ttcore::MeshesAttr meshes_attr =
       module.get()->getAttrOfType<mlir::tt::ttcore::MeshesAttr>(
           mlir::tt::ttcore::MeshesAttr::name);
   if (!meshes_attr || meshes_attr.getMeshes().empty()) {
     // If mesh attribute is not set we can still estimate the mesh based on the
     // input shardings.
-    estimateMeshShape();
+    estimateMeshShape(executable);
     return;
   }
 
@@ -517,16 +605,16 @@ void ModuleBuilder::collectMeshShape(
   // For now, use the first mesh shape (same as what is used in tt-mlir).
   llvm::ArrayRef<int64_t> mesh_shape = meshes[0].getShape();
 
-  m_devices_mesh_shape =
+  executable->m_devices_mesh_shape =
       std::vector<std::uint32_t>(mesh_shape.begin(), mesh_shape.end());
 }
 
-void ModuleBuilder::estimateMeshShape() {
+void ModuleBuilder::estimateMeshShape(ExecutableImage *executable) {
   for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
-       m_input_shardings) {
+       executable->m_input_sharding) {
     if (input_sharding.getShardType() ==
         mlir::tt::ttcore::MeshShardType::Devices) {
-      m_devices_mesh_shape =
+      executable->m_devices_mesh_shape =
           std::vector<std::uint32_t>(input_sharding.getMeshShape().begin(),
                                      input_sharding.getMeshShape().end());
       return;
@@ -534,37 +622,40 @@ void ModuleBuilder::estimateMeshShape() {
   }
 
   // Assuming single device if there are no inputs sharded on device.
-  m_devices_mesh_shape = {1, 1};
+  executable->m_devices_mesh_shape = {1, 1};
 }
 
 void ModuleBuilder::collectNumDevicesToUtilize(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    ExecutableImage *executable) {
   auto num_partitions_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_partitions");
   // Assuming one partition by default.
-  m_num_partitions = 1;
+  executable->m_num_partitions = 1;
   if (num_partitions_attr) {
-    m_num_partitions = static_cast<size_t>(num_partitions_attr.getInt());
+    executable->m_num_partitions =
+        static_cast<size_t>(num_partitions_attr.getInt());
   } else {
     DLOG_F(WARNING,
            "`mhlo.num_partitions` attribute not found, assuming default number "
            "of partitions: %zu",
-           m_num_partitions);
+           executable->m_num_partitions);
   }
 
   auto num_replicas_attr =
       mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
           "mhlo.num_replicas");
   // Assuming one replica by default.
-  m_num_replicas = 1;
+  executable->m_num_replicas = 1;
   if (num_replicas_attr) {
-    m_num_replicas = static_cast<size_t>(num_replicas_attr.getInt());
+    executable->m_num_replicas =
+        static_cast<size_t>(num_replicas_attr.getInt());
   } else {
     DLOG_F(WARNING,
            "`mhlo.num_replicas` attribute not found, assuming default number "
            "of replicas: %zu",
-           m_num_replicas);
+           executable->m_num_replicas);
   }
 
   if (!num_partitions_attr && !num_replicas_attr) {
@@ -573,20 +664,21 @@ void ModuleBuilder::collectNumDevicesToUtilize(
     // the mesh shape.
     DLOG_F(WARNING, "Num replicas and num partitions are not set, inferring "
                     "the number of devices from mesh shape");
-    m_num_devices_to_utilize =
-        std::accumulate(m_devices_mesh_shape.begin(),
-                        m_devices_mesh_shape.end(), 1, std::multiplies<>());
+    executable->m_num_devices_to_utilize = std::accumulate(
+        executable->m_devices_mesh_shape.begin(),
+        executable->m_devices_mesh_shape.end(), 1, std::multiplies<>());
   } else {
     // If at least one mhlo parameter is populated we assume the default value
     // of the other one.
-    m_num_devices_to_utilize = m_num_partitions * m_num_replicas;
+    executable->m_num_devices_to_utilize =
+        executable->m_num_partitions * executable->m_num_replicas;
   }
 }
 
-void ModuleBuilder::convertFromTTIRToTTNN(
+tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const CompileOptions &compile_options) {
+    const CompileOptions &compile_options, ExecutableImage *executable) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
@@ -596,15 +688,15 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.systemDescPath = system_descriptor_path.data();
 
-  if (m_devices_mesh_shape.size() != 2) {
+  if (executable->m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
            "Invalid mesh shape size: %zu. Shape must have two dimensions!",
-           m_devices_mesh_shape.size());
-    m_status = tt_pjrt_status::kInternal;
-    return;
+           executable->m_devices_mesh_shape.size());
+    return tt_pjrt_status::kInternal;
   }
 
-  options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
+  options.meshShape = {executable->m_devices_mesh_shape[0],
+                       executable->m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
@@ -612,74 +704,67 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
-  m_ttnn_mlir = getMlirCode(mlir_module);
+  executable->m_ttnn_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
 }
 
-void ModuleBuilder::createFlatbufferBinary(
-    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  m_flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    ExecutableImage *executable) {
+  executable->m_flatbuffer_binary =
+      mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
-  verifyCreatedFlatbufferBinary();
+  return verifyCreatedFlatbufferBinary(executable);
 }
 
-void ModuleBuilder::verifyCreatedFlatbufferBinary() {
-  if (m_flatbuffer_binary.handle == nullptr) {
+tt_pjrt_status
+ModuleBuilder::verifyCreatedFlatbufferBinary(ExecutableImage *executable) {
+  if (executable->m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
-    m_status = tt_pjrt_status::kInternal;
-    return;
+    return tt_pjrt_status::kInternal;
   }
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   size_t num_inputs =
-      m_flatbuffer_binary.getProgramInputs(program_index).size();
+      executable->m_flatbuffer_binary.getProgramInputs(program_index).size();
   std::vector<tt::runtime::TensorDesc> output_specs =
-      m_flatbuffer_binary.getProgramOutputs(program_index);
+      executable->m_flatbuffer_binary.getProgramOutputs(program_index);
   size_t num_outputs = output_specs.size();
 
-  if (num_inputs != m_input_shardings.size()) {
+  if (num_inputs != executable->m_input_sharding.size()) {
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of inputs %zu "
            "than expected from the m_input_shardings %zu",
-           num_inputs, m_input_shardings.size());
-    m_status = tt_pjrt_status::kInternal;
-    return;
+           num_inputs, executable->m_input_sharding.size());
+    return tt_pjrt_status::kInternal;
   }
 
-  if (num_outputs != m_is_output_scalar.size()) {
-    DLOG_F(ERROR,
-           "Created flatbuffer binary contains different number of outputs %zu "
-           "than expected from the m_is_output_scalar %zu",
-           num_outputs, m_is_output_scalar.size());
-    m_status = tt_pjrt_status::kInternal;
-    return;
-  }
-
-  if (num_outputs != m_output_shardings.size()) {
+  if (num_outputs != executable->m_output_sharding.size()) {
     DLOG_F(ERROR,
            "Created flatbuffer binary contains different number of outputs %zu "
            "than expected from the m_output_shardings %zu",
-           num_outputs, m_output_shardings.size());
-    m_status = tt_pjrt_status::kInternal;
-    return;
+           num_outputs, executable->m_output_sharding.size());
+    return tt_pjrt_status::kInternal;
   }
 
-  checkOutputShardingShapes(output_specs);
+  return checkOutputShardingShapes(output_specs, executable);
 }
 
-void ModuleBuilder::checkOutputShardingShapes(
-    const std::vector<tt::runtime::TensorDesc> &output_specs) {
+tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
+    const std::vector<tt::runtime::TensorDesc> &output_specs,
+    ExecutableImage *executable) {
   for (size_t output_index = 0; output_index < output_specs.size();
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
-        m_output_shardings[output_index];
+        executable->m_output_sharding[output_index];
     if (output_sharding.getShardType() ==
             mlir::tt::ttcore::MeshShardType::Identity ||
         output_sharding.getShardType() ==
@@ -687,7 +772,7 @@ void ModuleBuilder::checkOutputShardingShapes(
       continue;
     }
 
-    const llvm::ArrayRef<int64_t> &shard_shape =
+    const llvm::SmallVector<int64_t> shard_shape =
         output_sharding.getShardShape();
     const std::vector<std::uint32_t> &output_shape =
         output_specs[output_index].shape;
@@ -697,8 +782,7 @@ void ModuleBuilder::checkOutputShardingShapes(
              "Output sharding shape (%zu) doesn't match the output shape (%zu)",
              shard_shape.size(), output_shape.size());
 
-      m_status = tt_pjrt_status::kInternal;
-      return;
+      return tt_pjrt_status::kInternal;
     }
 
     for (size_t shard_dim = 0; shard_dim < shard_shape.size(); ++shard_dim) {
@@ -707,11 +791,11 @@ void ModuleBuilder::checkOutputShardingShapes(
                "Output shape (%u) is not divisible by the sharding shape (%zu)",
                output_shape[shard_dim], shard_shape[shard_dim]);
 
-        m_status = tt_pjrt_status::kInternal;
-        return;
+        return tt_pjrt_status::kInternal;
       }
     }
   }
+  return tt_pjrt_status::kSuccess;
 }
 
 void ModuleBuilder::printModule(
@@ -771,11 +855,12 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
 
 llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
 ModuleBuilder::createArgumentTypeMap(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
   llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
       argTypesMap;
 
-  if (m_input_argument_roles.empty()) {
+  if (executable->m_input_argument_roles.empty()) {
     return argTypesMap;
   }
 
@@ -785,11 +870,11 @@ ModuleBuilder::createArgumentTypeMap(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
     for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
-      assert(arg_offset + i < m_input_argument_roles.size() &&
+      assert(arg_offset + i < executable->m_input_argument_roles.size() &&
              "TTIR module should have the same number of input arguments as "
              "the SHLO module");
-      if (m_input_argument_roles[arg_offset + i] ==
-          InputArgumentRole::kWeight) {
+      if (executable->m_input_argument_roles[arg_offset + i] ==
+          tt::pjrt::InputArgumentRole::kWeight) {
         argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
       } else {
         argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
