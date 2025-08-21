@@ -152,6 +152,7 @@ class XLAExecutor:
 
         xm.mark_step()
         if self.compiler_config.push_outputs_to_cpu:
+            print("Pushing outputs to CPU")
             return tree_map(lambda x: x.to("cpu"), output)
         return output
 
@@ -162,9 +163,12 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options: CompilerConfig = None):
+    print(f"[tt_backend] COMPILE: {gm.print_readable()}")
     compiler_config = options
     if compiler_config is None:
         compiler_config = CompilerConfig()
+    else:
+        print(f"is_backward : {compiler_config.is_backward}")
 
     program = torch_pass_pipeline(gm, example_inputs, compiler_config)
     return XLAExecutor(program, compiler_config)

@@ -68,6 +68,7 @@ class CompilerConfig:
         self.mesh_shape = [1, 1]
         self.push_outputs_to_cpu = True
         self.arg_type_map_override = False
+        self.is_backward = False
 
     @property
     def model_name(self):
