@@ -90,6 +90,6 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
-
+    print(f"Using tt backend gm : {gm}")
     module = torch_pass_pipeline(gm, example_inputs)
     return XLAExecutor(module)
