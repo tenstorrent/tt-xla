@@ -1,7 +1,6 @@
 FROM ubuntu:22.04
 SHELL ["/bin/bash", "-c"]
 
-# trigger entire rebuild
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -35,7 +34,8 @@ RUN apt-get update && apt-get install -y \
     lcov \
     unzip \
     doxygen \
-    protobuf-compiler
+    protobuf-compiler \
+    libprotobuf-dev
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
