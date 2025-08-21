@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 SHELL ["/bin/bash", "-c"]
 
+# trigger entire rebuild
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -68,5 +69,3 @@ RUN set -eux; \
     wget -qO "$TMP_DIR/ompi.deb" "$DEB_URL" && \
     apt-get install -f -y "$TMP_DIR/ompi.deb" && \
     rm -rf "$TMP_DIR"
-
-# trigger rebuild
