@@ -150,35 +150,3 @@ def convert_output_to_bfloat16(f: Callable):
         return jlx.convert_element_type(res, jnp.bfloat16)
 
     return wrapper
-
-
-# Minimal helper to keep parity with runner tests. It records metadata and raises pytest.skip.
-# Imported in tests/runner/test_models.py
-
-
-def skip_full_eval_test(
-    record_property,
-    compiler_config,
-    model_name: str,
-    *,
-    bringup_status: str,
-    reason: str,
-    model_group: str,
-    forge_models_test: bool = True,
-):
-    try:
-        import pytest
-    except Exception:
-        raise RuntimeError("pytest must be available to use skip_full_eval_test")
-
-    # Attach metadata if provided
-    if callable(record_property):
-        try:
-            record_property("bringup_status", bringup_status)
-            record_property("skip_reason", reason)
-            record_property("model_group", model_group)
-            record_property("forge_models_test", forge_models_test)
-        except Exception:
-            pass
-
-    pytest.skip(reason)
