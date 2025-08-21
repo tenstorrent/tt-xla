@@ -54,7 +54,6 @@ jobs:
     needs: [ build-image, build-ttxla ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      run_id: ${{ github.run_id }}
       test_mark: 'nightly'
       use-shared-runners: true # Run nightly tests on Civ2
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
@@ -119,7 +118,6 @@ jobs:
     if: success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      run_id: ${{ github.run_id }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: true # Run full model tests on Civ2

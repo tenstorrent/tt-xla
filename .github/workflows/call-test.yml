@@ -12,10 +12,6 @@ on:
         description: 'Docker image to use for the build'
         required: true
         type: string
-      run_id:
-        description: 'Run ID to download artifacts from  (or else it will search)'
-        required: false
-        type: string
       codecov:
         description: 'Enable codecov upload'
         required: false

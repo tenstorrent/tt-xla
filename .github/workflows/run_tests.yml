@@ -139,7 +139,6 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
-      run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
       artifact_run_id: ${{ needs.build-xla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}

@@ -87,12 +87,11 @@ jobs:
     with:
       codecov: true
       test_mark: 'push'
-      run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run PR on VMs
       artifact_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}
+      wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   check-all-green:
     if: always()

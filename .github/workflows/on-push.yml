@@ -41,7 +41,6 @@ jobs:
     secrets: inherit
     with:
       test_mark: 'push'
-      run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
