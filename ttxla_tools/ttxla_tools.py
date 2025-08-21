@@ -119,16 +119,15 @@ def _(tensor: torch.Tensor, name: str, argument_type: str) -> torch.Tensor:
 # tt.mark_argument_attributes to be represented in a GraphModule.
 torch._dynamo.allow_in_graph(torch.ops.tt.mark_argument_attributes)
 
-arg_num = 0
-
 
 def apply_user_input_markers(tensors: PyTree):
     """
     Marks a PyTree of tesnors as a user input.
     """
+    arg_num = 0
 
     def mark_arg(x):
-        global arg_num
+        nonlocal arg_num
         x = torch.ops.tt.mark_argument_attributes(x, "input", f"user_input_{arg_num}")
         arg_num += 1
         return x
