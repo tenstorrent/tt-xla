@@ -10,6 +10,7 @@ from torch.utils._pytree import tree_map, PyTree
 from jax.experimental import serialize_executable
 import os
 import pickle
+import functools
 
 
 def serialize_function_to_binary(func, binary_file_path, *args, **kwargs):
@@ -79,7 +80,7 @@ def mark_argument_attributes(
 ) -> torch.Tensor:
     """
     This function is a custom registered operator accessible as torch.ops.tt.mark_argument_attributes.
-    You may apply this function to a tensor which is on an XLA device.
+    You may onlyapply this function to a tensor which is on an XLA device.
     This function will annotate the tensor in a compiled program with a "name" and "argument_type" attribute.
     """
     assert isinstance(
@@ -128,14 +129,11 @@ def apply_user_input_markers(tensors: PyTree):
 
     def mark_arg(x):
         global arg_num
-        torch.ops.tt.mark_argument_attributes(x, "input", f"user_input_{arg_num}")
+        x = torch.ops.tt.mark_argument_attributes(x, "input", f"user_input_{arg_num}")
         arg_num += 1
         return x
 
     return tree_map(mark_arg, tensors)
-
-
-import functools
 
 
 def mark_module_user_inputs(module: torch.nn.Module):
