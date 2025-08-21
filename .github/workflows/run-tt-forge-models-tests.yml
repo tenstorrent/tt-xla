@@ -171,15 +171,24 @@ jobs:
       if: ${{ env.RUN_TEST != 'skip' }}
       shell: bash
       run: |
-        BASE_PYTEST_CMD="tests/runner/test_models.py \
-          -m \"${{ inputs.tests-filter }}\" \
-          --xfail-tb \
+        BASE_PYTEST_CMD="\
+          tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-eval] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_064-full-eval] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_1_6gf-full-eval] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_32gf-full-eval] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_x_1_6gf-full-eval] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_x_8gf-full-eval] \
+          tests/runner/test_models.py::test_all_models[bert/masked_lm/pytorch-bert-base-uncased-full-eval] \
+          tests/runner/test_models.py::test_all_models[yoloworld/pytorch-full-eval] \
+          tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-eval] \
+          tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono+stereo_no_pt_640x192-full-eval] \
+          tests/runner/test_models.py::test_all_models[opt/causal_lm/pytorch-facebook/opt-1.3b-full-eval] \
+          tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-eval] \
+          tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-eval] \
+          tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-eval] \
+          tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_darknet-full-eval] \
           --log-memory \
-          --arch ${{ env.RUN_TEST }} \
-          --splits ${{ inputs.num-splits }} \
-          --group ${{ matrix.build.group }} \
-          --splitting-algorithm least_duration \
-          --durations-path .test_durations"
+          --arch ${{ env.RUN_TEST }}"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
     - name: Collect Tests
@@ -199,7 +208,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        pytest --durations=0 -v -rA ${{ env.BASE_PYTEST_CMD }} --junit-xml=${{ steps.strings.outputs.test_report_path }} | tee pytest.log
+        pytest --durations=0 -vv -rA --capture=tee-sys --forked ${{ env.BASE_PYTEST_CMD }} --junit-xml=${{ steps.strings.outputs.test_report_path }} | tee pytest.log
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
