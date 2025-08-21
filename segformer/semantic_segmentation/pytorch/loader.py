@@ -26,6 +26,10 @@ class ModelVariant(StrEnum):
     """Available Segformer for Semantic Segmentation model variants."""
 
     B0_FINETUNED = "b0_finetuned_ade_512_512"
+    B1_FINETUNED = "b1_finetuned_ade_512_512"
+    B2_FINETUNED = "b2_finetuned_ade_512_512"
+    B3_FINETUNED = "b3_finetuned_ade_512_512"
+    B4_FINETUNED = "b4_finetuned_ade_512_512"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +39,18 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.B0_FINETUNED: ModelConfig(
             pretrained_model_name="nvidia/segformer-b0-finetuned-ade-512-512",
+        ),
+        ModelVariant.B1_FINETUNED: ModelConfig(
+            pretrained_model_name="nvidia/segformer-b1-finetuned-ade-512-512",
+        ),
+        ModelVariant.B2_FINETUNED: ModelConfig(
+            pretrained_model_name="nvidia/segformer-b2-finetuned-ade-512-512",
+        ),
+        ModelVariant.B3_FINETUNED: ModelConfig(
+            pretrained_model_name="nvidia/segformer-b3-finetuned-ade-512-512",
+        ),
+        ModelVariant.B4_FINETUNED: ModelConfig(
+            pretrained_model_name="nvidia/segformer-b4-finetuned-ade-512-512",
         ),
     }
 

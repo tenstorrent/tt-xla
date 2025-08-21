@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-UNet PyTorch model implementation for Tenstorrent projects.
+Phi 3.5 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

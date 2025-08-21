@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Falcon model loader implementation for question answering
+Falcon model loader implementation for causal language modeling
 """
 from typing import Optional
 import torch
@@ -32,7 +32,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Falcon model loader implementation."""
+    """Falcon model loader implementation for causal LM tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
@@ -80,12 +80,6 @@ class ModelLoader(ForgeModel):
         )
 
     def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
 
         # Configuration parameters
@@ -95,34 +89,30 @@ class ModelLoader(ForgeModel):
         self.input_text_2 = "Hello, my dog is cute"
 
     def load_model(self, dtype_override=None):
-        """Load and return the Falcon model instance with default settings.
+        """Load and return the Falcon model instance.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The Falcon model instance for question answering.
+            torch.nn.Module: The Falcon model instance for causal LM.
         """
-        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Initialize tokenizer first with default or overridden dtype
+        # Initialize tokenizer
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-
         self.tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name, **tokenizer_kwargs
         )
 
         # Load pre-trained model from HuggingFace
-        model_kwargs = {}
+        model_kwargs = {"return_dict": False, "use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, return_dict=False, use_cache=False, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         return model
 

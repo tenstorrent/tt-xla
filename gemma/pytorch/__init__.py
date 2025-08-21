@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-UNet PyTorch model implementation for Tenstorrent projects.
+Gemma PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

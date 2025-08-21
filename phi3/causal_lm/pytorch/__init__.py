@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Phi 3 PyTorch model implementation for Tenstorrent projects.
+Phi-3 causal language modeling loader exports
 """
 from .loader import ModelLoader, ModelVariant
