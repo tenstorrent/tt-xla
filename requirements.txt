@@ -5,7 +5,7 @@ datasets
 einops
 flax==0.10.4
 fsspec
-jax[cpu]==0.6.0
+jax==0.6.0
 jaxlib==0.6.0
 jaxtyping
 librosa
@@ -27,9 +27,9 @@ setuptools
 soundfile
 tabulate
 timm
-torch==2.7.0+cpu
+torch==2.7.0 --index-url https://download.pytorch.org/whl/cpu
 torch_xla==2.7.0
-torchvision==0.22.0+cpu
+torchvision
 torchxrayvision
 transformers
 wheel
