@@ -19,6 +19,9 @@ jobs:
     runs-on: n300
     name: "Build Docker Image"
     steps:
+      - name: Fix workspace permissions
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
