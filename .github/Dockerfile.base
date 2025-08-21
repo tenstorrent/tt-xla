@@ -68,3 +68,5 @@ RUN set -eux; \
     wget -qO "$TMP_DIR/ompi.deb" "$DEB_URL" && \
     apt-get install -f -y "$TMP_DIR/ompi.deb" && \
     rm -rf "$TMP_DIR"
+
+# trigger rebuild
