@@ -5,7 +5,7 @@ datasets
 einops
 flax==0.10.4
 fsspec
-jax==0.6.0
+jax[cpu]==0.6.0
 jaxlib==0.6.0
 jaxtyping
 librosa
@@ -27,9 +27,9 @@ setuptools
 soundfile
 tabulate
 timm
-torch==2.7.0
+torch==2.7.0+cpu
 torch_xla==2.7.0
-torchvision
+torchvision==0.22.0+cpu
 torchxrayvision
 transformers
 wheel
