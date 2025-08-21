@@ -62,7 +62,7 @@ on:
             value: ${{ jobs.check-existing-artifact.outputs.build_artifact_name }}
         artifacts_run_id:
             description: 'Run ID of the artifacts'
-            value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || jobs.build-ttxla.outputs.artifacts_run_id }}
+            value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
 
 jobs:
   check-existing-artifact:
@@ -124,8 +124,6 @@ jobs:
     timeout-minutes: 120
     runs-on: ubuntu-latest
     name: "Build tt-xla"
-    outputs:
-      artifacts_run_id: ${{ steps.upload-wheel.outputs.artifacts_run_id }}
     container:
       image: ${{ inputs.docker_image }}
 
