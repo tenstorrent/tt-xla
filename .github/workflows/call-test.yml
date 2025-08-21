@@ -52,6 +52,7 @@ on:
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
+  GH_TOKEN: ${{ github.token }} # for gh cli tool
 
 jobs:
 
