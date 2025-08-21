@@ -201,7 +201,7 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
 void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  frontend_passes::propagateInputRoleAttributes(mlir_module);
+  frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
@@ -595,29 +595,6 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
 
   options.systemDescPath = system_descriptor_path.data();
-
-  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
-  //    - determine a more rigorous approach to retrieving the argument
-  //      types
-  // The argument type map is used in tt-mlir so that consteval
-  // can determine which graph inputs are allowed to be used as
-  // consteval graph inputs. Also, so EIO may know which paths
-  // of the graph will end up in a consteval graph as some of its
-  // commute conditions depend on whether this is the case for
-  // a given op.
-  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
-    auto parser =
-        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
-    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-        argEnumMap;
-
-    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
-                 argEnumMap);
-    options.argumentTypeMap = argEnumMap;
-  } else {
-    // Set argument types based on collected input argument roles
-    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
-  }
 
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,

@@ -174,7 +174,7 @@ def _setup_mark_weight_primitive():
                 operands=[x],
                 attributes={
                     "callee": ir.FlatSymbolRefAttr.get(func_name),
-                    "tt.input_role": ir.StringAttr.get("weight"),
+                    "tt.input_role": ir.StringAttr.get("parameter"),
                 },
             )
         return [op.result]
