@@ -14,9 +14,10 @@ from utils import (
     failed_runtime,
 )
 
+from third_party.tt_forge_models.longt5.text_classification.jax import ModelVariant
 from ..tester import LongT5Tester
 
-MODEL_PATH = "google/long-t5-local-large"
+MODEL_VARIANT = ModelVariant.LARGE_LOCAL
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "longt5",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_PATH)
+    return LongT5Tester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return LongT5Tester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -49,9 +50,10 @@ def training_tester() -> LongT5Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
-        "Hangs in runtime (https://github.com/tenstorrent/tt-xla/issues/611)"
+        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
+        "https://github.com/tenstorrent/tt-xla/issues/580"
     )
 )
 def test_longt5_large_local_inference(inference_tester: LongT5Tester):
