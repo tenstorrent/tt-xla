@@ -80,7 +80,7 @@ def mark_argument_attributes(
 ) -> torch.Tensor:
     """
     This function is a custom registered operator accessible as torch.ops.tt.mark_argument_attributes.
-    You may onlyapply this function to a tensor which is on an XLA device.
+    You may only apply this function to a tensor which is on an XLA device.
     This function will annotate the tensor in a compiled program with a "name" and "argument_type" attribute.
     """
     assert isinstance(
