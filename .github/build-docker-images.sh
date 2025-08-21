@@ -22,7 +22,7 @@ build_and_push() {
     local image_name=$1
     local dockerfile=$2
     local on_main=$3
-
+    local from_image=$4
 
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
         echo "Image $image_name:$DOCKER_TAG already exists"
@@ -34,6 +34,7 @@ build_and_push() {
         docker build \
             --progress=plain \
             --build-arg FROM_TAG=$DOCKER_TAG \
+            ${from_image:+--build-arg FROM_IMAGE=$from_image} \
             -t $image_name:$DOCKER_TAG \
             -t $image_name:latest \
             -f $dockerfile .
