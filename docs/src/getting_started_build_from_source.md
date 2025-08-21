@@ -158,6 +158,34 @@ python -c "import jax; print(jax.devices('tt'))"
 
 The command should output all available TT devices, e.g. `[TTDevice(id=0, arch=Wormhole_b0)]`
 
+6. (optional) If you want to build the TT-XLA wheel, run the following command:
+
+```bash
+cd python_package
+python setup.py bdist_wheel
+```
+
+The above command outputs a `python_package/dist/pjrt_plugin_tt*.whl` file which is self-contained. To install the created wheel, run:
+
+```bash
+pip install dist/pjrt_plugin_tt*.whl
+```
+
+The wheel has the following structure:
+```plaintext
+pjrt_plugin_tt/                     # PJRT plugin package
+    |-- __init__.py
+    |-- pjrt_plugin_tt.so               # PJRT plugin binary
+    |-- tt-metal/                       # tt-metal runtime dependencies (kernels, riscv compiler/linker, etc.)
+    `-- lib/                            # shared library dependencies (tt-mlir, tt-metal)
+jax_plugin_tt/                      # Thin JAX wrapper
+    `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
+torch_plugin_tt                     # Thin PyTorch/XLA wrapper
+    `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
+```
+
+It contains a custom Tenstorrent PJRT plugin (`pjrt_plugin_tt.so`) and its dependencies (`tt-mlir` and `tt-metal`). Additionally, there are thin wrappers for JAX (`jax_plugin_tt`) and PyTorch/XLA (`torch_plugin_tt`) that import the PJRT plugin and set it up for use with the respective frameworks.
+
 ## Testing
 The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`.
 

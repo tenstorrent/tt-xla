@@ -25,20 +25,15 @@ class SetupConfig:
 
     The wheel structure is as follows:
     ```
-    pjrt_plugin_tt/                     # Shared device package (single copy)
-    |-- __init__.py                     # get_library_path(), setup_environment()
-    |-- pjrt_plugin_tt.so               # PJRT plugin binary
-    `-- tt-mlir/                        # TT-MLIR installation
-        `-- install/
-            |-- lib/                    # libTTMLIRCompiler.so, etc.
-            |-- include/                # Headers
-            `-- tt-metal/               # TT_METAL_HOME points here
-
-    jax_plugin_tt/                      # Thin JAX wrapper (Python only)
-    `-- __init__.py                     # imports pjrt_plugin_tt
-
-    torch_plugin_tt                     # Thin PyTorch/XLA wrapper (Python only)
-    `-- __init__.py                     # imports pjrt_plugin_tt
+    pjrt_plugin_tt/                     # PJRT plugin package
+        |-- __init__.py
+        |-- pjrt_plugin_tt.so               # PJRT plugin binary
+        |-- tt-metal/                       # tt-metal runtime dependencies (kernels, riscv compiler/linker, etc.)
+        `-- lib/                            # shared library dependencies (tt-mlir, tt-metal)
+    jax_plugin_tt/                      # Thin JAX wrapper
+        `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
+    torch_plugin_tt                     # Thin PyTorch/XLA wrapper
+        `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
     ```
     """
 
@@ -79,7 +74,7 @@ class SetupConfig:
             pin_versions = dict(pin_pairs)
 
             # Convert pinned versions to >= for install_requires.
-            for pin_name in ("jax", "jaxlib"):
+            for pin_name in ("jax", "jaxlib", "torch", "torch_xla"):
                 assert (
                     pin_name in pin_versions.keys()
                 ), f"Requirement {pin_name} not found in {requirements_path}"

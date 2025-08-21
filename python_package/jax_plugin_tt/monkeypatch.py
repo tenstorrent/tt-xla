@@ -21,6 +21,18 @@ from jax.extend import core
 from jax.interpreters.mlir import ir, register_lowering
 
 
+def _setup_monkey_patches():
+    """
+    Set up and apply monkey patches for JAX and Flax compatibility.
+
+    This function applies monkey patches to jax.nn.gelu for Tenstorrent optimization
+    and flax.linen.Module.apply for weight marking.
+    """
+    # Get and apply monkey patches
+    monkeypatches = get_monkeypatches()
+    apply_patches(monkeypatches)
+
+
 def is_module_imported(module_name: str) -> bool:
     """
     Check if a module is already imported in sys.modules.

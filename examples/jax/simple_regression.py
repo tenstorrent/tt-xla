@@ -52,7 +52,7 @@ def test_simple_regression():
     l_rate = 0.001
     n_iter = 6000
     size = 127.0
-    params = [Weights, Bias]  # Move weights and bias to tt device
+    params = [Weights, Bias]
 
     gradient = jit(grad(loss), backend="tt")
     print(gradient.lower(params, X_train, y_train).as_text())

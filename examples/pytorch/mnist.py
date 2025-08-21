@@ -42,5 +42,7 @@ def mnist():
 # main
 # --------------------------------
 if __name__ == "__main__":
+    # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
+
     mnist()
