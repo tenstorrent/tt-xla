@@ -205,6 +205,7 @@ jobs:
         HF_HOME: ${{ env.DOCKER_CACHE_ROOT }}/huggingface
         TORCH_HOME: ${{ env.DOCKER_CACHE_ROOT }}/torch
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        TT_TORCH_REQS_DEBUG: 1
       shell: bash
       run: |
         source venv/activate
