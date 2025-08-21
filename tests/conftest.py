@@ -16,7 +16,7 @@ from loguru import logger
 from pathlib import Path
 from typing import Any
 
-from python_package.monkeypatch import apply_patches, get_monkeypatches
+from jax_plugin_tt.monkeypatch import apply_patches, get_monkeypatches
 
 
 def pytest_configure(config: pytest.Config):
