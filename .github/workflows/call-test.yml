@@ -41,8 +41,16 @@ on:
         required: false
         default: false
         type: boolean
-      wheel_url:
-        description: 'Wheel URL for the tests'
+      artifact_run_id:
+        description: 'Run ID of the artifacts'
+        required: true
+        type: string
+      wheel_artifact_name:
+        description: 'Name of the wheel artifact'
+        required: true
+        type: string
+      build_artifact_name:
+        description: 'Name of the build artifact'
         required: true
         type: string
 
@@ -111,18 +119,24 @@ jobs:
     - name: Download and install wheel
       shell: bash
       run: |
-        echo "Downloading wheel from: ${{ inputs.wheel_url }}"
-        curl -L -H "Authorization: token ${{ github.token }}" \
-           -o wheel.zip \
-           "${{ inputs.wheel_url }}"
-        unzip wheel.zip
-        rm wheel.zip
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_run_id }}"
+        gh run download ${{ inputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ inputs.wheel_artifact_name }}
         echo "Downloaded wheel files:"
-        ls -la *.whl
-
+        ls -la wheels
         echo "Installing wheel..."
         source venv/activate
-        pip install *.whl
+        pip install wheels/*.whl
+
+    - name: Download build artifacts
+      if: steps.strings.outputs.do_codecov
+      run: |
+        gh run download ${{ inputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir build \
+          --name ${{ inputs.build_artifact_name }}
 
     - name: Run tests
       env:

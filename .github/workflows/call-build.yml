@@ -54,17 +54,24 @@ on:
             required: false
             type: boolean
     outputs:
-        wheel_url:
-            description: 'URL of the uploaded wheel artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.wheel_url || jobs.build-ttxla.outputs.wheel_url }}
+        wheel_artifact_name:
+            description: 'Name of the wheel artifact'
+            value: ${{ jobs.check-existing-artifact.outputs.wheel_artifact_name }}
+        build_artifact_name:
+            description: 'Name of the build artifact'
+            value: ${{ jobs.check-existing-artifact.outputs.build_artifact_name }}
+        artifacts_run_id:
+            description: 'Run ID of the artifacts'
+            value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || jobs.build-ttxla.outputs.artifacts_run_id }}
 
 jobs:
   check-existing-artifact:
     runs-on: ubuntu-latest
     name: "Check for existing artifact"
     outputs:
-      wheel_url: ${{ steps.check-artifact.outputs.url }}
-      whl_artifact_name: ${{ steps.generate-name.outputs.whl_artifact_name }}
+      artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -79,9 +86,11 @@ jobs:
           else
             artifact_suffix=""
           fi
-          whl_artifact_name="xla-whl-${build_name}${artifact_suffix}"
-          echo "whl_artifact_name=${whl_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "Generated artifact name: $whl_artifact_name"
+          wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
+          build_artifact_name="build-artifacts${artifact_suffix}"
+          echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "build_artifact_name=${build_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "Generated artifact name: $wheel_artifact_name"
 
       - name: Check if artifact exists
         if: ${{ github.event_name != 'pull_request' && inputs.mlir_override == null }}
@@ -90,30 +99,33 @@ jobs:
         run: |
           # Use GitHub API to check for existing artifacts
           response=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${{ steps.generate-name.outputs.whl_artifact_name }}")
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${{ steps.generate-name.outputs.wheel_artifact_name }}")
           total_count=$(echo "$response" | jq -r '.total_count')
 
           if [ "$total_count" -gt 0 ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             # Get the download URL of the most recent artifact
             download_url=$(echo "$response" | jq -r '.artifacts[0].archive_download_url')
+            artifacts_run_id=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
             echo "url=${download_url}" >> "$GITHUB_OUTPUT"
-            echo "Found existing artifact: ${{ steps.generate-name.outputs.whl_artifact_name }}"
+            echo "artifacts_run_id=${artifacts_run_id}" >> "$GITHUB_OUTPUT"
+            echo "Found existing artifact: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
             echo "Artifact URL: $download_url"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "url=" >> "$GITHUB_OUTPUT"
-            echo "No existing artifact found for: ${{ steps.generate-name.outputs.whl_artifact_name }}"
+            echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
+            echo "No existing artifact found for: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
           fi
 
   build-ttxla:
     needs: check-existing-artifact
-    if: ${{ !needs.check-existing-artifact.outputs.wheel_url }}
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
     runs-on: ubuntu-latest
     name: "Build tt-xla"
     outputs:
-      wheel_url: ${{ format('https://api.github.com/repos/{0}/actions/artifacts/{1}/zip', github.repository, steps.upload-wheel.outputs.artifact-id) }}
+      artifacts_run_id: ${{ steps.upload-wheel.outputs.artifacts_run_id }}
     container:
       image: ${{ inputs.docker_image }}
 
@@ -173,5 +185,23 @@ jobs:
         id: upload-wheel
         uses: actions/upload-artifact@v4
         with:
-            name: ${{ needs.check-existing-artifact.outputs.whl_artifact_name }}
+            name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+
+      - name: Archive Build Directory
+        if: inputs.debug_build
+        shell: bash
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: tar cf artifact.tar .
+
+      - name: Upload Build Folder
+        if: inputs.debug_build
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
+            path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
+
+      - name: Remove tar archive
+        if: inputs.debug_build
+        shell: bash
+        run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar

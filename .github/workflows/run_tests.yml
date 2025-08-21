@@ -141,4 +141,6 @@ jobs:
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
-      wheel_url: ${{ needs.build-xla.outputs.wheel_url }}
+      artifact_run_id: ${{ needs.build-xla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}
