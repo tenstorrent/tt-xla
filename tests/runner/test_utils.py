@@ -317,3 +317,62 @@ def create_test_id_generator(models_root):
         return generate_test_id(test_entry, models_root)
 
     return _generate_test_id
+
+
+def record_model_test_properties(
+    record_property,
+    request,
+    *,
+    model_info,
+    test_metadata,
+    run_mode: RunMode = RunMode.INFERENCE,
+):
+    """
+    Record standard runtime properties for model tests and optionally control flow.
+
+    - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
+      plus owner and group properties.
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.skip_bringup_status and call pytest.skip(reason).
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, set bringup_status to a failure value and leave execution to xfail via marker.
+    """
+    # Local imports to avoid circular dependencies at module import time
+    from tests.utils import BringupStatus, Category
+    import pytest
+
+    # Determine bringup status and reason based on test status
+    reason = None
+    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        bringup_status = getattr(
+            test_metadata, "skip_bringup_status", BringupStatus.FAILED_RUNTIME
+        )
+        bringup_status_str = str(bringup_status)
+        reason = getattr(test_metadata, "skip_reason", "Not supported")
+    elif test_metadata.status == ModelStatus.KNOWN_FAILURE_XFAIL:
+        # For now, mark as a runtime failure in metadata; xfail is applied via collection marker
+        bringup_status_str = str(BringupStatus.FAILED_RUNTIME)
+        reason = getattr(test_metadata, "xfail_reason", "Known failure")
+    else:
+        bringup_status_str = str(BringupStatus.PASSED)
+
+    tags = {
+        "test_name": request.node.originalname,
+        "specific_test_case": request.node.name,
+        "category": str(Category.MODEL_TEST),
+        "model_name": model_info.name,
+        "run_mode": str(run_mode),
+        "bringup_status": bringup_status_str,
+    }
+
+    # If we have an explanatory reason, include it as a top-level property too for convenience
+    if reason:
+        record_property("reason", reason)
+
+    # Write properties
+    record_property("tags", tags)
+    record_property("owner", "tt-xla")
+    if hasattr(model_info, "group") and model_info.group is not None:
+        record_property("group", model_info.group)
+
+    # Control flow for NOT_SUPPORTED_SKIP
+    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        pytest.skip(reason)

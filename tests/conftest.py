@@ -50,6 +50,15 @@ def pytest_configure(config: pytest.Config):
         "record_test_properties(key_value_pairs): Record custom properties for the test",
     )
 
+    """
+    Register a marker to disable auto user_properties injection at collection time, when they
+    would otherwise be populated at runtime.
+    """
+    config.addinivalue_line(
+        "markers",
+        "no_auto_properties: disable auto user_properties injection at collection",
+    )
+
 
 def pytest_collection_modifyitems(items):
     """
@@ -94,6 +103,11 @@ def pytest_collection_modifyitems(items):
                 )
 
     for item in items:
+
+        # Skip collection-time user_properies for this test, populate at runtime.
+        if item.get_closest_marker("no_auto_properties"):
+            continue
+
         # Add some test metadata in a 'tags' dictionary.
         tags = {"test_name": item.originalname, "specific_test_case": item.name}
 
