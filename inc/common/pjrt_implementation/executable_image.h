@@ -21,6 +21,9 @@
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
+// tt-xla includes
+#include "common/pjrt_implementation/input_argument_role.h"
+
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
@@ -29,30 +32,34 @@
 
 namespace tt::pjrt {
 
+namespace module_builder {
+class ModuleBuilder;
+}
+
 // Represents compiled image containing all the required information for its
 // execution.
 class ExecutableImage {
 
+  friend class module_builder::ModuleBuilder;
+
 public:
-  // Creates new executable image instance from the information given by the
-  // compiler.
-  static std::shared_ptr<ExecutableImage> createInstance(
-      const tt::runtime::Binary &flatbuffer_binary,
-      std::string original_mlir_code, std::string ttir_mlir_code,
-      std::string ttnn_mlir_code, std::string executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
-      const std::vector<std::uint32_t> &devices_mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_sharding,
-      const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+  // Creates a new blank ExecutableImage, ready to be filled by ModuleBuilder.
+  template <typename... Args>
+  static std::shared_ptr<ExecutableImage> make(Args &&...args) {
+    struct MakeSharedEnabler : public ExecutableImage {
+      MakeSharedEnabler(Args &&...args)
+          : ExecutableImage(std::forward<Args>(args)...) {}
+    };
+    return std::make_shared<MakeSharedEnabler>(std::forward<Args>(args)...);
+  }
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
     return m_flatbuffer_binary;
   }
+
+  // Validate the executable image after all the fields have been filled.
+  void validate();
 
   // Returns original mlir code produced by the xla plugin.
   const std::string &getOriginalMlirCode() const {
@@ -130,21 +137,6 @@ public:
   const std::string &getFingerprint() const { return m_fingerprint; }
 
 private:
-  // Constructs executable image instance from the information given by the
-  // compiler.
-  ExecutableImage(
-      const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
-      const std::vector<std::uint32_t> &devices_mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_sharding,
-      const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
-
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const;
 
@@ -161,8 +153,10 @@ private:
   // TTNN MLIR code produced by the compiler, stored for debugging purposes.
   std::string m_ttnn_mlir;
 
+  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
+  // a name, otherwise some default string like the current one.
   // A name that identifies the executable.
-  std::string m_executable_name;
+  std::string m_executable_name = "tt_executable";
 
   // Number of partitions of the executable.
   size_t m_num_partitions;
@@ -176,7 +170,7 @@ private:
 
   // Devices mesh shape this executable should run on, estimated from the
   // compiled code.
-  const std::vector<std::uint32_t> m_devices_mesh_shape;
+  std::vector<std::uint32_t> m_devices_mesh_shape;
 
   // Number of input buffers per device this executable requires.
   size_t m_num_inputs;
@@ -199,10 +193,10 @@ private:
   std::vector<std::int64_t> m_output_dimensions_flat;
 
   // Hold the sharding information for each input.
-  const std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_sharding;
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_sharding;
 
   // Hold the sharding information for each output.
-  const std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
+  std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_sharding;
 
   // Holds the information on memory kind of the output.
   std::vector<const char *> m_output_memory_kinds;
@@ -212,10 +206,16 @@ private:
   std::vector<size_t> m_output_memory_kinds_sizes;
 
   // Compile options used to create this executable.
-  const module_builder::CompileOptions m_compile_options;
+  module_builder::CompileOptions m_compile_options;
 
   // Cached fingerprint for this executable.
   std::string m_fingerprint;
+
+  // For every input, holds the argument role (weight vs input).
+  std::vector<tt::pjrt::InputArgumentRole> m_input_argument_roles;
+
+protected:
+  ExecutableImage();
 };
 
 } // namespace tt::pjrt
