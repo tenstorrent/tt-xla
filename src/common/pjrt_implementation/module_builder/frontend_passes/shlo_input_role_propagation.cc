@@ -15,7 +15,16 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+// stablehlo mlir includes
+#include "stablehlo/dialect/StablehloOps.h"
+
+// tt-mlir includes
+#include "ttmlir/Dialect/TTCore/IR/TTCore.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "common/status.h"
@@ -23,6 +32,10 @@
 namespace tt::pjrt::module_builder::frontend_passes {
 
 const std::string c_input_role_attr_name = "tt.input_role";
+
+namespace internal {
+
+const std::string c_tt_mark_function_prefix = "tt.mark_";
 
 void propagateInputRoleAttributes(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
@@ -34,18 +47,14 @@ void propagateInputRoleAttributes(
         call_op->getAttrOfType<mlir::StringAttr>(c_input_role_attr_name);
     if (role_attr) {
       for (mlir::Value operand : call_op.getOperands()) {
-        internal::propagateRoleAttribute(module, operand, role_attr);
+        propagateRoleAttribute(module, operand, role_attr);
       }
     }
   });
 
   // Inline all private tt.mark_* functions to eliminate unnecessary calls.
-  internal::inlineTTMarkFunctions(mlir_module);
+  inlineTTMarkFunctions(mlir_module);
 }
-
-namespace internal {
-
-const std::string c_tt_mark_function_prefix = "tt.mark_";
 
 void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
                             mlir::StringAttr role_attr) {
@@ -68,7 +77,21 @@ void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
   mlir::Operation *parent_op = block_argument.getOwner()->getParentOp();
   uint32_t arg_index = block_argument.getArgNumber();
   if (auto parent_func_op = mlir::dyn_cast<mlir::func::FuncOp>(parent_op)) {
-    parent_func_op.setArgAttr(arg_index, c_input_role_attr_name, role_attr);
+
+    mlir::tt::ttcore::ArgumentType argumentTypeEnum;
+    if (role_attr == "input") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Input;
+    } else if (role_attr == "parameter") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Parameter;
+    } else if (role_attr == "constant") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Constant;
+    } else {
+      return;
+    }
+    parent_func_op.setArgAttr(
+        arg_index, "ttcore.argument_type",
+        mlir::tt::ttcore::ArgumentTypeAttr::get(parent_func_op.getContext(),
+                                                argumentTypeEnum));
 
     // In case when graph parts are moved to separate private functions and mark
     // calls end up in some of them, we need to propagate the input role
@@ -133,6 +156,164 @@ bool isTTMarkFunction(const std::string &function_name) {
   return function_name.rfind(c_tt_mark_function_prefix, 0) == 0;
 }
 
+struct ReplaceMarkParameterWithCall final
+    : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp> {
+  using mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>::OpRewritePattern;
+
+  ReplaceMarkParameterWithCall(mlir::MLIRContext *context)
+      : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>(context) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::stablehlo::CustomCallOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    if (op.getCallTargetName() != "tt.mark_argument") {
+      return mlir::failure();
+    }
+
+    assert(op.getNumOperands() == 1 &&
+           "Expected one operand to tt.mark_argument");
+    assert(op.getNumResults() == 1 &&
+           "Expected one result to tt.mark_argument");
+
+    // Retrieve input and assert that it is indeed a block argument
+    mlir::Value input = op.getOperand(0);
+    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
+    assert(blockArg && "Expected block argument as input to tt.mark_argument");
+
+    auto *parentOp = blockArg.getOwner()->getParentOp();
+    auto argIndex = blockArg.getArgNumber();
+
+    // Assert that the input is a block argument to a function
+    auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
+    assert(funcOp && "Expected function as parent of block argument");
+
+    // Torch xla allows us to populate a frontend_attributes dictionary to
+    // custom call ops This dictionary is used to populate the argument type and
+    // name of the argument We need to extract this information and set the
+    // argument type and name of the argument in the function argument
+    // attributes.
+    mlir::DictionaryAttr frontendAttrs;
+    if (mlir::Attribute frontendAttrs_ =
+            op->getDiscardableAttr("mhlo.frontend_attributes")) {
+      frontendAttrs = mlir::cast<mlir::DictionaryAttr>(frontendAttrs_);
+    } else {
+      return mlir::failure();
+    }
+
+    auto argumentType = frontendAttrs.get("argument_type");
+    if (!argumentType) {
+      return mlir::failure();
+    }
+
+    mlir::StringRef argumentTypeStr;
+    if (mlir::StringAttr argumentTypeStrAttr =
+            mlir::dyn_cast<mlir::StringAttr>(argumentType)) {
+      argumentTypeStr = argumentTypeStrAttr.getValue();
+    }
+
+    auto nameAttr = frontendAttrs.get("name");
+    if (!nameAttr) {
+      return mlir::failure();
+    }
+
+    mlir::StringAttr nameStrAttr = mlir::dyn_cast<mlir::StringAttr>(nameAttr);
+    if (!nameStrAttr) {
+      return mlir::failure();
+    }
+
+    // Determine the argument type enum from the argument type string
+    mlir::tt::ttcore::ArgumentType argumentTypeEnum;
+    if (argumentTypeStr == "input") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Input;
+    } else if (argumentTypeStr == "parameter") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Parameter;
+    } else if (argumentTypeStr == "constant") {
+      argumentTypeEnum = mlir::tt::ttcore::ArgumentType::Constant;
+    } else {
+      return mlir::failure();
+    }
+
+    // Set argument type for this argument
+    funcOp.setArgAttr(argIndex, "ttcore.argument_type",
+                      mlir::tt::ttcore::ArgumentTypeAttr::get(
+                          funcOp.getContext(), argumentTypeEnum));
+
+    // Set argument name for this argument
+    funcOp.setArgAttr(argIndex, "ttir.name", nameStrAttr);
+
+    // Remove the custom call op and replace it with the input
+    // as the information is now embedded in the function argument attributes
+    rewriter.replaceOp(op, input);
+    return mlir::success();
+  }
+};
+
+void annotateArgumentAttributesFromCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::MLIRContext *context = mlir_module->getContext();
+  mlir::RewritePatternSet patterns(context);
+  patterns.add<internal::ReplaceMarkParameterWithCall>(context);
+
+  if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
+                                         std::move(patterns)))) {
+    LOG_F(ERROR, "Failed to uplift mark parameters custom call");
+  }
+
+  // In the event that somne of the arguments have not been annotated, IF at
+  // least one argument has been annotated as a user input, we can annotate the
+  // rest of the arguments as constants
+  mlir_module->walk([&](mlir::func::FuncOp funcOp) {
+    // If the function has even one user input argument, that means we can
+    // annotate the rest of the arguments as constants
+    bool hasUserInputAnnotation = false;
+    for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
+      if (mlir::tt::ttcore::ArgumentTypeAttr argumentTypeAttr =
+              mlir::dyn_cast_or_null<mlir::tt::ttcore::ArgumentTypeAttr>(
+                  funcOp.getArgAttr(i, "ttcore.argument_type"));
+          argumentTypeAttr) {
+        hasUserInputAnnotation = true;
+        break;
+      }
+    }
+
+    // If the function has a user input argument annotation, then for every
+    // argument, if the argument has an argument type attribute, do nothing, and
+    // if it does not have an argument type attribute, set it to constant
+    int64_t annotatedConstCount = 0;
+    if (hasUserInputAnnotation) {
+      for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
+        if (!funcOp.getArgAttr(i, "ttcore.argument_type")) {
+          funcOp.setArgAttr(i, "ttcore.argument_type",
+                            mlir::tt::ttcore::ArgumentTypeAttr::get(
+                                funcOp.getContext(),
+                                mlir::tt::ttcore::ArgumentType::Constant));
+          funcOp.setArgAttr(
+              i, "ttir.name",
+              mlir::StringAttr::get(funcOp.getContext(),
+                                    "auto_annotated_const_" +
+                                        std::to_string(annotatedConstCount)));
+          annotatedConstCount++;
+        }
+      }
+    }
+  });
+}
+
 } // namespace internal
+
+void annotateArgumentAttributes(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+
+  // Register the ttcore dialect so that ArgumentTypeAttr objects can be
+  // created.
+  mlir::MLIRContext *context = mlir_module->getContext();
+  context->loadDialect<mlir::tt::ttcore::TTCoreDialect>();
+  // If the model being compiled originates from JAX then the argument types
+  // will be annotated using function calls to empty functions, who's attributes
+  // contain the argument type information. This function will handle that case.
+  internal::propagateInputRoleAttributes(mlir_module);
+  internal::annotateArgumentAttributesFromCustomCall(mlir_module);
+}
 
 } // namespace tt::pjrt::module_builder::frontend_passes

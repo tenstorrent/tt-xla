@@ -19,12 +19,20 @@ namespace tt::pjrt::module_builder::frontend_passes {
 
 extern const std::string c_input_role_attr_name;
 
+// Annotate the attributes of the fucntion arguments (argument type, name) via
+// observation of the annotation ops inserted by the frontend(s).
+void annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+namespace internal {
+
+// Annotates the attributes of the function arguments if the annotatins are
+// provided by a custom call.
+void annotateArgumentAttributesFromCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
 // Propagates tt.input_role attributes from tt.mark func.call operations upwards
 // to the module root public function arguments.
 void propagateInputRoleAttributes(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
-namespace internal {
 
 // Helper function to recursively propagate tt.input_role attribute upward
 // through call chain.
