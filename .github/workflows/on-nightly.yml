@@ -123,6 +123,11 @@ jobs:
                 "runs-on": "n150",
                 "name": "run_forge_models_torch",
                 "dir": "./tests/runner/test_models.py"
+              },
+              {
+                "runs-on": "p150",
+                "name": "run_forge_models_torch",
+                "dir": "./tests/runner/test_models.py"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
