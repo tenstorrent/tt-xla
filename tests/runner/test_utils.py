@@ -46,12 +46,10 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
-        self.skip_reason = self._resolve("skip_reason", default="Unknown Reason")
-        # Local imports to avoid circular dependencies at module import time
-        self.skip_bringup_status = self._resolve(
-            "skip_bringup_status", default=BringupStatus.UNKNOWN
+        self.reason = self._resolve("reason", default="Unknown Reason")
+        self.bringup_status = self._resolve(
+            "bringup_status", default=BringupStatus.UNKNOWN
         )
-        self.xfail_reason = self._resolve("xfail_reason", default="Unknown Reason")
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -325,24 +323,20 @@ def record_model_test_properties(
 
     - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
       plus owner and group properties.
-    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.skip_bringup_status and call pytest.skip(reason).
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.bringup_status and call pytest.skip(reason).
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, set bringup_status to a failure value and leave execution to xfail via marker.
     """
 
     # Determine bringup status and reason based on test status
     reason = None
-    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
-        bringup_status = getattr(
-            test_metadata, "skip_bringup_status", BringupStatus.UNKNOWN
-        )
-        reason = getattr(test_metadata, "skip_reason", "Not supported")
-    elif test_metadata.status == ModelStatus.KNOWN_FAILURE_XFAIL:
-        # For now, mark as a runtime failure in metadata; xfail is applied via collection marker
-        bringup_status = getattr(
-            test_metadata, "xfail_bringup_status", BringupStatus.UNKNOWN
-        )
-        reason = getattr(test_metadata, "xfail_reason", "Known failure")
+    if test_metadata.status in [
+        ModelStatus.NOT_SUPPORTED_SKIP,
+        ModelStatus.KNOWN_FAILURE_XFAIL,
+    ]:
+        bringup_status = getattr(test_metadata, "bringup_status", BringupStatus.UNKNOWN)
+        reason = getattr(test_metadata, "reason", "Not specified")
     else:
+        # Tests marked EXPECTED_PASSING or new UNSPECIFIED tests
         bringup_status = BringupStatus.PASSED
 
     tags = {
@@ -362,7 +356,7 @@ def record_model_test_properties(
     record_property("tags", tags)
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
-        record_property("group", model_info.group)
+        record_property("group", str(model_info.group))
 
     # Control flow for NOT_SUPPORTED_SKIP
     if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
