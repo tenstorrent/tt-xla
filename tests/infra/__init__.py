@@ -29,7 +29,4 @@ from .utilities import (
     random_image,
     random_tensor,
 )
-from .workloads import (
-    JaxMultichipWorkload,
-    Workload
-)
+from .workloads import JaxMultichipWorkload, Workload
