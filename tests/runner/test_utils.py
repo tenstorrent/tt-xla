@@ -171,7 +171,7 @@ class DynamicTester(TorchModelTester):
         self.model_name = model_name
         self.loader = loader
         self.model_info = model_info
-        self.compiler_config = compiler_config
+        self.compiler_config = compiler_config or CompilerConfig()
         self.record_property_handle = record_property_handle
         self.forge_models_test = forge_models_test
 
@@ -202,15 +202,10 @@ class DynamicTester(TorchModelTester):
             comparison_config.allclose.enable()
             comparison_config.allclose.atol = relative_atol
 
-        compiler_config_to_use = (
-            self.compiler_config
-            if self.compiler_config is not None
-            else CompilerConfig()
-        )
         super().__init__(
             comparison_config=comparison_config,
             run_mode=run_mode,
-            compiler_config=compiler_config_to_use,
+            compiler_config=self.compiler_config,
         )
 
     def _load_model(self):
