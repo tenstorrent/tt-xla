@@ -18,7 +18,6 @@ from ...base_tester import BaseTester
 from copy import deepcopy
 
 
-
 class OpTester(BaseTester):
     """Specific single chip tester for ops."""
 

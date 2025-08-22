@@ -44,6 +44,13 @@ def test_rsqrt_lower_df(x_shape: tuple, format: str):
         compiler_config = CompilerConfig()
     else:  # bfp8
         compiler_config = CompilerConfig(enable_bfp8_conversion=True)
-    
+
     # Input must be strictly positive because of sqrt(x).
-    run_op_test_with_random_inputs(rsqrt, [x_shape], minval=0.1, maxval=10.0, dtype=jnp.bfloat16, compiler_config=compiler_config)
+    run_op_test_with_random_inputs(
+        rsqrt,
+        [x_shape],
+        minval=0.1,
+        maxval=10.0,
+        dtype=jnp.bfloat16,
+        compiler_config=compiler_config,
+    )

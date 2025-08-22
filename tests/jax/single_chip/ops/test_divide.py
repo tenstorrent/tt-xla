@@ -51,10 +51,16 @@ def test_divide(x_shape: tuple, y_shape: tuple):
 def test_divide_lower_df(x_shape: tuple, y_shape: tuple, format: str):
     def divide(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.divide(x, y)
-    
+
     if format == "bfloat16":
         compiler_config = CompilerConfig()
     else:  # bfp8
         compiler_config = CompilerConfig(enable_bfp8_conversion=True)
-    
-    run_op_test_with_random_inputs(divide, [x_shape, y_shape], minval=1e-2, dtype=jnp.bfloat16, compiler_config=compiler_config)
+
+    run_op_test_with_random_inputs(
+        divide,
+        [x_shape, y_shape],
+        minval=1e-2,
+        dtype=jnp.bfloat16,
+        compiler_config=compiler_config,
+    )

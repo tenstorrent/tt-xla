@@ -43,5 +43,12 @@ def test_negate_lower_df(x_shape: tuple, format: str):
         compiler_config = CompilerConfig()
     else:  # bfp8
         compiler_config = CompilerConfig(enable_bfp8_conversion=True)
-    
-    run_op_test_with_random_inputs(negate, [x_shape], minval=-5.0, maxval=5.0, dtype=jnp.bfloat16, compiler_config=compiler_config)
+
+    run_op_test_with_random_inputs(
+        negate,
+        [x_shape],
+        minval=-5.0,
+        maxval=5.0,
+        dtype=jnp.bfloat16,
+        compiler_config=compiler_config,
+    )
