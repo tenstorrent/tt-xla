@@ -71,34 +71,39 @@ def test_all_models(
         loader = ModelLoader(variant=variant)
 
         # Get model name from the ModelLoader's ModelInfo
+        # FIXME - Consider catching exceptions here and still reporting on failed tests.
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"model_name: {model_info.name} status: {test_metadata.status}")
 
-        # Skipped models will avoid running and just report results and pytest.skip
-        if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+        try:
+            # Only run the actual model test if not marked for skip. The record properties
+            # function in finally block will always be called and handles the pytest.skip.
+            if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+                tester = DynamicTester(
+                    model_info.name,
+                    run_mode,
+                    loader=loader,
+                    model_info=model_info,
+                    compiler_config=cc,
+                    record_property_handle=record_property,
+                    forge_models_test=True,
+                    **test_metadata.to_tester_args(),
+                )
 
-            tester = DynamicTester(
-                model_info.name,
-                run_mode,
-                loader=loader,
+                results = tester.test_model()
+                tester.finalize()
+                # FIXME - Consider catching exceptions here and using as failed reason
+
+        finally:
+            # If we mark tests with xfail at collection time, then this isn't hit.
+            # Always record properties and handle skip/xfail cases uniformly
+            record_model_test_properties(
+                record_property,
+                request,
                 model_info=model_info,
-                compiler_config=cc,
-                record_property_handle=record_property,
-                forge_models_test=True,
-                **test_metadata.to_tester_args(),
+                test_metadata=test_metadata,
+                run_mode=run_mode,
             )
-
-            results = tester.test_model()
-            tester.finalize()
-
-        # Record properties and handle skip/xfail cases uniformly
-        record_model_test_properties(
-            record_property,
-            request,
-            model_info=model_info,
-            test_metadata=test_metadata,
-            run_mode=run_mode,
-        )
 
     # Cleanup memory after each test to prevent memory leaks
     gc.collect()
