@@ -21,19 +21,7 @@ from jax.extend import core
 from jax.interpreters.mlir import ir, register_lowering
 
 
-def _setup_monkey_patches():
-    """
-    Set up and apply monkey patches for JAX and Flax compatibility.
-
-    This function applies monkey patches to jax.nn.gelu for Tenstorrent optimization
-    and flax.linen.Module.apply for weight marking.
-    """
-    # Get and apply monkey patches
-    monkeypatches = get_monkeypatches()
-    apply_patches(monkeypatches)
-
-
-def is_module_imported(module_name: str) -> bool:
+def _is_module_imported(module_name: str) -> bool:
     """
     Check if a module is already imported in sys.modules.
 
@@ -123,7 +111,7 @@ def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     return func_name
 
 
-def setup_mark_weight_primitive():
+def _setup_mark_weight_primitive():
     """
     Set up the mark_weight JAX primitive and its lowerings.
 
@@ -198,7 +186,7 @@ def setup_mark_weight_primitive():
     return mark_weight
 
 
-def create_gelu_patch_config():
+def _create_gelu_patch_config():
     """
     Create a MonkeyPatchConfig for patching jax.nn.gelu.
 
@@ -207,7 +195,7 @@ def create_gelu_patch_config():
     """
 
     def post_patch_func():
-        if is_module_imported("transformers") and is_module_imported(
+        if _is_module_imported("transformers") and _is_module_imported(
             "transformers.modeling_flax_utils"
         ):
             import transformers.modeling_flax_utils
@@ -234,7 +222,7 @@ def create_gelu_patch_config():
     ]
 
 
-def create_flax_apply_patch_config(mark_weight_func):
+def _create_flax_apply_patch_config(mark_weight_func):
     """
     Create a MonkeyPatchConfig for patching flax.linen.Module.apply.
 
@@ -244,7 +232,7 @@ def create_flax_apply_patch_config(mark_weight_func):
     Returns:
         list[MonkeyPatchConfig]: List containing flax patch config, or empty list if flax not available.
     """
-    if not (is_module_imported("flax") and is_module_imported("flax.linen")):
+    if not (_is_module_imported("flax") and _is_module_imported("flax.linen")):
         return []
 
     from flax import linen as nn
@@ -260,7 +248,7 @@ def create_flax_apply_patch_config(mark_weight_func):
     ]
 
 
-def get_monkeypatches():
+def _get_monkeypatches():
     """
     Get the list of monkey patches for the Tenstorrent JAX plugin.
 
@@ -270,16 +258,16 @@ def get_monkeypatches():
     patches = []
 
     # Add gelu patches
-    patches.extend(create_gelu_patch_config())
+    patches.extend(_create_gelu_patch_config())
 
     # Add flax patches
-    mark_weight = setup_mark_weight_primitive()
-    patches.extend(create_flax_apply_patch_config(mark_weight))
+    mark_weight = _setup_mark_weight_primitive()
+    patches.extend(_create_flax_apply_patch_config(mark_weight))
 
     return patches
 
 
-def apply_patches(patch_configs):
+def _apply_patches(patch_configs):
     """
     Apply a list of monkey patch configurations.
 
@@ -288,3 +276,15 @@ def apply_patches(patch_configs):
     """
     for patch_config in patch_configs:
         patch_config.patch()
+
+
+def setup_monkey_patches():
+    """
+    Set up and apply monkey patches for JAX and Flax compatibility.
+
+    This function applies monkey patches to jax.nn.gelu for Tenstorrent optimization
+    and flax.linen.Module.apply for weight marking.
+    """
+    # Get and apply monkey patches
+    monkeypatches = _get_monkeypatches()
+    _apply_patches(monkeypatches)

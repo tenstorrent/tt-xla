@@ -8,7 +8,7 @@ from pathlib import Path
 import jax._src.xla_bridge as xb
 
 from pjrt_plugin_tt import setup_tt_metal_home, get_library_path
-from .monkeypatch import _setup_monkey_patches
+from .monkeypatch import setup_monkey_patches
 
 
 def initialize():
@@ -22,4 +22,4 @@ def initialize():
         options=None,
     )
 
-    _setup_monkey_patches()
+    setup_monkey_patches()
