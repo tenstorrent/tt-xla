@@ -28,5 +28,4 @@ else
   export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
   export PYTHONPATH="$(pwd):$(pwd)/tests"
   export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
-  export TT_METAL_HOME="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"
 fi

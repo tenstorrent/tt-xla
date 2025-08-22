@@ -30,7 +30,9 @@
 
 namespace tt::pjrt {
 
+namespace module_builder {
 class ModuleBuilder;
+}
 
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
@@ -124,7 +126,7 @@ private:
   std::vector<MemoryInstance *> m_addressable_memories_raw;
 
   // Module builder that compiles program code.
-  std::unique_ptr<ModuleBuilder> m_module_builder;
+  std::unique_ptr<module_builder::ModuleBuilder> m_module_builder;
 
   // System descriptor (that TTIR to TTNN backend pipeline needs).
   tt::runtime::SystemDesc m_system_descriptor;

@@ -16,8 +16,9 @@ from utils import (
 )
 
 from ..tester import AlbertV2Tester
+from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
 
-MODEL_PATH = "albert/albert-xxlarge-v2"
+VARIANT_NAME = ModelVariant.XXLARGE_V2
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "albert_v2",
@@ -32,12 +33,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH)
+    return AlbertV2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(MODEL_PATH, RunMode.TRAINING)
+    return AlbertV2Tester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -53,7 +54,7 @@ def training_tester() -> AlbertV2Tester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131022.7578125. Required: atol=0.16 "
+        "PCC comparison failed. Calculated: pcc=0.9695068001747131. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )

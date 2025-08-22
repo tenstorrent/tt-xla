@@ -6,13 +6,14 @@ on:
       test_group_cnt:
         description: 'Test group count'
         required: false
-        default: "4"
+        default: "5"
         type: choice
         options:
           - "1"
           - "2"
           - "3"
           - "4"
+          - "5"
           - "8"
   schedule:
     - cron: '0 0 * * *'
@@ -60,7 +61,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       run_id: ${{ github.run_id }}
       test_mark: 'nightly'
-      use-shared-runners: true # Run nightly tests on Civ2
+      use-shared-runners: false # Run nightly tests on Civ1
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -86,21 +87,19 @@ jobs:
             TESTS_TO_PARALLELIZE='[
               {
                 "runs-on": "n150",
-                "name": "run_jax",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "not large"
+                "name": "run_jax"
               },
               {
                 "runs-on": "n150",
-                "name": "run_large_jax_models",
-                "dir": "./tests/jax/single_chip",
-                "extra_test_marks": "large",
-                "use-shared-runners": "true"
+                "name": "run_torch"
               },
               {
-                "runs-on": "n150",
-                "name": "run_torch",
-                "dir": "./tests/torch/single_chip"
+                "runs-on": "p150",
+                "name": "run_jax"
+              },
+              {
+                "runs-on": "p150",
+                "name": "run_torch"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
@@ -117,7 +116,7 @@ jobs:
       run_id: ${{ github.run_id }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
-      use-shared-runners: true # Run full model tests on Civ2
+      use-shared-runners: false # Run full model tests on Civ1
 
   fail-notify:
     if: always()

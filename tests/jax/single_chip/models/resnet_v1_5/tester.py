@@ -38,9 +38,10 @@ class ResNetTester(JaxModelTester):
         model_variant: ResNetVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        use_optimizer: bool = False,
     ) -> None:
         self._model_variant = model_variant
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, use_optimizer)
 
     @staticmethod
     def _get_renaming_patterns(variant: ResNetVariant) -> List[Tuple[str, str]]:
