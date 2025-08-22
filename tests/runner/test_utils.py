@@ -334,24 +334,25 @@ def record_model_test_properties(
     reason = None
     if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
         bringup_status = getattr(
-            test_metadata, "skip_bringup_status", BringupStatus.FAILED_RUNTIME
+            test_metadata, "skip_bringup_status", BringupStatus.UNKNOWN
         )
-        bringup_status_str = str(bringup_status)
         reason = getattr(test_metadata, "skip_reason", "Not supported")
     elif test_metadata.status == ModelStatus.KNOWN_FAILURE_XFAIL:
         # For now, mark as a runtime failure in metadata; xfail is applied via collection marker
-        bringup_status_str = str(BringupStatus.FAILED_RUNTIME)
+        bringup_status = getattr(
+            test_metadata, "xfail_bringup_status", BringupStatus.UNKNOWN
+        )
         reason = getattr(test_metadata, "xfail_reason", "Known failure")
     else:
-        bringup_status_str = str(BringupStatus.PASSED)
+        bringup_status = BringupStatus.PASSED
 
     tags = {
-        "test_name": request.node.originalname,
-        "specific_test_case": request.node.name,
+        "test_name": str(request.node.originalname),
+        "specific_test_case": str(request.node.name),
         "category": str(Category.MODEL_TEST),
-        "model_name": model_info.name,
+        "model_name": str(model_info.name),
         "run_mode": str(run_mode),
-        "bringup_status": bringup_status_str,
+        "bringup_status": str(bringup_status),
     }
 
     # If we have an explanatory reason, include it as a top-level property too for convenience
