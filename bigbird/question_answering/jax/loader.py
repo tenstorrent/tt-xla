@@ -126,8 +126,10 @@ class ModelLoader(ForgeModel):
 
         from transformers import FlaxBigBirdForQuestionAnswering
 
+        # For input_sequence_length < 1024, original_full attention type is used.
+        # Ref : https://huggingface.co/docs/transformers/en/model_doc/big_bird#notes
         model = FlaxBigBirdForQuestionAnswering.from_pretrained(
-            self._model_name, **model_kwargs
+            self._model_name, attention_type="original_full", **model_kwargs
         )
 
         return model
