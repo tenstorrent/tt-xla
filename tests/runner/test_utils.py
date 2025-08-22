@@ -156,7 +156,7 @@ class DynamicTester(TorchModelTester):
     def __init__(
         self,
         model_name: str,
-        mode: str,
+        run_mode: RunMode,
         *,
         loader,
         model_info=None,
@@ -201,10 +201,6 @@ class DynamicTester(TorchModelTester):
         if relative_atol is not None:
             comparison_config.allclose.enable()
             comparison_config.allclose.atol = relative_atol
-        # Map mode string to RunMode
-        run_mode = (
-            RunMode.INFERENCE if mode in ("eval", "inference") else RunMode.TRAINING
-        )
 
         compiler_config_to_use = (
             self.compiler_config
