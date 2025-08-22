@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
 from infra.comparators import ComparisonConfig
+from infra.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, Tensor
 from infra.workloads import Workload
 
@@ -31,8 +32,12 @@ class ModelTester(BaseTester, ABC):
         comparison_config: ComparisonConfig,
         run_mode: RunMode,
         framework: Framework,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        self._compiler_config = compiler_config
         self._run_mode = run_mode
 
         self._model: Model = None
