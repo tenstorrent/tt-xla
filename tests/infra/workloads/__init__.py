@@ -4,4 +4,3 @@
 
 from .jax_workload import JaxMultichipWorkload
 from .workload import Workload
-from .workload_factory import WorkloadFactory
