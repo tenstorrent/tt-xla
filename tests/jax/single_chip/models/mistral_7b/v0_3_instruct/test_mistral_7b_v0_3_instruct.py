@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import Mistral7BV02Tester
+from third_party.tt_forge_models.mistral.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "unsloth/mistral-7b-instruct-v0.3"
+VARIANT_NAME = ModelVariant.V0_3_INSTRUCT
 MODEL_GROUP = ModelGroup.RED
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -32,11 +33,11 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH)
+    return Mistral7BV02Tester(VARIANT_NAME)
 
 
 def training_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return Mistral7BV02Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -53,8 +54,8 @@ def training_tester() -> Mistral7BV02Tester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "Not enough space to allocate 117440512 B DRAM buffer across 12 banks, "
-        "where each bank needs to store 9805824 B "
+        "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 19574784 B "
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
