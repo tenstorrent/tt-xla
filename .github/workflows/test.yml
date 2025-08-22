@@ -176,8 +176,9 @@ jobs:
           MARKS="${{ inputs.test_mark }}"
         fi
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
-          $ARCH --durations=0 \
+          --durations=0 \
           ${{ matrix.build.dir }} \
+          $ARCH \
           -m \"$MARKS\" \
           --splits ${{ matrix.build.test_group_cnt || 1}} \
           --group ${{ matrix.build.test_group_id || 1}} \
