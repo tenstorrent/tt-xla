@@ -27,6 +27,9 @@ class ForgePropertyHandler:
 forge_property_handler_var = ForgePropertyHandler()
 # forge_property_handler_var.get().get("tags.pcc")
 
+def malloc_trim(**kwargs):
+    pass
+
 
 def record_sweeps_test_tags(**kwargs):
     pass
