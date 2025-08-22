@@ -14,6 +14,7 @@ from tests.runner.test_utils import (
     record_model_test_properties,
 )
 from tests.runner.requirements import RequirementsManager
+from infra import RunMode
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -24,8 +25,9 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
-    "mode",
-    ["eval"],
+    "run_mode",
+    [RunMode.INFERENCE],
+    ids=["inference"],
 )
 @pytest.mark.parametrize(
     "op_by_op",
@@ -41,7 +43,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, mode, op_by_op, record_property, test_metadata, request
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request
 ):
     loader_path = test_entry["path"]
     variant_info = test_entry["variant_info"]
@@ -77,7 +79,7 @@ def test_all_models(
 
             tester = DynamicTester(
                 model_info.name,
-                mode,
+                run_mode,
                 loader=loader,
                 model_info=model_info,
                 compiler_config=cc,
@@ -95,6 +97,7 @@ def test_all_models(
             request,
             model_info=model_info,
             test_metadata=test_metadata,
+            run_mode=run_mode,
         )
 
     # Cleanup memory after each test to prevent memory leaks
