@@ -8,7 +8,7 @@ from typing import Any, Dict, Mapping, Sequence
 import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model
-from infra.workloads import Workload, WorkloadFactory
+from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
 
@@ -62,8 +62,8 @@ class TorchModelTester(ModelTester):
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
 
-        self._workload = WorkloadFactory.create_workload(
-            self._framework, model=self._model, args=args, kwargs=kwargs
+        self._workload = Workload(
+            framework=self._framework, model=self._model, args=args, kwargs=kwargs
         )
 
     # @override

@@ -10,7 +10,7 @@ import jax
 import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Tensor, random_tensor
-from infra.workloads import Workload, WorkloadFactory
+from infra.workloads import Workload
 
 from ...base_tester import BaseTester
 
@@ -74,8 +74,8 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        workload = WorkloadFactory.create_workload(
-            self._framework, executable=f, args=inputs
+        workload = Workload(
+            framework=self._framework, executable=f, args=inputs
         )
         self.test(workload)
 
@@ -91,7 +91,7 @@ def run_op_test(
     results based on `comparison_config`.
     """
     tester = OpTester(comparison_config, framework)
-    workload = WorkloadFactory.create_workload(framework, executable=op, args=inputs)
+    workload = Workload(framework=framework, executable=op, args=inputs)
     tester.test(workload)
 
 

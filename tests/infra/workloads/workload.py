@@ -36,6 +36,10 @@ class Workload:
 
         self.args = args or []
         self.kwargs = kwargs or {}
+        # TODO: Move static_argnames out of Workload.
+        # This field is JAX-specific and only used in compile functions.
+        # Currently needed because _safely_put_workload_on_device relies on it to avoid putting those args on device.
+        # Consider reworking _safely_put_workload_on_device to eliminate the need for static_argnames in Workload.
         self.static_argnames = static_argnames or []
 
     @property

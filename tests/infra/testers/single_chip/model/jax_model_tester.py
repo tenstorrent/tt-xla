@@ -12,7 +12,7 @@ from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model, PyTree
-from infra.workloads import Workload, WorkloadFactory
+from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
@@ -105,8 +105,8 @@ class JaxModelTester(ModelTester):
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
-        self._workload = WorkloadFactory.create_workload(
-            self._framework,
+        self._workload = Workload(
+            framework=self._framework,
             executable=forward_pass_method,
             args=args,
             kwargs=kwargs,
