@@ -42,7 +42,7 @@ test_config = {
         "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -332,9 +332,9 @@ test_config = {
     "mamba/pytorch-mamba-1.4b-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "status": ModelStatus.NOT_SUPPORTED_SKIP,
-                "skip_reason": "Takes forever on blackhole runner",
+                "skip_reason": "Takes forever on p150 runner",
                 "skip_bringup_status": "FAILED_RUNTIME",
             },
         },
@@ -460,7 +460,7 @@ test_config = {
     "vgg/pytorch-vgg16_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.98,
             },
         },
@@ -502,9 +502,9 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "status": ModelStatus.NOT_SUPPORTED_SKIP,
-                "skip_reason": "Takes forever on blackhole runner",
+                "skip_reason": "Takes forever on p150 runner",
                 "skip_bringup_status": "FAILED_RUNTIME",
             },
         },
@@ -670,7 +670,7 @@ test_config = {
         "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -789,7 +789,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -900,7 +900,7 @@ test_config = {
         "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.96,
             },
         },
@@ -909,7 +909,7 @@ test_config = {
         "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -932,7 +932,7 @@ test_config = {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -941,7 +941,7 @@ test_config = {
         "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
@@ -952,7 +952,7 @@ test_config = {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "blackhole": {
+            "p150": {
                 "required_pcc": 0.97,
             },
         },
