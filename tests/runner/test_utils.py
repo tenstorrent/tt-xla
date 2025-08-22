@@ -11,6 +11,7 @@ from enum import Enum
 import collections
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from tt_torch.tools.utils import CompilerConfig
+from tests.utils import BringupStatus, Category
 
 # from tt_torch.tools.utils import OpByOpBackend
 
@@ -46,8 +47,9 @@ class ModelTestConfig:
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.skip_reason = self._resolve("skip_reason", default="Unknown Reason")
+        # Local imports to avoid circular dependencies at module import time
         self.skip_bringup_status = self._resolve(
-            "skip_bringup_status", default="FAILED_RUNTIME"
+            "skip_bringup_status", default=BringupStatus.UNKNOWN
         )
         self.xfail_reason = self._resolve("xfail_reason", default="Unknown Reason")
 
@@ -326,9 +328,6 @@ def record_model_test_properties(
     - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.skip_bringup_status and call pytest.skip(reason).
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, set bringup_status to a failure value and leave execution to xfail via marker.
     """
-    # Local imports to avoid circular dependencies at module import time
-    from tests.utils import BringupStatus, Category
-    import pytest
 
     # Determine bringup status and reason based on test status
     reason = None
@@ -367,4 +366,6 @@ def record_model_test_properties(
 
     # Control flow for NOT_SUPPORTED_SKIP
     if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        import pytest
+
         pytest.skip(reason)
