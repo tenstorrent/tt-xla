@@ -16,12 +16,9 @@ jobs:
   build-image:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
-    runs-on: n300
+    runs-on: tt-ubuntu-2204-large-stable
     name: "Build Docker Image"
     steps:
-      - name: Fix workspace permissions
-        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
