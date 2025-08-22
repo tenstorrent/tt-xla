@@ -90,17 +90,17 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         )
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """Compiles `workload` for CPU."""
-        return self._compile(self._create_multichip_workload(self._cpu_mesh))
+        self._compile(self._create_multichip_workload(self._cpu_mesh))
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
-        return self._compile(self._create_multichip_workload(self._device_mesh))
+        self._compile(self._create_multichip_workload(self._device_mesh))
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload) -> None:
         """
         Sets up `workload.executable` for just-in-time compile and execution.
 
@@ -123,7 +123,6 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
         )
-        return workload
 
     def _create_multichip_workload(
         self, mesh: jax.sharding.Mesh

@@ -116,16 +116,16 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        compiled_cpu_workload = self._compile_for_cpu(self._workload)
-        cpu_res = self._run_on_cpu(compiled_cpu_workload)
+        self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
 
-        compiled_device_workload = self._compile_for_tt_device(self._workload)
-        tt_res = self._run_on_tt_device(compiled_device_workload)
+        self.do(self._workload)
+        tt_res = self._run_on_tt_device(self._workload)
 
         self._compare(tt_res, cpu_res)
 
     @abstractmethod
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """Compiles `workload` for CPU."""
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -134,7 +134,7 @@ class ModelTester(BaseTester, ABC):
         return self._device_runner.run_on_cpu(compiled_workload)
 
     @abstractmethod
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
         raise NotImplementedError("Subclasses must implement this method.")
 

@@ -112,17 +112,17 @@ class JaxMultichipOpTester(BaseTester):
         comparing the results.
         """
         with self._device_mesh:
-            compiled_device_workload = self._compile(device_workload)
-            device_res = self._run_on_multichip_device(compiled_device_workload)
+            self._compile(device_workload)
+            device_res = self._run_on_multichip_device(device_workload)
 
         with self._cpu_mesh:
-            compiled_cpu_workload = self._compile(cpu_workload)
-            cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
+            self._compile(cpu_workload)
+            cpu_res = self._run_on_multichip_device(cpu_workload)
 
         self._comparator.compare(device_res, cpu_res)
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload) -> None:
         """
         Sets up `workload.executable` for just-in-time compile and execution.
 
@@ -147,7 +147,6 @@ class JaxMultichipOpTester(BaseTester):
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
         )
-        return workload
 
     # --- Convenience wrappers ---
 
