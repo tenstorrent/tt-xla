@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// c++ standard library includes
 #include <string>
 #include <unordered_map>
 
-namespace tt::pjrt {
+namespace tt::pjrt::module_builder {
+
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
   // Enables the ttmlir optimizer, i.e. the optimization passes and memory
@@ -25,4 +27,4 @@ bool parseBoolOption(
 
 } // namespace internal
 
-} // namespace tt::pjrt
+} // namespace tt::pjrt::module_builder

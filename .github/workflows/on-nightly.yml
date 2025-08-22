@@ -55,7 +55,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'nightly'
-      use-shared-runners: true # Run nightly tests on Civ2
+      use-shared-runners: false # Run nightly tests on Civ1
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}
@@ -88,23 +88,15 @@ jobs:
               },
               {
                 "runs-on": "n150",
-                "name": "run_large_jax_models"
-              },
-              {
-                "runs-on": "n150",
                 "name": "run_torch"
               },
               {
-                "runs-on": "p150b",
+                "runs-on": "p150",
                 "name": "run_jax"
               },
               {
-                "runs-on": "p150b",
+                "runs-on": "p150",
                 "name": "run_torch"
-              },
-              {
-                "runs-on": "p150b",
-                "name": "run_large_jax_models"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
@@ -120,7 +112,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
-      use-shared-runners: true # Run full model tests on Civ2
+      use-shared-runners: false # Run full model tests on Civ1
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}

@@ -157,16 +157,6 @@ class SetupConfig:
         return (self.jax_plugin_target_dir / TT_PJRT_PLUGIN_NAME).exists()
 
     @property
-    def jax_plugin_init(self) -> Path:
-        """Path to __init__.py which initializes jax plugin."""
-        return THIS_DIR / "__init__.py"
-
-    @property
-    def jax_plugin_init_copied(self) -> bool:
-        """Returns True if __init__.py is already copied to destination."""
-        return (self.jax_plugin_target_dir / "__init__.py").exists()
-
-    @property
     def tt_mlir_target_dir(self) -> Path:
         """
         Convenience accessor for tt-mlir target dir which is nested in jax plugin
@@ -272,12 +262,8 @@ class CMakeBuildPy(build_py):
         # Create temp dir.
         config.jax_plugin_target_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy __init__.py file into the python jax_plugins package directory.
-        if not config.jax_plugin_init_copied:
-            print("Copying __init__.py...")
-            shutil.copy2(config.jax_plugin_init, config.jax_plugin_target_dir)
-        else:
-            print("__init__.py already copied.")
+        # Copy plugin scripts into the python jax_plugins package directory.
+        self.copy_plugin_scripts()
 
         # Copy the .so file into the python jax_plugins package directory.
         if not config.pjrt_plugin_copied:
@@ -327,6 +313,17 @@ class CMakeBuildPy(build_py):
         subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
         subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
 
+    def copy_plugin_scripts(self):
+        scripts_to_copy = ["__init__.py", "monkeypatch.py"]
+        for script_file in scripts_to_copy:
+            script_src = THIS_DIR / script_file
+            script_dst = config.jax_plugin_target_dir / script_file
+            if not script_dst.exists():
+                print(f"Copying {script_file}...")
+                shutil.copy2(script_src, config.jax_plugin_target_dir)
+            else:
+                print(f"{script_file} already copied.")
+
 
 setup(
     author="tt-xla team",
@@ -354,7 +351,9 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=["jax_plugins.pjrt_plugin_tt", "ttxla_tools"],
-    package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME]},
+    package_data={
+        "jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME, "monkeypatch.py"]
+    },
     package_dir={
         f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
         "ttxla_tools": os.path.join("..", "ttxla_tools"),

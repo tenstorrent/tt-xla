@@ -12,10 +12,10 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.mobilenetv2.pytorch.loader import ModelVariant
 from .tester import MobileNetV2Tester
 
-VARIANT_NAME = "mobilenet_v2"
+VARIANT_NAME = ModelVariant.MOBILENET_V2_TORCH_HUB
 
 
 MODEL_NAME = build_model_name(

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#ifndef TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
-#define TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
+#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
+#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
 
 // c++ standard library includes
 #include <memory>
@@ -12,26 +12,37 @@
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/Value.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // shardy includes
 #include "shardy/dialect/sdy/ir/dialect.h"
-// tt-mlir includes
-#include "tt/runtime/types.h"
 
+// tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
+#include "common/status.h"
 #include "compile_options.h"
-#include "status.h"
 
-namespace tt::pjrt {
+namespace tt::pjrt::module_builder {
+
+// MLIR program format name. This would ideally be defined in PJRT API header.
+extern const std::string c_mlir_format_name;
+
+// Enum to represent the role of input arguments
+enum class InputArgumentRole {
+  kInput, // Regular input data
+  kWeight // Weight/parameter data
+};
 
 class ModuleBuilder {
 public:
@@ -88,8 +99,10 @@ public:
     return m_output_shardings;
   }
 
-  // MLIR program format name. This would ideally be defined in PJRT API header.
-  static const std::string c_mlir_format_name;
+  // Returns input argument roles (weight vs input).
+  const std::vector<InputArgumentRole> &getInputArgumentRoles() const {
+    return m_input_argument_roles;
+  }
 
 private:
   // Creates VHLO module from the input program code.
@@ -99,8 +112,8 @@ private:
   // Converts VHLO module to StableHLO module.
   void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Runs StableHLO pipeline with mesh shape configuration.
-  void runStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  // Runs frontend specific SHLO pipeline on the MLIR module.
+  void runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Fills up the m_is_output_scalar array with information is the output type
   // scalar or not.
@@ -111,6 +124,14 @@ private:
 
   // Collects the information about the sharding of specific outputs.
   void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the information about input argument roles (weight vs input).
+  void
+  collectInputArgumentRoles(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Runs compiler StableHLO pipeline on the MLIR module.
+  void
+  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts StableHLO module to TTIR module.
   void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -197,6 +218,10 @@ private:
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
+  // Creates argument type map based on collected input argument roles.
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+  createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
@@ -231,8 +256,11 @@ private:
 
   // For every output, holds the sharding information.
   std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
+
+  // For every input, holds the argument role (weight vs input).
+  std::vector<InputArgumentRole> m_input_argument_roles;
 };
 
-} // namespace tt::pjrt
+} // namespace tt::pjrt::module_builder
 
-#endif // TT_XLA_SRC_COMMON_MODULE_BUILDER_H_
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_MODULE_BUILDER_H_
