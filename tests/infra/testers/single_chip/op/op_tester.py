@@ -74,9 +74,7 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        workload = Workload(
-            framework=self._framework, executable=f, args=inputs
-        )
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
 
