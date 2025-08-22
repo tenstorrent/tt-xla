@@ -116,47 +116,6 @@ jobs:
     - name: Download and install wheel
       shell: bash
       run: |
-        echo "=== Diagnosing pip cache and file ownership issues ==="
-        echo "Current user: $(whoami)"
-        echo "Current user ID: $(id)"
-        echo "Home directory: $HOME"
-        echo "Current working directory: $(pwd)"
-
-        # Check pip cache directory and ownership
-        echo "=== Pip cache directory information ==="
-        pip cache dir || echo "pip cache dir command failed"
-
-        # Check common cache locations
-        for cache_dir in "/github/home/.cache/pip" "$HOME/.cache/pip" "~/.cache/pip"; do
-          echo "Checking cache directory: $cache_dir"
-          if [ -d "$cache_dir" ]; then
-            echo "  Directory exists"
-            ls -la "$cache_dir" || echo "  Cannot list directory"
-            echo "  Owner: $(stat -c '%U:%G' "$cache_dir" 2>/dev/null || echo 'unknown')"
-            echo "  Permissions: $(stat -c '%a' "$cache_dir" 2>/dev/null || echo 'unknown')"
-          else
-            echo "  Directory does not exist"
-            echo "  Parent directory info:"
-            parent_dir=$(dirname "$cache_dir")
-            if [ -d "$parent_dir" ]; then
-              ls -la "$parent_dir" || echo "  Cannot list parent directory"
-              echo "  Parent owner: $(stat -c '%U:%G' "$parent_dir" 2>/dev/null || echo 'unknown')"
-              echo "  Parent permissions: $(stat -c '%a' "$parent_dir" 2>/dev/null || echo 'unknown')"
-            fi
-          fi
-        done
-
-        # Create pip cache directory with proper permissions
-        echo "=== Setting up pip cache ==="
-        mkdir -p ~/.cache/pip
-        chmod 755 ~/.cache/pip
-        echo "Created pip cache directory: ~/.cache/pip"
-        ls -la ~/.cache/pip
-
-        # Set pip cache directory explicitly
-        export PIP_CACHE_DIR=~/.cache/pip
-        echo "Set PIP_CACHE_DIR to: $PIP_CACHE_DIR"
-
         echo "=== Downloading wheel ==="
         echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_run_id }}"
         gh run download ${{ inputs.artifact_run_id }} \
@@ -168,13 +127,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-
-        # Verify pip cache is working
-        pip cache dir
-        pip cache list || echo "No cache entries yet"
-
-        # Install with explicit cache directory
-        PIP_CACHE_DIR=~/.cache/pip pip install wheels/*.whl
+        pip install wheels/*.whl
 
     - name: Download build artifacts
       if: steps.strings.outputs.do_codecov
