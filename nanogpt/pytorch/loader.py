@@ -37,6 +37,7 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.FINANCIAL_SUPPORT_NANOGPT
 
+    @classmethod
     def _get_model_info(cls, variant_name: str = None):
         """Get model information for dashboard and metrics reporting.
 
