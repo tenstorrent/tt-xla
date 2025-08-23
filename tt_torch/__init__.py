@@ -55,8 +55,3 @@ class TTPjrtPlugin(plugins.DevicePlugin):
             return tt_xla_build_path
 
         assert False, "Could not find pjrt_plugin_tt.so"
-
-
-plugins.register_plugin("TT", TTPjrtPlugin())
-os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-os.environ["PJRT_DEVICE"] = "TT"
