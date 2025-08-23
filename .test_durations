@@ -1430,5 +1430,8 @@
     "tests/runner/test_models.py::test_all_models[densenet/pytorch-densenet169-full-inference]": 206.601,
     "tests/runner/test_models.py::test_all_models[densenet/pytorch-densenet201-full-inference]": 282.488,
     "tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference]": 101.626,
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet27s-full-inference]": 90.015,
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet39-full-inference]": 63.772,
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet57-full-inference]": 22.141,
     "tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference]": 165.711
 }
