@@ -1230,7 +1230,8 @@
     "tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_l-full-inference]": 92.555,
     "tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_darknet-full-inference]": 70.066,
     "tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_x-full-inference]": 131.923,
-    "tests/runner/test_models.py::test_all_models[alexnet/pytorch-full-inference]": 29.455,
+    "tests/runner/test_models.py::test_all_models[alexnet/pytorch-alexnet-full-inference]": 48.455,
+    "tests/runner/test_models.py::test_all_models[alexnet/pytorch-alexnetb-full-inference]": 48.455,
     "tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_2_1b-full-inference]": 90.332,
     "tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-inference]": 42.544,
     "tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_2_3b-full-inference]": 145.634,
@@ -1314,11 +1315,11 @@
     "tests/runner/test_models.py::test_all_models[distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-full-inference]": 44.355,
     "tests/runner/test_models.py::test_all_models[bart/pytorch-large-full-inference]": 164.273,
     "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg11-full-inference]": 37.227,
-    "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg11_bn-full-inference]": 37.345,
+    "tests/runner/test_models.py::test_all_models[vgg/pytorch-torchvision_vgg11_bn-full-inference]": 37.345,
     "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg13-full-inference]": 36.418,
-    "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg13_bn-full-inference]": 37.875,
+    "tests/runner/test_models.py::test_all_models[vgg/pytorch-torchvision_vgg13_bn-full-inference]": 37.875,
     "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg16-full-inference]": 38.858,
-    "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg16_bn-full-inference]": 41.65,
+    "tests/runner/test_models.py::test_all_models[vgg/pytorch-torchvision_vgg16_bn-full-inference]": 41.65,
     "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg19-full-inference]": 39.256,
     "tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg19_bn-full-inference]": 43.02,
     "tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-370m-hf-full-inference]": 266.808,
@@ -1431,5 +1432,6 @@
     "tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference]": 101.626,
     "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet27s-full-inference]": 90.015,
     "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet39-full-inference]": 63.772,
-    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet57-full-inference]": 22.141
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet57-full-inference]": 22.141,
+    "tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference]": 165.711
 }
