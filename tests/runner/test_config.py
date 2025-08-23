@@ -23,33 +23,19 @@ test_config = {
     },
     "vovnet/pytorch-vovnet27s-full-inference": {
         "assert_pcc": False,
-        # Aug5: Issue https://github.com/tenstorrent/tt-torch/issues/1142
-        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "loc(\"reduce-window.234\"): error: 'ttir.max_pool2d' op output tensor height and width dimension (28, 28) do not match the expected dimensions (27, 28)",
+        "status": ModelStatus.EXPECTED_PASSING,
     },
     "vovnet/pytorch-vovnet39-full-inference": {
         "assert_pcc": False,
-        # Aug5: Issue https://github.com/tenstorrent/tt-torch/issues/1142
-        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "some shitty error",
+        "status": ModelStatus.EXPECTED_PASSING,
     },
     "vovnet/pytorch-vovnet57-full-inference": {
         "assert_pcc": False,
-        # Aug5: Issue https://github.com/tenstorrent/tt-torch/issues/1142
-        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "loc(\"reduce-window.234\"): error: 'ttir.max_pool2d' op output tensor height and width dimension (28, 28) do not match the expected dimensions (27, 28)",
+        "status": ModelStatus.EXPECTED_PASSING,
     },
     "hardnet/pytorch-full-inference": {
         "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "qwen_2_5/casual_lm/pytorch-1_5b-full-inference": {
         "assert_pcc": False,
@@ -60,11 +46,10 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "wide_resnet/pytorch-wide_resnet50_2-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "wide_resnet/pytorch-wide_resnet101_2-full-inference": {
-        "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "bloom/pytorch-full-inference": {
@@ -82,7 +67,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mamba/pytorch-mamba-790m-hf-full-inference": {
-        "required_pcc": 0.95,
+        "required_pcc": 0.96,  # BH is higher at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "openpose/v2/pytorch-full-inference": {
@@ -90,19 +75,18 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-xxlarge_v2-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-large_v2-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov3/pytorch-base-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov4/pytorch-base-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "t5/pytorch-google/flan-t5-small-full-inference": {
@@ -157,7 +141,10 @@ test_config = {
     "albert/masked_lm/pytorch-xlarge_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "alexnet/pytorch-full-inference": {
+    "alexnet/pytorch-alexnet-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "alexnet/pytorch-alexnetb-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "autoencoder_linear/pytorch-full-inference": {
@@ -335,13 +322,6 @@ test_config = {
     },
     "mamba/pytorch-mamba-1.4b-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "status": ModelStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Takes forever on p150 runner",
-                "bringup_status": BringupStatus.UNKNOWN,
-            },
-        },
     },
     "mamba/pytorch-mamba-370m-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -449,25 +429,20 @@ test_config = {
     "unet/pytorch-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg11_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg11_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-vgg11-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg13_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg13_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-vgg13-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg16_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg16_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.98,
-            },
-        },
     },
     "vgg/pytorch-vgg16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -477,6 +452,7 @@ test_config = {
     },
     "vgg/pytorch-vgg19-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "required_pcc": 0.975,  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
     },
     "vit/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -505,13 +481,6 @@ test_config = {
     "mamba/pytorch-mamba-2.8b-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
-        "arch_overrides": {
-            "p150": {
-                "status": ModelStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Takes forever on p150 runner",
-                "bringup_status": BringupStatus.UNKNOWN,
-            },
-        },
     },
     "deit/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -553,11 +522,11 @@ test_config = {
         "assert_pcc": False,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-full-inference": {
-        "required_pcc": 0.97,  # PCC is ND https://github.com/tenstorrent/tt-torch/issues/1129
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-pytdml-full-inference": {
-        "required_pcc": 0.97,  # PCC is ND https://github.com/tenstorrent/tt-torch/issues/1129
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/sequence_classification/pytorch-microsoft/phi-2-full-inference": {
@@ -580,7 +549,7 @@ test_config = {
     },
     "bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,  # Aug 7 - Drop from 0.99 https://github.com/tenstorrent/tt-torch/issues/1151
+        "required_pcc": 0.985,
     },
     "bert/masked_lm/pytorch-bert-base-uncased-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -635,7 +604,7 @@ test_config = {
     },
     "albert/token_classification/pytorch-xxlarge_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.96,
+        "required_pcc": 0.96,  # tt-torch has this at 0.99
     },
     "albert/masked_lm/pytorch-base_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -671,13 +640,8 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolos/pytorch-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.96,  # tt-torch has this at 0.98
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -685,7 +649,6 @@ test_config = {
     },
     "t5/pytorch-t5-small-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "albert/token_classification/pytorch-large_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -693,7 +656,7 @@ test_config = {
     },
     "albert/token_classification/pytorch-xlarge_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -792,11 +755,6 @@ test_config = {
     "qwen_3/embedding/pytorch-embedding_0_6b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "qwen_3/embedding/pytorch-embedding_4b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -901,20 +859,15 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-0_5b-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.96,  # tt-torch has this at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.96,
-            },
-        },
     },
     "qwen_2_5/casual_lm/pytorch-0_5b-full-inference": {
         "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "p150": {
-                "required_pcc": 0.97,
+                "required_pcc": 0.97,  # https://github.com/tenstorrent/tt-torch/issues/1192
             },
         },
     },
@@ -935,31 +888,16 @@ test_config = {
         # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference": {
         "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-full-inference": {
         "required_pcc": 0.98,
         # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.97,
-            },
-        },
     },
     "yolov6/pytorch-yolov6n-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -1032,6 +970,11 @@ test_config = {
     },
     "vit/pytorch-vit_h_14-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "required_pcc": 0.98,
+            },
+        },
     },
     "vit/pytorch-vit_l_16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -1045,7 +988,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.96,  # BH is higher at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-full-inference": {
@@ -1152,6 +1095,9 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "dla/pytorch-dla34.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "googlenet/pytorch-googlenet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov10/pytorch-yolov10x-full-inference": {
