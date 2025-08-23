@@ -156,21 +156,25 @@ class JaxModelTester(ModelTester):
         return []
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(workload)
-
-    # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        return self._compile(workload)
-
-    def _compile(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert workload.is_jax, "Workload must be JAX workload to compile"
 
         workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+            workload.executable,
+            static_argnames=workload.static_argnames,
+            compiler_options={"optimize": str(self._use_optimizer)},
+        )
+        return workload
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+
+        workload.executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
         )
         return workload
 
