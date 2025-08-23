@@ -143,7 +143,10 @@ test_config = {
     "albert/masked_lm/pytorch-xlarge_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "alexnet/pytorch-full-inference": {
+    "alexnet/pytorch-alexnet-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "alexnet/pytorch-alexnetb-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "autoencoder_linear/pytorch-full-inference": {
@@ -428,19 +431,19 @@ test_config = {
     "unet/pytorch-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg11_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg11_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-vgg11-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg13_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg13_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-vgg13-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vgg/pytorch-vgg16_bn-full-inference": {
+    "vgg/pytorch-torchvision_vgg16_bn-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-vgg16-full-inference": {
@@ -1091,7 +1094,7 @@ test_config = {
     "dla/pytorch-dla34.in1k-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "googlenet/pytorch-googlenet-full-eval": {
+    "googlenet/pytorch-googlenet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov10/pytorch-yolov10x-full-inference": {
