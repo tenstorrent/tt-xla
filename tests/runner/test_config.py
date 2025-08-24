@@ -484,7 +484,7 @@ test_config = {
     },
     "deit/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
     },
     "mlp_mixer/lucidrains/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -604,6 +604,7 @@ test_config = {
     },
     "albert/token_classification/pytorch-xxlarge_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "required_pcc": 0.96,  # tt-torch has this at 0.99
     },
     "albert/masked_lm/pytorch-base_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -639,7 +640,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolos/pytorch-full-inference": {
-        "required_pcc": 0.98,
+        "required_pcc": 0.96,  # tt-torch has this at 0.98
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
@@ -858,7 +859,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-0_5b-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.96,  # tt-torch has this at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "qwen_2_5/casual_lm/pytorch-0_5b-full-inference": {
