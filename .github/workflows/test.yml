@@ -177,6 +177,10 @@ jobs:
           --durations=0 \
           tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-inference] \
           tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_064-full-inference] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_1_6gf-full-inference] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_y_32gf-full-inference] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_x_1_6gf-full-inference] \
+          tests/runner/test_models.py::test_all_models[regnet/pytorch-regnet_x_8gf-full-inference] \
           tests/runner/test_models.py::test_all_models[bert/masked_lm/pytorch-bert-base-uncased-full-inference] \
           tests/runner/test_models.py::test_all_models[yoloworld/pytorch-full-inference] \
           tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-inference] \
@@ -185,6 +189,7 @@ jobs:
           tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference] \
           tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-inference] \
           tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference] \
+          tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_darknet-full-inference] \
           $ARCH"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
