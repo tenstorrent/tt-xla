@@ -90,8 +90,8 @@ def test_all_models(
                     **test_metadata.to_tester_args(),
                 )
 
-                # results = tester.test_model()
-                # tester.finalize()
+                results = tester.test_model()
+                tester.finalize()
                 # FIXME - Consider catching exceptions here and using as failed reason
 
         finally:
