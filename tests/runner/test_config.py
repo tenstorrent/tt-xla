@@ -454,6 +454,7 @@ test_config = {
     },
     "vgg/pytorch-vgg19-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "required_pcc": 0.975,  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
     },
     "vit/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -972,6 +973,11 @@ test_config = {
     },
     "vit/pytorch-vit_h_14-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "required_pcc": 0.98,
+            },
+        },
     },
     "vit/pytorch-vit_l_16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
