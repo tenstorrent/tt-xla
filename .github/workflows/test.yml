@@ -178,6 +178,7 @@ jobs:
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" \
+          -k "yolox" \
           --splits ${{ matrix.build.test_group_cnt || 1}} \
           --group ${{ matrix.build.test_group_id || 1}} \
           --splitting-algorithm least_duration"
@@ -202,6 +203,7 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        TT_TORCH_REQS_DEBUG: 1
       shell: bash
       run: |
         source venv/activate
