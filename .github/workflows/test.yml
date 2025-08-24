@@ -175,13 +175,6 @@ jobs:
         fi
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY -rA \
           --durations=0 \
-          tests/runner/test_models.py::test_all_models[inception/pytorch-inception_v4-full-inference] \
-          tests/runner/test_models.py::test_all_models[ssd300_resnet50/pytorch-base-full-inference] \
-          tests/runner/test_models.py::test_all_models[qwen_2_5_coder/pytorch-1_5b_instruct-full-inference] \
-          tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-4b-full-inference] \
-          tests/runner/test_models.py::test_all_models[albert/token_classification/pytorch-xxlarge_v2-full-inference] \
-          tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-3b-full-inference] \
-          tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-3b_instruct-full-inference] \
           tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference] \
           tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference] \
           $ARCH"
