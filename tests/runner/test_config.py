@@ -46,11 +46,10 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "wide_resnet/pytorch-wide_resnet50_2-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "wide_resnet/pytorch-wide_resnet101_2-full-inference": {
-        "required_pcc": 0.96,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "bloom/pytorch-full-inference": {
@@ -68,7 +67,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mamba/pytorch-mamba-790m-hf-full-inference": {
-        "required_pcc": 0.95,
+        "required_pcc": 0.96,  # BH is higher at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "openpose/v2/pytorch-full-inference": {
@@ -76,19 +75,18 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-xxlarge_v2-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-large_v2-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov3/pytorch-base-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolov4/pytorch-base-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "t5/pytorch-google/flan-t5-small-full-inference": {
@@ -524,11 +522,11 @@ test_config = {
         "assert_pcc": False,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-full-inference": {
-        "required_pcc": 0.97,  # PCC is ND https://github.com/tenstorrent/tt-torch/issues/1129
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-pytdml-full-inference": {
-        "required_pcc": 0.97,  # PCC is ND https://github.com/tenstorrent/tt-torch/issues/1129
+        "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/sequence_classification/pytorch-microsoft/phi-2-full-inference": {
@@ -551,7 +549,7 @@ test_config = {
     },
     "bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,  # Aug 7 - Drop from 0.99 https://github.com/tenstorrent/tt-torch/issues/1151
+        "required_pcc": 0.985,
     },
     "bert/masked_lm/pytorch-bert-base-uncased-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -606,7 +604,6 @@ test_config = {
     },
     "albert/token_classification/pytorch-xxlarge_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.96,
     },
     "albert/masked_lm/pytorch-base_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -651,7 +648,6 @@ test_config = {
     },
     "t5/pytorch-t5-small-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "albert/token_classification/pytorch-large_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -659,7 +655,7 @@ test_config = {
     },
     "albert/token_classification/pytorch-xlarge_v1-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -991,7 +987,7 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.96,  # BH is higher at 0.97
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-full-inference": {
