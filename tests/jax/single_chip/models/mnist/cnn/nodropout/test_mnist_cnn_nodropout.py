@@ -11,11 +11,10 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
 )
 
 from ..tester import MNISTCNNTester
-from .model_implementation import MNISTCNNNoDropoutModel
+from third_party.tt_forge_models.mnist.image_classification.jax import ModelArchitecture
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(MNISTCNNNoDropoutModel)
+    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM)
 
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(MNISTCNNNoDropoutModel, run_mode=RunMode.TRAINING)
+    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
