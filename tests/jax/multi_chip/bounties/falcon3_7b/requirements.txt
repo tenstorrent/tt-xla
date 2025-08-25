@@ -41,6 +41,7 @@ orbax-checkpoint==0.11.12
 packaging==24.1
 parso==0.8.4
 platformdirs==4.2.2
+pre-commit==4.2.0
 prompt_toolkit==3.0.47
 protobuf==6.30.2
 psutil==6.0.0

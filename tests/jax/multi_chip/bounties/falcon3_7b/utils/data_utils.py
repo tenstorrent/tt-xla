@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import torch
 import jax.numpy as jnp
-from transformers import AutoTokenizer 
+from transformers import AutoTokenizer
+
 
 def torch_to_jnp(tensor):
     """
@@ -10,6 +14,7 @@ def torch_to_jnp(tensor):
         return jnp.array(tensor.cpu().numpy())
     else:
         return jnp.array(tensor)
+
 
 def tokenize(model_name, prompt):
     """
@@ -21,15 +26,17 @@ def tokenize(model_name, prompt):
     attention_mask = torch_to_jnp(inputs.attention_mask)
     return tokenizer, input_ids, attention_mask
 
+
 def strip_output(result, prompt: str = "") -> str:
     """
     Strip the output of the model to remove any special tokens or leading text.
     """
     if result.startswith("<|begin_of_text|>"):
-        result = result[len("<|begin_of_text|>"):].lstrip()
+        result = result[len("<|begin_of_text|>") :].lstrip()
     if result.startswith(prompt):
-        result = result[len(prompt):].lstrip()
+        result = result[len(prompt) :].lstrip()
     return result
+
 
 def compare_results(torch_result: str, flax_result: str) -> str:
     print("HF Result:\n", torch_result)

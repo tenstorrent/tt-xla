@@ -161,7 +161,7 @@ FlaxFalcon3ForCausalLM
 │   ├── input_layernorm (RMSNorm)
 │   ├── self_attn (Grouped Query Attention)
 │   │   ├── q_proj: 3072 → 3072 (12 heads × 256)
-│   │   ├── k_proj: 3072 → 1024 (4 kv_heads × 256)  
+│   │   ├── k_proj: 3072 → 1024 (4 kv_heads × 256)
 │   │   ├── v_proj: 3072 → 1024 (4 kv_heads × 256)
 │   │   ├── o_proj: 3072 → 3072
 │   │   └── rotary_emb (RoPE)
@@ -204,7 +204,7 @@ Partitioning rules for the model parameters (Tensor Parallelism):
 partitioning_rules = {
     "embed_tokens": P(None, "tp"),                 # Vocab parallel
     "layers.*.self_attn.q_proj": P(None, "tp"),    # Column parallel
-    "layers.*.self_attn.k_proj": P(None, "tp"),    # Column parallel  
+    "layers.*.self_attn.k_proj": P(None, "tp"),    # Column parallel
     "layers.*.self_attn.v_proj": P(None, "tp"),    # Column parallel
     "layers.*.self_attn.o_proj": P("tp", None),    # Row parallel
     "layers.*.mlp.gate_proj": P(None, "tp"),       # Column parallel
@@ -244,7 +244,7 @@ main(
 from test.test_model.generate_flax_sharded import main
 
 main(
-    model_name="tiiuae/Falcon3-7B-Instruct", 
+    model_name="tiiuae/Falcon3-7B-Instruct",
     prompt="Write a Python function to calculate fibonacci numbers:"
 )
 ```
@@ -287,7 +287,7 @@ With the provided tests, given on some example input prompt:
 Q: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four.
 She sells the remainder at the farmers' market daily for $2 per fresh duck egg.
 How much in dollars does she make every day at the farmers' market?
-A: 
+A:
 ```
 We ensure that both the single device and tensor-parallel implementations produce consistent outputs, like Huggingface referenced torch model.
 ```python

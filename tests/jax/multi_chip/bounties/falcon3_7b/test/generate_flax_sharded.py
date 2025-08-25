@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -7,7 +10,11 @@ from typing import Union, Optional
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from model.model_falcon3 import FlaxFalcon3ForCausalLM
-from model.jax_config import shard_params, create_device_mesh, with_named_sharding_constraint
+from model.jax_config import (
+    shard_params,
+    create_device_mesh,
+    with_named_sharding_constraint,
+)
 from model.jax_config import with_named_sharding_constraint
 from utils.flax_utils import *
 
@@ -23,7 +30,7 @@ def main(model_name: str, prompt: str):
     # Example usage
     config = AutoConfig.from_pretrained(model_name)
     # Reduces number of hidden layers for faster testing, but it gives gibberish values
-    # just for comparison (uncomment line below to allow that option) 
+    # just for comparison (uncomment line below to allow that option)
     # num_hidden_layers=4,
     device_mesh = create_device_mesh(1, 8)
 
@@ -41,10 +48,7 @@ def main(model_name: str, prompt: str):
     flax_model, flax_params = init_flax_model(config, batch_size, max_len)
 
     input_ids, attention_mask, position_ids = prepare_flax_input(
-        flax_model,
-        inputs.input_ids,
-        inputs.attention_mask,
-        max_len
+        flax_model, inputs.input_ids, inputs.attention_mask, max_len
     )
     partitioning_rules = flax_model.get_partitioning_rules()
     flax_params = shard_params(flax_params, partitioning_rules, device_mesh)
@@ -56,14 +60,10 @@ def main(model_name: str, prompt: str):
     # attention_mask = with_named_sharding_constraint(attention_mask, device_mesh, P('dp', None))
     # position_ids = with_named_sharding_constraint(position_ids, device_mesh, P('dp', None))
     from flax.core import unfreeze, freeze
+
     flax_params = unfreeze(flax_params)
     generated_ids = run_flax_model(
-        flax_params,
-        flax_model,
-        input_ids,
-        attention_mask,
-        position_ids,
-        max_len
+        flax_params, flax_model, input_ids, attention_mask, position_ids, max_len
     )
 
     output = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
@@ -71,7 +71,4 @@ def main(model_name: str, prompt: str):
 
 
 if __name__ == "__main__":
-    main(
-        model_name=MODEL_NAME,
-        prompt=EXAMPLE_PROMPT
-    )
+    main(model_name=MODEL_NAME, prompt=EXAMPLE_PROMPT)

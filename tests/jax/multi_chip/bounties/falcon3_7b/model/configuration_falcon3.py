@@ -1,6 +1,7 @@
-
-
-class Falcon3Config():
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+class Falcon3Config:
     r"""
     This is the configuration class to store the configuration of a [`Falcon3Model`]. It is used to instantiate a
     Falcon3 model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -166,4 +167,8 @@ class Falcon3Config():
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
         self.mlp_bias = mlp_bias
-        self.head_dim = head_dim if head_dim is not None else self.hidden_size // self.num_attention_heads
+        self.head_dim = (
+            head_dim
+            if head_dim is not None
+            else self.hidden_size // self.num_attention_heads
+        )

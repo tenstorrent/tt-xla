@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,12 +15,13 @@ She sells the remainder at the farmers' market daily for $2 per fresh duck egg.
 How much in dollars does she make every day at the farmers' market?\n
 A: """
 
+
 def main(model_name: str, prompt: str):
     # Example usage
     config = AutoConfig.from_pretrained(
         model_name,
-        num_hidden_layers=28, # can be reduced for faster runtime
-        torch_dtype=torch.float32
+        num_hidden_layers=28,  # can be reduced for faster runtime
+        torch_dtype=torch.float32,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -26,29 +30,18 @@ def main(model_name: str, prompt: str):
     max_len = seq_len + 20
 
     flax_model, flax_params = init_flax_model(config, batch_size, max_len)
-    
+
     input_ids, attention_mask, position_ids = prepare_flax_input(
-        flax_model,
-        inputs.input_ids,
-        inputs.attention_mask,
-        max_len
+        flax_model, inputs.input_ids, inputs.attention_mask, max_len
     )
 
     generated_ids = run_flax_model(
-        flax_params,
-        flax_model,
-        input_ids,
-        attention_mask,
-        position_ids,
-        max_len
+        flax_params, flax_model, input_ids, attention_mask, position_ids, max_len
     )
-    
+
     output = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
     print("Generated sequence: ", output[0].strip())
 
 
 if __name__ == "__main__":
-    main(
-        model_name=MODEL_NAME,
-        prompt=EXAMPLE_PROMPT
-    )
+    main(model_name=MODEL_NAME, prompt=EXAMPLE_PROMPT)
