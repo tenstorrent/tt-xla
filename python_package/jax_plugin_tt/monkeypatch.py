@@ -212,7 +212,7 @@ def _create_gelu_patch_config():
                 lambda x: gelu(x, approximate=approximate),
                 "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
             )
-            composite_vjp = jax.custom_vjp(composite)
+            composite_vjp = jax.custom_vjp(lambda x: composite(x))
 
             composite_fwd = lambda x: (composite(x), x)
 
