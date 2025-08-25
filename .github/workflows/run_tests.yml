@@ -3,10 +3,6 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      rebuild_xla:
-        description: 'Rebuild XLA'
-        required: false
-        type: boolean
       preset:
         description: 'Preset to use for the tests'
         type: choice
@@ -43,7 +39,7 @@ permissions:
   packages: write
   checks: write
 
-run-name: 'Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
+run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
 
 jobs:
   build-image:
@@ -51,10 +47,9 @@ jobs:
     secrets: inherit
 
   build-xla:
-    if: inputs.rebuild_xla
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
     needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
@@ -69,7 +64,6 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
           if [ '${{ inputs.preset }}' == 'Custom' ]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
@@ -122,7 +116,6 @@ jobs:
         run: |
           echo "## Input Parameters" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Rebuild: ${{ inputs.rebuild_xla }}" >> $GITHUB_STEP_SUMMARY
           echo "- Preset: ${{ inputs.preset }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ inputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Run On: ${{ inputs.run_on }}" >> $GITHUB_STEP_SUMMARY
@@ -134,11 +127,13 @@ jobs:
 
   test:
     if: always() && !cancelled()
-    uses: ./.github/workflows/test.yml
-    needs: [build-image,test-setup]
+    uses: ./.github/workflows/call-test.yml
+    needs: [build-image,test-setup,build-xla]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
-      run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
+      artifact_run_id: ${{ needs.build-xla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}

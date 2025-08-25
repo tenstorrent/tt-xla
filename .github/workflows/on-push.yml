@@ -28,23 +28,20 @@ jobs:
     secrets: inherit
 
   build-ttxla:
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [true , false]
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     secrets: inherit
-    name: "Build tt-xla (debug=${{ matrix.build_type }})"
+    name: "Build tt-xla"
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: ${{ matrix.build_type }}
 
   test:
     needs: [ build-image, build-ttxla ]
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       test_mark: 'push'
-      run_id: ${{ github.run_id }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}
