@@ -195,10 +195,17 @@ class JaxModelTester(ModelTester):
     # @override
     def _test_training(self):
         """
-        Run VJP-based "training" on TT device and CPU.
-        Compare forward results and ∂out/∂params.
+        Steps:
+        1. Create partial with static args
+        2. Compile workloads for CPU and TT device
+        3. Create partial with vjp of model
+        4. Run forward on CPU and TT device
+        5. Create random gradient with same shape as output
+        6. Run pullback on CPU and TT device
+        7. Compare forward results and gradients
         """
-        # Compile workloads
+
+        # Wrapper to convert kwargs to args and return logits if model is HF
         is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
         def wrapper_model(f):
             def model(args, kwargs):
@@ -208,6 +215,7 @@ class JaxModelTester(ModelTester):
                 return out
             return model
 
+        # Create partial with static args
         partial_executable = jax.tree_util.Partial(self._workload.executable, **{k: self._workload.kwargs[k] for k in self._workload.static_argnames})
         training_workload = WorkloadFactory.create_workload(
             framework=self._framework,
@@ -217,6 +225,7 @@ class JaxModelTester(ModelTester):
             static_argnames=[],
         )
         
+        # Compile workloads for CPU with vjp of model
         compiled_cpu_workload = self._compile_for_cpu(training_workload)
         train_fwd_cpu = WorkloadFactory.create_workload(
             framework=self._framework,
@@ -225,6 +234,7 @@ class JaxModelTester(ModelTester):
         )
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
 
+        # Compile workloads for TT device with vjp of model
         compiled_device_workload = self._compile_for_tt_device(training_workload)
         train_fwd_tt = WorkloadFactory.create_workload(
             framework=self._framework,
@@ -233,11 +243,13 @@ class JaxModelTester(ModelTester):
         )
         tt_forward_out,  tt_pullback  = self._run_on_tt_device(train_fwd_tt)
         
+        # Create random gradient with same shape as output
         with jax.default_device(jax.devices("cpu")[0]):
             out_tensor = cpu_forward_out
             key = jax.random.PRNGKey(0)
             random_grad = jax.random.normal(key, out_tensor.shape, dtype=out_tensor.dtype)
 
+        # Run pullback on CPU
         pullback_workload_cpu = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=cpu_pullback,
@@ -245,6 +257,7 @@ class JaxModelTester(ModelTester):
         )
         grads_cpu = self._run_on_cpu(pullback_workload_cpu)
 
+        # Run pullback on TT device
         pullback_workload_tt = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=tt_pullback,
@@ -252,5 +265,6 @@ class JaxModelTester(ModelTester):
         )
         grads_tt = self._run_on_tt_device(pullback_workload_tt)
 
+        # Compare forward results and gradients
         self._compare(tt_forward_out, cpu_forward_out)
         self._compare(grads_tt, grads_cpu)

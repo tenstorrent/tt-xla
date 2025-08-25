@@ -188,12 +188,7 @@ def _setup_mark_weight_primitive():
     # https://docs.jax.dev/en/latest/jax-primitives.html#forward-differentiation
     ad.primitive_jvps[mark_weight_p] = _mark_weight_jvp
 
-    # Reverse-mode rule (transpose): ∂L/∂x = ct
-    def _mark_weight_transpose(ct, x):
-        return (ct,)
-
-    # https://docs.jax.dev/en/latest/jax-primitives.html#transposition
-    ad.primitive_transposes[mark_weight_p] = _mark_weight_transpose
+    # TODO: there is also primitive_transposes checkout https://docs.jax.dev/en/latest/jax-primitives.html#transposition
 
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
@@ -222,7 +217,7 @@ def _create_gelu_patch_config():
             composite_fwd = lambda x: (composite(x), x)
 
             composite_bwd = jax.lax.composite(
-                lambda x, g: (jax.grad(gelu)(x) * g, ),
+                lambda x, g: jax.vjp(gelu, x)[1](g),
                 "tenstorrent.gelu_tanh_bwd" if approximate else "tenstorrent.gelu_bwd",
             )
             composite_vjp.defvjp(composite_fwd, composite_bwd)
