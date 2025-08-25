@@ -239,7 +239,12 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def post_process(
-        self, co_out=None, framework_model=None, compiled_model=None, inputs=None
+        self,
+        co_out=None,
+        framework_model=None,
+        compiled_model=None,
+        inputs=None,
+        dtype_override=None,
     ):
 
         """
@@ -250,6 +255,7 @@ class ModelLoader(ForgeModel):
             framework_model: The original framework-based model.
             compiled_model: The compiled version of the model.
             inputs: A list of images to process and classify.
+            dtype_override: Optional torch.dtype to override the input's dtype.
 
         Returns:
             None: Prints predicted results.
@@ -258,6 +264,8 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.HUGGING_FACE:
-            run_and_print_results(framework_model, compiled_model, inputs)
+            run_and_print_results(
+                framework_model, compiled_model, inputs, dtype_override
+            )
         else:
             print_compiled_model_results(co_out)
