@@ -46,7 +46,7 @@ jobs:
     uses: ./.github/workflows/build-image.yml
     secrets: inherit
 
-  build-xla:
+  build-ttxla:
     needs: build-image
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
@@ -55,7 +55,7 @@ jobs:
 
   test-setup:
     runs-on: ubuntu-latest
-    needs: build-xla
+    needs: build-ttxla
     if: always() && !cancelled()
     outputs:
       run_id: ${{ steps.set_inputs.outputs.run_id }}
@@ -128,12 +128,12 @@ jobs:
   test:
     if: always() && !cancelled()
     uses: ./.github/workflows/call-test.yml
-    needs: [build-image,test-setup,build-xla]
+    needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
-      artifact_run_id: ${{ needs.build-xla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-xla.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-xla.outputs.build_artifact_name }}
+      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
