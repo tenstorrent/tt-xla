@@ -174,31 +174,22 @@ class JaxModelTester(ModelTester):
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
-        return WorkloadFactory.create_workload(
-            framework=self._framework,
-            executable=jax.jit(
-                workload.executable,
-                static_argnames=workload.static_argnames,
-                compiler_options={"optimize": str(self._use_optimizer)},
-            ),
-            args=workload.args,
-            kwargs=workload.kwargs,
+        workload.executable = jax.jit(
+            workload.executable,
             static_argnames=workload.static_argnames,
+            compiler_options={"optimize": str(self._use_optimizer)},
         )
+        return workload
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
-        return WorkloadFactory.create_workload(
-            framework=self._framework,
-            executable=jax.jit(
-                workload.executable, static_argnames=workload.static_argnames
-            ),
-            args=workload.args,
-            kwargs=workload.kwargs,
+        workload.executable = jax.jit(
+            workload.executable,
             static_argnames=workload.static_argnames,
         )
+        return workload
 
     # @override
     def _test_training(self):
@@ -243,24 +234,24 @@ class JaxModelTester(ModelTester):
         )
 
         # Compile workloads for CPU with vjp of model
-        compiled_cpu_workload = self._compile_for_cpu(training_workload)
+        self._compile_for_cpu(training_workload)
         train_fwd_cpu = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(compiled_cpu_workload.executable)
+                jax.vjp, wrapper_model(training_workload.executable)
             ),
-            args=[compiled_cpu_workload.args, compiled_cpu_workload.kwargs],
+            args=[training_workload.args, training_workload.kwargs],
         )
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
 
         # Compile workloads for TT device with vjp of model
-        compiled_device_workload = self._compile_for_tt_device(training_workload)
+        self._compile_for_tt_device(training_workload)
         train_fwd_tt = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(compiled_device_workload.executable)
+                jax.vjp, wrapper_model(training_workload.executable)
             ),
-            args=[compiled_device_workload.args, compiled_device_workload.kwargs],
+            args=[training_workload.args, training_workload.kwargs],
         )
         tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
 
