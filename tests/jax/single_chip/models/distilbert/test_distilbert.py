@@ -6,8 +6,6 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import Framework, JaxModelTester, RunMode
-from transformers import AutoTokenizer, FlaxDistilBertForMaskedLM, FlaxPreTrainedModel
 from utils import (
     BringupStatus,
     Category,
@@ -17,10 +15,16 @@ from utils import (
     build_model_name,
 )
 
-MODEL_PATH = "distilbert/distilbert-base-uncased"
+from infra import Framework, JaxModelTester, RunMode, Model, ComparisonConfig
+from third_party.tt_forge_models.distilbert.masked_lm.jax import (
+    ModelLoader,
+    ModelVariant,
+)
+
+VARIANT_NAME = ModelVariant.BASE_UNCASED
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "distilbert_uncased",
+    "distilbert",
     "base",
     ModelTask.NLP_MASKED_LM,
     ModelSource.HUGGING_FACE,
@@ -32,15 +36,22 @@ MODEL_NAME = build_model_name(
 class FlaxDistilBertForMaskedLMTester(JaxModelTester):
     """Tester for DistilBert model on a masked language modeling task"""
 
+    def __init__(
+        self,
+        variant: ModelVariant,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ):
+        self._model_loader = ModelLoader(variant)
+        super().__init__(comparison_config, run_mode)
+
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxDistilBertForMaskedLM.from_pretrained(MODEL_PATH)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        inputs = tokenizer("Hello [MASK].", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()
 
 
 # ----- Fixtures -----
@@ -48,12 +59,12 @@ class FlaxDistilBertForMaskedLMTester(JaxModelTester):
 
 @pytest.fixture
 def inference_tester() -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester()
+    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(RunMode.TRAINING)
+    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
