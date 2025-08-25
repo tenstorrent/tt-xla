@@ -175,8 +175,14 @@ jobs:
         fi
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY -rA \
           --durations=0 \
-          tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference] \
-          tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference] \
+          tests/runner/test_models.py::test_all_models[mnist/pytorch-full-inference] \
+          tests/runner/test_models.py::test_all_models[openpose/v2/pytorch-full-inference] \
+          tests/runner/test_models.py::test_all_models[mobilenetv2/pytorch-mobilenet_v2-full-inference] \
+          tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono+stereo_640x192-full-inference] \
+          tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg11-full-inference] \
+          tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference] \
+          tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference] \
+          tests/runner/test_models.py::test_all_models[mobilenetv2/pytorch-mobilenet_v2_torchvision-full-inference] \
           $ARCH"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
