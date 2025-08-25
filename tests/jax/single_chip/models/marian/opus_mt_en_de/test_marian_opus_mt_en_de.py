@@ -14,9 +14,10 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
+from third_party.tt_forge_models.marian_mt.text_classification.jax import ModelVariant
 from ..tester import MarianTester
 
-MODEL_PATH = "Helsinki-NLP/opus-mt-en-de"
+MODEL_VARIANT = ModelVariant.OPUS_MT_EN_DE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "marian",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MarianTester:
-    return MarianTester(MODEL_PATH)
+    return MarianTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> MarianTester:
-    return MarianTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return MarianTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -52,8 +53,8 @@ def training_tester() -> MarianTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386"
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
 def test_marian_opus_mt_en_de_inference(inference_tester: MarianTester):
