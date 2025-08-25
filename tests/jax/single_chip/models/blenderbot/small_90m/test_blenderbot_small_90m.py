@@ -3,11 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import ComparisonConfig, Framework, RunMode
-from transformers import (
-    FlaxBlenderbotSmallForConditionalGeneration,
-    FlaxPreTrainedModel,
-)
+from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
@@ -19,8 +15,12 @@ from utils import (
 )
 
 from ..tester import BlenderBotTester
+from third_party.tt_forge_models.blenderbot.summarization.jax.loader import (
+    ModelVariant,
+    ModelLoader,
+)
 
-MODEL_PATH = "facebook/blenderbot_small-90M"
+VARIANT_NAME = ModelVariant.BLENDERBOT_SMALL_90M
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "blenderbot",
@@ -29,36 +29,17 @@ MODEL_NAME = build_model_name(
     ModelSource.HUGGING_FACE,
 )
 
-
-class BlenderBotSmallTester(BlenderBotTester):
-    """Tester for BlenderBot Model small variant."""
-
-    def __init__(
-        self,
-        model_path: str,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        run_mode: RunMode = RunMode.INFERENCE,
-    ) -> None:
-        super().__init__(model_path, comparison_config, run_mode)
-
-    # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxBlenderbotSmallForConditionalGeneration.from_pretrained(
-            self._model_path
-        )
-
-
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> BlenderBotSmallTester:
-    return BlenderBotSmallTester(MODEL_PATH)
+def inference_tester() -> BlenderBotTester:
+    return BlenderBotTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BlenderBotSmallTester:
-    return BlenderBotSmallTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> BlenderBotTester:
+    return BlenderBotTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -74,11 +55,11 @@ def training_tester() -> BlenderBotSmallTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386 "
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
-def test_blenderbot_small_90m_inference(inference_tester: BlenderBotSmallTester):
+def test_blenderbot_small_90m_inference(inference_tester: BlenderBotTester):
     inference_tester.test()
 
 
@@ -90,5 +71,5 @@ def test_blenderbot_small_90m_inference(inference_tester: BlenderBotSmallTester)
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_blenderbot_small_90m_training(training_tester: BlenderBotSmallTester):
+def test_blenderbot_small_90m_training(training_tester: BlenderBotTester):
     training_tester.test()
