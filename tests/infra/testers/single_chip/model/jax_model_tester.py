@@ -207,29 +207,40 @@ class JaxModelTester(ModelTester):
 
         # Wrapper to convert kwargs to args and return logits if model is HF
         is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
+
         def wrapper_model(f):
             def model(args, kwargs):
                 out = f(*args, **kwargs)
                 if is_hf_model:
                     out = out.logits
                 return out
+
             return model
 
         # Create partial with static args
-        partial_executable = jax.tree_util.Partial(self._workload.executable, **{k: self._workload.kwargs[k] for k in self._workload.static_argnames})
+        partial_executable = jax.tree_util.Partial(
+            self._workload.executable,
+            **{k: self._workload.kwargs[k] for k in self._workload.static_argnames},
+        )
         training_workload = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=partial_executable,
             args=self._workload.args,
-            kwargs={k: self._workload.kwargs[k] for k in self._workload.kwargs if k not in self._workload.static_argnames},
+            kwargs={
+                k: self._workload.kwargs[k]
+                for k in self._workload.kwargs
+                if k not in self._workload.static_argnames
+            },
             static_argnames=[],
         )
-        
+
         # Compile workloads for CPU with vjp of model
         compiled_cpu_workload = self._compile_for_cpu(training_workload)
         train_fwd_cpu = WorkloadFactory.create_workload(
             framework=self._framework,
-            executable=jax.tree_util.Partial(jax.vjp, wrapper_model(compiled_cpu_workload.executable)),
+            executable=jax.tree_util.Partial(
+                jax.vjp, wrapper_model(compiled_cpu_workload.executable)
+            ),
             args=[compiled_cpu_workload.args, compiled_cpu_workload.kwargs],
         )
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
@@ -238,16 +249,20 @@ class JaxModelTester(ModelTester):
         compiled_device_workload = self._compile_for_tt_device(training_workload)
         train_fwd_tt = WorkloadFactory.create_workload(
             framework=self._framework,
-            executable=jax.tree_util.Partial(jax.vjp, wrapper_model(compiled_device_workload.executable)),
+            executable=jax.tree_util.Partial(
+                jax.vjp, wrapper_model(compiled_device_workload.executable)
+            ),
             args=[compiled_device_workload.args, compiled_device_workload.kwargs],
         )
-        tt_forward_out,  tt_pullback  = self._run_on_tt_device(train_fwd_tt)
-        
+        tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
+
         # Create random gradient with same shape as output
         with jax.default_device(jax.devices("cpu")[0]):
             out_tensor = cpu_forward_out
             key = jax.random.PRNGKey(0)
-            random_grad = jax.random.normal(key, out_tensor.shape, dtype=out_tensor.dtype)
+            random_grad = jax.random.normal(
+                key, out_tensor.shape, dtype=out_tensor.dtype
+            )
 
         # Run pullback on CPU
         pullback_workload_cpu = WorkloadFactory.create_workload(
