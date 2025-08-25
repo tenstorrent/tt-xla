@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 
 import jax
 from infra.comparators import ComparisonConfig
+from infra.compiler_config import CompilerConfig
 from infra.connectors import JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
@@ -51,7 +52,11 @@ class JaxMultichipOpTester(BaseTester):
         mesh_shape: tuple,
         axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
+        compiler_config: CompilerConfig = None,
     ) -> None:
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        self._compiler_config = compiler_config
         self._in_specs = in_specs
         self._out_spec = out_spec
         self._mesh_shape = mesh_shape
@@ -112,17 +117,17 @@ class JaxMultichipOpTester(BaseTester):
         comparing the results.
         """
         with self._device_mesh:
-            compiled_device_workload = self._compile(device_workload)
-            device_res = self._run_on_multichip_device(compiled_device_workload)
+            self._compile(device_workload)
+            device_res = self._run_on_multichip_device(device_workload)
 
         with self._cpu_mesh:
-            compiled_cpu_workload = self._compile(cpu_workload)
-            cpu_res = self._run_on_multichip_device(compiled_cpu_workload)
+            self._compile(cpu_workload)
+            cpu_res = self._run_on_multichip_device(cpu_workload)
 
         self._comparator.compare(device_res, cpu_res)
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload) -> None:
         """
         Sets up `workload.executable` for just-in-time compile and execution.
 
@@ -142,12 +147,13 @@ class JaxMultichipOpTester(BaseTester):
         )
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
 
+        compile_options = self._compiler_config.to_jax_compiler_options()
         workload.executable = jax.jit(
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
+            compiler_options=compile_options,
         )
-        return workload
 
     # --- Convenience wrappers ---
 
@@ -187,6 +193,7 @@ def run_jax_multichip_op_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    compiler_config: CompilerConfig = None,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -196,7 +203,12 @@ def run_jax_multichip_op_test_with_random_inputs(
     """
     with enable_shardy(use_shardy):
         tester = JaxMultichipOpTester(
-            in_specs, out_specs, mesh_shape, axis_names, comparison_config
+            in_specs,
+            out_specs,
+            mesh_shape,
+            axis_names,
+            comparison_config,
+            compiler_config,
         )
         tester.test_with_random_inputs(
             executable, input_shapes, sharding_mode, minval, maxval

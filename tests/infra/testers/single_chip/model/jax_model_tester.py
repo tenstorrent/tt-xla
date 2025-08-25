@@ -11,6 +11,7 @@ import shutil
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
+from infra.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, PyTree
 from infra.workloads import JaxWorkload, Workload, WorkloadFactory
 from loguru import logger
@@ -40,14 +41,13 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
-        use_optimizer: bool = False,
+        compiler_config: CompilerConfig = None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
-        self._use_optimizer = use_optimizer
 
-        super().__init__(comparison_config, run_mode, Framework.JAX)
+        super().__init__(comparison_config, run_mode, Framework.JAX, compiler_config)
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -171,22 +171,21 @@ class JaxModelTester(ModelTester):
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
+        compile_options = self._compiler_config.to_jax_compiler_options()
         workload.executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
-            compiler_options={"optimize": str(self._use_optimizer)},
+            compiler_options=compile_options,
         )
-        return workload
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
         workload.executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
         )
-        return workload

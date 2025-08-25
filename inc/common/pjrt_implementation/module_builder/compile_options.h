@@ -13,6 +13,7 @@ struct CompileOptions {
   // Enables the ttmlir optimizer, i.e. the optimization passes and memory
   // layout analysis.
   bool enable_optimizer = false;
+  bool enable_bfp8_conversion = false;
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);

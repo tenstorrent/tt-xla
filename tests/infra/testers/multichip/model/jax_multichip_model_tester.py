@@ -45,6 +45,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._mesh_shape = mesh_shape
         self._axis_names = axis_names
@@ -59,7 +60,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     # @override
     def _initialize_components(self) -> None:
@@ -90,17 +91,17 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         )
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """Compiles `workload` for CPU."""
-        return self._compile(self._create_multichip_workload(self._cpu_mesh))
+        self._compile(self._create_multichip_workload(self._cpu_mesh))
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
-        return self._compile(self._create_multichip_workload(self._device_mesh))
+        self._compile(self._create_multichip_workload(self._device_mesh))
 
     # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload) -> None:
         """
         Sets up `workload.executable` for just-in-time compile and execution.
 
@@ -118,12 +119,13 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         )
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
 
+        compile_options = self._compiler_config.to_jax_compiler_options()
         workload.executable = jax.jit(
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
+            compiler_options=compile_options,
         )
-        return workload
 
     def _create_multichip_workload(
         self, mesh: jax.sharding.Mesh
