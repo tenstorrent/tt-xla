@@ -9,7 +9,13 @@ from infra.utilities import Framework, Model
 
 
 class Workload:
-    """Class encapsulating workload (executable/model with its inputs)."""
+    """Class encapsulating workload (executable/model with its inputs).
+
+    Workload needs both model and executable fields depending on the tests,
+    for example model tests use both and op tests use only executable.
+    Please also pay attention that run_on_cpu decorator used in _match_data_types()
+    creates a workload with executable.
+    """
 
     def __init__(
         self,

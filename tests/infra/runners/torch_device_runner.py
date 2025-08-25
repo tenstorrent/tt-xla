@@ -52,7 +52,6 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
-        # PyTorch needs executable for comparing CPU and TT device outputs (see comparator.py -> compare() -> _match_data_types())
         return Workload(
             framework=workload.framework,
             model=workload.model,  # Moved to device if not None.
