@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -33,7 +34,11 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ResnetTester:
-    return ResnetTester(VARIANT_NAME)
+    comparison_config = ComparisonConfig()
+    comparison_config.pcc = PccConfig(
+        required_pcc=0.95,
+    )
+    return ResnetTester(VARIANT_NAME, comparison_config=comparison_config)
 
 
 @pytest.fixture
@@ -51,12 +56,6 @@ def training_tester() -> ResnetTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
-    )
 )
 def test_torch_resnet_inference(inference_tester: ResnetTester):
     inference_tester.test()
