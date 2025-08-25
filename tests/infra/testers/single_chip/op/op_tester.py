@@ -10,7 +10,7 @@ import jax
 import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Tensor, random_tensor
-from infra.workloads import JaxWorkload, TorchWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload
 
 from ...base_tester import BaseTester
 
@@ -36,22 +36,22 @@ class OpTester(BaseTester):
         Returns compiled workload.
         """
 
-        def compile_jax_workload(workload: JaxWorkload) -> Workload:
+        def compile_jax_workload(workload: Workload) -> Workload:
             workload.executable = jax.jit(
                 workload.executable, static_argnames=workload.static_argnames
             )
             return workload
 
-        def compile_torch_workload(workload: TorchWorkload) -> Workload:
+        def compile_torch_workload(workload: Workload) -> Workload:
             assert workload.executable is not None
             workload.executable = torch.compile(workload.executable, backend="openxla")
             return workload
 
         if self._framework == Framework.JAX:
-            assert isinstance(workload, JaxWorkload)
+            assert workload.is_jax, "Workload must be JAX workload to compile"
             return compile_jax_workload(workload)
         else:
-            assert isinstance(workload, TorchWorkload)
+            assert workload.is_torch, "Workload must be Torch workload to compile"
             return compile_torch_workload(workload)
 
     def test_with_random_inputs(
@@ -74,9 +74,7 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
-        workload = WorkloadFactory.create_workload(
-            self._framework, executable=f, args=inputs
-        )
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
 
@@ -91,7 +89,7 @@ def run_op_test(
     results based on `comparison_config`.
     """
     tester = OpTester(comparison_config, framework)
-    workload = WorkloadFactory.create_workload(framework, executable=op, args=inputs)
+    workload = Workload(framework=framework, executable=op, args=inputs)
     tester.test(workload)
 
 
