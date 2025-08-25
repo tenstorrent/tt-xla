@@ -194,6 +194,27 @@ def _create_gelu_patch_config():
         list[MonkeyPatchConfig]: List containing gelu patch config.
     """
 
+    def patch_gelu(config: MonkeyPatchConfig):
+        def gelu_composite(x, approximate=True):
+            gelu = config.backup
+            composite = jax.lax.composite(
+                lambda x: gelu(x, approximate=approximate),
+                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+            )
+            composite_vjp = jax.custom_vjp(composite)
+
+            composite_fwd = lambda x: (composite(x), x)
+
+            composite_bwd = jax.lax.composite(
+                lambda x, g: (jax.numpy.exp(-0.5 * x**2) / jax.numpy.sqrt(2.0 * jax.numpy.pi) * g, ),
+                "tenstorrent.gelu_tanh_bwd" if approximate else "tenstorrent.gelu_bwd",
+            )
+            composite_vjp.defvjp(composite_fwd, composite_bwd)
+
+            return composite_vjp(x)
+
+        return gelu_composite
+
     def post_patch_func():
         if _is_module_imported("transformers") and _is_module_imported(
             "transformers.modeling_flax_utils"
@@ -211,12 +232,7 @@ def _create_gelu_patch_config():
         MonkeyPatchConfig(
             target_module=jax.nn,
             target_function="gelu",
-            replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-                lambda x: config.backup(x, approximate=approximate),
-                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-            )(
-                x
-            ),
+            replacement_factory=patch_gelu,
             post_patch=post_patch_func,
         )
     ]
