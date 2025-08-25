@@ -3,10 +3,6 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      rebuild_xla:
-        description: 'Rebuild XLA'
-        required: false
-        type: boolean
       preset:
         description: 'Preset to use for the tests'
         type: choice
@@ -43,7 +39,7 @@ permissions:
   packages: write
   checks: write
 
-run-name: 'Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
+run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
 
 jobs:
   build-image:
@@ -68,7 +64,6 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
           if [ '${{ inputs.preset }}' == 'Custom' ]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
@@ -121,7 +116,6 @@ jobs:
         run: |
           echo "## Input Parameters" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Rebuild: ${{ inputs.rebuild_xla }}" >> $GITHUB_STEP_SUMMARY
           echo "- Preset: ${{ inputs.preset }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ inputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Run On: ${{ inputs.run_on }}" >> $GITHUB_STEP_SUMMARY
