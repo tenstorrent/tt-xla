@@ -152,4 +152,3 @@ class ModelTester(BaseTester, ABC):
         forward results and gradients. Implementation is framework-specific.
         """
         raise NotImplementedError("Subclasses must implement this method.")
-
