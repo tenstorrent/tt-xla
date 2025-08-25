@@ -191,3 +191,62 @@ class JaxModelTester(ModelTester):
                 )
             except Exception as e:
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
+    
+    # @override
+    def _test_training(self):
+        """
+        Run VJP-based "training" on TT device and CPU.
+        Compare forward results and ∂out/∂params.
+        """
+        # Compile workloads
+        partial_executable = jax.tree_util.Partial(self._workload.executable, **{k: self._workload.kwargs[k] for k in self._workload.static_argnames})
+        training_workload = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=partial_executable,
+            args=workload.args,
+            kwargs={k: workload.kwargs[k] for k in workload.kwargs if k not in workload.static_argnames},
+            static_argnames=[],
+        )
+
+        compiled_cpu_workload = self._compile_for_cpu(training_workload)
+        
+        compiled_device_workload = self._compile_for_tt_device(training_workload)
+
+        if isinstance(self._model, FlaxPreTrainedModel):
+            loss_cpu = lambda args, kwargs: compiled_cpu_workload.executable(*args, **kwargs).logits
+            loss_tt = lambda args, kwargs: compiled_device_workload.executable(*args, **kwargs).logits
+        else:
+            loss_cpu = lambda args, kwargs: compiled_cpu_workload.executable(*args, **kwargs)
+            loss_tt = lambda args, kwargs: compiled_device_workload.executable(*args, **kwargs)
+        
+        train_fwd_cpu = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.tree_util.Partial(jax.vjp, loss_cpu),
+            args=[compiled_cpu_workload.args, compiled_cpu_workload.kwargs],
+            kwargs={},
+            static_argnames=compiled_cpu_workload.static_argnames,
+        )
+        train_fwd_tt = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.tree_util.Partial(jax.vjp, loss_tt),
+            args=[compiled_device_workload.args, compiled_device_workload.kwargs],
+            kwargs={},
+            static_argnames=compiled_device_workload.static_argnames,
+        )
+
+        cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
+        tt_forward_out,  tt_pullback  = self._run_on_tt_device(train_fwd_tt)
+        
+        with jax.default_device(jax.devices("cpu")[0]):
+            out_tensor = cpu_forward_out
+            if hasattr(out_tensor, "logits"):
+                out_tensor = out_tensor.logits
+            key = jax.random.PRNGKey(0)
+            random_grad = jax.random.normal(key, out_tensor.shape, dtype=out_tensor.dtype)
+
+
+        cpu_gradients = cpu_pullback(random_grad)
+        tt_gradients = tt_pullback(random_grad)
+
+        self._compare(tt_forward_out, cpu_forward_out)
+        self._compare(tt_gradients, cpu_gradients)

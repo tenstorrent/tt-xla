@@ -63,6 +63,5 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()
