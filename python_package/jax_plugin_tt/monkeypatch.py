@@ -19,6 +19,7 @@ import jax.lax
 import jax.nn
 from jax.extend import core
 from jax.interpreters.mlir import ir, register_lowering
+from jax.interpreters import ad
 
 
 def _is_module_imported(module_name: str) -> bool:
@@ -179,6 +180,21 @@ def _setup_mark_weight_primitive():
             )
         return [op.result]
 
+    def _mark_weight_jvp(primals, tangents):
+        (x,) = primals
+        (tx,) = tangents
+        return mark_weight_p.bind(x), tx
+
+    # https://docs.jax.dev/en/latest/jax-primitives.html#forward-differentiation
+    ad.primitive_jvps[mark_weight_p] = _mark_weight_jvp
+
+    # Reverse-mode rule (transpose): ∂L/∂x = ct
+    def _mark_weight_transpose(ct, x):
+        return (ct,)
+
+    # https://docs.jax.dev/en/latest/jax-primitives.html#transposition
+    ad.primitive_transposes[mark_weight_p] = _mark_weight_transpose
+
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
@@ -206,7 +222,7 @@ def _create_gelu_patch_config():
             composite_fwd = lambda x: (composite(x), x)
 
             composite_bwd = jax.lax.composite(
-                lambda x, g: (jax.numpy.exp(-0.5 * x**2) / jax.numpy.sqrt(2.0 * jax.numpy.pi) * g, ),
+                lambda x, g: (jax.grad(gelu)(x) * g, ),
                 "tenstorrent.gelu_tanh_bwd" if approximate else "tenstorrent.gelu_bwd",
             )
             composite_vjp.defvjp(composite_fwd, composite_bwd)

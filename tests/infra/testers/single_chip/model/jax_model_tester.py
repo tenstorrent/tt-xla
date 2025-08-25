@@ -174,22 +174,25 @@ class JaxModelTester(ModelTester):
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
-            workload.executable,
+        return WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.jit(workload.executable, static_argnames=workload.static_argnames, compiler_options={"optimize": str(self._use_optimizer)}),
+            args=workload.args,
+            kwargs=workload.kwargs,
             static_argnames=workload.static_argnames,
-            compiler_options={"optimize": str(self._use_optimizer)},
         )
-        return workload
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
-            workload.executable,
+        return WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=jax.jit(workload.executable, static_argnames=workload.static_argnames),
+            args=workload.args,
+            kwargs=workload.kwargs,
             static_argnames=workload.static_argnames,
         )
-        return workload
 
     # @override
     def _test_training(self):
@@ -198,54 +201,58 @@ class JaxModelTester(ModelTester):
         Compare forward results and ∂out/∂params.
         """
         # Compile workloads
+        is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
+        def wrapper_model(f):
+            def model(args, kwargs):
+                out = f(*args, **kwargs)
+                if is_hf_model:
+                    out = out.logits
+                return out
+            return model
+
         partial_executable = jax.tree_util.Partial(self._workload.executable, **{k: self._workload.kwargs[k] for k in self._workload.static_argnames})
         training_workload = WorkloadFactory.create_workload(
             framework=self._framework,
             executable=partial_executable,
-            args=workload.args,
-            kwargs={k: workload.kwargs[k] for k in workload.kwargs if k not in workload.static_argnames},
+            args=self._workload.args,
+            kwargs={k: self._workload.kwargs[k] for k in self._workload.kwargs if k not in self._workload.static_argnames},
             static_argnames=[],
         )
-
+        
         compiled_cpu_workload = self._compile_for_cpu(training_workload)
-        
-        compiled_device_workload = self._compile_for_tt_device(training_workload)
-
-        if isinstance(self._model, FlaxPreTrainedModel):
-            loss_cpu = lambda args, kwargs: compiled_cpu_workload.executable(*args, **kwargs).logits
-            loss_tt = lambda args, kwargs: compiled_device_workload.executable(*args, **kwargs).logits
-        else:
-            loss_cpu = lambda args, kwargs: compiled_cpu_workload.executable(*args, **kwargs)
-            loss_tt = lambda args, kwargs: compiled_device_workload.executable(*args, **kwargs)
-        
         train_fwd_cpu = WorkloadFactory.create_workload(
             framework=self._framework,
-            executable=jax.tree_util.Partial(jax.vjp, loss_cpu),
+            executable=jax.tree_util.Partial(jax.vjp, wrapper_model(compiled_cpu_workload.executable)),
             args=[compiled_cpu_workload.args, compiled_cpu_workload.kwargs],
-            kwargs={},
-            static_argnames=compiled_cpu_workload.static_argnames,
         )
+        cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
+
+        compiled_device_workload = self._compile_for_tt_device(training_workload)
         train_fwd_tt = WorkloadFactory.create_workload(
             framework=self._framework,
-            executable=jax.tree_util.Partial(jax.vjp, loss_tt),
+            executable=jax.tree_util.Partial(jax.vjp, wrapper_model(compiled_device_workload.executable)),
             args=[compiled_device_workload.args, compiled_device_workload.kwargs],
-            kwargs={},
-            static_argnames=compiled_device_workload.static_argnames,
         )
-
-        cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
         tt_forward_out,  tt_pullback  = self._run_on_tt_device(train_fwd_tt)
         
         with jax.default_device(jax.devices("cpu")[0]):
             out_tensor = cpu_forward_out
-            if hasattr(out_tensor, "logits"):
-                out_tensor = out_tensor.logits
             key = jax.random.PRNGKey(0)
             random_grad = jax.random.normal(key, out_tensor.shape, dtype=out_tensor.dtype)
 
+        pullback_workload_cpu = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=cpu_pullback,
+            args=[random_grad],
+        )
+        grads_cpu = self._run_on_cpu(pullback_workload_cpu)
 
-        cpu_gradients = cpu_pullback(random_grad)
-        tt_gradients = tt_pullback(random_grad)
+        pullback_workload_tt = WorkloadFactory.create_workload(
+            framework=self._framework,
+            executable=tt_pullback,
+            args=[random_grad],
+        )
+        grads_tt = self._run_on_tt_device(pullback_workload_tt)
 
         self._compare(tt_forward_out, cpu_forward_out)
-        self._compare(tt_gradients, cpu_gradients)
+        self._compare(grads_tt, grads_cpu)
