@@ -16,7 +16,6 @@ permissions:
 jobs:
 
   build-image:
-    needs: [ pre-commit, spdx ]
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
 
