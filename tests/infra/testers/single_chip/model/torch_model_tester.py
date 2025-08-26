@@ -101,3 +101,26 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
         return workload
+
+    def _test_training(self):
+        self._model.train()
+        self._device_runner.set_training_mode()
+
+        compiled_cpu_workload = self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(compiled_cpu_workload)
+
+        random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
+
+        cpu_res.backward(gradient=random_grad)
+        # self._run_on_cpu(backward_cpu_workload)
+        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
+        self._model.zero_grad()
+
+        compiled_device_workload = self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(compiled_device_workload)
+        print(tt_res.device)
+        tt_res.backward(gradient=random_grad.to("xla"))
+        tt_grads = {name: p.grad.clone().cpu() for name, p in self._model.named_parameters()}
+
+        self._compare(tt_res, cpu_res)
+        self._compare(tt_grads, cpu_grads)
