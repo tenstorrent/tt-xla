@@ -1,0 +1,6 @@
+# xfail_log1p_DTYPE_MISMATCH ids
+
+log1p-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-LoFi
+log1p-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+log1p-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+log1p-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi4

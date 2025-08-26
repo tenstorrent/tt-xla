@@ -1,0 +1,120 @@
+# xfail_sum_DATA_MISMATCH_ALL_CLOSE ids
+
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(1, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(1, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(1, 10, 1000)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(1, 10, 1000)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(1, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(1, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(1, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(1, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(11, 45, 17)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(11, 45, 17)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(11, 1, 23)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(11, 1, 23)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': True}-(100, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': False}-(100, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': True}-(10, 1000, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': False}-(10, 1000, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': True}-(10, 10000, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': False}-(10, 10000, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(13, 89, 3)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(13, 89, 3)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': True}-(1, 11, 45, 17)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': False}-(1, 11, 45, 17)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': True}-(1, 11, 1, 23)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': False}-(1, 11, 1, 23)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(1, 11, 64, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(1, 11, 64, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': True}-(1, 32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': False}-(1, 32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': True}-(1, 64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': False}-(1, 64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(1, 13, 89, 3)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(1, 13, 89, 3)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(6, 100, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(6, 100, 100, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(7, 10, 1000, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(7, 10, 1000, 100)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': True}-(10, 10, 10000, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 0, 'keepdim': False}-(10, 10, 10000, 1)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': True}-(11, 32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 3, 'keepdim': False}-(11, 32, 32, 64)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(12, 64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(12, 64, 160, 96)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': True}-(13, 11, 17, 41)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 1, 'keepdim': False}-(13, 11, 17, 41)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': True}-(14, 13, 89, 3)-None-None
+sum-FROM_ANOTHER_OP-{'dim': 2, 'keepdim': False}-(14, 13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(1, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(1, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(1, 10, 1000)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(1, 10, 1000)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(1, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(1, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(11, 45, 17)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(11, 45, 17)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(11, 1, 23)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(11, 1, 23)-None-None
+sum-FROM_HOST-{'dim': 0, 'keepdim': True}-(100, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 0, 'keepdim': False}-(100, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': True}-(64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': False}-(64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': True}-(13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': False}-(13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': True}-(1, 11, 45, 17)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': False}-(1, 11, 45, 17)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': True}-(1, 11, 1, 23)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': False}-(1, 11, 1, 23)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': True}-(1, 32, 32, 64)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': False}-(1, 32, 32, 64)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': True}-(1, 64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': False}-(1, 64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(1, 13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(1, 13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(6, 100, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(6, 100, 100, 100)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': True}-(11, 32, 32, 64)-None-None
+sum-FROM_HOST-{'dim': 3, 'keepdim': False}-(11, 32, 32, 64)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': True}-(12, 64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 1, 'keepdim': False}-(12, 64, 160, 96)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': True}-(14, 13, 89, 3)-None-None
+sum-FROM_HOST-{'dim': 2, 'keepdim': False}-(14, 13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(1, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(1, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(1, 10, 1000)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(1, 10, 1000)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(1, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(1, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(11, 45, 17)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(11, 45, 17)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(11, 1, 23)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(11, 1, 23)-None-None
+sum-CONST_EVAL_PASS-{'dim': 0, 'keepdim': True}-(100, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 0, 'keepdim': False}-(100, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': True}-(64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': False}-(64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': True}-(13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': False}-(13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': True}-(1, 11, 45, 17)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': False}-(1, 11, 45, 17)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': True}-(1, 11, 1, 23)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': False}-(1, 11, 1, 23)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': True}-(1, 32, 32, 64)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': False}-(1, 32, 32, 64)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': True}-(1, 64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': False}-(1, 64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(1, 13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(1, 13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(6, 100, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(6, 100, 100, 100)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': True}-(11, 32, 32, 64)-None-None
+sum-CONST_EVAL_PASS-{'dim': 3, 'keepdim': False}-(11, 32, 32, 64)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': True}-(12, 64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 1, 'keepdim': False}-(12, 64, 160, 96)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': True}-(14, 13, 89, 3)-None-None
+sum-CONST_EVAL_PASS-{'dim': 2, 'keepdim': False}-(14, 13, 89, 3)-None-None

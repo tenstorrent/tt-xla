@@ -1,0 +1,44 @@
+# xfail_softmax_VERIFICATION_FAILED_PCC_NAN ids
+
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(10, 10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(64, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(10, 10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(10, 10, 10000, 1)-None-None

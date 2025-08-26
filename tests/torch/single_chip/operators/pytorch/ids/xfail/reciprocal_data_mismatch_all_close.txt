@@ -1,0 +1,20 @@
+# xfail_reciprocal_DATA_MISMATCH_ALL_CLOSE ids
+
+reciprocal-CONST_EVAL_PASS-None-(1000, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 1000, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(100, 100, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(10, 1000, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(10, 10000, 1)-None-None
+reciprocal-CONST_EVAL_PASS-None-(32, 32, 64)-None-None
+reciprocal-CONST_EVAL_PASS-None-(64, 160, 96)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 100, 100, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 10, 1000, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 10, 10000, 1)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 32, 32, 64)-None-None
+reciprocal-CONST_EVAL_PASS-None-(1, 64, 160, 96)-None-None
+reciprocal-CONST_EVAL_PASS-None-(6, 100, 100, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(7, 10, 1000, 100)-None-None
+reciprocal-CONST_EVAL_PASS-None-(8, 1, 10, 1000)-None-None
+reciprocal-CONST_EVAL_PASS-None-(10, 10, 10000, 1)-None-None
+reciprocal-CONST_EVAL_PASS-None-(11, 32, 32, 64)-None-None
+reciprocal-CONST_EVAL_PASS-None-(13, 11, 17, 41)-None-None

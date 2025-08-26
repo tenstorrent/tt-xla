@@ -1,0 +1,11 @@
+# xfail_max_pool_2d_CORE_CHANNELS_MODULUS_NOT_ZERO ids
+
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(8, 1, 10, 1000)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(8, 1, 10, 1000)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 1, 10, 1000)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(8, 1, 10, 1000)-None-None

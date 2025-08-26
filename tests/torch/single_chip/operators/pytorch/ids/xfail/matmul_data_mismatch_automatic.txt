@@ -1,0 +1,7 @@
+# xfail_matmul_DATA_MISMATCH_AUTOMATIC ids
+
+matmul-FROM_ANOTHER_OP-None-(1, 1000)-None-None
+matmul-FROM_ANOTHER_OP-None-(1, 10000)-None-None
+matmul-FROM_HOST-None-(1, 10000)-None-None
+matmul-CONST_EVAL_PASS-None-(1, 1920)-None-None
+matmul-CONST_EVAL_PASS-None-(1, 10000)-None-None

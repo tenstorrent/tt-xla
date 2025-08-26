@@ -1,0 +1,5 @@
+# xfail_max_pool_2d_ASYMMETRIC_DILATION_NOT_SUPPORTED ids
+
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (2, 1), 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (2, 1), 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (2, 1), 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None

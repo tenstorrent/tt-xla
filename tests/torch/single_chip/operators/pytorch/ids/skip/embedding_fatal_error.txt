@@ -1,0 +1,8 @@
+# Detected 2025-06-16 (crash in ci)
+# Detected 2025-06-18 (crash in ci)
+# Detected 2025-06-23 (crash in ci)
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 229636, 'embedding_dim': 10000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+
+# Detected 2025-06-18 (crash in ci)
+# Detected 2025-07-05 (crash in ci nightly)
+embedding-CONST_EVAL_PASS-{'num_embeddings': 229636, 'embedding_dim': 10000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None

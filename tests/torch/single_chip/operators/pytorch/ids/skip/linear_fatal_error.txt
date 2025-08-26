@@ -1,0 +1,2 @@
+# Detected 2025-07-02 (crash in ci scan)
+linear-CONST_EVAL_PASS-{'in_features': 1, 'out_features': 9931, 'bias': True, 'dtype': None}-(9, 1, 9920, 1)-None-None

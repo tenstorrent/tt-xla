@@ -1,0 +1,8 @@
+# Tests frozed when running inference
+
+avg_pool_2d-FROM_HOST-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_HOST-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': False, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None
+avg_pool_2d-CONST_EVAL_PASS-{'kernel_size': (53, 1), 'stride': 1, 'padding': 0, 'ceil_mode': True, 'count_include_pad': True, 'divisor_override': None}-(9, 1, 9920, 1)-None-None

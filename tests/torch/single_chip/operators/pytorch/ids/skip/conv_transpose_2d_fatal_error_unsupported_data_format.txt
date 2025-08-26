@@ -1,0 +1,7 @@
+# Fail in github action
+
+# Detected 2025-06-13
+# Original file forge/test/operators/pytorch/ids/xfail/conv_transpose_2d_unsupported_data_format.txt
+# xfail_conv_transpose_2d_UNSUPPORTED_DATA_FORMAT ids
+conv_transpose_2d-FROM_HOST-{'in_channels': 11, 'out_channels': 12, 'kernel_size': (8, 4), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': torch.float16}-(3, 11, 45, 17)-torch.float16-HiFi4
+conv_transpose_2d-FROM_HOST-{'in_channels': 11, 'out_channels': 12, 'kernel_size': (8, 4), 'stride': 1, 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': torch.float16}-(3, 11, 45, 17)-torch.float16-HiFi4

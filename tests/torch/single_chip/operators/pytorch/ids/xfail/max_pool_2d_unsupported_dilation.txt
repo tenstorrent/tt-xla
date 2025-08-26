@@ -1,0 +1,8 @@
+# xfail_max_pool_2d_UNSUPPORTED_DILATION ids
+
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (6, 6), 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': (4, 4), 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (6, 6), 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': (4, 4), 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': (6, 6), 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': (4, 4), 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None

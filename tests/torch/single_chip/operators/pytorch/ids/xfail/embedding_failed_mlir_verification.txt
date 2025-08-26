@@ -1,0 +1,464 @@
+# xfail_embedding_FAILED_MLIR_VERIFICATION ids
+
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.float32, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 229636, 'embedding_dim': 1000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 229636, 'embedding_dim': 3200, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 229636, 'embedding_dim': 10000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 229636, 'embedding_dim': 1000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 229636, 'embedding_dim': 3200, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 229636, 'embedding_dim': 10000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 229636, 'embedding_dim': 1000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 229636, 'embedding_dim': 3200, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 229636, 'embedding_dim': 10000, 'weight_dtype': None, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_ANOTHER_OP-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 8489, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 9125, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 23344, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 13592, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 32, 64)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 17134, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 32, 64)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 28178, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 24753, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 45, 17)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 7465, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 45, 17)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 12283, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 25561, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 1, 9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 1, 9920, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 11, 17, 41)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 31493, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 11, 17, 41)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 13, 89, 3)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 6433, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(1, 13, 89, 3)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(2, 2, 3, 4)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 2193, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(2, 2, 3, 4)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(4, 11, 1, 23)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 29674, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(4, 11, 1, 23)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(5, 11, 64, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 15286, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(5, 11, 64, 1)-torch.int64-None
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-LoFi
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-LoFi
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-LoFi
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi2
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi2
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi2
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi3
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi3
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi3
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 1000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi4
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 3200, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi4
+embedding-FROM_HOST-{'num_embeddings': 12354, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(1, 2, 3, 4)-torch.int32-HiFi4

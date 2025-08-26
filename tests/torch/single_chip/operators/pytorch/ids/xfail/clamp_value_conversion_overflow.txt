@@ -1,0 +1,10 @@
+# xfail_clamp_VALUE_CONVERSION_OVERFLOW ids
+
+clamp-FROM_HOST-{'min': 0.2}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+clamp-FROM_HOST-{'max': 0.2}-(1, 2, 3, 4)-torch.bfloat16-LoFi
+clamp-FROM_HOST-{'min': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+clamp-FROM_HOST-{'max': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+clamp-FROM_HOST-{'min': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+clamp-FROM_HOST-{'max': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+clamp-FROM_HOST-{'min': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+clamp-FROM_HOST-{'max': 0.2}-(1, 2, 3, 4)-torch.bfloat16-HiFi4

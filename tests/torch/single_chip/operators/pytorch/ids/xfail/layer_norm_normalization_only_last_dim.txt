@@ -1,0 +1,3 @@
+# xfail_layer_norm_NORMALIZATION_ONLY_LAST_DIM ids
+
+layer_norm-FROM_HOST-{'normalized_shape': (3, 4)}-(1, 2, 3, 4)-None-None

@@ -1,0 +1,11 @@
+# *.txt
+# *_not_implemented.txt
+
+*.ipynb_checkpoints
+
+all_statuses.txt
+blacklist1.txt
+push1.txt
+push2.txt
+test.txt
+test2.txt

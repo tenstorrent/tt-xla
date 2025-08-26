@@ -1,0 +1,44 @@
+# xfail_layer_norm_VERIFICATION_FAILED_PCC_NAN ids
+
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(64, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(9920, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(10000, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 64, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 9920, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 10000, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(11, 64, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(10, 10000, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 11, 64, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 1, 9920, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 10, 10000, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(5, 11, 64, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(9, 1, 9920, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(10, 10, 10000, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(64, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(9920, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(10000, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 64, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 9920, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 10000, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(11, 64, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(10, 10000, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 11, 64, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 1, 9920, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 10, 10000, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(5, 11, 64, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(9, 1, 9920, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(10, 10, 10000, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(64, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(9920, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(10000, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 64, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 9920, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 10000, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(11, 64, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(10, 10000, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 11, 64, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 1, 9920, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 10, 10000, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(5, 11, 64, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(9, 1, 9920, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(10, 10, 10000, 1)-None-None

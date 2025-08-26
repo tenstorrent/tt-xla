@@ -1,0 +1,83 @@
+# Fail in github action
+
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 11, 'kernel_size': (2, 2), 'stride': (46, 3), 'padding': 3, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': (99, 83), 'dtype': None}-(7, 10, 1000, 100)-None-None
+
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 11, 'kernel_size': (2, 2), 'stride': (46, 3), 'padding': 3, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': (99, 83), 'dtype': None}-(7, 10, 1000, 100)-None-None
+
+
+# Nightly
+
+# Detected 2025-07-02 (crash in ci nightly)
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+# Detected 2025-07-01 (crash in ci nightly)
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+
+# Test
+
+# Detected 2025-07-02 (crash in ci test)
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+# Detected 2025-07-01 (crash in ci test)
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+
+# Scan
+
+# Detected 2025-07-02 (crash in ci scan)
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+
+# Detected 2025-07-01 (crash in ci scan)
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 10, 'out_channels': 5, 'kernel_size': (74, 1), 'stride': (1579, 1), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(10, 10, 10000, 1)-None-None
+conv_transpose_2d-CONST_EVAL_PASS-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': True, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_ANOTHER_OP-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 2, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None
+conv_transpose_2d-FROM_HOST-{'in_channels': 64, 'out_channels': 51, 'kernel_size': (16, 27), 'stride': (24, 11), 'padding': 0, 'output_padding': 0, 'groups': 1, 'bias': False, 'dilation': 1, 'dtype': None}-(12, 64, 160, 96)-None-None

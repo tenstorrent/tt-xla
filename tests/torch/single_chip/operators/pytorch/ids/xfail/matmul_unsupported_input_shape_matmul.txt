@@ -1,0 +1,5 @@
+# xfail_matmul_UNSUPPORTED_INPUT_SHAPE_MATMUL ids
+
+matmul-FROM_ANOTHER_OP-None-((64,), (3, 1, 64, 32))-None-None
+matmul-FROM_HOST-None-((64,), (3, 1, 64, 32))-None-None
+matmul-CONST_EVAL_PASS-None-((64,), (3, 1, 64, 32))-None-None

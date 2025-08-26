@@ -1,0 +1,45 @@
+# Skip HIGH_MEMORY usage tests
+
+# From another operator occasionally makes issues
+matmul-FROM_ANOTHER_OP-None-(1000, 100)-None-None
+matmul-FROM_ANOTHER_OP-None-(1, 1000, 100)-None-None
+matmul-FROM_ANOTHER_OP-None-(10, 1000, 100)-None-None
+matmul-FROM_ANOTHER_OP-None-(1, 10, 1000, 100)-None-None
+matmul-FROM_ANOTHER_OP-None-(7, 10, 1000, 100)-None-None
+
+# matmul-FROM_HOST-None-(1000, 100)-None-None
+# matmul-FROM_HOST-None-(1, 1000, 100)-None-None
+# matmul-FROM_HOST-None-(10, 1000, 100)-None-None
+# matmul-FROM_HOST-None-(1, 10, 1000, 100)-None-None
+# matmul-FROM_HOST-None-(7, 10, 1000, 100)-None-None
+
+# # Const eval pass usually makes issues
+# matmul-CONST_EVAL_PASS-None-(1000, 100)-None-None
+# matmul-CONST_EVAL_PASS-None-(1, 1000, 100)-None-None
+# matmul-CONST_EVAL_PASS-None-(10, 1000, 100)-None-None
+# matmul-CONST_EVAL_PASS-None-(1, 10, 1000, 100)-None-None
+# matmul-CONST_EVAL_PASS-None-(7, 10, 1000, 100)-None-None
+
+
+# matmul-FROM_ANOTHER_OP-None-(10000, 1)-None-None
+# matmul-FROM_ANOTHER_OP-None-(1, 10000, 1)-None-None
+# matmul-FROM_ANOTHER_OP-None-(10, 10000, 1)-None-None
+# matmul-FROM_ANOTHER_OP-None-(1, 10, 10000, 1)-None-None
+# matmul-FROM_ANOTHER_OP-None-(10, 10, 10000, 1)-None-None
+
+# matmul-FROM_HOST-None-(10000, 1)-None-None
+# matmul-FROM_HOST-None-(1, 10000, 1)-None-None
+# matmul-FROM_HOST-None-(10, 10000, 1)-None-None
+# matmul-FROM_HOST-None-(1, 10, 10000, 1)-None-None
+# matmul-FROM_HOST-None-(10, 10, 10000, 1)-None-None
+
+# Const eval pass for "10000, 1" usually fails in github action
+matmul-CONST_EVAL_PASS-None-(10000, 1)-None-None
+matmul-CONST_EVAL_PASS-None-(1, 10000, 1)-None-None
+matmul-CONST_EVAL_PASS-None-(10, 10000, 1)-None-None
+# Detected 2025-07-01 (crash in ci test)
+# Detected 2025-06-27 (crash in ci test)
+# Detected 2025-07-02 (crash in ci scan)
+# Detected 2025-07-01 (crash in ci scan)
+matmul-CONST_EVAL_PASS-None-(1, 10, 10000, 1)-None-None
+matmul-CONST_EVAL_PASS-None-(10, 10, 10000, 1)-None-None

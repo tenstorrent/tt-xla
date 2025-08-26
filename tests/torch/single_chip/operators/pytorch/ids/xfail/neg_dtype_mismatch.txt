@@ -1,0 +1,6 @@
+# xfail_neg_DTYPE_MISMATCH ids
+
+neg-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-LoFi
+neg-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi2
+neg-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi3
+neg-FROM_HOST-None-(1, 2, 3, 4)-torch.bfloat16-HiFi4

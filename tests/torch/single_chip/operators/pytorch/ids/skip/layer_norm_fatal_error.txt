@@ -1,0 +1,4 @@
+
+# Detected 2025-06-13
+# Detected 2025-06-27 (crash in ci test)
+layer_norm-FROM_HOST-{'normalized_shape': (4,), 'dtype': torch.float16}-(1, 2, 3, 4)-torch.float16-HiFi4

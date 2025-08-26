@@ -1,0 +1,4 @@
+# xfail_embedding_OUT_OF_MEMORY ids
+
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int32}-(9920, 1)-torch.int32-None
+embedding-CONST_EVAL_PASS-{'num_embeddings': 5088, 'embedding_dim': 10000, 'weight_dtype': torch.bfloat16, 'input_dtype': torch.int64}-(9920, 1)-torch.int64-None

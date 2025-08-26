@@ -1,0 +1,4 @@
+conv2d-FROM_ANOTHER_OP-{'in_channels': 10, 'out_channels': 12, 'kernel_size': (29, 14), 'stride': 1, 'padding': (28, 13), 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': None}-(1, 10, 1000, 100)-None-None
+
+# Detected 2025-06-13
+conv2d-FROM_HOST-{'in_channels': 11, 'out_channels': 12, 'kernel_size': (8, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'groups': 1, 'bias': False, 'padding_mode': 'zeros', 'dtype': torch.float16}-(3, 11, 45, 17)-torch.float16-HiFi4

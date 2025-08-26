@@ -1,0 +1,3 @@
+# xfail_batch_norm_1d_AXIS_OUT_OF_BOUNDS ids
+
+batch_norm_1d-FROM_HOST-{'num_features': 64, 'track_running_stats': False}-(32, 64, 64)-None-None

@@ -1,0 +1,4 @@
+# xfail_div_DATA_MISMATCH_PCC_LOW_RANGE ids
+
+div-FROM_HOST-{'rounding_mode': None}-(1, 2, 3, 4)-torch.int64-HiFi4
+div-FROM_HOST-{}-(1, 2, 3, 4)-torch.int64-HiFi4

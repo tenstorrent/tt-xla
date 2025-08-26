@@ -1,0 +1,20 @@
+# xfail_layer_norm_DATA_MISMATCH_ALL_CLOSE ids
+
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (1,)}-(1, 1)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (3,)}-(89, 3)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (3,)}-(1, 89, 3)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (3,)}-(13, 89, 3)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (3,)}-(1, 13, 89, 3)-None-None
+layer_norm-FROM_ANOTHER_OP-{'normalized_shape': (3,)}-(14, 13, 89, 3)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (1,)}-(1, 1)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (3,)}-(89, 3)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (3,)}-(1, 89, 3)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (3,)}-(13, 89, 3)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (3,)}-(1, 13, 89, 3)-None-None
+layer_norm-FROM_HOST-{'normalized_shape': (3,)}-(14, 13, 89, 3)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (1,)}-(1, 1)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (3,)}-(89, 3)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (3,)}-(1, 89, 3)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (3,)}-(13, 89, 3)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (3,)}-(1, 13, 89, 3)-None-None
+layer_norm-CONST_EVAL_PASS-{'normalized_shape': (3,)}-(14, 13, 89, 3)-None-None

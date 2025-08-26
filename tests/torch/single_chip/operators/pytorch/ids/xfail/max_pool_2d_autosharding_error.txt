@@ -1,0 +1,82 @@
+# xfail_max_pool_2d_AUTOSHARDING_ERROR ids
+
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 2, 3, 4)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(2, 2, 3, 4)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 2, 3, 4)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(2, 2, 3, 4)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 2, 3, 4)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(2, 2, 3, 4)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (5, 5), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 26), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (5, 5), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (26, 26), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (5, 5), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 26), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 2), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 26), 'stride': 1, 'padding': (7, 7), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 1), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (26, 26), 'stride': 1, 'padding': (7, 7), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 1), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 26), 'stride': 1, 'padding': (7, 7), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': 1, 'padding': (2, 2), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 1), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 0), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 0), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': 1, 'padding': (1, 0), 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (5, 5), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (26, 26), 'stride': (5, 5), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': (4, 4), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 17, 41)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 13, 89, 3)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (13, 13), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (4, 4), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-FROM_ANOTHER_OP-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(14, 13, 89, 3)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (5, 5), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (26, 26), 'stride': (5, 5), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': (4, 4), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 17, 41)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 13, 89, 3)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (13, 13), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(14, 13, 89, 3)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (5, 5), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (26, 26), 'stride': (5, 5), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': (4, 4), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 11, 17, 41)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(1, 13, 89, 3)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (13, 13), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(6, 100, 100, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (4, 4), 'stride': (6, 6), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(7, 10, 1000, 100)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (2, 2), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(13, 11, 17, 41)-None-None
+max_pool_2d-CONST_EVAL_PASS-{'kernel_size': (1, 1), 'stride': (2, 2), 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(14, 13, 89, 3)-None-None
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.float32-HiFi4
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.int8-HiFi4
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.int32-HiFi4
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.int64-HiFi4
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.bfloat16-LoFi
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.bfloat16-HiFi2
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.bfloat16-HiFi3
+max_pool_2d-FROM_HOST-{'kernel_size': (4, 4), 'stride': 1, 'padding': 0, 'dilation': 1, 'return_indices': False, 'ceil_mode': False}-(3, 11, 45, 17)-torch.bfloat16-HiFi4

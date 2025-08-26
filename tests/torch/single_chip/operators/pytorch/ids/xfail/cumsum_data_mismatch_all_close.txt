@@ -1,0 +1,221 @@
+# xfail_cumsum_DATA_MISMATCH_ALL_CLOSE ids
+
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 500)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 1000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 1920)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 10000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(45, 17)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(10, 1000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(9920, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(10000, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(17, 41)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(89, 3)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 45, 17)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 10, 1000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 9920, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 10000, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 17, 41)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 89, 3)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(11, 45, 17)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(11, 64, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(10, 10000, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(11, 17, 41)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(13, 89, 3)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 11, 45, 17)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 11, 64, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 1, 10, 1000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 1, 9920, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 10, 10000, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(1, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(1, 11, 17, 41)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(1, 13, 89, 3)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(3, 11, 45, 17)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(5, 11, 64, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(6, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(6, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(6, 100, 100, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(7, 10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(7, 10, 1000, 100)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(8, 1, 10, 1000)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(9, 1, 9920, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(10, 10, 10000, 1)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(11, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(11, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(11, 32, 32, 64)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 0}-(12, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 1}-(12, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(12, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(12, 64, 160, 96)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 3}-(13, 11, 17, 41)-None-None
+cumsum-FROM_ANOTHER_OP-{'dim': 2}-(14, 13, 89, 3)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 500)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 1000)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 1920)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 10000)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(10, 1000)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(9920, 1)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(10000, 1)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 10, 1000)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 9920, 1)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 10000, 1)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(10, 10000, 1)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 0}-(64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(11, 17, 41)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(13, 89, 3)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 1, 10, 1000)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 1, 9920, 1)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 10, 10000, 1)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(1, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(1, 11, 17, 41)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(1, 13, 89, 3)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(6, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(6, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(6, 100, 100, 100)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(7, 10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(7, 10, 1000, 100)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(8, 1, 10, 1000)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(9, 1, 9920, 1)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(10, 10, 10000, 1)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(11, 32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(11, 32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(11, 32, 32, 64)-None-None
+cumsum-FROM_HOST-{'dim': 1}-(12, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(12, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(12, 64, 160, 96)-None-None
+cumsum-FROM_HOST-{'dim': 3}-(13, 11, 17, 41)-None-None
+cumsum-FROM_HOST-{'dim': 2}-(14, 13, 89, 3)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 500)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 1000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 1920)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 10000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(10, 1000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(9920, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(10000, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 10, 1000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 9920, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 10000, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(10, 10000, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 0}-(64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(11, 17, 41)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(13, 89, 3)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 1, 10, 1000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 1, 9920, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 10, 10000, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(1, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(1, 11, 17, 41)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(1, 13, 89, 3)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(3, 11, 45, 17)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(5, 11, 64, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(6, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(6, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(6, 100, 100, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(7, 10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(7, 10, 1000, 100)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(8, 1, 10, 1000)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(9, 1, 9920, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(10, 10, 10000, 1)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(11, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(11, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(11, 32, 32, 64)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 1}-(12, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(12, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(12, 64, 160, 96)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 3}-(13, 11, 17, 41)-None-None
+cumsum-CONST_EVAL_PASS-{'dim': 2}-(14, 13, 89, 3)-None-None

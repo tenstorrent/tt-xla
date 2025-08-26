@@ -1,0 +1,89 @@
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 1}-(89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(1, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 2}-(13, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(3, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(2, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(10, 10, 10000, 1)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 1}-(1, 4)-None-None
+softmax-FROM_HOST-{'dim': 1}-(3, 4)-None-None
+softmax-FROM_HOST-{'dim': 1}-(64, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 1}-(89, 3)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(1, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 2}-(2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 2}-(11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 2}-(13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 3}-(2, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(10, 10, 10000, 1)-None-None
+softmax-FROM_HOST-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 1}-(89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(1, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 2}-(13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(1, 13, 89, 3)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(5, 11, 64, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(9, 1, 9920, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(10, 10, 10000, 1)-None-None
+softmax-CONST_EVAL_PASS-{'dim': 3}-(14, 13, 89, 3)-None-None
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-torch.float32-HiFi4
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-LoFi
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-HiFi2
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-HiFi3
+softmax-FROM_HOST-{'dim': 3}-(1, 2, 3, 4)-None-HiFi4
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(2, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(2, 2, 3, 4)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(1, 11, 45, 17)-None-None
+softmax-FROM_ANOTHER_OP-{'dim': -1}-(3, 11, 45, 17)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-None
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.float32-HiFi4
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-torch.bfloat16-HiFi4
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-LoFi
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-HiFi2
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-HiFi3
+softmax-FROM_HOST-{'dim': -1}-(1, 2, 3, 4)-None-HiFi4
