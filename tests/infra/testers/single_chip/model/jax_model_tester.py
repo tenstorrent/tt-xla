@@ -12,7 +12,7 @@ from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model, PyTree
-from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
@@ -107,10 +107,9 @@ class JaxModelTester(ModelTester):
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
-        self._workload = WorkloadFactory.create_workload(
-            self._framework,
+        self._workload = Workload(
+            framework=self._framework,
             executable=forward_pass_method,
-            model=self._model,
             args=args,
             kwargs=kwargs,
             static_argnames=forward_static_args,
@@ -156,6 +155,29 @@ class JaxModelTester(ModelTester):
         """
         return []
 
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+
+        workload.executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
+            compiler_options={"optimize": str(self._use_optimizer)},
+        )
+        return workload
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+
+        workload.executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
+        )
+        return workload
+
     def __del__(self):
         if hasattr(self, "_model_path"):
             try:
@@ -169,24 +191,3 @@ class JaxModelTester(ModelTester):
                 )
             except Exception as e:
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
-
-    # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-            compiler_options={"optimize": str(self._use_optimizer)},
-        )
-        return workload
-
-    # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-        )
-        return workload

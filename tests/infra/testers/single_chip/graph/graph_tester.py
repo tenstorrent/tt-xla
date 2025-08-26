@@ -8,7 +8,7 @@ from typing import Callable, Sequence
 
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Tensor
-from infra.workloads import WorkloadFactory
+from infra.workloads.workload import Workload
 
 from ..op.op_tester import OpTester
 
@@ -34,7 +34,7 @@ def run_graph_test(
     results based on `comparison_config`.
     """
     tester = GraphTester(comparison_config, framework)
-    workload = WorkloadFactory.create_workload(framework, executable=graph, args=inputs)
+    workload = Workload(framework=framework, executable=graph, args=inputs)
     tester.test(workload)
 
 
