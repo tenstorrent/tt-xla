@@ -8,7 +8,7 @@ from typing import Any, Dict, Mapping, Sequence
 import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model
-from infra.workloads import TorchWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload
 from tt_torch.tools.utils import CompilerConfig
 
 from .model_tester import ModelTester, RunMode
@@ -108,5 +108,7 @@ class TorchModelTester(ModelTester):
     ) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
-        workload.model.compile(backend=backend, options=self._compiler_config)
+        workload.model.compile(
+            backend=backend, options=self._compiler_config if backend == "tt" else None
+        )
         return workload
