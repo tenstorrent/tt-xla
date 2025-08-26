@@ -15,8 +15,9 @@ from utils import (
 )
 
 from .tester import ResnetTester
+from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 
-VARIANT_NAME = "microsoft/resnet-50"
+VARIANT_NAME = ModelVariant.RESNET_50_HF
 
 
 MODEL_NAME = build_model_name(
