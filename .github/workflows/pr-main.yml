@@ -16,9 +16,6 @@ jobs:
   pre-commit:
     uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
-  spdx:
-    uses: ./.github/workflows/spdx.yml
-    secrets: inherit
 
   check-files:
     runs-on: ubuntu-latest
