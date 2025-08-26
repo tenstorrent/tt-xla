@@ -7,7 +7,8 @@ from typing import Any, Dict, Mapping, Sequence
 
 import torch
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Model
+from tests.infra.testers.compiler_config import CompilerConfig
+from infra.utilities import Framework
 from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
@@ -30,11 +31,12 @@ class TorchModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
 
-        super().__init__(comparison_config, run_mode, Framework.TORCH)
+        super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -79,25 +81,24 @@ class TorchModelTester(ModelTester):
         return {}
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """Compiles `workload` for CPU."""
-        return self._compile(workload)
+        self._compile(workload)
 
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels.
 
         Compiles for inductor backend by default.
         """
-        return self._compile_for_backend(workload, backend="inductor")
+        self._compile_for_backend(workload, backend="inductor")
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(workload, backend="openxla")
+        self._compile_for_backend(workload, backend="openxla")
 
-    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
+    def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
 
         workload.model.compile(backend=backend)
-        return workload
