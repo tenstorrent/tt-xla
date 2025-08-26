@@ -469,7 +469,8 @@ class Gemma3Attention(nnx.Module):
             attn_weights = attn_weights + attention_mask.astype(self.config.dtype)
         else:
             # 1. Causal/Sliding Window Mask [1, 1, q_len, kv_seq_len]
-            attn_internal_mask = self._make_sliding_window_mask(q_len, kv_seq_len, dtype=jnp.bool_)
+            attn_internal_mask = self._make_sliding_window_mask(kv_seq_len, kv_seq_len, dtype=jnp.bool_)
+            attn_internal_mask = attn_internal_mask[:, :, -q_len:, :]
             # 2. Combine with padding mask if provided (boolean 2D mask [B, kv_seq_len])
             if attention_mask is not None:
                 # Ensure shape [B, kv_seq_len]
@@ -703,7 +704,7 @@ class Gemma3ForCausalLM(BaseModel):
             hidden_states, updated_layer_cache = layer(
                 hidden_states,
                 position_ids,
-                attention_mask=attn_mask_4d,  # Pass the 4D log-mask [B, 1, 1, kv_len]
+                attention_mask=None,  # Pass the 4D log-mask [B, 1, 1, kv_len]
                 cache=layer_cache,
                 deterministic=deterministic,
             )

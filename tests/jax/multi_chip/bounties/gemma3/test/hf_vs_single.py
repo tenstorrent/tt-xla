@@ -97,6 +97,7 @@ def run_comparison_test(model_id: str, prompt: str):
     # Setting up the config for both models
     config = AutoConfig.from_pretrained(model_id)
     config.text_config.num_hidden_layers = 2
+    config.text_config.sliding_window = 16
     config.vision_config.num_hidden_layers = 2
     config.text_config._attn_implementation = "eager"
 
