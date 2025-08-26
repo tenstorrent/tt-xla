@@ -1,0 +1,136 @@
+name: On PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      run_perf_benchmark:
+        description: 'Run performance benchmark'
+        required: false
+        type: boolean
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  packages: write
+  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+    secrets: inherit
+  spdx:
+    uses: ./.github/workflows/spdx.yml
+    secrets: inherit
+
+  check-files:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if ignored files are modified
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          all_match=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
+            for file in $CHANGED_FILES;
+            do
+              if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
+                all_match=false
+                break
+              fi
+            done
+          else
+            all_match=false
+          fi
+          if [ "$all_match" = true ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "> --- Build is skipped. Files in PR:"
+            echo "$CHANGED_FILES"
+            echo "< ---"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "> Build is required."
+          fi
+
+  build-image:
+    needs: [ pre-commit, spdx, check-files ]
+    if: needs.check-files.outputs.skip == 'false'
+    uses: ./.github/workflows/build-image.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override}}
+
+  build-ttxla-codecov:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with code coverage"
+    secrets: inherit
+    needs: [ check-files, build-image ]
+    if: needs.check-files.outputs.skip == 'false'
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override}}
+      debug_build: true
+
+  build-ttxla-release:
+    if: needs.check-files.outputs.skip == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla release"
+    secrets: inherit
+    needs: [ check-files, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override}}
+
+  test:
+    needs: [ check-files, build-image, build-ttxla-codecov ]
+    if: needs.check-files.outputs.skip == 'false'
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      codecov: true
+      test_mark: 'push'
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      use-shared-runners: false # Run PR on VMs
+      artifact_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
+
+  perf-benchmark:
+    if: needs.check-files.outputs.skip == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    needs: [ check-files, build-image, build-ttxla-release ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ github.run_id }}
+      run_id_source: tt-xla
+      ref: main
+
+  check-all-green:
+    if: always()
+    needs:
+      - pre-commit
+      - spdx
+      - check-files
+      - build-image
+      - build-ttxla-codecov
+      - test
+    runs-on: Ubuntu-latest
+    steps:
+    - name: Check if the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
+      with:
+        allowed-skips: build-image, build-ttxla-codecov, test
+        jobs: ${{ toJSON(needs) }}
