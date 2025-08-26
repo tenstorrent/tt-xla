@@ -25,37 +25,3 @@ if spec is not None:
 import tt_torch.backend.backend
 
 torch_xla.runtime.set_device_type("TT")
-
-# class TTPjrtPlugin(plugins.DevicePlugin):
-#     def library_path(self):
-#         # This is where the pjrt plugin will be located if you've built and installed from source
-#         direct_build_install_path = os.path.join(
-#             os.path.dirname(__file__), "../install/lib/pjrt_plugin_tt.so"
-#         )
-#         if os.path.exists(direct_build_install_path):
-#             return direct_build_install_path
-
-#         # This is where the pjrt plugin will be located if you've installed the tt-torch wheel into a virtual environment
-#         env_path = os.path.join(os.path.dirname(__file__), "../../../pjrt_plugin_tt.so")
-#         if os.path.exists(env_path):
-#             return env_path
-
-#         # This is where the pjrt plugin will be located if you've only built and installed the wheel - but you're running your code with the root of the source tree (CI does this)
-#         source_path = os.path.join(
-#             os.path.dirname(__file__), "../env/venv/lib/pjrt_plugin_tt.so"
-#         )
-#         if os.path.exists(source_path):
-#             return source_path
-
-#         tt_xla_build_path = os.path.join(
-#             os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
-#         )
-#         if os.path.exists(tt_xla_build_path):
-#             return tt_xla_build_path
-
-#         assert False, "Could not find pjrt_plugin_tt.so"
-
-
-# plugins.register_plugin("TT", TTPjrtPlugin())
-# os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-# os.environ["PJRT_DEVICE"] = "TT"
