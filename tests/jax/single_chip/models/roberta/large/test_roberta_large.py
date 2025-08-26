@@ -11,11 +11,12 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
-
+from third_party.tt_forge_models.roberta.masked_lm.jax import ModelVariant
 from ..tester import FlaxRobertaForMaskedLMTester
 
-MODEL_PATH = "FacebookAI/roberta-large"
+VARIANT_NAME = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "roberta",
@@ -29,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -46,7 +47,13 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9337786436080933. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTester):
     inference_tester.test()
