@@ -180,6 +180,8 @@ jobs:
           tests/runner/test_models.py::test_all_models[mobilenetv2/pytorch-mobilenet_v2-full-inference] \
           tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono+stereo_640x192-full-inference] \
           tests/runner/test_models.py::test_all_models[vgg/pytorch-vgg11-full-inference] \
+          tests/runner/test_models.py::test_all_models[deepseek/pytorch-full-inference] \
+          tests/runner/test_models.py::test_all_models[segformer/pytorch-mit_b0-full-inference] \
           tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference] \
           tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference] \
           tests/runner/test_models.py::test_all_models[mobilenetv2/pytorch-mobilenet_v2_torchvision-full-inference] \
