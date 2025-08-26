@@ -110,7 +110,7 @@ jobs:
   perf-benchmark:
     if: needs.check-files.outputs.skip == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
     needs: [ check-files, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/wheel-artifact-regex-name-support
     secrets: inherit
     with:
       project: tt-xla
