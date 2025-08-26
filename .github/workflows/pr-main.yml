@@ -48,6 +48,16 @@ jobs:
       mlir_override: ${{ inputs.mlir_override}}
       debug_build: true
 
+  build-ttxla-release:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla release"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override}}
+
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -61,6 +71,17 @@ jobs:
       artifact_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
+
+  perf-benchmark:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/wheel-artifact-regex-name-support
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ github.run_id }}
+      run_id_source: tt-xla
+      ref: main
 
   check-all-green:
     if: always()
