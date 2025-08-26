@@ -129,7 +129,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Generate sample inputs for WideResnet models."""
         # Get the Image
         image_file = get_file(
@@ -160,6 +160,9 @@ class ModelLoader(ForgeModel):
                 ]
             )
             inputs = preprocess(input_image).unsqueeze(0)
+
+        # Replicate tensors for batch size
+        inputs = inputs.repeat_interleave(batch_size, dim=0)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

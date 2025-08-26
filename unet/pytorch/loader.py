@@ -46,6 +46,9 @@ class ModelVariant(StrEnum):
     # TorchHub brain segmentation UNet
     TORCHHUB_BRAIN_UNET = "torchhub_brain_unet"
 
+    # Carvana UNet (in-repo fallback)
+    CARVANA_UNET = "carvana_unet"
+
 
 class ModelLoader(ForgeModel):
     """UNet model loader implementation supporting multiple sources."""
@@ -65,6 +68,10 @@ class ModelLoader(ForgeModel):
             source=ModelSource.TORCH_HUB,
             hub_repo="mateuszbuda/brain-segmentation-pytorch",
             hub_model="unet",
+        ),
+        ModelVariant.CARVANA_UNET: UnetConfig(
+            pretrained_model_name="carvana_unet",
+            source=ModelSource.CUSTOM,
         ),
     }
 
@@ -133,7 +140,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         cfg = self._variant_config
         source = cfg.source
 
@@ -178,5 +185,8 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             inputs = inputs.to(dtype_override)
+
+        # Replicate tensors for batch size
+        inputs = inputs.repeat_interleave(batch_size, dim=0)
 
         return inputs

@@ -48,8 +48,8 @@ class ModelVariant(StrEnum):
     VOVNET57 = "vovnet57"
 
     # TorchHub variant
-    VOVNET39_TORCHHUB = "vovnet39"
-    VOVNET57_TORCHHUB = "vovnet57"
+    VOVNET39_TORCHHUB = "vovnet39_th"
+    VOVNET57_TORCHHUB = "vovnet57_th"
 
     # TIMM image classification variants (subset)
     TIMM_VOVNET19B_DW = "ese_vovnet19b_dw"

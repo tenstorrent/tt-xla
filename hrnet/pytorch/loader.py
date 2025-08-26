@@ -50,15 +50,15 @@ class ModelVariant(StrEnum):
     HRNET_W18_MS_AUG_IN1K = "hrnet_w18.ms_aug_in1k"
 
     # OSMR (pytorchcv) variants
-    HRNET_W18_SMALL_V1_OSMR = "hrnet_w18_small_v1"
-    HRNET_W18_SMALL_V2_OSMR = "hrnet_w18_small_v2"
-    HRNETV2_W18_OSMR = "hrnetv2_w18"
-    HRNETV2_W30_OSMR = "hrnetv2_w30"
-    HRNETV2_W32_OSMR = "hrnetv2_w32"
-    HRNETV2_W40_OSMR = "hrnetv2_w40"
-    HRNETV2_W44_OSMR = "hrnetv2_w44"
-    HRNETV2_W48_OSMR = "hrnetv2_w48"
-    HRNETV2_W64_OSMR = "hrnetv2_w64"
+    HRNET_W18_SMALL_V1_OSMR = "hrnet_w18_small_v1_osmr"
+    HRNET_W18_SMALL_V2_OSMR = "hrnet_w18_small_v2_osmr"
+    HRNETV2_W18_OSMR = "hrnetv2_w18_osmr"
+    HRNETV2_W30_OSMR = "hrnetv2_w30_osmr"
+    HRNETV2_W32_OSMR = "hrnetv2_w32_osmr"
+    HRNETV2_W40_OSMR = "hrnetv2_w40_osmr"
+    HRNETV2_W44_OSMR = "hrnetv2_w44_osmr"
+    HRNETV2_W48_OSMR = "hrnetv2_w48_osmr"
+    HRNETV2_W64_OSMR = "hrnetv2_w64_osmr"
 
 
 class ModelLoader(ForgeModel):

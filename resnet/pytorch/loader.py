@@ -45,7 +45,7 @@ class ModelVariant(StrEnum):
     RESNET_50_HF = "resnet_50_hf"
 
     # TIMM variants
-    RESNET_50_TIMM = "resnet50"
+    RESNET_50_TIMM = "resnet50_timm"
 
     # Torchvision variants
     RESNET_18 = "resnet18"

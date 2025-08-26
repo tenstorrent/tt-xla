@@ -220,6 +220,9 @@ class ModelLoader(ForgeModel):
             )
             inputs = preprocess(image).unsqueeze(0)
 
+        # Replicate tensors for batch size
+        inputs = inputs.repeat_interleave(batch_size, dim=0)
+
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             inputs = inputs.to(dtype_override)
