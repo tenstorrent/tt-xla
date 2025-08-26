@@ -52,7 +52,7 @@ jobs:
           fi
 
   build-image:
-    needs: [ pre-commit, spdx, check-files ]
+    needs: [ pre-commit, check-files ]
     if: needs.check-files.outputs.skip == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
@@ -88,7 +88,6 @@ jobs:
     if: always()
     needs:
       - pre-commit
-      - spdx
       - check-files
       - build-image
       - build-ttxla-codecov
