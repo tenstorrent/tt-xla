@@ -42,7 +42,7 @@ def training_tester(request) -> MnistMLPMultichipTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -60,7 +60,7 @@ def test_mnist_mlp_multichip_llmbox_1x8_inference(
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -78,7 +78,7 @@ def test_mnist_mlp_multichip_llmbox_1x8_inference_shardy(
         inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

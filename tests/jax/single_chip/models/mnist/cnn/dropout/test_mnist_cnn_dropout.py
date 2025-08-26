@@ -41,7 +41,7 @@ def training_tester() -> MNISTCNNTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -54,7 +54,7 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

@@ -8,7 +8,7 @@ from infra import run_op_test_with_random_inputs
 from utils import Category, convert_output_to_bfloat16
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -31,7 +31,7 @@ def test_compare_equal(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(equal, [x_shape, y_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -54,7 +54,7 @@ def test_compare_not_equal(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(not_equal, [x_shape, y_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -77,7 +77,7 @@ def test_compare_greater(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(greater, [x_shape, y_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -100,7 +100,7 @@ def test_compare_greater_equal(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(greater_equal, [x_shape, y_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -123,7 +123,7 @@ def test_compare_less(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(less, [x_shape, y_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

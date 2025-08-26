@@ -41,7 +41,7 @@ def training_tester(request) -> MNISTMLPTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -65,7 +65,7 @@ def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -81,7 +81,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

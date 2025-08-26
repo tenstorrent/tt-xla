@@ -20,7 +20,7 @@ def conditionally_skip(start_index_map: tuple):
         pytest.xfail("Test cases that index multiple dimensions need integer inputs")
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

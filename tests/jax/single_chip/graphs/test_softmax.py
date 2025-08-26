@@ -24,7 +24,7 @@ def conditionally_skip(x_shape: tuple, axis: int):
         )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.parametrize(

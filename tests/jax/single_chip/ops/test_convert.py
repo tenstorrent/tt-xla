@@ -159,7 +159,7 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
         )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

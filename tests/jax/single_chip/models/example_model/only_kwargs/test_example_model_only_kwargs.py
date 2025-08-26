@@ -78,12 +78,12 @@ def training_tester() -> ExampleModelOnlyKwargsTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyKwargsTester):
     training_tester.test()

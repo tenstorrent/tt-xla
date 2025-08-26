@@ -8,7 +8,7 @@ from infra import run_graph_test_with_random_inputs
 from utils import Category
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)])
