@@ -22,7 +22,7 @@ permissions:
 
 jobs:
 
-  build:
+  build-docs:
     runs-on: ubuntu-latest
 
     container:
