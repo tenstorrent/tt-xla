@@ -48,3 +48,9 @@ scikit-image>=0.24 # For DenseNet 121 HF XRay model
 ase==3.24.0 # For hippynn
 hippynn==0.0.3
 pycocotools # for yolox
+
+surya-ocr==0.13.0
+peft
+bi-lstm-crf==0.2.1
+yolov5
+patool
