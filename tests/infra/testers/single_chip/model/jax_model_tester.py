@@ -191,7 +191,7 @@ class JaxModelTester(ModelTester):
                 )
             except Exception as e:
                 logger.warning(f"Error during cache cleanup in __del__: {e}")
-    
+
     # @override
     def _test_training(self):
         """
