@@ -13,7 +13,7 @@ else
     [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
   else
     echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-    python3.10 -m venv $TTMLIR_VENV_DIR
+    python3.11 -m venv $TTMLIR_VENV_DIR
     source $TTMLIR_VENV_DIR/bin/activate
     pip install --upgrade pip
     # Requirements for third party projects are installed during their build in `CMakeLists.txt`
