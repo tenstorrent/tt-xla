@@ -17,43 +17,19 @@ jobs:
     uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
 
-  check-files:
+  inspect-changes:
     runs-on: ubuntu-latest
     outputs:
-      skip: ${{ steps.check.outputs.skip }}
+      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
+      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
+      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Check if ignored files are modified
-        id: check
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          all_match=true
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
-            for file in $CHANGED_FILES;
-            do
-              if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* ]]; then
-                all_match=false
-                break
-              fi
-            done
-          else
-            all_match=false
-          fi
-          if [ "$all_match" = true ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "> --- Build is skipped. Files in PR:"
-            echo "$CHANGED_FILES"
-            echo "< ---"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "> Build is required."
-          fi
+      - uses: ./.github/actions/inspect-changes
+        id: inspect
 
   build-image:
-    needs: [ pre-commit, check-files ]
-    if: needs.check-files.outputs.skip == 'false'
+    needs: [ pre-commit, inspect-changes ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
@@ -63,16 +39,16 @@ jobs:
     uses: ./.github/workflows/call-build.yml
     name: "Build tt-xla with code coverage"
     secrets: inherit
-    needs: [ check-files, build-image ]
-    if: needs.check-files.outputs.skip == 'false'
+    needs: [ inspect-changes, build-image ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override}}
       debug_build: true
 
   test:
-    needs: [ check-files, build-image, build-ttxla-codecov ]
-    if: needs.check-files.outputs.skip == 'false'
+    needs: [ inspect-changes, build-image, build-ttxla-codecov ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
@@ -88,9 +64,6 @@ jobs:
     if: always()
     needs:
       - pre-commit
-      - check-files
-      - build-image
-      - build-ttxla-codecov
       - test
     runs-on: Ubuntu-latest
     steps:
