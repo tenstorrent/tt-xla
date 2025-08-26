@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+import os
+import shutil
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,
@@ -14,16 +16,15 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import BertTester
+from .tester import Monodepth2Tester
 
-VARIANT_NAME = "base"
-
+VARIANT_NAME = "mono_640x192"
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "bert",
+    "monodepth2",
     "base",
-    ModelTask.NLP_QA,
+    ModelTask.CV_DEPTH_EST,
     ModelSource.HUGGING_FACE,
 )
 
@@ -32,13 +33,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> BertTester:
-    return BertTester(VARIANT_NAME)
+def inference_tester() -> Monodepth2Tester:
+    return Monodepth2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> BertTester:
-    return BertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> Monodepth2Tester:
+    return Monodepth2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,11 +55,11 @@ def training_tester() -> BertTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
+        "failed to legalize operation 'ttir.reverse' "
+        "https://github.com/tenstorrent/tt-xla/issues/736"
     )
 )
-def test_torch_bert_inference(inference_tester: BertTester):
+def test_torch_monodepth2_inference(inference_tester: Monodepth2Tester):
     inference_tester.test()
 
 
@@ -70,5 +71,5 @@ def test_torch_bert_inference(inference_tester: BertTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_bert_training(training_tester: BertTester):
+def test_torch_monodepth2_training(training_tester: Monodepth2Tester):
     training_tester.test()

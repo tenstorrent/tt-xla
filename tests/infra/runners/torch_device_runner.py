@@ -7,7 +7,7 @@ from typing import Sequence
 import torch
 from infra.connectors import DeviceType
 from infra.utilities import Device, Tensor
-from infra.workloads import TorchWorkload, Workload
+from infra.workloads import Workload
 
 from .device_runner import DeviceRunner
 
@@ -15,28 +15,13 @@ from .device_runner import DeviceRunner
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
-    # -------------------- Private methods --------------------
-
-    # --- Overrides ---
-
     # @override
-    def _run_on_device(
-        self, workload: Workload, device_type: DeviceType, device_num: int = 0
-    ) -> Tensor:
-        device = self._device_connector.connect_device(device_type, device_num)
-        device_workload = self._put_on_device(workload, device=device)
-
+    def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
         # TODO this context manager disables gradient calculation to save memory. We
         # will need to enable it for training.
-        with torch.no_grad():
-            return device_workload.execute()
 
-    # @override
-    def _put_tensors_on_device(
-        self, device_type: DeviceType, tensors: Sequence[Tensor]
-    ) -> Sequence[Tensor]:
-        device = self._device_connector.connect_device(device_type)
-        return [t.to(device) for t in tensors]
+        with torch.no_grad():
+            return workload.execute()
 
     # @override
     def _safely_put_workload_on_device(
@@ -47,7 +32,7 @@ class TorchDeviceRunner(DeviceRunner):
         puts model if workload is carrying one on device. Returns new workload which is
         "on device".
         """
-        assert isinstance(workload, TorchWorkload)
+        assert workload.is_torch, "Workload must be Torch workload to put on device"
 
         args_on_device = []
         kwargs_on_device = {}
@@ -67,9 +52,10 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
-        return TorchWorkload.create(
-            workload.executable,  # Unchanged.
-            workload.model,  # Moved to device if not None.
-            args_on_device,
-            kwargs_on_device,
+        return Workload(
+            framework=workload.framework,
+            model=workload.model,  # Moved to device if not None.
+            executable=workload.executable,  # Unchanged.
+            args=args_on_device,
+            kwargs=kwargs_on_device,
         )

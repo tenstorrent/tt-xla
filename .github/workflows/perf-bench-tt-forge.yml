@@ -37,7 +37,7 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
   build:
     needs: docker-build
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}

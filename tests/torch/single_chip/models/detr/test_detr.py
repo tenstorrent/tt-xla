@@ -13,10 +13,12 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.detr.object_detection.pytorch.loader import (
+    ModelVariant,
+)
 from .tester import DETRTester
 
-VARIANT_NAME = "detr_resnet50"
+VARIANT_NAME = ModelVariant.RESNET_50
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

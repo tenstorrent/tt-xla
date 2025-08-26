@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.t5.pytorch import ModelVariant
 from .tester import T5Tester
 
-VARIANT_NAME = "t5-small"
+VARIANT_NAME = ModelVariant.SMALL
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

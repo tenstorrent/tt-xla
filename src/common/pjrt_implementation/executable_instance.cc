@@ -15,9 +15,9 @@
 #include <string>
 
 // tt-xla includes
-#include "common/module_builder.h"
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/module_builder/module_builder.h"
 #include "common/pjrt_implementation/serialized_executable_instance.h"
 #include "common/status.h"
 
@@ -109,8 +109,8 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
       ExecutableInstance::unwrap(args->executable);
 
   PJRT_Program *program = args->program;
-  program->format = ModuleBuilder::c_mlir_format_name.data();
-  program->format_size = ModuleBuilder::c_mlir_format_name.size();
+  program->format = module_builder::c_mlir_format_name.data();
+  program->format_size = module_builder::c_mlir_format_name.size();
 
   const std::string &original_mlir_code =
       executable_instance->getExecutableImage()->getOriginalMlirCode();

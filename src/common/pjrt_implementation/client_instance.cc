@@ -24,17 +24,17 @@
 #include <google/protobuf/unknown_field_set.h>
 
 // tt-xla includes
-#include "common/module_builder.h"
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
+#include "common/pjrt_implementation/module_builder/module_builder.h"
 
 namespace tt::pjrt {
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
-      m_module_builder(std::make_unique<ModuleBuilder>()) {
+      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
   // TODO(mrakita): Add support for multi-process environment. Process index is
@@ -431,7 +431,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
                                         args->compile_options_size);
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
-  if (program_format != ModuleBuilder::c_mlir_format_name) {
+  if (program_format != module_builder::c_mlir_format_name) {
     DLOG_F(ERROR,
            "Program code format \"%s\" is not supported, only MLIR format is "
            "currently supported",

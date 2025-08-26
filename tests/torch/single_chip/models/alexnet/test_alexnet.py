@@ -12,10 +12,10 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.alexnet.pytorch.loader import ModelVariant
 from .tester import AlexNetTester
 
-VARIANT_NAME = "alexnet"
+VARIANT_NAME = ModelVariant.ALEXNET_TORCH_HUB
 
 
 MODEL_NAME = build_model_name(

@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.wide_resnet.pytorch import ModelVariant
 from .tester import WideResNetTester
 
-VARIANT_NAME = "wide_resnet50_2"
+VARIANT_NAME = ModelVariant.WIDE_RESNET50_2
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

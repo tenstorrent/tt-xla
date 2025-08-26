@@ -14,8 +14,9 @@ from utils import (
 )
 
 from ..tester import FlaxBertForMaskedLMTester
+from third_party.tt_forge_models.bert.masked_lm.jax import ModelVariant
 
-MODEL_PATH = "google-bert/bert-large-uncased"
+MODEL_VARIANT = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "bert",
@@ -29,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxBertForMaskedLMTester:
-    return FlaxBertForMaskedLMTester(MODEL_PATH)
+    return FlaxBertForMaskedLMTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBertForMaskedLMTester:
-    return FlaxBertForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxBertForMaskedLMTester(MODEL_VARIANT, RunMode.TRAINING)
 
 
 # ----- Tests -----

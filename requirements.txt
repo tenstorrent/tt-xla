@@ -30,5 +30,12 @@ timm
 torch==2.7.0
 torch_xla==2.7.0
 torchvision
+torchxrayvision
 transformers
 wheel
+
+# vgg model
+vgg_pytorch
+
+# monodepth2 model
+matplotlib

@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_runtime,
 )
 
 from ..tester import XLMRobertaTester
@@ -46,7 +47,14 @@ def training_tester() -> XLMRobertaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] "
+        "grow to 2101768 B which is beyond max L1 size of 1572864 B "
+        "https://github.com/tenstorrent/tt-xla/issues/1066"
+    )
 )
 def test_xlm_roberta_base_inference(inference_tester: XLMRobertaTester):
     inference_tester.test()

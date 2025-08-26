@@ -14,9 +14,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.xception.pytorch import ModelVariant
 from .tester import XceptionTester
 
-VARIANT_NAME = "xception65"
+VARIANT_NAME = ModelVariant.XCEPTION65
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

@@ -4,8 +4,9 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.bert.question_answering.pytorch.loader import (
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader,
+    ModelVariant,
 )
 
 
@@ -14,7 +15,7 @@ class BertTester(TorchModelTester):
 
     def __init__(
         self,
-        variant_name: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:

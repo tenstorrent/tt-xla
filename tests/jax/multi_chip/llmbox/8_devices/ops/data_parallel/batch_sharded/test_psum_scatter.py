@@ -18,13 +18,6 @@ def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
 
     Extracted here in order not to pollute the test function.
     """
-    if len(x_shape) < 4:
-        pytest.xfail(
-            failed_runtime(
-                "No support for rank 2 tensors in reduce scatter: "
-                "https://github.com/tenstorrent/tt-metal/issues/15010"
-            )
-        )
     if mesh_shape[0] == 1 and mesh_shape[1] == 8:
         pytest.skip(failed_runtime("Floating point exception"))
 

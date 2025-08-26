@@ -20,12 +20,9 @@ jobs:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
       docker-tag: ${{ steps.build.outputs.docker-tag }}
-    runs-on: ubuntu-latest
+    runs-on: tt-ubuntu-2204-large-stable
     name: "Build Docker Image"
     steps:
-      - name: Maximize space
-        uses: tenstorrent/tt-github-actions/.github/actions/maximize_space@main
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:

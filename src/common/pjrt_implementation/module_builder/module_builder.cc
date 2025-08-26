@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "common/module_builder.h"
+#include "common/pjrt_implementation/module_builder/module_builder.h"
 
 // c++ standard library includes
+#include <cassert>
 #include <cstdlib>
 #include <numeric>
 #include <optional>
@@ -60,10 +61,11 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
-namespace tt::pjrt {
+namespace tt::pjrt::module_builder {
 
-const std::string ModuleBuilder::c_mlir_format_name = "mlir";
+const std::string c_mlir_format_name = "mlir";
 
 ModuleBuilder::ModuleBuilder()
     : m_context(std::make_unique<mlir::MLIRContext>()),
@@ -97,10 +99,12 @@ ModuleBuilder::ModuleBuilder()
 tt_pjrt_status ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
-    const std::unordered_map<std::string, std::string> &compile_options) {
+    const std::unordered_map<std::string, std::string> &compile_options_map) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
+
+  auto compile_options = CompileOptions::parse(compile_options_map);
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -112,11 +116,17 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  runFrontendSHLOPipeline(mlir_module);
+  if (!tt_pjrt_status_is_ok(m_status)) {
+    return m_status;
+  }
+
   collectInputShardings(mlir_module);
   collectOutputShardings(mlir_module);
+  collectInputArgumentRoles(mlir_module);
   collectOutputTypes(mlir_module);
 
-  runStableHLOPipeline(mlir_module);
+  runCompilerStableHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -129,7 +139,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
-  convertFromTTIRToTTNN(system_descriptor_path, mlir_module);
+  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -189,20 +199,11 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   printModule(mlir_module);
 }
 
-void ModuleBuilder::runStableHLOPipeline(
+void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
-                                          mlir::PassManager::Nesting::Implicit);
-  mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
-  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
-                                               stablehlo_pipeline_options);
-  if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
-    DLOG_F(ERROR, "Failed to run stablehlo pipeline");
-    m_status = tt_pjrt_status::kInternal;
-    return;
-  }
+  frontend_passes::propagateInputRoleAttributes(mlir_module);
 
-  DLOG_F(LOG_DEBUG, "SHLO StableHLO Pipeline Module:");
+  DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
 }
 
@@ -314,6 +315,35 @@ void ModuleBuilder::collectOutputShardingsShardy(
       shardy_attributes, shardy_mesh, m_output_shardings);
   if (result.failed()) {
     m_status = tt_pjrt_status::kInternal;
+  }
+}
+
+void ModuleBuilder::collectInputArgumentRoles(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  m_input_argument_roles.clear();
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
+         ++arg_index) {
+      // Check for tt.input_role attribute
+      mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
+          arg_index, frontend_passes::c_input_role_attr_name);
+
+      if (role_attr && role_attr.getValue() == "weight") {
+        m_input_argument_roles.push_back(InputArgumentRole::kWeight);
+      } else {
+        // Default to input if attribute is not present or not "weight"
+        m_input_argument_roles.push_back(InputArgumentRole::kInput);
+      }
+
+      // Remove the tt.input_role attribute after collecting it
+      if (role_attr) {
+        func_op.removeArgAttr(arg_index,
+                              frontend_passes::c_input_role_attr_name);
+      }
+    }
   }
 }
 
@@ -431,6 +461,23 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
   return llvm::LogicalResult::success();
 }
 
+void ModuleBuilder::runCompilerStableHLOPipeline(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
+                                          mlir::PassManager::Nesting::Implicit);
+  mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
+  mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
+                                               stablehlo_pipeline_options);
+  if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
+    DLOG_F(ERROR, "Failed to run stablehlo pipeline");
+    m_status = tt_pjrt_status::kInternal;
+    return;
+  }
+
+  DLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
+  printModule(mlir_module);
+}
+
 void ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
@@ -538,10 +585,15 @@ void ModuleBuilder::collectNumDevicesToUtilize(
 
 void ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const CompileOptions &compile_options) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+
+  options.optimizerPassEnabled = compile_options.enable_optimizer;
+  options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
+
   options.systemDescPath = system_descriptor_path.data();
 
   // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
@@ -562,6 +614,9 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     parser.parse(options.argumentTypeMap, "argument-types", arg_map,
                  argEnumMap);
     options.argumentTypeMap = argEnumMap;
+  } else {
+    // Set argument types based on collected input argument roles
+    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
   }
 
   if (m_devices_mesh_shape.size() != 2) {
@@ -733,4 +788,37 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   return mesh_op;
 }
 
-} // namespace tt::pjrt
+llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+ModuleBuilder::createArgumentTypeMap(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
+      argTypesMap;
+
+  if (m_input_argument_roles.empty()) {
+    return argTypesMap;
+  }
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  size_t arg_offset = 0;
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
+    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
+      assert(arg_offset + i < m_input_argument_roles.size() &&
+             "TTIR module should have the same number of input arguments as "
+             "the SHLO module");
+      if (m_input_argument_roles[arg_offset + i] ==
+          InputArgumentRole::kWeight) {
+        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
+      } else {
+        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
+      }
+    }
+    argTypesMap[func_op.getName().str()] = argTypes;
+    arg_offset += func_op.getNumArguments();
+  }
+
+  return argTypesMap;
+}
+
+} // namespace tt::pjrt::module_builder

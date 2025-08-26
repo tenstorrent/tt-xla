@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.vovnet.pytorch import ModelVariant
 from .tester import VovNetTester
 
-VARIANT_NAME = "vovnet27s"
+VARIANT_NAME = ModelVariant.VOVNET27S
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
