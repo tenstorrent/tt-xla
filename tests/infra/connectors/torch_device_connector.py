@@ -17,7 +17,7 @@ class TorchDeviceConnector(DeviceConnector):
 
     def __init__(self) -> None:
         super().__init__()
-        xr.runtime.set_device_type("TT")
+        xr.set_device_type("TT")
 
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
