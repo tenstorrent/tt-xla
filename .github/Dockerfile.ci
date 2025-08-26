@@ -13,7 +13,7 @@ RUN echo "Building $PROJECT_NAME at $GIT_SHA"
 RUN mkdir -p $BUILD_DIR && \
     mkdir -p $TTMLIR_TOOLCHAIN_DIR
 
-# Copy the project from host, cloned in call-build-docker.yml
+# Copy the project from host, cloned in build-image.yml
 COPY . $BUILD_DIR/$PROJECT_NAME
 
 WORKDIR $BUILD_DIR/$PROJECT_NAME
