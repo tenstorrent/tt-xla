@@ -66,7 +66,7 @@ class MonkeyPatchConfig:
             replacement = self.replacement_factory(self)
             setattr(self.target_module, self.target_function, replacement)
             self.post_patch()
-
+        print(f"Patched {self.target_module}.{self.target_function}")
 
 def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     """
