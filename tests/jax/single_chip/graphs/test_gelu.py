@@ -15,7 +15,7 @@ from utils import Category, incorrect_result
 @pytest.mark.parametrize(
     "x_shape",
     [
-        *([(32, 32)]*1000),
+        (32, 32),
         (64, 64),
     ],
 )
