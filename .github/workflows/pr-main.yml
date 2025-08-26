@@ -1,12 +1,6 @@
 name: On PR
 
 on:
-  workflow_dispatch:
-    inputs:
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
   pull_request:
     branches: [ "main" ]
 
@@ -20,7 +14,7 @@ concurrency:
 
 jobs:
   pre-commit:
-    uses: ./.github/workflows/pre-commit.yml
+    uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
   spdx:
     uses: ./.github/workflows/spdx.yml
@@ -63,7 +57,7 @@ jobs:
   build-image:
     needs: [ pre-commit, spdx, check-files ]
     if: needs.check-files.outputs.skip == 'false'
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override}}

@@ -14,17 +14,10 @@ permissions:
   checks: write
 
 jobs:
-  pre-commit:
-    uses: ./.github/workflows/pre-commit.yml
-    secrets: inherit
-
-  spdx:
-    uses: ./.github/workflows/spdx.yml
-    secrets: inherit
 
   build-image:
     needs: [ pre-commit, spdx ]
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
 
   build-ttxla:
@@ -45,3 +38,10 @@ jobs:
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+
+  deploy-docs:
+    needs: [ build-image, build-ttxla ]
+    uses: ./.github/workflows/call-build-docs.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
