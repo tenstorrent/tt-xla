@@ -24,6 +24,7 @@ jobs:
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/inspect-changes
         id: inspect
 
