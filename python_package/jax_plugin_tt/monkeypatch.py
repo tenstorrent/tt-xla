@@ -68,6 +68,7 @@ class MonkeyPatchConfig:
             self.post_patch()
         print(f"Patched {self.target_module}.{self.target_function}")
 
+
 def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     """
     Create a tt.mark function definition in the MLIR module.
