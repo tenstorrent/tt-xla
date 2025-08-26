@@ -57,8 +57,3 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     source env/activate && \
     cmake -B env/build env && \
     cmake --build env/build
-
-# Build tt-xla
-RUN source venv/activate && \
-    cmake -G Ninja -B build && \
-    cmake --build build
