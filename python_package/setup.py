@@ -64,7 +64,7 @@ class SetupConfig:
         List of requirements needed for plugins to actually work.
         """
         reqs = []
-        requirements_path = THIS_DIR / "requirements-base.txt"
+        requirements_path = THIS_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
             reqs = f.read().splitlines()

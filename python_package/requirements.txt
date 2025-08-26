@@ -1,5 +1,4 @@
-# Core runtime requirements (used by setup.py for wheel packaging)
--r requirements-base.txt
-
-# Development and testing requirements
--r requirements-dev.txt
+jax==0.6.0
+jaxlib==0.6.0
+torch==2.7.0
+torch_xla==2.7.0
