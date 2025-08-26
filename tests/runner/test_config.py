@@ -25,11 +25,11 @@ test_config = {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vovnet/pytorch-vovnet39-full-inference": {
+    "vovnet/pytorch-vovnet39_th-full-inference": {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "vovnet/pytorch-vovnet57-full-inference": {
+    "vovnet/pytorch-vovnet57_th-full-inference": {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
     },
@@ -147,7 +147,7 @@ test_config = {
     "alexnet/pytorch-alexnetb-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "autoencoder_linear/pytorch-full-inference": {
+    "autoencoder/pytorch-linear-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "bart/pytorch-large-full-inference": {
@@ -299,7 +299,7 @@ test_config = {
     "hrnet/pytorch-hrnet_w18_small-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "hrnet/pytorch-hrnet_w18_small_v2-full-inference": {
+    "hrnet/pytorch-hrnet_w18_small_v2_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "hrnet/pytorch-hrnet_w30-full-inference": {
@@ -384,7 +384,7 @@ test_config = {
     "resnext/pytorch-resnext101_32x8d_wsl-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "resnext/pytorch-resnext50_32x4d-full-inference": {
+    "resnext/pytorch-resnext50_32x4d_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "segformer/pytorch-mit_b0-full-inference": {
@@ -426,7 +426,7 @@ test_config = {
     "swin/image_classification/pytorch-swin_v2_b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "unet/pytorch-full-inference": {
+    "unet/pytorch-carvana_unet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vgg/pytorch-torchvision_vgg11_bn-full-inference": {
@@ -1023,13 +1023,13 @@ test_config = {
         "required_pcc": 0.98,
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "resnext/pytorch-resnext14_32x4d-full-inference": {
+    "resnext/pytorch-resnext14_32x4d_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "resnext/pytorch-resnext26_32x4d-full-inference": {
+    "resnext/pytorch-resnext26_32x4d_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "resnext/pytorch-resnext101_64x4d-full-inference": {
+    "resnext/pytorch-resnext101_64x4d_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "inception/pytorch-inceptionv4-full-inference": {
@@ -1140,7 +1140,7 @@ test_config = {
         "reason": "RuntimeError: cannot sample n_sample <= 0 samples",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
-    "gliner/pytorch-full-inference": {
+    "gliner/pytorch-urchade/gliner_largev2-full-inference": {
         "status": ModelStatus.NOT_SUPPORTED_SKIP,
         "reason": "AttributeError: 'function' object has no attribute 'parameters'",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
