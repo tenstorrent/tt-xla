@@ -1100,76 +1100,76 @@ test_config = {
     "googlenet/pytorch-googlenet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "yolov10/pytorch-yolov10x-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "yolov10/pytorch-yolov10n-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "qwen_2/token_classification/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "vgg19_unet/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Out of Memory: Not enough space to allocate 84213760 B L1 buffer across 64 banks, where each bank needs to store 1315840 B - https://github.com/tenstorrent/tt-torch/issues/729",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "yolov9/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "RuntimeError: TT_FATAL @ Inputs must be of bfloat16 or bfloat8_b type",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "glpn_kitti/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "RuntimeError: Input type (c10::BFloat16) and bias type (float) should be the same",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "oft/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-torch/issues/727",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "vilt/question_answering/pytorch-vqa-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "RuntimeError: cannot sample n_sample <= 0 samples",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "gliner/pytorch-urchade/gliner_largev2-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "AttributeError: 'function' object has no attribute 'parameters'",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "deepseek/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Fix KILLED",
-        "bringup_status": BringupStatus.UNKNOWN,
-    },
-    "deepseek/qwen/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Fix KILLED",
-        "bringup_status": BringupStatus.UNKNOWN,
-    },
-    "mistral/pixtral/pytorch-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Fix KILLED",
-        "bringup_status": BringupStatus.UNKNOWN,
-    },
-    "bi_rnn_crf/pytorch-lstm-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "need 'aten::sort' torch-mlir -> stablehlo + mlir support: failed to legalize operation 'torch.constant.bool' - https://github.com/tenstorrent/tt-torch/issues/724",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "bi_rnn_crf/pytorch-gru-full-inference": {
-        "status": ModelStatus.NOT_SUPPORTED_SKIP,
-        "reason": "need 'aten::sort' torch-mlir -> stablehlo + mlir support: failed to legalize operation 'torch.constant.bool' - https://github.com/tenstorrent/tt-torch/issues/724",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
+    # "yolov10/pytorch-yolov10x-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
+    #     "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    # },
+    # "yolov10/pytorch-yolov10n-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
+    #     "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    # },
+    # "qwen_2/token_classification/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "vgg19_unet/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Out of Memory: Not enough space to allocate 84213760 B L1 buffer across 64 banks, where each bank needs to store 1315840 B - https://github.com/tenstorrent/tt-torch/issues/729",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "yolov9/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "RuntimeError: TT_FATAL @ Inputs must be of bfloat16 or bfloat8_b type",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "glpn_kitti/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "RuntimeError: Input type (c10::BFloat16) and bias type (float) should be the same",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "oft/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-torch/issues/727",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "vilt/question_answering/pytorch-vqa-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "RuntimeError: cannot sample n_sample <= 0 samples",
+    #     "bringup_status": BringupStatus.FAILED_RUNTIME,
+    # },
+    # "gliner/pytorch-urchade/gliner_largev2-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "AttributeError: 'function' object has no attribute 'parameters'",
+    #     "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    # },
+    # "deepseek/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Fix KILLED",
+    #     "bringup_status": BringupStatus.UNKNOWN,
+    # },
+    # "deepseek/qwen/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Fix KILLED",
+    #     "bringup_status": BringupStatus.UNKNOWN,
+    # },
+    # "mistral/pixtral/pytorch-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "Fix KILLED",
+    #     "bringup_status": BringupStatus.UNKNOWN,
+    # },
+    # "bi_rnn_crf/pytorch-lstm-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "need 'aten::sort' torch-mlir -> stablehlo + mlir support: failed to legalize operation 'torch.constant.bool' - https://github.com/tenstorrent/tt-torch/issues/724",
+    #     "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    # },
+    # "bi_rnn_crf/pytorch-gru-full-inference": {
+    #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
+    #     "reason": "need 'aten::sort' torch-mlir -> stablehlo + mlir support: failed to legalize operation 'torch.constant.bool' - https://github.com/tenstorrent/tt-torch/issues/724",
+    #     "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    # },
     "stable_diffusion_1_4/pytorch-base-full-inference": {
         "status": ModelStatus.NOT_SUPPORTED_SKIP,
         "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
@@ -1383,6 +1383,51 @@ test_config = {
     "llava/pytorch-1_5_7b-full-inference": {
         "status": ModelStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Too large for single chip",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Too large for single chip",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Too large for single chip",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Too large for single chip",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "d_fine/pytorch-nano-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "d_fine nano hangs forever, removing all of them.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "d_fine/pytorch-small-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "d_fine small hangs forever, removing all of them.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "d_fine/pytorch-medium-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "d_fine medium hangs forever, removing all of them.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "d_fine/pytorch-large-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "d_fine large hangs forever, removing all of them.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "d_fine/pytorch-xlarge-full-inference": {
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "d_fine xlarge hangs forever, removing all of them.",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
