@@ -222,7 +222,7 @@ class JaxModelTester(ModelTester):
             self._workload.executable,
             **{k: self._workload.kwargs[k] for k in self._workload.static_argnames},
         )
-        training_workload = WorkloadFactory.create_workload(
+        training_workload = Workload(
             framework=self._framework,
             executable=partial_executable,
             args=self._workload.args,
@@ -236,7 +236,7 @@ class JaxModelTester(ModelTester):
 
         # Compile workloads for CPU with vjp of model
         self._compile_for_cpu(training_workload)
-        train_fwd_cpu = WorkloadFactory.create_workload(
+        train_fwd_cpu = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp, wrapper_model(training_workload.executable)
@@ -247,7 +247,7 @@ class JaxModelTester(ModelTester):
 
         # Compile workloads for TT device with vjp of model
         self._compile_for_tt_device(training_workload)
-        train_fwd_tt = WorkloadFactory.create_workload(
+        train_fwd_tt = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp, wrapper_model(training_workload.executable)
@@ -265,7 +265,7 @@ class JaxModelTester(ModelTester):
             )
 
         # Run pullback on CPU
-        pullback_workload_cpu = WorkloadFactory.create_workload(
+        pullback_workload_cpu = Workload(
             framework=self._framework,
             executable=cpu_pullback,
             args=[random_grad],
@@ -273,7 +273,7 @@ class JaxModelTester(ModelTester):
         grads_cpu = self._run_on_cpu(pullback_workload_cpu)
 
         # Run pullback on TT device
-        pullback_workload_tt = WorkloadFactory.create_workload(
+        pullback_workload_tt = Workload(
             framework=self._framework,
             executable=tt_pullback,
             args=[random_grad],
