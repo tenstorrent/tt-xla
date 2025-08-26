@@ -200,6 +200,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
 
   tt::runtime::MeshDeviceOptions mesh_device_options;
   mesh_device_options.meshShape = devices_mesh_shape;
+  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
 
   return tt::runtime::openMeshDevice(mesh_device_options);
 }
