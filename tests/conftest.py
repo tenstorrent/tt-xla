@@ -264,3 +264,5 @@ def run_around_tests(request):
         torch.manual_seed(0)
         yield
         torch._dynamo.reset()
+    else:
+        yield
