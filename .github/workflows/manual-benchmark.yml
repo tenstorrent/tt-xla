@@ -61,7 +61,7 @@ jobs:
           fi
   perf-benchmark:
     needs: [ set-inputs, build ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/wheel-artifact-regex-name-support
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
         project: tt-xla
