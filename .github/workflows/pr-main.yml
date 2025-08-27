@@ -1,6 +1,12 @@
 name: On PR
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_perf_benchmark:
+        description: 'Run performance benchmark'
+        required: false
+        type: boolean
   pull_request:
     branches: [ "main" ]
 
