@@ -10,8 +10,12 @@ on:
       - 'LICENSE'
 
 permissions:
+  contents: read
   packages: write
   checks: write
+  pages: write
+  id-token: write
+  deployments: write
 
 jobs:
 
