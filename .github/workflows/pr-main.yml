@@ -79,9 +79,9 @@ jobs:
     secrets: inherit
     with:
       project: tt-xla
-      run_id: ${{ github.run_id }}
+      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
-      ref: main
+      ref: vvukoman/wheel-artifact-regex-name-support
 
   check-all-green:
     if: always()
