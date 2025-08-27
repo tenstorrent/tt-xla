@@ -9,8 +9,6 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-# import tt_torch  # registers "tt" backend for torch.compile
-
 # --------------------------------
 # Test run
 # --------------------------------
