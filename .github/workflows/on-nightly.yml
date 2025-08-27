@@ -134,7 +134,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: false #success() || failure()
+    if: success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'model_test'
