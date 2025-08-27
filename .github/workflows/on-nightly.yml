@@ -87,15 +87,7 @@ jobs:
             TESTS_TO_PARALLELIZE='[
               {
                 "runs-on": "n150",
-                "name": "run_jax"
-              },
-              {
-                "runs-on": "n150",
                 "name": "run_torch"
-              },
-              {
-                "runs-on": "p150",
-                "name": "run_jax"
               },
               {
                 "runs-on": "p150",
