@@ -47,6 +47,7 @@ class TorchModelTester(ModelTester):
     def _configure_model_for_training(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
+        self._device_runner.set_training_mode()
 
     # @override
     def _cache_model_inputs(self) -> None:
@@ -107,9 +108,6 @@ class TorchModelTester(ModelTester):
     def _test_training(self):
         import torch_xla.core.xla_model as xm
         device = xm.xla_device()
-        self._device_runner.set_training_mode()
-
-        self._model.train()
 
         self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
@@ -139,6 +137,5 @@ class TorchModelTester(ModelTester):
         self._run_on_tt_device(tt_backward_workload)
         tt_grads = {name: p.grad.clone().cpu() for name, p in self._model.named_parameters()}
 
-        print(cpu_grads, tt_grads)
         self._compare(tt_res, cpu_res)
         self._compare(tt_grads, cpu_grads)
