@@ -228,7 +228,7 @@ def avg_pool2d(
     return NotImplemented
 
 
-# TODO: Test if this is still necesarry when compiling via torch-xla
+# TODO: Test if this is still necessary when compiling via torch-xla
 def split_with_sizes(
     self: torch.Tensor, split_sizes: List[int], dim: int = 0
 ) -> List[torch.Tensor]:
@@ -255,7 +255,7 @@ def split_with_sizes(
     return splits
 
 
-# TODO: Test if this is still necesarry when compiling via torch-xla
+# TODO: Test if this is still necessary when compiling via torch-xla
 def masked_fill_tensor(input, mask, value):
     if value.device != input.device:
         value = value.to(input.device)
@@ -328,7 +328,7 @@ def _get_custom_decopositions() -> DecompositionTable:
     return {
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls agains constant tensors.
-        # They are necesarry as the default aten decompositions
+        # They are necessary as the default aten decompositions
         # use gather, which we cannot lower from ttir-to ttnn
         # in the form presented by this decomposition.
         # The better (and more performant) solution to this is
@@ -346,9 +346,9 @@ def _get_custom_decopositions() -> DecompositionTable:
         aten.upsample_linear1d.default: upsample_linear_default,
         aten.upsample_bilinear2d.default: upsample_linear_default,
         aten.upsample_trilinear3d.default: upsample_linear_default,
-        # TODO: Test if this is still necesarry when compiling via torch-xla
+        # TODO: Test if this is still necessary when compiling via torch-xla
         aten.adaptive_avg_pool2d.default: aten._adaptive_avg_pool2d,
-        # TODO: Test if this is still necesarry when compiling via torch-xla
+        # TODO: Test if this is still necessary when compiling via torch-xla
         aten.avg_pool2d.default: avg_pool2d,
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,

@@ -13,9 +13,6 @@ from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
 
-# Registers PJRT plugin to torch-xla and registers "tt" backend for torch.compile
-import tt_torch
-
 
 class TorchModelTester(ModelTester):
     """
