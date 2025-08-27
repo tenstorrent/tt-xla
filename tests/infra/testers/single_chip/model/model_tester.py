@@ -137,6 +137,7 @@ class ModelTester(BaseTester, ABC):
         self, compiled_workload: Workload, explicitly_place_on_device: bool = True
     ) -> Tensor:
         """Runs workload on TT device."""
+        # If the framework is Torch, we do not want to explicitly place the workload on device as that is done by the "tt" backend executor.
         return self._device_runner.run_on_tt_device(
             compiled_workload,
             explicitly_place_on_device=self._framework != Framework.TORCH,
