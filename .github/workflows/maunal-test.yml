@@ -1,5 +1,8 @@
 name: Run Test
 
+# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
+# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+
 on:
   workflow_dispatch:
     inputs:
@@ -43,7 +46,7 @@ run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} -
 
 jobs:
   build-image:
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
 
   build-ttxla:

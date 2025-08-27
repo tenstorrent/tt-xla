@@ -37,7 +37,7 @@ jobs:
           echo "test_group_cnt=$tgc" >> $GITHUB_OUTPUT
 
   build-image:
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
 
   build-ttxla:
