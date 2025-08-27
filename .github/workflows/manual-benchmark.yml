@@ -60,12 +60,12 @@ jobs:
             fi
           fi
   perf-benchmark:
-    needs: set-inputs
+    needs: [ set-inputs, build ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
         project: tt-xla
-        run_id: ${{ github.run_id }}
+        run_id: ${{ needs.build.outputs.artifacts_run_id }}
         run_id_source: tt-xla
         ref: ${{ needs.set-inputs.outputs.ref }}
         test-filter: ${{ inputs.test_filter }}
