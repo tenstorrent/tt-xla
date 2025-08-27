@@ -1,9 +1,7 @@
-name: Run Test
-
-# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
-# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+name: Run test
 
 on:
+  # todo(vvukoman): remove after testing
   workflow_dispatch:
     inputs:
       preset:
@@ -46,21 +44,47 @@ permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
+  cancel-in-progress: true
 
 jobs:
+  pre-commit:
+    uses: ./.github/workflows/call-pre-commit.yml
+    secrets: inherit
+
+  inspect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
+      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
+      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/inspect-changes
+        id: inspect
+
   build-image:
+    needs: [ pre-commit, inspect-changes ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
+<<<<<<< HEAD:.github/workflows/manual-test.yml
       mlir_override: ${{ inputs.mlir_override }}
+=======
+      mlir_override: ${{ inputs.mlir_override}}
+>>>>>>> 9e65a4c9 (testing out):.github/workflows/maunal-test.yml
 
-  build-ttxla:
-    needs: build-image
+  build-ttxla-codecov:
     uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with code coverage"
     secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+<<<<<<< HEAD:.github/workflows/manual-test.yml
       mlir_override: ${{ inputs.mlir_override }}
 
   test-setup:
@@ -147,16 +171,64 @@ jobs:
           echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
+=======
+      mlir_override: ${{ inputs.mlir_override}}
+      debug_build: true
+
+  build-ttxla-release:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla release"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override}}
+>>>>>>> 9e65a4c9 (testing out):.github/workflows/maunal-test.yml
 
   test:
-    if: always() && !cancelled()
+    needs: [ inspect-changes, build-image, build-ttxla-codecov ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
-    needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
     with:
+<<<<<<< HEAD:.github/workflows/manual-test.yml
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+=======
+      codecov: true
+      test_mark: 'push'
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      use-shared-runners: false # Run PR on VMs
+      artifact_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
+
+  perf-benchmark:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (inputs.run_perf_benchmark || (vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')))
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/wheel-artifact-regex-name-support
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
+      run_id_source: tt-xla
+      ref: vvukoman/wheel-artifact-regex-name-support
+
+  check-all-green:
+    if: always()
+    needs:
+      - pre-commit
+      - test
+    runs-on: Ubuntu-latest
+    steps:
+    - name: Check if the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
+      with:
+        allowed-skips: test
+        jobs: ${{ toJSON(needs) }}
+>>>>>>> 9e65a4c9 (testing out):.github/workflows/maunal-test.yml
