@@ -1,6 +1,6 @@
 
 # This workflow builds a Docker images for the project, optionally overriding the tt-mlir commit SHA,
-# and outputs the image name for use in other workflows.
+# and outputs the image name for use in other workflows. If docker image already exists, it will be reused.
 
 name: Build Docker Image
 
