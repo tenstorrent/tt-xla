@@ -1,13 +1,6 @@
 name: On PR
 
 on:
-  # todo(vvukoman): remove after testing
-  workflow_dispatch:
-    inputs:
-      run_perf_benchmark:
-        description: 'Run performance benchmark'
-        required: false
-        type: boolean
   pull_request:
     branches: [ "main" ]
 
@@ -16,7 +9,7 @@ permissions:
   checks: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -40,8 +33,6 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override}}
 
   build-ttxla-codecov:
     uses: ./.github/workflows/call-build.yml
@@ -51,7 +42,6 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      mlir_override: ${{ inputs.mlir_override}}
       debug_build: true
 
   build-ttxla-release:
@@ -62,7 +52,6 @@ jobs:
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      mlir_override: ${{ inputs.mlir_override}}
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov ]
