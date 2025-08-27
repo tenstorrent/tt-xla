@@ -19,7 +19,7 @@ def mnist():
 
     # Put it in inference mode and compile it.
     model = model.eval()
-    model.compile(backend="openxla")
+    model.compile(backend="tt")
 
     # Generate inputs.
     input = torch.ones((4, 1, 28, 28), dtype=torch.bfloat16)

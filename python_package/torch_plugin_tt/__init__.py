@@ -8,6 +8,8 @@ import os
 from torch_xla.experimental.plugins import DevicePlugin
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 
+import tt_torch  # registers "tt" backend for torch.compile
+
 
 class TTPlugin(DevicePlugin):
     """

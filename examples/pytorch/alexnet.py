@@ -9,6 +9,8 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
+# import tt_torch  # registers "tt" backend for torch.compile
+
 # --------------------------------
 # Test run
 # --------------------------------
@@ -20,7 +22,7 @@ def alexnet():
 
     # Put it in inference mode and compile it.
     model = model.eval()
-    model.compile(backend="openxla")
+    model.compile(backend="tt")
 
     # Generate inputs.
     input = torch.rand((1, 3, 224, 224))
