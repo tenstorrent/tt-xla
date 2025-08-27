@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Tuple
 import torch
 import time
 import operator
@@ -37,13 +38,17 @@ import torch_xla.core.xla_model as xm
 
 
 # This function runs a series of passes on a torch GraphModule.
-# The passes here may be necesarry (depending on the model) to
+# The passes here may be necessary (depending on the model) to
 # convert a GraphModule into a form which tt-mlir can compile/execute.
-def torch_pass_pipeline(gm, example_inputs, compiler_config):
+def torch_pass_pipeline(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    compiler_config: CompilerConfig,
+):
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
-    # We use `export_for_training` here as we plan to use this flow to compile trainign graphs.
+    # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
@@ -80,7 +85,7 @@ class XLAExecutor:
     4. Generating arg type map string for the output so tt-mlir can
        generate consteval graphs
     5. Signalling to torch-xla to cut the graph at the model output.
-       This is necesarry as if the user passes the output of this model
+       This is necessary as if the user passes the output of this model
        to other torch operations WITHOUT moving the output to CPU,
        torch-xla will continue to trace torch ops, which is not what
        the user will have indended by marking a model for compile.
