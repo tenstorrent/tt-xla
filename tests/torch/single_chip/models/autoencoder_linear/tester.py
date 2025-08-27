@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from third_party.tt_forge_models.autoencoder_linear.pytorch import ModelLoader
+from third_party.tt_forge_models.autoencoder.pytorch import ModelLoader, ModelVariant
 
 
 class AutoencoderLinearTester(TorchModelTester):
@@ -12,7 +12,7 @@ class AutoencoderLinearTester(TorchModelTester):
 
     def __init__(
         self,
-        variant_name: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
