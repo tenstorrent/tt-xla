@@ -1,6 +1,7 @@
 name: On PR
 
 on:
+  # todo: remove after testing
   workflow_dispatch:
     inputs:
       run_perf_benchmark:
