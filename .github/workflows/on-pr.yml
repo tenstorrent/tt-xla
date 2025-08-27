@@ -114,7 +114,7 @@ jobs:
     secrets: inherit
     with:
       project: tt-xla
-      run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
+      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
       ref: vvukoman/wheel-artifact-regex-name-support
 
