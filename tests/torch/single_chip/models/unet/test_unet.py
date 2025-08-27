@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
+from third_party.tt_forge_models.unet.pytorch import ModelVariant
 from .tester import UNETTester
 
-VARIANT_NAME = "unet"
+VARIANT_NAME = ModelVariant.CARVANA_UNET
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
