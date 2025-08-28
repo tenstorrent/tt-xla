@@ -58,14 +58,12 @@ def torch_pass_pipeline(
         .module()
     )
 
-    compiled_graph = bypass_dtype_promotion(compiled_graph, compiler_config)
+    compiled_graph = bypass_dtype_promotion(compiled_graph)
     run_shape_prop(compiled_graph, example_inputs)
     compiled_graph = bypass_redundant_cast(compiled_graph)
 
     if compiler_config.enable_consteval:
         compiled_graph = constant_fold(compiled_graph)
-    elif compiler_config.consteval_parameters:
-        raise Exception("consteval_parameters is enabled but enable_consteval is not")
 
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = rectify_buffer_inplace_copy(compiled_graph)
