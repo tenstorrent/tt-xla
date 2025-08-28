@@ -247,7 +247,22 @@ def setup_models_path(project_root):
 def discover_loader_paths(models_root):
     """Discover all loader.py files in the models directory."""
     loader_paths = {}
+
+    # FIXME - Temporary workaround to exclude models with fatal issues.
+    # Surya OCR imports and initializes torch_xla runtime which causes issues
+    # https://github.com/tenstorrent/tt-xla/issues/1166
+    excluded_model_dirs = {"suryaocr"}
+
     for root, dirs, files in os.walk(models_root):
+
+        model_dir_name = os.path.basename(os.path.dirname(root))
+        if model_dir_name in excluded_model_dirs:
+            print(
+                f"Workaround to exclude model: {model_dir_name} from discovery. Issue #1166",
+                flush=True,
+            )
+            continue
+
         if os.path.basename(root) == "pytorch" and "loader.py" in files:
             loader_paths[os.path.join(root, "loader.py")] = []
 
