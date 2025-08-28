@@ -31,8 +31,6 @@ from torch._dynamo import register_backend
 
 from tt_torch.tools.utils import CompilerConfig
 
-from torch.utils._pytree import tree_map
-
 import torch_xla
 import torch_xla.core.xla_model as xm
 
@@ -90,18 +88,25 @@ class XLAExecutor:
     """
 
     def __init__(self, program, compiler_config):
-        self.program = program
+        self.module: torch.fx.GraphModule = program.module()
         self.compiler_config = compiler_config
         self.arg_type_map_str = None
 
+        # Collect all devices this model will use. This device list is used to signal to torch xla which devices are involved in computing the output tensors, so that we may cut the graph on the output tensors correctly.
+        self.devices = set()
+        for _, tensor in program.state_dict.items():
+            assert "cpu" not in tensor.device.type
+            self.devices.add(tensor.device)
+        self.devices = list(self.devices)
+
         self.inputs = []
         self.user_input_indices = []
-        for idx, input_spec in enumerate(self.program._graph_signature.input_specs):
+        for idx, input_spec in enumerate(program._graph_signature.input_specs):
             if input_spec.kind == InputKind.USER_INPUT:
                 self.inputs.append(None)
                 self.user_input_indices.append(idx)
             else:
-                self.inputs.append(self.program.state_dict[input_spec.target].to("xla"))
+                self.inputs.append(program.state_dict[input_spec.target])
 
     def generate_arg_type_map_str(self, output_object):
         hlo_input_ids, _ = torch_xla._XLAC._get_tensors_xla_device_data_node(
@@ -140,12 +145,10 @@ class XLAExecutor:
         self.arg_type_map_str = "main=" + ",".join(arg_types)
 
     def __call__(self, *args):
-        args = tree_map(lambda x: x.to("xla"), args)
-        inputs = self.inputs
-        for idx in range(len(args)):
-            inputs[self.user_input_indices[idx]] = args[idx]
+        for arg in args:
+            assert "cpu" not in arg.device.type, "All args must be on device"
 
-        output = self.program.graph_module(*inputs)
+        output = self.module(*args)
 
         if self.compiler_config.arg_type_map_override:
             if self.arg_type_map_str is None:
@@ -153,9 +156,10 @@ class XLAExecutor:
             if os.environ.get("ARG_TYPE_MAP_OVERRIDE") != self.arg_type_map_str:
                 os.environ["ARG_TYPE_MAP_OVERRIDE"] = self.arg_type_map_str
 
-        xm.mark_step()
-        if self.compiler_config.push_outputs_to_cpu:
-            return tree_map(lambda x: x.to("cpu"), output)
+        # This tells torch-xla to cut the graph at only what is required to compute all tensors in the `output` list
+        torch_xla._XLAC._xla_sync_multi(output, self.devices, wait=False)
+        # if self.compiler_config.push_outputs_to_cpu:
+        #     return tree_map(lambda x: x.to("cpu"), output)
         return output
 
     def __del__(self):

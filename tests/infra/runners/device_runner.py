@@ -49,11 +49,7 @@ class DeviceRunner(ABC):
         """Orchestrates workload execution by connecting to device, transferring data, and running."""
 
         device = self._device_connector.connect_device(device_type, device_num)
-        device_workload = (
-            self._put_on_device(workload, device=device)
-            if explicitly_place_on_device
-            else workload
-        )
+        device_workload = self._put_on_device(workload, device=device)
 
         return self._run_on_device(device_workload, device)
 
