@@ -49,13 +49,7 @@ class CompilerConfig:
         self.enable_consteval = False
         self.push_outputs_to_cpu = True
         self.arg_type_map_override = False
-        self.post_init()
-
-    def post_init(self):
-        if self.consteval_parameters:
-            torch._dynamo.config.inline_inbuilt_nn_modules = False
-        else:
-            torch._dynamo.config.inline_inbuilt_nn_modules = True
+        torch._dynamo.config.inline_inbuilt_nn_modules = True
 
     def reset_unique_ops(self):
         self.unique_ops = {}
