@@ -5,6 +5,12 @@
 
 set -e
 
+# Parse command line arguments
+CHECK_ONLY=false
+if [[ "$1" == "--check-only" ]]; then
+    CHECK_ONLY=true
+fi
+
 REPO=tenstorrent/tt-xla
 BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-22-04
 CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-22-04
@@ -26,6 +32,9 @@ build_and_push() {
 
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
         echo "Image $image_name:$DOCKER_TAG already exists"
+    elif [ "$CHECK_ONLY" = true ]; then
+        echo "Image $image_name:$DOCKER_TAG does not exist (check-only mode)"
+        return 2
     else
         echo "Docker build neccessary, ensure dependencies for toolchain build..."
         sudo apt-get update && sudo apt-get install -y cmake build-essential
