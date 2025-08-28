@@ -85,12 +85,9 @@ exclude_patterns = []
 html_theme = "sphinx_rtd_theme"
 html_logo = "https://docs.tenstorrent.com/_static/tt_logo.svg"
 html_favicon = "https://docs.tenstorrent.com/_static/favicon.png"
-#html_static_path = ["shared/_static"]
 templates_path = ["shared/_templates"]
 html_last_updated_fmt = "%b %d, %Y"
-html_css_files = [
-    "https://docs.tenstorrent.com/_static/tt_theme.css"
-]
+html_css_files = ["https://docs.tenstorrent.com/_static/tt_theme.css"]
 
 html_baseurl = f"https://docs.tenstorrent.com/"
 
