@@ -41,7 +41,6 @@ vgg_pytorch
 matplotlib
 
 ultralytics # For yolo
-ultralytics-thop # For yolox
 seaborn
 diffusers
 scikit-image>=0.24 # For DenseNet 121 HF XRay model
