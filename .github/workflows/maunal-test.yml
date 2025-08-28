@@ -134,7 +134,7 @@ jobs:
     needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-test }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}

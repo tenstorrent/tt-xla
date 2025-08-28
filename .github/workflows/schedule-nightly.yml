@@ -53,7 +53,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-test }}
       test_mark: 'nightly'
       use-shared-runners: false # Run nightly tests on Civ1
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
@@ -109,7 +109,7 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-test }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
