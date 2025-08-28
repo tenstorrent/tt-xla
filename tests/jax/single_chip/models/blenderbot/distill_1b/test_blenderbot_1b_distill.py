@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import BlenderBotTester
+from third_party.tt_forge_models.blenderbot.summarization.jax.loader import ModelVariant
 
-MODEL_PATH = "facebook/blenderbot-1B-distill"
+VARIANT_NAME = ModelVariant.BLENDERBOT_1B_DISTILL
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "blenderbot",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH)
+    return BlenderBotTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return BlenderBotTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
