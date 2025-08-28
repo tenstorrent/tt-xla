@@ -52,7 +52,7 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
-    with: 
+    with:
       mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
