@@ -30,7 +30,11 @@ from utils import failed_fe_compilation, incorrect_result
     [
         pytest.param(
             ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(reason=incorrect_result("PCC comparison failed")),
+            marks=pytest.mark.xfail(
+                reason=incorrect_result(
+                    "PCC comparison failed https://github.com/tenstorrent/tt-xla/issues/1161"
+                )
+            ),
         ),
         pytest.param(
             ShardingMode.MODULE,
