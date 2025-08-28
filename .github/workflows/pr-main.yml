@@ -71,13 +71,13 @@ jobs:
   perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/wheel-artifact-regex-name-support
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
       project: tt-xla
       run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
-      ref: vvukoman/wheel-artifact-regex-name-support
+      ref: main
 
   check-all-green:
     if: always()
