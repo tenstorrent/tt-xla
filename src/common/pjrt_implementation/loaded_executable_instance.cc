@@ -88,13 +88,14 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  if (args->num_args != m_executable_image->getNumInputs()) {
-    DLOG_F(ERROR,
-           "Requested number of arguments to provide to the executable (%zu) "
-           "doesn't match the compiler estimated number of inputs (%zu)",
-           args->num_args, m_executable_image->getNumInputs());
-    return tt_pjrt_status::kInternal;
-  }
+  // TODO: Will have to change.
+  // if (args->num_args != m_executable_image->getNumInputs()) {
+  //   DLOG_F(ERROR,
+  //          "Requested number of arguments to provide to the executable (%zu)
+  //          " "doesn't match the compiler estimated number of inputs (%zu)",
+  //          args->num_args, m_executable_image->getNumInputs());
+  //   return tt_pjrt_status::kInternal;
+  // }
 
   std::optional<tt::runtime::Device> runtime_device =
       openDevices(args->argument_lists, args->num_args, args->num_devices,
@@ -234,6 +235,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
+    BufferInstance *temp_buffer =
+        BufferInstance::unwrap(argument_lists[0][arg_index]);
+    if (temp_buffer->isZeroDimTensor()) {
+      // Not passing 0-dim inputs to runtime.
+      continue;
+    }
+
     std::vector<tt::runtime::Tensor> arg_tensors;
     arg_tensors.reserve(num_devices);
 

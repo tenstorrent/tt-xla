@@ -203,6 +203,41 @@ void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   frontend_passes::propagateInputRoleAttributes(mlir_module);
 
+  // Removes 0-dim tensor inputs from graph.
+  // TODO: Would be moved to frontend passes.
+  mlir_module->walk([&](mlir::func::FuncOp func_op) {
+    Block &entry_block = func.front();
+    FunctionType old_type = func_op.getFunctionType();
+    auto arg_types = llvm::to_vector(oldType.getInputs());
+    bool has_zero_inputs = false;
+    for (size_t i = 0; i < arg_types.size(); ++i) {
+      auto shaped_type = argType.dyn_cast<mlir::ShapedType>();
+      if (!shaped_type) {
+        continue;
+      }
+
+      bool has_zero_dim = false;
+      for (auto dim : shaped_type.getShape()) {
+        if (dim == 0) {
+          has_zero_dim = true;
+          break;
+        }
+      }
+
+      if (has_zero_dim) {
+        arg_types.erase(arg_types.begin() + i);
+        entryBlock.eraseArgument(i);
+        has_zero_inputs = true;
+      }
+    }
+
+    if (has_zero_inputs) {
+      FunctionType new_type = FunctionType::get(func_op.getContext(), arg_types,
+                                                old_type.getResults());
+      func_op.setType(new_type);
+    }
+  });
+
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
 }

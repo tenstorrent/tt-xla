@@ -69,7 +69,8 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device(device), m_memory(memory),
       m_runtime_tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN),
       m_data_ready(false), m_data_ready_event(nullptr),
-      m_done_with_host_buffer_event(nullptr), m_data_deleted(false) {}
+      m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
+      m_zero_dim_tensor(false) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
@@ -166,6 +167,14 @@ void BufferInstance::copyFromHost(
   std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
+
+  if (std::any_of(shape.begin(), shape.end(),
+                  [](uint32_t x) { return x == 0; })) {
+    // Ignore 0-dim tensors, they will be removed from graph and not passed to
+    // runtime.
+    m_zero_dim_tensor = true;
+    return;
+  }
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();

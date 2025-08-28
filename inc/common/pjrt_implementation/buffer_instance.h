@@ -82,6 +82,8 @@ public:
   // Returns number of buffer's dimensions.
   size_t getNumberOfDimensions() const { return m_dimensions.size(); }
 
+  bool isZeroDimTensor() const { return m_zero_dim_tensor; }
+
   // Returns device instance on which this buffer resides.
   DeviceInstance *getDevice() { return m_device; }
 
@@ -171,6 +173,8 @@ private:
   // Buffer's dimensions. Shouldn't be changed after construction because client
   // might depend on the raw pointer to these dimensions.
   const std::vector<std::int64_t> m_dimensions;
+
+  bool m_zero_dim_tensor;
 
   // Device instance on which this buffer resides.
   DeviceInstance *m_device;
