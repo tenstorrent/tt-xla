@@ -6,6 +6,11 @@ from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from third_party.tt_forge_models.resnet.pytorch import ModelLoader
 from tt_torch.tools.utils import CompilerConfig
+from transformers import (
+    AutoConfig,
+    AutoModel,
+)
+import torch
 
 
 class ResnetTester(TorchModelTester):
@@ -18,15 +23,22 @@ class ResnetTester(TorchModelTester):
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
         cc = CompilerConfig()
-        cc.enable_consteval = True
-        cc.consteval_parameters = True
+        cc.enable_consteval = False
+        cc.consteval_parameters = False
         self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode, cc)
 
     # @override
     def _get_model(self) -> Model:
-        return self._model_loader.load_model()
+        config = AutoConfig.from_pretrained("xai-org/grok-2")
+        config.num_hidden_layers = 3
+        config.vision_config.num_hidden_layers = 0
+        model = AutoModel.from_config(config)
+
+        return model
 
     # @override
     def _get_input_activations(self) -> Dict | Sequence[Any]:
-        return self._model_loader.load_inputs()
+        batch_size = 1
+        max_length = 128
+        return torch.randint(0, 65535, (batch_size, max_length), dtype=torch.int32)
