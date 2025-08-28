@@ -12,10 +12,10 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.roformer.masked_lm.jax import ModelVariant
 from ..tester import RoFormerTester
 
-MODEL_PATH = "junnyu/roformer_chinese_base"
+VARIANT_NAME = ModelVariant.CHINESE_BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "roformer",
@@ -29,12 +29,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> RoFormerTester:
-    return RoFormerTester(MODEL_PATH)
+    return RoFormerTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> RoFormerTester:
-    return RoFormerTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return RoFormerTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
