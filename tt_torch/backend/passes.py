@@ -75,7 +75,7 @@ def bypass_redundant_cast(gm):
     return gm
 
 
-def bypass_dtype_promotion(gm, compiler_config):
+def bypass_dtype_promotion(gm):
     """
     Removes casting of nodes to float32 unless they were explicitly cast by the user.
     Pytorch insists on casting params to float32, even though the user may have specified a different dtype,
