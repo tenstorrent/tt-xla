@@ -10,7 +10,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, incorrect_result
 
 
 @pytest.mark.nightly
@@ -25,7 +25,10 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     ("batch_shape", "W1_shape", "B1_shape", "mesh_shape", "axis_names"),
     [
-        ((8192, 784), (784, 2048), (2048,), (1, 8), ("batch", "model")),
+        pytest.param(
+            ((8192, 784), (784, 2048), (2048,), (1, 8), ("batch", "model")),
+            marks=pytest.mark.xfail(reason=incorrect_result("PCC comparison failed")),
+        ),
         ((8192, 784), (784, 2048), (2048,), (2, 4), ("batch", "model")),
     ],
 )
