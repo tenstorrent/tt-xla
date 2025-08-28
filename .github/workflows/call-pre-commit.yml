@@ -1,7 +1,6 @@
 name: pre-commit
 
 on:
-  workflow_dispatch:
   workflow_call:
 
 jobs:
@@ -17,3 +16,6 @@ jobs:
           cache: 'pip'
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
+      - uses: enarx/spdx@master
+        with:
+          licenses: Apache-2.0

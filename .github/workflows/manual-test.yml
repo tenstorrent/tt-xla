@@ -1,5 +1,8 @@
 name: Run Test
 
+# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
+# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +37,10 @@ on:
             - multichip: 'jax/multi_chip'
             - All: run on n150 all singlechip, on llmbox all multichip
         type: string
+      mlir_override:
+          description: 'Git SHA of commit in tenstorrent/tt-mlir'
+          required: false
+          type: string
 
 permissions:
   packages: write
@@ -43,8 +50,10 @@ run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} -
 
 jobs:
   build-image:
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
     needs: build-image
@@ -52,6 +61,7 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
 
   test-setup:
     runs-on: ubuntu-latest
@@ -105,12 +115,25 @@ jobs:
           else
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
+            name='run_single_chip_n150'
+            n150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
+            runson='p150'
             name='run_single_chip'
-            sc=$(make_json_array $dir)
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
+            p150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
+            runson='n300'
+            name='run_multi_chip_n300'
+            n300_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
-            name='run_multi_chip'
-            echo "test_matrix=[$sc,$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            name='run_multi_chip_llmbox'
+            llmbox_matrix=$(make_json_array $dir)
+
+            echo "test_matrix=[$n150_matrix,$p150_matrix,$n300_matrix,$llmbox_matrix]" >> $GITHUB_OUTPUT
           fi
       - name: Create job summary
         run: |

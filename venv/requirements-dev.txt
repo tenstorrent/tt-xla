@@ -5,12 +5,14 @@ datasets
 einops
 flax==0.10.4
 fsspec
-jax==0.6.0
-jaxlib==0.6.0
 jaxtyping
 librosa
 lit
 loguru
+
+# monodepth2 model
+matplotlib
+
 ml_collections
 ninja
 pillow
@@ -19,23 +21,19 @@ psutil
 pybind11
 pytest
 pytest-forked
+pytest-split
 pytorchcv
 rjieba
-pytest-split
 sentencepiece
 setuptools
 soundfile
 tabulate
 timm
-torch==2.7.0
-torch_xla==2.7.0
 torchvision
 torchxrayvision
 transformers
-wheel
 
 # vgg model
 vgg_pytorch
 
-# monodepth2 model
-matplotlib
+wheel
