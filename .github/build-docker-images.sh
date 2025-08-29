@@ -30,15 +30,20 @@ build_and_push() {
     local on_main=$3
     local from_image=$4
 
-    if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null && [ "$CHECK_ONLY" = true ]; then
+    IMAGE_EXISTS=false
+    if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
+        IMAGE_EXISTS=true
+    fi
+
+    if [ "$CHECK_ONLY" = true ] && [ "$IMAGE_EXISTS" = true ]; then
         echo "Image $image_name:$DOCKER_TAG already exists"
         return 0
-    elif docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
-        echo "Image $image_name:$DOCKER_TAG already exists"
-    elif [ "$CHECK_ONLY" = true ]; then
+    elif [ "$CHECK_ONLY" = true ] && [ "$IMAGE_EXISTS" = false ]; then
         echo "Image $image_name:$DOCKER_TAG does not exist (check-only mode)"
         return 2
-    else
+    elif [ "$CHECK_ONLY" = false ] && [ "$IMAGE_EXISTS" = true ]; then
+        echo "Image $image_name:$DOCKER_TAG already exists"
+    elif [ "$CHECK_ONLY" = false ] && [ "$IMAGE_EXISTS" = false ]; then
         echo "Docker build neccessary, ensure dependencies for toolchain build..."
         sudo apt-get update && sudo apt-get install -y cmake build-essential
 
