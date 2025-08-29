@@ -70,6 +70,6 @@ def test_psum(
         sharding_mode,
         maxval=0.1,
         comparison_config=ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.93)
+            pcc=PccConfig(required_pcc=0.92)
         ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )

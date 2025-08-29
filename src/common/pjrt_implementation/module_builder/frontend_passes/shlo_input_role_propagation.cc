@@ -191,15 +191,14 @@ struct PopulateArgumentAttrsFromTTMark final
     }
 
     assert(op.getNumOperands() == 1 &&
-           "Expected one operand to " + c_mark_argument_function_name);
+           "Expected one operand to a mark function");
     assert(op.getNumResults() == 1 &&
-           "Expected one result to " + c_mark_argument_function_name);
+           "Expected one result from a mark function");
 
     // Retrieve input and assert that it is indeed a block argument
     mlir::Value input = op.getOperand(0);
     auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
-    assert(blockArg && "Expected block argument as input to " +
-                           c_mark_argument_function_name);
+    assert(blockArg && "Expected block argument as input to a mark function");
 
     auto *parentOp = blockArg.getOwner()->getParentOp();
     auto argIndex = blockArg.getArgNumber();
