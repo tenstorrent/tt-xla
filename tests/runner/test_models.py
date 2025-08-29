@@ -60,8 +60,8 @@ def test_all_models(
             variant = None
 
         cc = CompilerConfig()
-        cc.enable_consteval = True
-        cc.consteval_parameters = True
+        cc.enable_consteval = False
+        cc.consteval_parameters = False
         # FIXME - Add back when op-by-op flow is working/supported in tt-xla.
         # if op_by_op:
         #     cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
