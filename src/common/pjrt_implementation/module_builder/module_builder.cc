@@ -594,7 +594,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizerPassEnabled = compile_options.enable_optimizer;
   options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
-
+  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.systemDescPath = system_descriptor_path.data();
 
   if (m_devices_mesh_shape.size() != 2) {

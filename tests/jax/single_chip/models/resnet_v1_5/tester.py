@@ -8,6 +8,7 @@ import jax
 import torch
 from huggingface_hub import hf_hub_download
 from infra import ComparisonConfig, JaxModelTester, RunMode
+from tests.infra.testers.compiler_config import CompilerConfig
 from safetensors import safe_open
 from transformers import (
     FlaxPreTrainedModel,
@@ -38,10 +39,10 @@ class ResNetTester(JaxModelTester):
         model_variant: ResNetVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
-        use_optimizer: bool = False,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._model_variant = model_variant
-        super().__init__(comparison_config, run_mode, use_optimizer)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     @staticmethod
     def _get_renaming_patterns(variant: ResNetVariant) -> List[Tuple[str, str]]:
