@@ -264,7 +264,15 @@ def initialize_device_connectors():
 
 
 @pytest.fixture(autouse=True)
-def run_around_tests():
-    torch.manual_seed(0)
-    yield
-    torch._dynamo.reset()
+def run_around_tests(request):
+    # Apply torch workaround to torch directory tests or test_models.py which runs torch tests
+    dir_str = str(request.fspath.dirname)
+    file_str = str(request.fspath)
+    is_torch_test = ("torch" in dir_str) or ("tests/runner/test_models.py" in file_str)
+    if is_torch_test:
+        torch.manual_seed(0)
+        yield
+        torch._dynamo.reset()
+    else:
+        yield
+
