@@ -24,7 +24,7 @@ on:
         default: 'All'
         options:
           - 'n150'
-          - 'n300'
+          - 'tt-ubuntu-2204-n300-200gb-stable'
           - 'llmbox'
           - 'multichip'
           - 'All'
