@@ -201,7 +201,8 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
 void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  frontend_passes::annotateArgumentAttributes(mlir_module);
+
+  m_status = frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
@@ -327,9 +328,9 @@ void ModuleBuilder::collectInputArgumentRoles(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
          ++arg_index) {
-      // Check for tt.input_role attribute
+      // Check for ttcore.argument_type attribute
       mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
-          arg_index, frontend_passes::c_input_role_attr_name);
+          arg_index, mlir::tt::ttcore::ArgumentTypeAttr::name);
 
       if (role_attr && role_attr.getValue() == "weight") {
         m_input_argument_roles.push_back(InputArgumentRole::kWeight);
@@ -338,10 +339,10 @@ void ModuleBuilder::collectInputArgumentRoles(
         m_input_argument_roles.push_back(InputArgumentRole::kInput);
       }
 
-      // Remove the tt.input_role attribute after collecting it
+      // Remove the ttcore.argument_type attribute after collecting it
       if (role_attr) {
         func_op.removeArgAttr(arg_index,
-                              frontend_passes::c_input_role_attr_name);
+                              mlir::tt::ttcore::ArgumentTypeAttr::name);
       }
     }
   }

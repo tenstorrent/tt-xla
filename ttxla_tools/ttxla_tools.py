@@ -91,16 +91,17 @@ def mark_argument_attributes(
         "parameter",
         "constant",
     ], f"argument_type must be one of 'input', 'parameter', or 'constant', received {argument_type}"
-    frontend_attributes = {"argument_type": argument_type}
+
+    frontend_attributes = {"ttcore.argument_type": argument_type}
     if name is not None:
-        frontend_attributes["name"] = name
+        frontend_attributes["ttir.name"] = name
 
     return stablehlo_custom_call.stablehlo_custom_call(
         [tensor],
         "tt.mark_argument",
         [tensor.shape],
         [tensor.dtype],
-        frontend_attributes={"name": name, "argument_type": argument_type},
+        frontend_attributes=frontend_attributes,
     )
 
 
@@ -122,7 +123,7 @@ torch._dynamo.allow_in_graph(torch.ops.tt.mark_argument_attributes)
 
 def apply_user_input_markers(tensors: PyTree):
     """
-    Marks a PyTree of tesnors as a user input.
+    Marks a PyTree of tensors as a user input.
     """
     arg_num = 0
 

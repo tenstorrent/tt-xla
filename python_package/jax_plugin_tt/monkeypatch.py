@@ -135,8 +135,8 @@ def _setup_mark_weight_primitive():
                     if hasattr(defining_op, "name") and defining_op.name == "func.call":
                         if hasattr(defining_op, "attributes"):
                             attrs = defining_op.attributes
-                            # Check if callee contains tt.mark and has tt.input_role
-                            if "callee" in attrs and "tt.input_role" in attrs:
+                            # Check if callee contains tt.mark and has ttcore.argument_type
+                            if "callee" in attrs and "ttcore.argument_type" in attrs:
                                 callee_str = str(attrs["callee"])
                                 if "tt.mark" in callee_str:
                                     # Already marked, return as-is
@@ -174,7 +174,7 @@ def _setup_mark_weight_primitive():
                 operands=[x],
                 attributes={
                     "callee": ir.FlatSymbolRefAttr.get(func_name),
-                    "tt.input_role": ir.StringAttr.get("parameter"),
+                    "ttcore.argument_type": ir.StringAttr.get("parameter"),
                 },
             )
         return [op.result]
