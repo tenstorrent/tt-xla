@@ -8,6 +8,7 @@ import os
 from torch_xla.experimental.plugins import DevicePlugin
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 
+import torch
 import tt_torch  # registers "tt" backend for torch.compile
 
 
@@ -35,3 +36,10 @@ class TTPlugin(DevicePlugin):
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
         return str(get_library_path())
+
+
+# This tells the torch dynamo to keep the models parameters bound to
+# the GraphModule's state_dict, rather than consider them all as graph
+# inputs. This allows the "tt" torch.compile backend to determine which
+# inputs are parameters and which are user inputs.
+torch._dynamo.config.inline_inbuilt_nn_modules = False

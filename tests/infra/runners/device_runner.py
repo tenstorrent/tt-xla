@@ -25,26 +25,12 @@ class DeviceRunner(ABC):
         """Runs `workload` on CPU."""
         return self.run_on_device(workload, DeviceType.CPU)
 
-    def run_on_tt_device(
-        self,
-        workload: Workload,
-        device_num: int = 0,
-        explicitly_place_on_device: bool = True,
-    ) -> Tensor:
+    def run_on_tt_device(self, workload: Workload, device_num: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
-        return self.run_on_device(
-            workload,
-            DeviceType.TT,
-            device_num,
-            explicitly_place_on_device=explicitly_place_on_device,
-        )
+        return self.run_on_device(workload, DeviceType.TT, device_num)
 
     def run_on_device(
-        self,
-        workload: Workload,
-        device_type: DeviceType,
-        device_num: int = 0,
-        explicitly_place_on_device: bool = True,
+        self, workload: Workload, device_type: DeviceType, device_num: int = 0
     ) -> Tensor:
         """Orchestrates workload execution by connecting to device, transferring data, and running."""
 
