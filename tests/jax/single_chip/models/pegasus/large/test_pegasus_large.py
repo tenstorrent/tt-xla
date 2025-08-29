@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import PegasusTester
+from third_party.tt_forge_models.pegasus.summarization.jax import ModelVariant
 
-MODEL_PATH = "google/pegasus-large"
+VARIANT_NAME = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "pegasus",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> PegasusTester:
-    return PegasusTester(MODEL_PATH)
+    return PegasusTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> PegasusTester:
-    return PegasusTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return PegasusTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -51,8 +52,8 @@ def training_tester() -> PegasusTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386 "
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
 def test_pegasus_large_inference(inference_tester: PegasusTester):
