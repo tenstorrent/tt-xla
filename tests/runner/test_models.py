@@ -4,7 +4,6 @@
 import pytest
 import os
 import gc
-from tt_torch.tools.utils import CompilerConfig, CompileDepth
 from tests.runner.test_utils import (
     ModelStatus,
     import_model_loader_and_variant,
@@ -59,9 +58,6 @@ def test_all_models(
             ModelLoader, _ = import_model_loader_and_variant(loader_path, MODELS_ROOT)
             variant = None
 
-        cc = CompilerConfig()
-        cc.enable_consteval = True
-        cc.consteval_parameters = True
         # FIXME - Add back when op-by-op flow is working/supported in tt-xla.
         # if op_by_op:
         #     cc.compile_depth = CompileDepth.EXECUTE_OP_BY_OP
@@ -84,7 +80,6 @@ def test_all_models(
                     run_mode,
                     loader=loader,
                     model_info=model_info,
-                    compiler_config=cc,
                     record_property_handle=record_property,
                     forge_models_test=True,
                     **test_metadata.to_tester_args(),
