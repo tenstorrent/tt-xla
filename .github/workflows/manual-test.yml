@@ -97,9 +97,9 @@ jobs:
             runson='n150'
             name='run_single_chip'
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
-          elif [ '${{ inputs.run_on }}' == 'n300' ]; then
+          elif [ '${{ inputs.run_on }}' == 'tt-ubuntu-2204-n300-200gb-stable' ]; then
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300'
+            runson='tt-ubuntu-2204-n300-200gb-stable'
             name='run_2chip'
             echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
           elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
