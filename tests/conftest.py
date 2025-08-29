@@ -258,7 +258,7 @@ def monkeypatch_import(request):
     yield
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def run_around_tests(request):
     if "torch" in request.fspath.dirname:
         torch.manual_seed(0)
