@@ -299,13 +299,15 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     // If the function has a user input argument annotation, then for every
     // argument, if the argument has an argument type attribute, do nothing, and
     // if it does not have an argument type attribute, set it to constant
-    if (!hasUserInputAnnotation)
+    if (!hasUserInputAnnotation) {
       return;
+    }
 
     int64_t annotatedConstCount = 0;
     for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
-      if (funcOp.getArgAttr(i, mlir::tt::ttcore::ArgumentTypeAttr::name))
+      if (funcOp.getArgAttr(i, mlir::tt::ttcore::ArgumentTypeAttr::name)) {
         continue;
+      }
 
       funcOp.setArgAttr(
           i, mlir::tt::ttcore::ArgumentTypeAttr::name,
