@@ -10,7 +10,6 @@ import inspect
 from enum import Enum
 import collections
 from infra import ComparisonConfig, RunMode, TorchModelTester
-from tt_torch.tools.utils import CompilerConfig
 from tests.utils import BringupStatus, Category
 
 # from tt_torch.tools.utils import OpByOpBackend
@@ -160,7 +159,6 @@ class DynamicTester(TorchModelTester):
         *,
         loader,
         model_info=None,
-        compiler_config=None,
         record_property_handle=None,
         forge_models_test: bool | None = None,
         assert_pcc: bool | None = None,
@@ -171,19 +169,8 @@ class DynamicTester(TorchModelTester):
         self.model_name = model_name
         self.loader = loader
         self.model_info = model_info
-        self.compiler_config = compiler_config or CompilerConfig()
         self.record_property_handle = record_property_handle
         self.forge_models_test = forge_models_test
-
-        # Attach metadata to compiler config if provided
-        if self.compiler_config is not None:
-            try:
-                if self.model_info is not None and hasattr(self.model_info, "name"):
-                    self.compiler_config.model_name = self.model_info.name
-                if callable(self.record_property_handle):
-                    self.compiler_config.record_property = self.record_property_handle
-            except Exception:
-                pass
 
         # Build comparison config from provided args
         comparison_config = ComparisonConfig()
@@ -205,7 +192,6 @@ class DynamicTester(TorchModelTester):
         super().__init__(
             comparison_config=comparison_config,
             run_mode=run_mode,
-            compiler_config=self.compiler_config,
         )
 
     def _load_model(self):
