@@ -8,7 +8,6 @@ from tests.infra.comparators.comparison_config import (
 )
 import torch
 import torch_xla.core.xla_model as xm
-from tt_torch.tools.utils import CompilerConfig
 
 import pytest
 
@@ -236,10 +235,9 @@ def test_eltwise_unary(op):
     model = Unary()
     golden = model(input_x)
 
-    cc = CompilerConfig()
     cc.enable_consteval = True
 
-    model = torch.compile(model, backend="tt", options=cc)
+    model = torch.compile(model, backend="tt")
 
     output = model(input_x)
 

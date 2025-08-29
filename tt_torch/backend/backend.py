@@ -3,19 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Tuple
 import torch
-import time
-import operator
+
 
 from .decompositions import (
     CUSTOM_DECOMPOSITION_TABLE,
 )
 import os
-import tempfile
-import multiprocessing as mp
-import re
-import pickle
-import faulthandler
-import collections
 from .passes import (
     bypass_redundant_getitem,
     bypass_dtype_promotion,
@@ -29,10 +22,7 @@ from .passes import (
 from torch.export.graph_signature import InputKind
 from torch._dynamo import register_backend
 
-from tt_torch.tools.utils import CompilerConfig
-
 import torch_xla
-import torch_xla.core.xla_model as xm
 
 
 # This function runs a series of passes on a torch GraphModule.
@@ -41,7 +31,6 @@ import torch_xla.core.xla_model as xm
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-    compiler_config: CompilerConfig,
 ):
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
@@ -60,9 +49,6 @@ def torch_pass_pipeline(
     run_shape_prop(compiled_graph, example_inputs)
     compiled_graph = bypass_redundant_cast(compiled_graph)
 
-    if compiler_config.enable_consteval:
-        compiled_graph = constant_fold(compiled_graph)
-
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = rectify_buffer_inplace_copy(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
@@ -75,103 +61,33 @@ class XLAExecutor:
     """
     This class is used to execute a compiled program on an XLA device.
     It is responsible for:
-    1. Pushing the model weights to the device
-    2. Placing user inputs on device upon calling
-    3. Executing the GraphModule
-    4. Generating arg type map string for the output so tt-mlir can
-       generate consteval graphs
-    5. Signalling to torch-xla to cut the graph at the model output.
-       This is necessary as if the user passes the output of this model
-       to other torch operations WITHOUT moving the output to CPU,
-       torch-xla will continue to trace torch ops, which is not what
-       the user will have indended by marking a model for compile.
+    1. Executing the GraphModule
+    2. Signalling to torch-xla to cut the graph at the model output.
     """
 
-    def __init__(self, program, compiler_config):
+    def __init__(self, program):
         self.module: torch.fx.GraphModule = program.module()
-        self.compiler_config = compiler_config
-        self.arg_type_map_str = None
 
-        # Collect all devices this model will use. This device list is used to signal to torch xla which devices are involved in computing the output tensors, so that we may cut the graph on the output tensors correctly.
+        # Collect all devices this model will use. This device list is used to
+        # signal to torch xla which devices are involved in computing the output
+        # tensors, so that we may cut the graph on the output tensors correctly.
         self.devices = set()
         for _, tensor in program.state_dict.items():
             assert "cpu" not in tensor.device.type
             self.devices.add(tensor.device)
         self.devices = list(self.devices)
 
-        self.inputs = []
-        self.user_input_indices = []
-        for idx, input_spec in enumerate(program._graph_signature.input_specs):
-            if input_spec.kind == InputKind.USER_INPUT:
-                self.inputs.append(None)
-                self.user_input_indices.append(idx)
-            else:
-                self.inputs.append(program.state_dict[input_spec.target])
-
-    def generate_arg_type_map_str(self, output_object):
-        hlo_input_ids, _ = torch_xla._XLAC._get_tensors_xla_device_data_node(
-            output_object
-        )
-
-        # xm.get_stablehlo(output_object) gives a graph with just as many inputs as in hlo_input_ids
-
-        hlo_input_positions = [id - min(hlo_input_ids) for id in hlo_input_ids]
-
-        def get_kind_str(kind):
-            if kind == InputKind.USER_INPUT:
-                return "input"
-            elif kind == InputKind.PARAMETER:
-                return "parameter"
-            else:
-                return "constant"
-
-        arg_types = []
-        output_args = [o.arg for o in self.program.graph_signature.output_specs]
-        for idx in range(len(hlo_input_positions)):
-            if hlo_input_positions[idx] < len(self.program.graph_signature.input_specs):
-                in_spec = self.program.graph_signature.input_specs[
-                    hlo_input_positions[idx]
-                ]
-
-                # If an input is passed right through to the output, it will not be
-                # captured as an argument
-                if in_spec.arg in output_args:
-                    continue
-
-                arg_types.append(get_kind_str(in_spec.kind))
-            else:
-                arg_types.append("constant")
-
-        self.arg_type_map_str = "main=" + ",".join(arg_types)
-
     def __call__(self, *args):
-        for arg in args:
-            assert "cpu" not in arg.device.type, "All args must be on device"
 
         output = self.module(*args)
-
-        if self.compiler_config.arg_type_map_override:
-            if self.arg_type_map_str is None:
-                self.generate_arg_type_map_str(output)
-            if os.environ.get("ARG_TYPE_MAP_OVERRIDE") != self.arg_type_map_str:
-                os.environ["ARG_TYPE_MAP_OVERRIDE"] = self.arg_type_map_str
-
-        # This tells torch-xla to cut the graph at only what is required to compute all tensors in the `output` list
+        # This tells torch-xla to cut the graph at only what is required to
+        # compute all tensors in the `output` list.
         torch_xla._XLAC._xla_sync_multi(output, self.devices, wait=False)
-        # if self.compiler_config.push_outputs_to_cpu:
-        #     return tree_map(lambda x: x.to("cpu"), output)
         return output
-
-    def __del__(self):
-        # Remove the arg type map override environment variable
-        os.environ.pop("ARG_TYPE_MAP_OVERRIDE", None)
 
 
 @register_backend(name="tt")
-def xla_backend(gm, example_inputs, options: CompilerConfig = None):
-    compiler_config = options
-    if compiler_config is None:
-        compiler_config = CompilerConfig()
+def xla_backend(gm, example_inputs, options=None):
 
-    program = torch_pass_pipeline(gm, example_inputs, compiler_config)
-    return XLAExecutor(program, compiler_config)
+    program = torch_pass_pipeline(gm, example_inputs)
+    return XLAExecutor(program)

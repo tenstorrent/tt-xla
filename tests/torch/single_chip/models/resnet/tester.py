@@ -5,7 +5,6 @@
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from third_party.tt_forge_models.resnet.pytorch import ModelLoader
-from tt_torch.tools.utils import CompilerConfig
 
 
 class ResnetTester(TorchModelTester):
@@ -17,11 +16,8 @@ class ResnetTester(TorchModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        cc = CompilerConfig()
-        cc.enable_consteval = True
-        cc.consteval_parameters = True
         self._model_loader = ModelLoader(variant_name)
-        super().__init__(comparison_config, run_mode, cc)
+        super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> Model:

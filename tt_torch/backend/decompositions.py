@@ -18,7 +18,7 @@ DecompositionOpsList = Sequence[
 #     https://github.com/jax-ml/jax/blob/354bd5271077654af983965c8e01ee462ce4ce91/jax/_src/image/scale.py#L52
 #
 # I've modified it to use torch rather than JAX. I've also added the ability
-# to generate a weight matrix that allows the matmul to be identical to to
+# to generate a weight matrix that allows the matmul to be identical to
 # torch's upsample_bilinear2d when align_corners=True.
 # This logic was derived from @brentyi's implementation in:
 #    https://github.com/jax-ml/jax/issues/11206#issuecomment-1423140760
@@ -323,11 +323,11 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
-def _get_custom_decopositions() -> DecompositionTable:
+def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
         # Interpolation decompositions here perform interpolation
-        # using a series of matmuls agains constant tensors.
+        # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
         # use gather, which we cannot lower from ttir-to ttnn
         # in the form presented by this decomposition.
@@ -357,4 +357,4 @@ def _get_custom_decopositions() -> DecompositionTable:
 
 
 CUSTOM_DECOMPOSITION_TABLE = get_decompositions(_get_default_decomposition_ops())
-CUSTOM_DECOMPOSITION_TABLE.update(_get_custom_decopositions())
+CUSTOM_DECOMPOSITION_TABLE.update(_get_custom_decompositions())

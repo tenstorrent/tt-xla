@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
+
+import torch
 from infra.utilities import Framework, Model
 from torch.utils._pytree import tree_map
 
@@ -73,6 +75,8 @@ class Workload:
             # has been populated. That is to say, the program has finished compiling and executing.
             # However, once the program has finished executing, all outputs will be ready, so in reality
             # the halt will only be for the first tensor, and the rest will be ready immediately.
-            result = tree_map(lambda tensor: tensor.to("cpu"), result)
+            result = tree_map(
+                lambda x: x.to("cpu") if isinstance(x, torch.Tensor) else x, result
+            )
 
         return result
