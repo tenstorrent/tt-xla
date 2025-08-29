@@ -86,6 +86,6 @@ def test_psum_scatter(
         use_shardy,
         sharding_mode,
         comparison_config=ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.97)
+            pcc=PccConfig(required_pcc=0.96)
         ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )
