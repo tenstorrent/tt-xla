@@ -7,6 +7,7 @@ on:
 permissions:
   packages: write
   checks: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
