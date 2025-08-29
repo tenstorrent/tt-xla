@@ -9,7 +9,6 @@ import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Model
 from infra.workloads import Workload
-from tt_torch.tools.utils import CompilerConfig
 
 from .model_tester import ModelTester, RunMode
 
@@ -31,11 +30,9 @@ class TorchModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
-        compiler_config: CompilerConfig = CompilerConfig(),
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        self._compiler_config = compiler_config
 
         super().__init__(comparison_config, run_mode, Framework.TORCH)
 
@@ -97,7 +94,8 @@ class TorchModelTester(ModelTester):
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
         return self._compile_for_backend(
-            workload, backend="tt", options=self._compiler_config
+            workload,
+            backend="tt",
         )
 
     def _compile_for_backend(
@@ -105,7 +103,5 @@ class TorchModelTester(ModelTester):
     ) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
-        workload.model.compile(
-            backend=backend, options=self._compiler_config if backend == "tt" else None
-        )
+        workload.model.compile(backend=backend, options=options)
         return workload
