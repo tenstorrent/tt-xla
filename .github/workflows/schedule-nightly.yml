@@ -53,7 +53,6 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   nightly_tests:
-    if: false
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
@@ -113,7 +112,8 @@ jobs:
         shell: bash
         env:
           # FIXME - Consider hardcoding this to preferred value.
-          TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
+          # TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
+          TEST_GROUP_CNT: "10"
         run: |
             SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
             TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
@@ -137,7 +137,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: false #success() || failure()
+    if: success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'model_test'
@@ -183,10 +183,10 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      # - nightly_tests
-      # - test_full_model
+      - nightly_tests
+      - test_full_model
       - test_full_model_forge_models_passing
-      # - test_full_model_forge_models_xfail
+      # - test_full_model_forge_models_not_expected_passing
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
