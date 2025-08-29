@@ -14,6 +14,7 @@ on:
           - 'push'
           - 'nightly'
           - 'model_test'
+          - 'forge_models_passing'
           - 'Custom'
       test_mark:
         description: 'Test mark to run (if preset is Custom)'
@@ -41,6 +42,19 @@ on:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
           type: string
+      test_group_cnt:
+        description: 'Parallel groups for forge models preset'
+        required: false
+        default: '5'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '8'
+          - '10'
 
 permissions:
   packages: write
@@ -62,6 +76,44 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+
+  # Generate matrix for forge models preset (mirrors schedule-nightly)
+  generate-matrix:
+    if: inputs.preset == 'forge_models_passing'
+    runs-on: ubuntu-latest
+    needs: [ build-image ]
+    outputs:
+      test-forge-models-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Generate tt-forge-models matrix
+        id: generate-forge-models-matrix
+        shell: bash
+        env:
+          TEST_GROUP_CNT: ${{ inputs.test_group_cnt }}
+        run: |
+            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
+            TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
+            TESTS_TO_PARALLELIZE='[
+              {
+                "runs-on": "n150",
+                "name": "run_forge_models_torch",
+                "dir": "./tests/runner/test_models.py"
+              },
+              {
+                "runs-on": "p150",
+                "name": "run_forge_models_torch",
+                "dir": "./tests/runner/test_models.py"
+              }
+            ]'
+            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
+            echo "test-forge-models-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
 
   test-setup:
     runs-on: ubuntu-latest
@@ -149,7 +201,7 @@ jobs:
           echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
-    if: always() && !cancelled()
+    if: always() && !cancelled() && inputs.preset != 'forge_models_passing'
     uses: ./.github/workflows/call-test.yml
     needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
@@ -157,6 +209,21 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
+      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+
+  test_full_model_forge_models_passing:
+    uses: ./.github/workflows/call-test.yml
+    if: inputs.preset == 'forge_models_passing' && (success() || failure())
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-matrix ]
+    with:
+      timeout_minutes: 180
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: 'expected_passing'
+      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: false
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
