@@ -208,7 +208,7 @@ struct PopulateArgumentAttrsFromTTMark final
     auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
     assert(funcOp && "Expected function as parent of block argument");
 
-    // Torch xla allows us to populate a frontend_attributes dictionary to
+    // Torch XLA allows us to populate a frontend_attributes dictionary to
     // custom call ops. This dictionary is used to populate the argument type
     // and name of the argument. We need to extract this information and set the
     // argument type and name of the argument in the function argument

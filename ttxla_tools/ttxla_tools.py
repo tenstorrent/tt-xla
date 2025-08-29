@@ -106,7 +106,7 @@ def mark_argument_attributes(
 
 
 @mark_argument_attributes.register_fake
-def _(tensor: torch.Tensor, name: str, argument_type: str) -> torch.Tensor:
+def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tensor:
     """
     FakeTensor implementation of torch.ops.tt.mark_argument_attributes.
     This must be implemented in order for dynamo to trace the function.

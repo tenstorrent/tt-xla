@@ -5,7 +5,6 @@
 import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-import ttxla_tools
 from ttxla_tools import ttxla_tools
 
 from tests.torch.single_chip.models.mnist.cnn.dropout.model_implementation import (
