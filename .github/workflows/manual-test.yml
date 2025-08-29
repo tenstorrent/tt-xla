@@ -37,6 +37,10 @@ on:
             - multichip: 'jax/multi_chip'
             - All: run on n150 all singlechip, on llmbox all multichip
         type: string
+      mlir_override:
+          description: 'Git SHA of commit in tenstorrent/tt-mlir'
+          required: false
+          type: string
 
 permissions:
   packages: write
@@ -48,6 +52,8 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
     needs: build-image
@@ -55,6 +61,7 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
 
   test-setup:
     runs-on: ubuntu-latest
