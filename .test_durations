@@ -1482,5 +1482,18 @@
     "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w30_osmr-full-inference]": 268.856,
     "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w32_osmr-full-inference]": 253.715,
     "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w40_osmr-full-inference]": 275.346,
+    "tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]": 77.784,
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-vovnet39-full-inference]": 103.077,
+    "tests/runner/test_models.py::test_all_models[vovnet/pytorch-ese_vovnet99b-full-inference]": 157.973,
+    "tests/runner/test_models.py::test_all_models[yolov10/pytorch-yolov10x-full-inference]": 372.13,
+    "tests/runner/test_models.py::test_all_models[yolov10/pytorch-yolov10n-full-inference]": 289.317,
+    "tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2b-full-inference]": 141.14,
+    "tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-2b-it-full-inference]": 211.006,
+    "tests/runner/test_models.py::test_all_models[autoencoder/pytorch-conv-full-inference]": 36.659,
+    "tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2.timm-full-inference]": 97.702,
+    "tests/runner/test_models.py::test_all_models[vgg/pytorch-bn_vgg19b-full-inference]": 89.973,
+    "tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50_timm-full-inference]": 97.755,
+    "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference]": 332.379,
+    "tests/runner/test_models.py::test_all_models[phi3/phi_3_5/pytorch-mini_instruct-full-inference]": 208.069,
     "tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]": 77.784
 }
