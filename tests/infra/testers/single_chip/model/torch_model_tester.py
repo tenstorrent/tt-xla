@@ -93,15 +93,11 @@ class TorchModelTester(ModelTester):
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """Compiles `workload` for TT device."""
-        return self._compile_for_backend(
-            workload,
-            backend="tt",
-        )
+        return self._compile_for_backend(workload, backend="tt")
 
-    def _compile_for_backend(
-        self, workload: Workload, backend: str, options: Any = None
-    ) -> Workload:
+    def _compile_for_backend(self, workload: Workload, backend: str) -> Workload:
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
-        workload.model.compile(backend=backend, options=options)
+
+        workload.model.compile(backend=backend)
         return workload
