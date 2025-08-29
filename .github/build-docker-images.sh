@@ -30,6 +30,8 @@ build_and_push() {
     local on_main=$3
     local from_image=$4
 
+    # even if CHECK_ONLY == true, if the image exists this branch will get executed
+    # and the latest tag will try to be pushed in the below if block
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
         echo "Image $image_name:$DOCKER_TAG already exists"
     elif [ "$CHECK_ONLY" = true ]; then
