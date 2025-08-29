@@ -4,6 +4,61 @@
 import torch
 import gc
 from torch.fx.experimental import const_fold
+from torch.export.graph_signature import InputKind
+
+
+def insert_argument_type_markers(
+    gm: torch.fx.GraphModule, graph_signature
+) -> torch.fx.GraphModule:
+
+    input_nodes = gm.graph.find_nodes(op="get_attr") + gm.graph.find_nodes(
+        op="placeholder"
+    )
+    input_signature = graph_signature.input_specs
+    get_attr_target_type_dict = {}
+    placeholder_target_type_dict = {}
+    for in_spec in input_signature:
+        type_str = None
+        if in_spec.kind == InputKind.USER_INPUT:
+            type_str = "input"
+        elif in_spec.kind == InputKind.PARAMETER:
+            type_str = "parameter"
+        # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
+        # We do not model the concept of a "buffer" tensor in tt-mlir yet, for now we will mark
+        # them both as "constant".
+        else:
+            type_str = "constant"
+
+        if in_spec.target is not None:
+            get_attr_target_type_dict[in_spec.target] = type_str
+        else:
+            placeholder_target_type_dict[in_spec.arg.name] = type_str
+
+    for input_node in input_nodes:
+        users = list(input_node.users.keys())
+        if len(users) == 0:
+            continue
+
+        argument_type = None
+        if input_node.target in get_attr_target_type_dict:
+            argument_type = get_attr_target_type_dict[input_node.target]
+        elif input_node.name in placeholder_target_type_dict:
+            argument_type = placeholder_target_type_dict[input_node.name]
+        else:
+            continue
+
+        with gm.graph.inserting_after(input_node):
+            new_input = gm.graph.create_node(
+                "call_function",
+                torch.ops.tt.mark_argument_attributes,
+                args=(input_node,),
+                kwargs={"argument_type": argument_type, "name": input_node.name},
+            )
+
+        for user in users:
+            user.replace_input_with(input_node, new_input)
+
+    return gm
 
 
 def bypass_assert_tensor_metadata(gm):
@@ -110,31 +165,4 @@ def rectify_buffer_inplace_copy(gm):
             if destination_node.op != "get_attr":
                 continue
             gm.graph.erase_node(node)
-    return gm
-
-
-def constant_fold(gm):
-    """
-    Splits constant subgraphs and folds constants. This is required for two reasons:
-    1. Creation operations will have the target device be "cpu", however we ultimately
-       intend to run the graph on an XLA device. So, when their outputs (which are on "cpu")
-       are operated against a tensor on an XLA device, the program will fail to execute.
-       By folding them, the output tensors are computed at compile time and are added to
-       the state_dict of the GraphModule, which can be pushed to device along with the
-       model parameters/buffers/constants. Remedies for this in the future would include
-       either forcing the `device` attribute of creation ops to be "xla", or compiling
-       a model which is already on an XLA device rather than a CPU device.
-          - However, if `constant_fold` is run on a model which is already on an XLA device,
-            the compute involved with constant-folding would be performed on the XLA device
-            as well, which can be problematic if any of those computations cannot be
-            compiled through tt-mlir.
-    2. Some ops which are constant-foldable cannot be consumed by tt-mlir, so eliminating
-       them here is useful. Remedies for this in the future would include handling them with
-       cpu-fallback in tt-mlir.
-    """
-    gm = const_fold.split_const_subgraphs(gm)
-    gc.collect()
-    gm.run_folding()
-
-    gm.graph.eliminate_dead_code()
     return gm
