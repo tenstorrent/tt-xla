@@ -78,7 +78,7 @@ jobs:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
     steps:
-
+      - uses: actions/checkout@v4
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
         shell: bash
