@@ -20,7 +20,7 @@ def alexnet():
 
     # Put it in inference mode and compile it.
     model = model.eval()
-    model.compile(backend="openxla")
+    model.compile(backend="tt")
 
     # Generate inputs.
     input = torch.rand((1, 3, 224, 224))

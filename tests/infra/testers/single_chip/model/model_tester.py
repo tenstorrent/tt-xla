@@ -120,6 +120,7 @@ class ModelTester(BaseTester, ABC):
         cpu_res = self._run_on_cpu(compiled_cpu_workload)
 
         compiled_device_workload = self._compile_for_tt_device(self._workload)
+
         tt_res = self._run_on_tt_device(compiled_device_workload)
 
         self._compare(tt_res, cpu_res)
@@ -138,9 +139,15 @@ class ModelTester(BaseTester, ABC):
         """Compiles `workload` for TT device."""
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
+    def _run_on_tt_device(
+        self, compiled_workload: Workload, explicitly_place_on_device: bool = True
+    ) -> Tensor:
         """Runs workload on TT device."""
-        return self._device_runner.run_on_tt_device(compiled_workload)
+        # If the framework is Torch, we do not want to explicitly place the workload on device as that is done by the "tt" backend executor.
+        return self._device_runner.run_on_tt_device(
+            compiled_workload,
+            explicitly_place_on_device=self._framework != Framework.TORCH,
+        )
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
         """Compares device with golden output."""
