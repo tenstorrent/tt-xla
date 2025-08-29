@@ -235,8 +235,6 @@ def test_eltwise_unary(op):
     model = Unary()
     golden = model(input_x)
 
-    cc.enable_consteval = True
-
     model = torch.compile(model, backend="tt")
 
     output = model(input_x)
