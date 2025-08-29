@@ -78,6 +78,10 @@ jobs:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: "tenstorrent/tt-xla"
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
