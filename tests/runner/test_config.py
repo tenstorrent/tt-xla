@@ -1205,6 +1205,205 @@ test_config = {
     "googlenet/pytorch-googlenet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
+    "vovnet/pytorch-ese_vovnet19b_dw-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-ese_vovnet39b-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "resnext/pytorch-resnext50_32x4d-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "deepseek/deepseek_coder/pytorch-1_3b_instruct-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "deepseek/pytorch-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gemma/pytorch-google/gemma-1.1-2b-it-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "nbeats/pytorch-generic_basis-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "nbeats/pytorch-seasonality_basis-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "nbeats/pytorch-trend_basis-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gpt2/pytorch-gpt2-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gpt2/pytorch-gpt2_sequence_classification-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "yolov9/pytorch-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "unet/pytorch-unet_cityscapes-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "unet/pytorch-torchhub_brain_unet-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "ghostnet/pytorch-ghostnetv2_100.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "wide_resnet/pytorch-wide_resnet101_2.timm-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-timm_efficientnet_b0-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-timm_efficientnet_b4-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-bn_vgg19-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-timm_vgg19_bn-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-torchvision_vgg11-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-torchvision_vgg13-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-torchvision_vgg16-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-torchvision_vgg19-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-torchvision_vgg19_bn-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-hf_vgg19-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "segformer/semantic_segmentation/pytorch-b2_finetuned_ade_512_512-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "segformer/semantic_segmentation/pytorch-b3_finetuned_ade_512_512-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnet_w18_small_v2-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnet_w18_small_v1_osmr-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w18_osmr-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w30_osmr-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w32_osmr-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w40_osmr-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-vovnet39-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-vovnet57-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-ese_vovnet99b-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
+        "required_pcc": 0.97,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-bn_vgg19b-full-inference": {
+        "required_pcc": 0.96,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "resnet/pytorch-resnet50_timm-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w44_osmr-full-inference": {
+        "required_pcc": 0.97,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "yolov10/pytorch-yolov10x-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "yolov10/pytorch-yolov10n-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gemma/pytorch-google/gemma-2b-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "autoencoder/pytorch-conv-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "phi3/phi_3_5/pytorch-mini_instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
     # "yolov10/pytorch-yolov10x-full-inference": {
     #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
     #     "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
