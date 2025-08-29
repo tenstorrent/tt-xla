@@ -10,7 +10,7 @@ def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
     This is a noop node that is used to assert the tensor metadata.
-    This is used to remove these assertion ops as we may be perparing a GraphModule
+    This is used to remove these assertion ops as we may be preparing a GraphModule
     which was originally compiled on CPU. Thus, these assertions will assert
     that its input tensor is on CPU. When running the graph on an XLA device later,
     it would fail the assertion.
@@ -26,11 +26,11 @@ def bypass_assert_tensor_metadata(gm):
 
 def run_shape_prop(gm, example_inputs):
     """
-    Propagates shape information for each node through the graph bassed on
+    Propagates shape information for each node through the graph based on
     The inputs in `example_inputs`. This will also populate the meta data
-    for each node, which is usefuly for debugging.
+    for each node, which is useful for debugging.
 
-    Runs quicly as only metadata is propagated, no compute is performed.
+    Runs quickly as only metadata is propagated, no compute is performed.
     """
     shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
     if shape_prop.fake_mode is not None:
@@ -121,8 +121,8 @@ def constant_fold(gm):
        are operated against a tensor on an XLA device, the program will fail to execute.
        By folding them, the output tensors are computed at compile time and are added to
        the state_dict of the GraphModule, which can be pushed to device along with the
-       model parameters/buffers/constants. Remedyies for this in the future would include
-       either forcing the `device` attribute of creation ops to be "xla", or compling
+       model parameters/buffers/constants. Remedies for this in the future would include
+       either forcing the `device` attribute of creation ops to be "xla", or compiling
        a model which is already on an XLA device rather than a CPU device.
           - However, if `constant_fold` is run on a model which is already on an XLA device,
             the compute involved with constant-folding would be performed on the XLA device
