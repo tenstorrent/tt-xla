@@ -1,5 +1,5 @@
 ARG FROM_TAG=latest
-# trigger rebuild
+
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci-build
 SHELL ["/bin/bash", "-c"]
 
