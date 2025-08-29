@@ -61,26 +61,13 @@ class SetupConfig:
     @property
     def requirements(self) -> list:
         """
-        List of requirements needed for plugin to actually work.
-
-        requirements.txt is parsed and only JAX requirements are pulled from it.
+        List of requirements needed for plugins to actually work.
         """
         reqs = []
-        requirements_path = REPO_DIR / "requirements.txt"
+        requirements_path = THIS_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
-            # Filter for just pinned versions.
-            pin_pairs = [line.strip().split("==") for line in f if "==" in line]
-            pin_versions = dict(pin_pairs)
-
-            # Convert pinned versions to >= for install_requires.
-            for pin_name in ("jax", "jaxlib", "torch", "torch_xla"):
-                assert (
-                    pin_name in pin_versions.keys()
-                ), f"Requirement {pin_name} not found in {requirements_path}"
-
-                pin_version = pin_versions[pin_name]
-                reqs.append(f"{pin_name}>={pin_version}")
+            reqs = f.read().splitlines()
 
         return reqs
 
