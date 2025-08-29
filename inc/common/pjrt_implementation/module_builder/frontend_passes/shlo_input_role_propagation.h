@@ -15,19 +15,30 @@
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/Value.h"
 
+// tt-xla includes
+#include "common/status.h"
+
 namespace tt::pjrt::module_builder::frontend_passes {
 
-extern const std::string c_input_role_attr_name;
-
-// Propagates tt.input_role attributes from tt.mark func.call operations upwards
-// to the module root public function arguments.
-void propagateInputRoleAttributes(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+// Annotates the attributes of the function arguments (argument type, name) via
+// observation of the annotation ops inserted by the frontend(s).
+tt_pjrt_status
+annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
 namespace internal {
 
-// Helper function to recursively propagate tt.input_role attribute upward
-// through call chain.
+// Annotates the attributes of the function arguments if the annotations are
+// provided by a custom call.
+tt_pjrt_status annotateArgumentAttributesFromCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+// Propagates ttcore.argument_type attributes from tt.mark func.call operations
+// upwards to the module root public function arguments.
+void propagateInputRoleAttributes(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+// Helper function to recursively propagate ttcore.argument_type attribute
+// upward through call chain.
 void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
                             mlir::StringAttr roleAttr);
 
