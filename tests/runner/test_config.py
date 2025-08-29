@@ -1352,6 +1352,58 @@ test_config = {
     "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
+    "vovnet/pytorch-vovnet39-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-vovnet57-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vovnet/pytorch-ese_vovnet99b-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
+        "required_pcc": 0.97,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "vgg/pytorch-bn_vgg19b-full-inference": {
+        "required_pcc": 0.96,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "resnet/pytorch-resnet50_timm-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "hrnet/pytorch-hrnetv2_w44_osmr-full-inference": {
+        "required_pcc": 0.97,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "yolov10/pytorch-yolov10x-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "yolov10/pytorch-yolov10n-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "gemma/pytorch-google/gemma-2b-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "autoencoder/pytorch-conv-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
+    "phi3/phi_3_5/pytorch-mini_instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelStatus.EXPECTED_PASSING,
+    },
     # "yolov10/pytorch-yolov10x-full-inference": {
     #     "status": ModelStatus.NOT_SUPPORTED_SKIP,
     #     "reason": "TorchMlirCompilerError: Lowering Torch Backend IR -> StableHLO Backend IR failed",
