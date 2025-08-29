@@ -124,6 +124,8 @@ def bypass_redundant_cast(gm):
             and hasattr(node.target, "name")
             and "prims::convert_element_type" in node.target.name()
         ):
+            if "tensor_meta" not in node.args[0].meta:
+                continue
             if node.args[1] == node.args[0].meta["tensor_meta"].dtype:
                 node.replace_all_uses_with(node.args[0])
 
