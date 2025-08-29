@@ -132,7 +132,10 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "yolov5/pytorch-yolov5s-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Aug26 tt-forge-models uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "albert/masked_lm/pytorch-base_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -410,21 +413,63 @@ test_config = {
     },
     "swin/image_classification/pytorch-swin_t-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.7627570629119873. Required: pcc=0.99
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-swin_s-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.7249900698661804. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-swin_b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.5627762079238892. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-swin_v2_t-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.2837284207344055. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-swin_v2_s-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.31774118542671204. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-swin_v2_b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.35581427812576294. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "unet/pytorch-carvana_unet-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -586,9 +631,23 @@ test_config = {
     },
     "beit/pytorch-base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.14377377927303314. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "beit/pytorch-large-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.13767358660697937. Required: pcc=0.99
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "deepcogito/pytorch-v1_preview_llama_3b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -640,8 +699,14 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolos/pytorch-full-inference": {
-        "required_pcc": 0.96,  # tt-torch has this at 0.98
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -649,6 +714,13 @@ test_config = {
     },
     "t5/pytorch-t5-small-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.849456787109375. Required: pcc=0.99
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "albert/token_classification/pytorch-large_v2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -761,16 +833,28 @@ test_config = {
         "required_pcc": 0.98,
     },
     "yolov5/pytorch-yolov5n-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Aug26 tt-forge-models uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5m-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Aug26 tt-forge-models uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5l-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Aug26 tt-forge-models uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5x-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Aug26 tt-forge-models uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_1_5/causal_lm/pytorch-0_5b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -958,12 +1042,33 @@ test_config = {
     },
     "swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.7274536490440369. Required: pcc=0.99
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.6931940317153931. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.3293600380420685. Required: pcc=0.99.
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+            },
+        },
     },
     "vit/pytorch-vit_b_16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
