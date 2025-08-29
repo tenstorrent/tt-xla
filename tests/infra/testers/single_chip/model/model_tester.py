@@ -8,8 +8,6 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
-import torch
-
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, Tensor
