@@ -35,7 +35,6 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        self._compiler_config = compiler_config
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
 
