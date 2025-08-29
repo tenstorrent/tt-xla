@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
-
+from third_party.tt_forge_models.xlm_roberta.causal_lm.jax import ModelVariant
 from ..tester import XLMRobertaTester
 
-MODEL_PATH = "FacebookAI/xlm-roberta-base"
+VARIANT_NAME = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "xlm-roberta",
@@ -30,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> XLMRobertaTester:
-    return XLMRobertaTester(MODEL_PATH)
+    return XLMRobertaTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> XLMRobertaTester:
-    return XLMRobertaTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return XLMRobertaTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -51,8 +51,8 @@ def training_tester() -> XLMRobertaTester:
 )
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] "
-        "grow to 2101768 B which is beyond max L1 size of 1572864 B "
+        "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] "
+        "grow to 2100072 B which is beyond max L1 size of 1499136 B "
         "https://github.com/tenstorrent/tt-xla/issues/1066"
     )
 )
