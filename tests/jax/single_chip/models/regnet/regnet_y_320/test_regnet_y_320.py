@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import RegNetTester
+from third_party.tt_forge_models.regnet.image_classification.jax import ModelVariant
 
-MODEL_PATH = "facebook/regnet-y-320"
+VARIANT_NAME = ModelVariant.REGNET_Y_320
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "regnet",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> RegNetTester:
-    return RegNetTester(MODEL_PATH)
+    return RegNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> RegNetTester:
-    return RegNetTester(MODEL_PATH, RunMode.TRAINING)
+    return RegNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -52,8 +53,8 @@ def training_tester() -> RegNetTester:
 )
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 1455104 B L1 buffer "
-        "across 1 banks, where each bank needs to store 1455104 B "
+        "Out of Memory: Not enough space to allocate 56438554624 B L1 buffer "
+        "across 1 banks, where each bank needs to store 4703215616 B "
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )

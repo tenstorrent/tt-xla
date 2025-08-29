@@ -15,9 +15,10 @@ from utils import (
     failed_runtime,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from ..tester import ResNetTester
+from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
-MODEL_VARIANT = ResNetVariant.RESNET_26
+VARIANT_NAME = ModelVariant.RESNET_26
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "resnet_v1.5",
@@ -32,17 +33,17 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+    return ResNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 @pytest.fixture
 def inference_tester_optimizer() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, run_mode=RunMode.INFERENCE, use_optimizer=True)
+    return ResNetTester(VARIANT_NAME, run_mode=RunMode.INFERENCE, use_optimizer=True)
 
 
 # ----- Tests -----
@@ -59,7 +60,7 @@ def inference_tester_optimizer() -> ResNetTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Calculated: pcc=-0.00282002380117774. Required: pcc=0.99. "
+        "Calculated: pcc=-0.05205399543046951. Required: pcc=0.99. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
