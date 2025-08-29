@@ -12,7 +12,7 @@ import functools
 
 
 @torch.library.custom_op(
-    "tt::mark_argument_attributes", mutates_args=[], device_types=["xla"]
+    "tt::mark_argument_attributes", mutates_args=[], device_types=["cpu", "xla"]
 )
 def mark_argument_attributes(
     tensor: torch.Tensor, argument_type: str, name: str = None
@@ -22,6 +22,9 @@ def mark_argument_attributes(
     You may only apply this function to a tensor which is on an XLA device.
     This function will annotate the tensor in a compiled program with a "name" and "argument_type" attribute.
     """
+    if tensor.device.type == "cpu":
+        return tensor.clone()
+
     assert isinstance(
         argument_type, str
     ), f"argument_type must be a string, received {type(argument_type)}"
@@ -52,7 +55,7 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     returns:
         - tensor: the same tensor that was passed in
     """
-    return tensor
+    return tensor.clone()
 
 
 # Allow the torch dynamo to trace our custom operation. This will allow
