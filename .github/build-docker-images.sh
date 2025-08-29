@@ -30,7 +30,7 @@ build_and_push() {
     local on_main=$3
     local from_image=$4
 
-    if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null && [ "$CHECK_ONLY" = false ]; then
+    if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null && [ "$CHECK_ONLY" = true ]; then
         echo "Image $image_name:$DOCKER_TAG already exists"
         return 0
     elif docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
