@@ -68,7 +68,7 @@ class Workload:
         # PyTorch models will leave their outputs on the device.
         # Since the model output will be an arbitrary collection of tensors,
         # use tree_map to move all tensors to CPU.
-        if result and self.framework == Framework.TORCH:
+        if result is not None and self.framework == Framework.TORCH:
             # NOTE: Each call to .to('cpu') will halt until that tensor's data
             # has been populated. That is to say, the program has finished compiling and executing.
             # However, once the program has finished executing, all outputs will be ready, so in reality
