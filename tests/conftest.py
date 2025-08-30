@@ -16,8 +16,6 @@ from loguru import logger
 from pathlib import Path
 from typing import Any
 
-from jax_plugin_tt.monkeypatch import setup_monkey_patches
-
 
 def pytest_configure(config: pytest.Config):
     """
@@ -248,10 +246,3 @@ def initialize_device_connectors():
     """
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
-
-
-# Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
-@pytest.fixture(autouse=True)
-def monkeypatch_import(request):
-    setup_monkey_patches()
-    yield
