@@ -13,7 +13,7 @@ from jax import numpy as jnp
 from utils import Category
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 def test_scalar_scalar_add():
@@ -25,7 +25,7 @@ def test_scalar_scalar_add():
     run_op_test(add, [])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 def test_scalar_array_add():

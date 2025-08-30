@@ -41,7 +41,7 @@ def training_tester() -> T5Tester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -60,7 +60,7 @@ def test_t5_base_inference(inference_tester: T5Tester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

@@ -10,7 +10,7 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from utils import Category
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

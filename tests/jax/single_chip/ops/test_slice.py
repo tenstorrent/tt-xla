@@ -28,7 +28,7 @@ for begin in range(0, 64, 32):
 
 
 # TODO investigate if this test can be rewritten to make it easier for understanding.
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

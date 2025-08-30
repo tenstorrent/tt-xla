@@ -18,7 +18,7 @@ def comparison_config() -> ComparisonConfig:
     return config
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

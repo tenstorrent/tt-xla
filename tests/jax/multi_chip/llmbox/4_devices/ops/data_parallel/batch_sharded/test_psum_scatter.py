@@ -23,7 +23,7 @@ def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
 
 
 @pytest.mark.nightly
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
     [

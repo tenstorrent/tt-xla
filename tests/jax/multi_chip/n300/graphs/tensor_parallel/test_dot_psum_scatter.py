@@ -14,7 +14,7 @@ from utils import failed_fe_compilation, incorrect_result
 
 
 @pytest.mark.nightly
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
     [True, False],

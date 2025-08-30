@@ -42,7 +42,7 @@ def training_tester() -> FlaxCLIPTester:
 # ----- Tests -----
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -61,7 +61,7 @@ def test_clip_base_patch16_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

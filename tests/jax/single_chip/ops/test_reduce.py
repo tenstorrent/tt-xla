@@ -20,7 +20,7 @@ def comparison_config() -> ComparisonConfig:
 
 
 # TODO axis should be parametrized as well.
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -38,7 +38,7 @@ def test_reduce_sum(x_shape: tuple, comparison_config: ComparisonConfig):
 
 
 # TODO axis should be parametrized as well.
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -55,7 +55,7 @@ def test_reduce_max(x_shape: tuple, comparison_config: ComparisonConfig):
     )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -79,7 +79,7 @@ def test_reduce_and(x_shape: tuple, comparison_config: ComparisonConfig):
     )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -103,7 +103,7 @@ def test_reduce_or(x_shape: tuple, comparison_config: ComparisonConfig):
     )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -126,7 +126,7 @@ def test_reduce_multiply(x_shape: tuple, comparison_config: ComparisonConfig):
     )
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

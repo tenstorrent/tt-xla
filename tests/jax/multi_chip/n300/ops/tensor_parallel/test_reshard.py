@@ -30,7 +30,7 @@ def conditionally_skip(use_shardy: bool, sharding_mode: ShardingMode):
 
 
 @pytest.mark.nightly
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.parametrize(
     "use_shardy",
     [True, False],

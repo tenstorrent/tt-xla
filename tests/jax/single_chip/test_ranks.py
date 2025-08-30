@@ -13,7 +13,7 @@ from jax import numpy as jnp
 from utils import Category
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 @pytest.mark.parametrize(
@@ -43,7 +43,7 @@ def test_unary_op(x_shape: tuple):
     run_op_test_with_random_inputs(negate, [x_shape])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 @pytest.mark.parametrize(

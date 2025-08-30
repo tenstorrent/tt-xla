@@ -8,7 +8,7 @@ from infra import run_op_test
 from utils import Category, failed_ttmlir_compilation
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -23,7 +23,7 @@ def test_constant_zeros(shape: tuple):
     run_op_test(module_constant_zeros, [])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -38,7 +38,7 @@ def test_constant_ones(shape: tuple):
     run_op_test(module_constant_ones, [])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,

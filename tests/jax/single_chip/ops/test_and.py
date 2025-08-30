@@ -9,7 +9,7 @@ from infra import random_tensor, run_op_test
 from utils import Category, convert_output_to_bfloat16
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
@@ -35,7 +35,7 @@ def test_logical_and(shape: tuple):
     run_op_test(logical_and, [lhs, rhs])
 
 
-@pytest.mark.push
+# @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
