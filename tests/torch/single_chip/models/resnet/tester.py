@@ -4,6 +4,7 @@
 
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+from infra.comparators.comparison_config import PccConfig
 from third_party.tt_forge_models.resnet.pytorch import ModelLoader
 
 
