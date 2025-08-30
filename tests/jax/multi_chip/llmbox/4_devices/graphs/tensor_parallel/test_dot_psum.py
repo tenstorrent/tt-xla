@@ -78,6 +78,6 @@ def test_dot_psum(
         sharding_mode,
         maxval=0.1,
         comparison_config=ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.95)
+            pcc=PccConfig(required_pcc=0.99)
         ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )
