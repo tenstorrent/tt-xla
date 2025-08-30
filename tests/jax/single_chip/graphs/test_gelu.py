@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import flax.linen as nn
+from jax import nn
 import jax
 import pytest
 from infra import run_graph_test_with_random_inputs
@@ -24,12 +24,12 @@ from utils import Category, incorrect_result
     [
         pytest.param(
             False,
-            marks=pytest.mark.xfail(
-                reason=incorrect_result(
-                    "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
-                    "https://github.com/tenstorrent/tt-xla/issues/379"
-                )
-            ),
+            # marks=pytest.mark.xfail(
+            #     reason=incorrect_result(
+            #         "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
+            #         "https://github.com/tenstorrent/tt-xla/issues/379"
+            #     )
+            # ),
         ),
         pytest.param(True),
     ],
