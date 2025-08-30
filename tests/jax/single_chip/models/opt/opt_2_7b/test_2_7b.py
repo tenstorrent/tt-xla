@@ -11,12 +11,12 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_runtime,
 )
-
+from third_party.tt_forge_models.opt.causal_lm.jax import ModelVariant
 from ..tester import OPTTester
 
-MODEL_PATH = "facebook/opt-2.7b"
+VARIANT_NAME = ModelVariant._2_7B
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "opt",
@@ -31,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH)
+    return OPTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return OPTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,12 +48,13 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.6257885098457336. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 104857600 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 8740864 B"
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
 @pytest.mark.large
