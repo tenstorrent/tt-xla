@@ -12,15 +12,15 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.unet.pytorch import ModelVariant
 from .tester import UNETTester
 
-VARIANT_NAME = "unet"
+VARIANT_NAME = ModelVariant.CARVANA_UNET
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
     "unet",
-    "base",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_SEG,
     ModelSource.CUSTOM,
 )

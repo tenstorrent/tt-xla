@@ -14,8 +14,9 @@ from utils import (
 )
 
 from ..tester import ElectraTester
+from third_party.tt_forge_models.electra.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "google/electra-base-discriminator"
+VARIANT_NAME = ModelVariant.BASE_DISCRIMINATOR
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "electra",
@@ -29,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ElectraTester:
-    return ElectraTester(MODEL_PATH)
+    return ElectraTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ElectraTester:
-    return ElectraTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return ElectraTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
