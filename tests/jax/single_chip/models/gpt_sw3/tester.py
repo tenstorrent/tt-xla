@@ -2,36 +2,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
-
+from typing import Dict
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from transformers import FlaxGPT2LMHeadModel, FlaxPreTrainedModel, GPTSw3Tokenizer
+
+from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import ModelLoader, ModelVariant
 
 
 class GPTSw3Tester(JaxModelTester):
-    """Tester for GPT-SW3 model."""
+    """Tester for GPT-SW3 model on a causal language modeling task."""
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxGPT2LMHeadModel.from_pretrained(self._model_path)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
-        tokenizer = GPTSw3Tokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer(
-            "Träd är fina för att", return_tensors="jax"
-        )  # input is a swedish statement
-        return inputs
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_static_argnames(self):
