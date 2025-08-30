@@ -11,16 +11,15 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
-
+from third_party.tt_forge_models.t5.summarization.jax.loader import ModelVariant
 from ..tester import T5Tester
 
-MODEL_PATH = "google-t5/t5-large"
+VARIANT_NAME = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "t5",
-    "large",
+    str(VARIANT_NAME),
     ModelTask.NLP_SUMMARIZATION,
     ModelSource.HUGGING_FACE,
 )
@@ -30,12 +29,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> T5Tester:
-    return T5Tester(MODEL_PATH)
+    return T5Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> T5Tester:
-    return T5Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return T5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,13 +47,7 @@ def training_tester() -> T5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-0.09189048409461975. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_t5_large_inference(inference_tester: T5Tester):
     inference_tester.test()
