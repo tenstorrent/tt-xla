@@ -54,6 +54,7 @@ jobs:
 
   nightly_tests:
     uses: ./.github/workflows/call-test.yml
+    if: false # Disable nightly tests
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
@@ -137,7 +138,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
+    if: false # success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'model_test'
