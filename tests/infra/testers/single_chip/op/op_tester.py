@@ -47,11 +47,33 @@ class OpTester(BaseTester):
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """
         Compiles executable carried in `workload` based on framework.
-
-        Returns compiled workload.
         """
 
-        def compile_jax_workload(workload: Workload) -> Workload:
+        def compile_jax_workload(workload: Workload) -> None:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
+            workload.executable = jax.jit(
+                workload.executable,
+                static_argnames=workload.static_argnames,
+                compiler_options=compiler_options,
+            )
+
+        def compile_torch_workload(workload: Workload) -> None:
+            assert workload.executable is not None
+            workload.executable = torch.compile(workload.executable, backend="tt")
+
+        if self._framework == Framework.JAX:
+            assert workload.is_jax, "Workload must be JAX workload to compile"
+            compile_jax_workload(workload)
+        else:
+            assert workload.is_torch, "Workload must be Torch workload to compile"
+            compile_torch_workload(workload)
+
+    def _compile_for_cpu(self, workload: Workload) -> None:
+        """
+        Compiles executable carried in `workload` for CPU based on framework.
+        """
+
+        def compile_jax_workload(workload: Workload) -> None:
             workload.executable = jax.jit(
                 workload.executable,
                 static_argnames=workload.static_argnames,
