@@ -13,6 +13,10 @@ import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
 
+# TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
+# We would like to use the OpTester/GraphTester infra instead of manually
+# calculating and comparing golden vs device results.
+
 
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm(bias):
