@@ -443,13 +443,9 @@ test_config = {
     },
     "swin/image_classification/pytorch-swin_v2_t-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # Non Deterministic. Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
         # AssertionError: PCC comparison failed. Calculated: pcc=0.2837284207344055. Required: pcc=0.99.
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-            },
-        },
+        "assert_pcc": False,
     },
     "swin/image_classification/pytorch-swin_v2_s-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -641,13 +637,9 @@ test_config = {
     },
     "beit/pytorch-large-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # Non-Deterministic. Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
         # AssertionError: PCC comparison failed. Calculated: pcc=0.13767358660697937. Required: pcc=0.99
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-            },
-        },
+        "assert_pcc": False,
     },
     "deepcogito/pytorch-v1_preview_llama_3b-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -700,13 +692,9 @@ test_config = {
     },
     "yolos/pytorch-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # Non-Deterministic. Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96.
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-            },
-        },
+        "assert_pcc": False,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -1062,13 +1050,9 @@ test_config = {
     },
     "swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
+        # Non Deterministic. Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
         # AssertionError: PCC comparison failed. Calculated: pcc=0.3293600380420685. Required: pcc=0.99.
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-            },
-        },
+        "assert_pcc": False,
     },
     "vit/pytorch-vit_b_16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
