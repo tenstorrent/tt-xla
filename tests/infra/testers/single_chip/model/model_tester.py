@@ -133,9 +133,7 @@ class ModelTester(BaseTester, ABC):
         """Runs workload on CPU."""
         return self._device_runner.run_on_cpu(compiled_workload)
 
-    def _run_on_tt_device(
-        self, compiled_workload: Workload, explicitly_place_on_device: bool = True
-    ) -> Tensor:
+    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
         return self._device_runner.run_on_tt_device(compiled_workload)
 
