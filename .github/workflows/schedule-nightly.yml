@@ -114,7 +114,7 @@ jobs:
         env:
           # FIXME - Consider hardcoding this to preferred value.
           # TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
-          TEST_GROUP_CNT: "10"
+          TEST_GROUP_CNT: "2"
         run: |
             SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
             TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
