@@ -8,6 +8,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from jax.sharding import PartitionSpec as P
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
@@ -442,13 +443,13 @@ class Gemma3Attention(nnx.Module):
 
         # Project to Q, K, V
         query_states = self.q_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
         key_states = self.k_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_kv_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
         value_states = self.v_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_kv_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
 
         # Apply RMSNorm to Q, K
@@ -467,19 +468,22 @@ class Gemma3Attention(nnx.Module):
         # KV caching: concatenate along sequence axis (axis=2)
         if self.config.use_cache:
             cur_index = self.cache_index[...]
-            zero = jnp.array(0, dtype=jax.lax.dtype(cur_index.dtype))
-            indices = (zero, zero, cur_index, zero)
-            key_states = jax.lax.dynamic_update_slice(self.cached_key[...], key_states, indices)
-            value_states = jax.lax.dynamic_update_slice(self.cached_value[...], value_states, indices)
-            self.cached_key[...] = key_states
-            self.cached_value[...] = value_states
+            if cur_index == 0:
+                zero = jnp.array(0, dtype=jax.lax.dtype(cur_index.dtype))
+                indices = (zero, zero, cur_index, zero)
+                key_states = jax.lax.dynamic_update_slice(self.cached_key[...], key_states, indices)
+                value_states = jax.lax.dynamic_update_slice(self.cached_value[...], value_states, indices)
+            else:
+                key_states = jnp.concatenate([self.cached_key[...], key_states], axis=2)
+                value_states = jnp.concatenate([self.cached_value[...], value_states], axis=2)
+            self.cached_key = key_states
+            self.cached_value = value_states
             self.cache_index[...] += q_len
+        kv_seq_len = key_states.shape[2]  # Total sequence length including cache
 
         # Repeat K/V heads for GQA
         key_states = self._repeat_kv(key_states, self.num_key_value_groups)
         value_states = self._repeat_kv(value_states, self.num_key_value_groups)
-
-        kv_seq_len = key_states.shape[2]  # Total sequence length including cache
 
         # Compute attention weights with scaling
         attn_weights = jnp.matmul(query_states, key_states.transpose(0, 1, 3, 2)) * self.scaling
@@ -822,7 +826,7 @@ class Gemma3ForCausalLM(BaseModel):
 
         with device_mesh:
             if self.config.use_cache:
-                self.init_cache(input_ids.shape)
+                self.init_cache(input_ids)
             model_spec = self._udpate_with_sharding(self)
 
             shard_mlp = nnx.shard_map(
@@ -837,7 +841,7 @@ class Gemma3ForCausalLM(BaseModel):
             # Get logits
             logits = shard_mlp(
                 self,
-                input_ids=next_token,
+                next_token,
             )
             # Get next token (use argmax for simplicity)
             next_token = jnp.argmax(logits[:, -1, :], axis=-1)
