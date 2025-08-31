@@ -8,9 +8,11 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 from flax import nnx
+from jax.sharding import PartitionSpec as P
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
+from jax_config import device_mesh
 
 @dataclass
 class Gemma3Config(BaseConfig):
@@ -333,6 +335,9 @@ class Gemma3Attention(nnx.Module):
             use_bias=config.attention_bias,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.k_proj = nnx.Linear(
             config.hidden_size,
@@ -340,6 +345,9 @@ class Gemma3Attention(nnx.Module):
             use_bias=config.attention_bias,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.v_proj = nnx.Linear(
             config.hidden_size,
@@ -347,6 +355,9 @@ class Gemma3Attention(nnx.Module):
             use_bias=config.attention_bias,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.o_proj = nnx.Linear(
             config.num_attention_heads * config.head_dim,
@@ -354,6 +365,9 @@ class Gemma3Attention(nnx.Module):
             use_bias=config.attention_bias,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), ("X", None)
+            ),
         )
 
         self.rope = Gemma3RotaryEmbedding(
@@ -370,6 +384,14 @@ class Gemma3Attention(nnx.Module):
             broadcast_dims=(1,),  # Broadcast over head dimension
             rngs=rngs,
         )
+
+    def init_cache(self, input_ids):
+        bs, seq_len = input_ids.shape
+        cache_shape = (bs, self.config.num_key_value_heads, seq_len, self.config.head_dim)
+        cache_dtype = self.config.dtype
+        self.cached_key = nnx.Cache(nnx.with_partitioning(lambda: jnp.zeros(cache_shape, cache_dtype), (None, 'X', None, None))())
+        self.cached_value = nnx.Cache(nnx.with_partitioning(lambda: jnp.zeros(cache_shape, cache_dtype), (None, 'X', None, None))())
+        self.cache_index = nnx.Cache(nnx.with_partitioning(lambda: jnp.array(0, dtype=jnp.int32), (None))())
 
     def _make_sliding_window_mask(self, q_len: int, kv_len: int, dtype: jnp.dtype) -> jnp.ndarray:
         """Creates a combined causal and sliding window mask. True allows attention."""
@@ -415,20 +437,19 @@ class Gemma3Attention(nnx.Module):
         hidden_states: jnp.ndarray,
         position_ids: jnp.ndarray,
         attention_mask: jnp.ndarray | None = None,  # Boolean Input Padding Mask [B, kv_len]
-        cache: tuple[jnp.ndarray, jnp.ndarray] | None = None,  # (k_cache, v_cache)
         deterministic: bool = True,  # Used for dropout in training
     ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
         batch_size, q_len, _ = hidden_states.shape
 
         # Project to Q, K, V
         query_states = self.q_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
         key_states = self.k_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_kv_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
         value_states = self.v_proj(hidden_states).reshape(
-            batch_size, q_len, self.num_kv_heads, self.head_dim
+            batch_size, q_len, -1, self.head_dim
         )
 
         # Apply RMSNorm to Q, K
@@ -444,17 +465,25 @@ class Gemma3Attention(nnx.Module):
         key_states = key_states.transpose(0, 2, 1, 3)
         value_states = value_states.transpose(0, 2, 1, 3)
 
+        # KV caching: concatenate along sequence axis (axis=2)
+        if self.config.use_cache:
+            cur_index = self.cache_index[...]
+            if cur_index == 0:
+                zero = jnp.array(0, dtype=jax.lax.dtype(cur_index.dtype))
+                indices = (zero, zero, cur_index, zero)
+                key_states = jax.lax.dynamic_update_slice(self.cached_key[...], key_states, indices)
+                value_states = jax.lax.dynamic_update_slice(self.cached_value[...], value_states, indices)
+            else:
+                key_states = jnp.concatenate([self.cached_key[...], key_states], axis=2)
+                value_states = jnp.concatenate([self.cached_value[...], value_states], axis=2)
+            self.cached_key = key_states
+            self.cached_value = value_states
+            self.cache_index[...] += q_len
+        kv_seq_len = key_states.shape[2]  # Total sequence length including cache
+
         # Repeat K/V heads for GQA
         key_states = self._repeat_kv(key_states, self.num_key_value_groups)
         value_states = self._repeat_kv(value_states, self.num_key_value_groups)
-
-        # KV caching: concatenate along sequence axis (axis=2)
-        if cache is not None:
-            k_cache, v_cache = cache  # both [B, num_heads, cache_len, head_dim]
-            key_states = jnp.concatenate([k_cache, key_states], axis=2)
-            value_states = jnp.concatenate([v_cache, value_states], axis=2)
-        updated_cache = (key_states, value_states)
-        kv_seq_len = key_states.shape[2]  # Total sequence length including cache
 
         # Compute attention weights with scaling
         attn_weights = jnp.matmul(query_states, key_states.transpose(0, 1, 3, 2)) * self.scaling
@@ -508,8 +537,7 @@ class Gemma3Attention(nnx.Module):
 
         # Apply output projection
         attn_output = self.o_proj(attn_output)
-
-        return attn_output, updated_cache
+        return jax.lax.psum(attn_output, axis_name="X")
 
 
 class Gemma3MLP(nnx.Module):
@@ -524,6 +552,9 @@ class Gemma3MLP(nnx.Module):
             use_bias=False,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.up_proj = nnx.Linear(
             config.hidden_size,
@@ -531,6 +562,9 @@ class Gemma3MLP(nnx.Module):
             use_bias=False,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.down_proj = nnx.Linear(
             config.intermediate_size,
@@ -538,6 +572,9 @@ class Gemma3MLP(nnx.Module):
             use_bias=False,
             param_dtype=config.param_dtype,
             rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), ("X", None)
+            ),
         )
 
     def _gelu_pytorch_tanh(self, x: jnp.ndarray) -> jnp.ndarray:
@@ -557,7 +594,8 @@ class Gemma3MLP(nnx.Module):
             else jax.nn.gelu(self.gate_proj(x))
         )
         up = self.up_proj(x)
-        return self.down_proj(gate * up)
+        hidden_states = self.down_proj(gate * up)
+        return jax.lax.psum(hidden_states, axis_name="X")
 
 
 class Gemma3DecoderLayer(nnx.Module):
@@ -588,14 +626,13 @@ class Gemma3DecoderLayer(nnx.Module):
         x: jnp.ndarray,
         position_ids: jnp.ndarray,
         attention_mask: jnp.ndarray | None = None,  # Boolean Input Padding Mask [B, kv_len]
-        cache: tuple[jnp.ndarray, jnp.ndarray] | None = None,  # (k_cache, v_cache)
         deterministic: bool = True,
     ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
         # 1. Pre-Attention Norm and Attention
         residual = x
         hidden_states = self.input_layernorm(x)
-        attn_output, updated_cache = self.self_attn(
-            hidden_states, position_ids, attention_mask, cache, deterministic=deterministic
+        attn_output = self.self_attn(
+            hidden_states, position_ids, attention_mask, deterministic=deterministic
         )
         hidden_states = self.post_attention_layernorm(attn_output)
         hidden_states = residual + hidden_states
@@ -607,8 +644,10 @@ class Gemma3DecoderLayer(nnx.Module):
         hidden_states = self.post_feedforward_layernorm(hidden_states)
         hidden_states = residual + hidden_states
 
-        return hidden_states, updated_cache
+        return hidden_states
 
+    def init_cache(self, input_ids):
+        self.self_attn.init_cache(input_ids)
 
 class Gemma3ForCausalLM(BaseModel):
     """Gemma3 model for causal language modeling."""
@@ -627,6 +666,7 @@ class Gemma3ForCausalLM(BaseModel):
             Gemma3DecoderLayer(idx, config, rngs=rngs) for idx in range(config.num_hidden_layers)
         ]
         self.norm = Gemma3RMSNorm(config.hidden_size, eps=config.rms_norm_eps, rngs=rngs)
+        self.cache_len = 0
 
     def __call__(
         self,
@@ -634,10 +674,7 @@ class Gemma3ForCausalLM(BaseModel):
         position_ids: jnp.ndarray | None = None,
         attention_mask: jnp.ndarray
         | None = None,  # [B, S], True for valid tokens, used for padding
-        cache: list[tuple[jnp.ndarray, jnp.ndarray]]
-        | None = None,  # List of (k_cache, v_cache) per layer
         deterministic: bool = True,
-        use_cache: bool | None = None,
     ) -> tuple[jnp.ndarray, list[tuple[jnp.ndarray, jnp.ndarray]] | None]:
         batch_size, seq_length = input_ids.shape
 
@@ -649,7 +686,7 @@ class Gemma3ForCausalLM(BaseModel):
 
         # --- Prepare Inputs for Layers ---
         # Compute cache and kv sequence lengths
-        cache_len = cache[0][0].shape[2] if cache is not None else 0
+        cache_len = self.cache_len
         kv_seq_len = cache_len + seq_length
 
         # Prepare position_ids
@@ -698,18 +735,13 @@ class Gemma3ForCausalLM(BaseModel):
         )
 
         # --- Pass through Decoder Layers ---
-        next_cache_list = []
         for i, layer in enumerate(self.layers):
-            layer_cache = cache[i] if cache is not None else None
-            hidden_states, updated_layer_cache = layer(
+            hidden_states = layer(
                 hidden_states,
                 position_ids,
                 attention_mask=None,  # Pass the 4D log-mask [B, 1, 1, kv_len]
-                cache=layer_cache,
                 deterministic=deterministic,
             )
-            # Always append the updated cache from the layer
-            next_cache_list.append(updated_layer_cache)
 
         hidden_states = self.norm(hidden_states)
 
@@ -727,9 +759,10 @@ class Gemma3ForCausalLM(BaseModel):
             logits = jnp.tanh(logits)
             logits = logits * self.config.final_logit_soft_cap
 
-        # Return cache only if requested
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-        return logits, next_cache_list if use_cache else None
+        if self.config.use_cache:
+            self.cache_len = kv_seq_len
+
+        return logits
 
     def convert_weights_from_hf(
         self, state: nnx.State | dict[str, jnp.ndarray], weights: Iterator[tuple[Any, Any]]
@@ -757,6 +790,17 @@ class Gemma3ForCausalLM(BaseModel):
             elif keys[2] == "norm":
                 state["norm"].weight.value = tensor.astype(self.config.param_dtype)  # type: ignore
 
+    def init_cache(self, input_ids):
+        for layer in self.layers:
+            layer.init_cache(input_ids)
+
+    def _udpate_with_sharding(self, model):
+        state = nnx.state(model)
+        spec = nnx.get_partition_spec(state)
+        sharded_state = jax.lax.with_sharding_constraint(state, spec)
+        nnx.update(model, sharded_state)
+        return spec
+
     def generate(
         self,
         input_ids,
@@ -769,18 +813,35 @@ class Gemma3ForCausalLM(BaseModel):
             if eos_token_id is not None
             else getattr(self.config, "eos_token_id", None)
         )
-        # Initialize cache for faster generation
-        cache = None
+
         generated = input_ids
         next_token = input_ids
 
-        for _ in range(max_new_tokens):
-            # Get logits and updated cache
-            logits, cache = self(
+        def model_fn(model, input_ids):
+            logits = model(
                 input_ids=next_token,
-                cache=cache,
-                use_cache=True,  # Enable KV caching
                 deterministic=True,  # No dropout during inference
+            )
+            return logits
+
+        with device_mesh:
+            if self.config.use_cache:
+                self.init_cache(input_ids)
+            model_spec = self._udpate_with_sharding(self)
+
+            shard_mlp = nnx.shard_map(
+                model_fn,
+                mesh=device_mesh,
+                in_specs=(nnx.StateSharding(model_spec), P()),
+                out_specs=(P()),
+                check_rep=False,
+            )
+
+        for _ in range(max_new_tokens):
+            # Get logits
+            logits = shard_mlp(
+                self,
+                next_token,
             )
             # Get next token (use argmax for simplicity)
             next_token = jnp.argmax(logits[:, -1, :], axis=-1)

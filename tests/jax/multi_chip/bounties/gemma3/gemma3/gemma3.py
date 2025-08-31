@@ -444,10 +444,6 @@ class Gemma3Attention(nnx.Module):
         key_states = key_states.transpose(0, 2, 1, 3)
         value_states = value_states.transpose(0, 2, 1, 3)
 
-        # Repeat K/V heads for GQA
-        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
-        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
-
         # KV caching: concatenate along sequence axis (axis=2)
         if cache is not None:
             k_cache, v_cache = cache  # both [B, num_heads, cache_len, head_dim]
@@ -455,6 +451,10 @@ class Gemma3Attention(nnx.Module):
             value_states = jnp.concatenate([v_cache, value_states], axis=2)
         updated_cache = (key_states, value_states)
         kv_seq_len = key_states.shape[2]  # Total sequence length including cache
+
+        # Repeat K/V heads for GQA
+        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
+        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
 
         # Compute attention weights with scaling
         attn_weights = jnp.matmul(query_states, key_states.transpose(0, 1, 3, 2)) * self.scaling

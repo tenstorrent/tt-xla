@@ -81,12 +81,13 @@ def run_jax_model(
     jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len
 ):
     _, seq_len = jax_input_ids.shape
-    return jax_model.generate(
+    out = jax_model.generate(
         input_ids=jax_input_ids,
         attention_mask=jax_attention_mask,
         max_new_tokens=max_len - seq_len,
         # position_ids=jax_position_ids,
     )
+    return jax.device_get(out)
 
 
 def compare_outputs(pt_outputs, jax_outputs):
@@ -96,7 +97,7 @@ def compare_outputs(pt_outputs, jax_outputs):
 def run_comparison_test(model_id: str, prompt: str):
     # Setting up the config for both models
     config = AutoConfig.from_pretrained(model_id)
-    config.text_config.num_hidden_layers = 2
+    config.text_config.num_hidden_layers = 6
     config.text_config.sliding_window = 16
     config.vision_config.num_hidden_layers = 2
     config.text_config._attn_implementation = "eager"
