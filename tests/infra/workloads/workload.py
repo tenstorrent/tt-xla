@@ -5,10 +5,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
-
-import torch
 from infra.utilities import Framework, Model
-from torch.utils._pytree import tree_map
 
 
 class Workload:
