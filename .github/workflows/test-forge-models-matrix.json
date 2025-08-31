@@ -1,4 +1,3 @@
 [
-    { "runs-on": "n150",        "name": "run_forge_models_torch",  "dir": "./tests/runner/test_models.py"},
-    { "runs-on": "p150",        "name": "run_forge_models_torch",  "dir": "./tests/runner/test_models.py"}
+    { "runs-on": "n150",        "name": "run_forge_models_torch",  "dir": "./tests/runner/test_models.py"}
 ]
