@@ -140,10 +140,10 @@ def pytest_collection_modifyitems(items):
                     tags["model_name"] = model_info.name
                     tags["model_info"] = model_info.to_report_dict()
                     model_group = str(model_info.group)
-                elif key != "model_group":
-                    tags[key] = str(value)
-                else:
+                elif key == "model_group":
                     model_group = str(value)
+                else:
+                    tags[key] = str(value)
 
         # Attach tags dictionary as a single property. Also set owner.
         item.user_properties.extend([("tags", tags), ("owner", "tt-xla")])
