@@ -136,7 +136,8 @@ jobs:
           --repo ${{ github.repository }} \
           --dir build \
           --name ${{ inputs.build_artifact_name }}
-        tar xf artifact.tar -C build
+        cd build
+        tar xf artifact.tar
         rm -f artifact.tar
 
     - name: Run tests
