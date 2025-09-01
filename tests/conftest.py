@@ -248,6 +248,7 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
+
 @pytest.fixture(autouse=True)
 def run_around_tests():
     torch.manual_seed(0)
