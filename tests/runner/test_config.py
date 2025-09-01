@@ -568,7 +568,10 @@ test_config = {
         "required_pcc": 0.97,
     },
     "mlp_mixer/lucidrains/pytorch-base-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1245
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'stablehlo.batch_norm_training'",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "mistral/pytorch-ministral_3b_instruct-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
