@@ -15,13 +15,14 @@ from utils import (
 )
 
 from .tester import VisionTextDualEncoderTester
+from third_party.tt_forge_models.vision_text_dual_encoder.mm_image_ttt.jax import ModelVariant
 
-IMAGE_MODEL_PATH = "google/vit-base-patch16-224"
-TEXT_MODEL_PATH = "google-bert/bert-base-uncased"
+VARIANT = ModelVariant.BASE
+
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "vision_text_dual_encoder",
-    "vit_base_patch16_224_bert_base",
+    "base",
     ModelTask.MM_IMAGE_TTT,
     ModelSource.HUGGING_FACE,
 )
@@ -31,14 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> VisionTextDualEncoderTester:
-    return VisionTextDualEncoderTester(IMAGE_MODEL_PATH, TEXT_MODEL_PATH)
+    return VisionTextDualEncoderTester(VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> VisionTextDualEncoderTester:
-    return VisionTextDualEncoderTester(
-        IMAGE_MODEL_PATH, TEXT_MODEL_PATH, RunMode.TRAINING
-    )
+    return VisionTextDualEncoderTester(VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,7 +53,7 @@ def training_tester() -> VisionTextDualEncoderTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=6632.052734375. Required: atol=0.16. "
+        "Atol comparison failed. Calculated: atol=nan. Required: atol=0.16. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
