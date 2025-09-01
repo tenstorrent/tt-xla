@@ -274,7 +274,7 @@ setup(
         "jax_plugin_tt": "jax_plugin_tt",
         "torch_plugin_tt": "torch_plugin_tt",
         "ttxla_tools": os.path.join("..", "ttxla_tools"),
-        "tt_torch": "tt_torch",
+        "tt_torch": os.path.join("..", "tt_torch"),
     },
     python_requires=">=3.10, <3.11",
     url="https://github.com/tenstorrent/tt-xla",
