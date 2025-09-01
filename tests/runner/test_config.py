@@ -1132,12 +1132,16 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vit/pytorch-vit_h_14-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.98,
-            },
-        },
+        # "status": ModelStatus.EXPECTED_PASSING,
+        # "arch_overrides": {
+        #     "p150": {
+        #         "required_pcc": 0.98,
+        #     },
+        # },
+        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1244
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 224460800 B DRAM buffer across 12 banks, where each bank needs to store 18706432 B",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "vit/pytorch-vit_l_16-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -1476,8 +1480,12 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
-        "required_pcc": 0.97,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # "required_pcc": 0.97,
+        # "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1244
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2148032 B which is beyond max L1 size of 1499136 B",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
         "required_pcc": 0.98,
