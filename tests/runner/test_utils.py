@@ -69,6 +69,44 @@ class ModelTestConfig:
         return args
 
 
+# Helper to capture runtime failures and map them to bringup status
+def update_test_metadata_for_exception(
+    test_metadata, exc: Exception, stderr: str
+) -> None:
+    """
+    Inspect exception message, stderr and set `runtime_bringup_status` and `runtime_reason` on `test_metadata`.
+    """
+    try:
+        message = str(exc)
+    except Exception:
+        message = repr(exc)
+
+    msg = message.lower() if message else ""
+    err = (stderr or "").lower()
+    print(f"KCM Found exception: {repr(exc)} message: {msg} stderr: {err}")
+
+    # Attempt to classify various exception types. Not robust, could be improved.
+    if isinstance(exc, AssertionError) and "comparison failed" in msg:
+        status = BringupStatus.INCORRECT_RESULT
+    elif isinstance(exc, RuntimeError):
+        if (
+            "failed to legalize" in err
+            or "stablehlo" in err
+            or "mhlo" in err
+            or "mlir" in err
+        ):
+            status = BringupStatus.FAILED_TTMLIR_COMPILATION
+        elif "bad statusor access" in msg or "internal: error code: 13" in msg:
+            status = BringupStatus.FAILED_RUNTIME
+        else:
+            status = BringupStatus.FAILED_RUNTIME
+    else:
+        status = BringupStatus.UNKNOWN
+
+    setattr(test_metadata, "runtime_bringup_status", status)
+    setattr(test_metadata, "runtime_reason", message)
+
+
 def get_models_root(project_root):
     """Return the filesystem path to the given module, supporting both installed and source-tree use cases."""
     module_name = "third_party.tt_forge_models"
@@ -318,27 +356,47 @@ def record_model_test_properties(
     model_info,
     test_metadata,
     run_mode: RunMode = RunMode.INFERENCE,
+    test_passed: bool = False,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
 
     - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
       plus owner and group properties.
-    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from test_metadata.bringup_status and call pytest.skip(reason).
-    - If test_metadata.status is KNOWN_FAILURE_XFAIL, set bringup_status to a failure value and leave execution to xfail via marker.
+    - Passing tests (test_passed=True) always record bringup_status=PASSED, ignoring configured/static values.
+    - Failing tests classify bringup info in this order:
+      1) Runtime: use test_metadata.runtime_bringup_status/runtime_reason when both are present
+      2) Static: else use test_metadata.bringup_status/reason from config when both are present
+      3) Default: else use UNKNOWN/"Not specified"
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from static/default logic and call pytest.skip(reason).
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, leave execution to xfail via marker; properties still reflect runtime/static/default classification.
     """
 
-    # Determine bringup status and reason based on test status
+    # Determine bringup status and reason based on runtime/test outcome
     reason = None
-    if test_metadata.status in [
-        ModelStatus.NOT_SUPPORTED_SKIP,
-        ModelStatus.KNOWN_FAILURE_XFAIL,
-    ]:
-        bringup_status = getattr(test_metadata, "bringup_status", BringupStatus.UNKNOWN)
-        reason = getattr(test_metadata, "reason", "Not specified")
-    else:
-        # Tests marked EXPECTED_PASSING or new UNSPECIFIED tests
+
+    # Highest priority: explicit pass outcome overrides config
+    if test_passed:
         bringup_status = BringupStatus.PASSED
+    else:
+        runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
+        runtime_reason = getattr(test_metadata, "runtime_reason", None)
+        static_bringup_status = getattr(test_metadata, "bringup_status", None)
+        static_reason = getattr(test_metadata, "reason", None)
+
+        if runtime_bringup_status and runtime_reason:
+            bringup_status = runtime_bringup_status
+            reason = runtime_reason or "Runtime failure"
+            print(
+                f"KCM Found runtime bringup_status: {bringup_status} reason: {reason}"
+            )
+        elif static_bringup_status and static_reason:
+            bringup_status = static_bringup_status
+            reason = static_reason
+            print(f"KCM Found static bringup_status: {bringup_status} reason: {reason}")
+        else:
+            bringup_status = BringupStatus.UNKNOWN
+            reason = "Not specified"
 
     tags = {
         "test_name": str(request.node.originalname),

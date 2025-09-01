@@ -11,9 +11,11 @@ from tests.runner.test_utils import (
     setup_test_discovery,
     create_test_id_generator,
     record_model_test_properties,
+    update_test_metadata_for_exception,
 )
 from tests.runner.requirements import RequirementsManager
 from infra import RunMode
+from tests.utils import BringupStatus
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -42,7 +44,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
 ):
     loader_path = test_entry["path"]
     variant_info = test_entry["variant_info"]
@@ -71,6 +73,7 @@ def test_all_models(
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"model_name: {model_info.name} status: {test_metadata.status}")
 
+        succeeded = False
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -87,8 +90,13 @@ def test_all_models(
 
                 results = tester.test_model()
                 tester.finalize()
-                # FIXME - Consider catching exceptions here and using as failed reason
+                succeeded = True
 
+        except Exception as e:
+            err = capfd.readouterr().err
+            # Record runtime failure info so it can be reflected in report properties
+            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            raise
         finally:
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
@@ -98,6 +106,7 @@ def test_all_models(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
+                test_passed=succeeded,
             )
 
     # Cleanup memory after each test to prevent memory leaks
