@@ -31,6 +31,16 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
+  # Building tt-xla with code coverage to generate cached ccache for branches in CI
+  build-ttxla-codecov:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with code coverage"
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      debug_build: true
+
   test:
     needs: [ build-image, build-ttxla ]
     uses: ./.github/workflows/call-test.yml
