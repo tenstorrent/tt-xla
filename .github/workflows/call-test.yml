@@ -199,7 +199,6 @@ jobs:
 
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
-      continue-on-error: true # TODO fix codecov
       run: |
         lcov --directory build --capture --output-file coverage.info
         lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
@@ -208,7 +207,6 @@ jobs:
 
     - name: Upload coverage reports to Codecov
       if: steps.strings.outputs.do_codecov && (success() || failure())
-      continue-on-error: true # TODO fix codecov
       uses: codecov/codecov-action@v5
       with:
         files: coverage.info
