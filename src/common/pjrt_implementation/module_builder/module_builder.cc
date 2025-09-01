@@ -201,7 +201,8 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
 void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  frontend_passes::propagateInputRoleAttributes(mlir_module);
+
+  m_status = frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
@@ -327,9 +328,9 @@ void ModuleBuilder::collectInputArgumentRoles(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
          ++arg_index) {
-      // Check for tt.input_role attribute
+      // Check for ttcore.argument_type attribute
       mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
-          arg_index, frontend_passes::c_input_role_attr_name);
+          arg_index, mlir::tt::ttcore::ArgumentTypeAttr::name);
 
       if (role_attr && role_attr.getValue() == "weight") {
         m_input_argument_roles.push_back(InputArgumentRole::kWeight);
@@ -338,10 +339,10 @@ void ModuleBuilder::collectInputArgumentRoles(
         m_input_argument_roles.push_back(InputArgumentRole::kInput);
       }
 
-      // Remove the tt.input_role attribute after collecting it
+      // Remove the ttcore.argument_type attribute after collecting it
       if (role_attr) {
         func_op.removeArgAttr(arg_index,
-                              frontend_passes::c_input_role_attr_name);
+                              mlir::tt::ttcore::ArgumentTypeAttr::name);
       }
     }
   }
@@ -593,31 +594,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizerPassEnabled = compile_options.enable_optimizer;
   options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
-
+  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.systemDescPath = system_descriptor_path.data();
-
-  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
-  //    - determine a more rigorous approach to retrieving the argument
-  //      types
-  // The argument type map is used in tt-mlir so that consteval
-  // can determine which graph inputs are allowed to be used as
-  // consteval graph inputs. Also, so EIO may know which paths
-  // of the graph will end up in a consteval graph as some of its
-  // commute conditions depend on whether this is the case for
-  // a given op.
-  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
-    auto parser =
-        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
-    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-        argEnumMap;
-
-    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
-                 argEnumMap);
-    options.argumentTypeMap = argEnumMap;
-  } else {
-    // Set argument types based on collected input argument roles
-    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
-  }
 
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,

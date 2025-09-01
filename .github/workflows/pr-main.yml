@@ -7,6 +7,7 @@ on:
 permissions:
   packages: write
   checks: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mlir_override }}
@@ -55,7 +56,7 @@ jobs:
     with:
       codecov: true
       test_mark: 'push'
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       use-shared-runners: false # Run PR on VMs
       artifact_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}

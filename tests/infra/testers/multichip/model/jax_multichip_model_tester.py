@@ -18,6 +18,7 @@ from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
 
 from ...single_chip import JaxModelTester, RunMode
+from tests.infra.testers.compiler_config import CompilerConfig
 
 
 class JaxMultichipModelTester(JaxModelTester, ABC):
@@ -45,6 +46,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         axis_names: tuple,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._mesh_shape = mesh_shape
         self._axis_names = axis_names
@@ -59,12 +61,21 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     # @override
     def _initialize_components(self) -> None:
         self._initialize_meshes()
         super()._initialize_components()
+
+    # @override
+    def _initialize_workload(self) -> None:
+        super()._initialize_workload()
+        # then replace single chip workload with multichip one
+        self.tt_device_multichip_workload = self._create_multichip_workload(
+            self._device_mesh
+        )
+        self.cpu_multichip_workload = self._create_multichip_workload(self._cpu_mesh)
 
     def _initialize_meshes(self) -> None:
         """Initializes `self._device_mesh` and `self._cpu_mesh`."""
@@ -90,20 +101,34 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         )
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(self._create_multichip_workload(self._cpu_mesh))
-
-    # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        return self._compile(self._create_multichip_workload(self._device_mesh))
-
-    # @override
-    def _compile(self, workload: Workload) -> Workload:
+    def _test_inference(self) -> None:
         """
-        Sets up `workload.executable` for just-in-time compile and execution.
+        Tests the model by running inference on multichip TT device and on CPU and comparing the
+        results.
+        """
+        self._compile_for_cpu(self.cpu_multichip_workload)
+        cpu_res = self._run_on_cpu(self.cpu_multichip_workload)
 
+        self._compile_for_tt_device(self.tt_device_multichip_workload)
+        tt_res = self._run_on_tt_device(self.tt_device_multichip_workload)
+
+        self._compare(tt_res, cpu_res)
+
+    # @override
+    def _compile_for_cpu(self, workload: Workload) -> None:
+        # Compile options are not used for CPU compilation since they are TT backend specific.
+        self._compile(workload, compiler_options={})
+
+    # @override
+    def _compile_for_tt_device(self, workload: Workload) -> None:
+        compiler_options = self._compiler_config.to_jax_compiler_options()
+        self._compile(workload, compiler_options)
+
+    # @override
+    def _compile(self, workload: Workload, compiler_options: Dict[str, str]) -> None:
+        """Compiles `workload` for TT device.
+
+        Sets up `workload.executable` for just-in-time compile and execution.
         `workload.device_mesh` defines for which device (TT or CPU) it will be compiled.
         """
         assert isinstance(workload, JaxMultichipWorkload)
@@ -122,8 +147,8 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
+            compiler_options=compiler_options,
         )
-        return workload
 
     def _create_multichip_workload(
         self, mesh: jax.sharding.Mesh
@@ -167,12 +192,12 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
     # @override
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
-        return self._run_on_multichip_device(compiled_workload)
+        return self._run_on_multichip_device(self.cpu_multichip_workload)
 
     # @override
     def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
-        return self._run_on_multichip_device(compiled_workload)
+        return self._run_on_multichip_device(self.tt_device_multichip_workload)
 
     def _run_on_multichip_device(self, compiled_workload: Workload) -> Tensor:
         """Runs multichip workload on a multichip device."""

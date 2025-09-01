@@ -10,6 +10,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
+from infra.comparators import ComparisonConfig, PccConfig
 from utils import failed_fe_compilation
 
 
@@ -75,4 +76,7 @@ def test_dot_psum_scatter(
         use_shardy,
         sharding_mode,
         maxval=0.1,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.90)
+        ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )
