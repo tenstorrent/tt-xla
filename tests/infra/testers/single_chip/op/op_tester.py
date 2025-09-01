@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
+import copy
 import jax
 import torch
 from infra.comparators import ComparisonConfig
@@ -36,11 +37,15 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        self._compile_for_tt_device(workload)
-        tt_res = self._device_runner.run_on_tt_device(workload)
+        # Create separate workload instances to avoid double-jitting the same function
+        tt_workload = copy.deepcopy(workload)
+        cpu_workload = copy.deepcopy(workload)
 
-        self._compile_for_cpu(workload)
-        cpu_res = self._device_runner.run_on_cpu(workload)
+        self._compile_for_tt_device(tt_workload)
+        tt_res = self._device_runner.run_on_tt_device(tt_workload)
+
+        self._compile_for_cpu(cpu_workload)
+        cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
         self._comparator.compare(tt_res, cpu_res)
 
