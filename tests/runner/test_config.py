@@ -1032,27 +1032,48 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_nano-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_tiny-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_s-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_m-full-inference": {
         # Missing thop
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_l-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_darknet-full-inference": {
         # Missing thop
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_x-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
