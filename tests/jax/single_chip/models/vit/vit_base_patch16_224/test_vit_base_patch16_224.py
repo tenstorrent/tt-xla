@@ -12,14 +12,14 @@ from utils import (
     ModelTask,
     build_model_name,
 )
-
+from third_party.tt_forge_models.vit.image_classification.jax import ModelVariant
 from ..tester import ViTTester
 
-MODEL_PATH = "google/vit-base-patch16-224"
+VARIANT_NAME = ModelVariant.BASE_PATCH16_224
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "vit",
-    "base_patch16_224",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -30,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----

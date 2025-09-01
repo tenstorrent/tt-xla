@@ -13,14 +13,14 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
-
+from third_party.tt_forge_models.dinov2.image_classification.jax import ModelVariant
 from ..tester import Dinov2Tester
 
-MODEL_PATH = "facebook/dinov2-giant"
+VARIANT_NAME = ModelVariant.GIANT
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "dinov2",
-    "giant",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -31,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Dinov2Tester:
-    return Dinov2Tester(MODEL_PATH)
+    return Dinov2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> Dinov2Tester:
-    return Dinov2Tester(MODEL_PATH, RunMode.TRAINING)
+    return Dinov2Tester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,16 +48,9 @@ def training_tester() -> Dinov2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "tt-metal error: input_tensor_a.padded_shape().rank() == this->slice_start.rank() && "
-        "this->slice_start.rank() == this->slice_end.rank() "
-        "https://github.com/tenstorrent/tt-xla/issues/923"
-    )
-)
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
     inference_tester.test()
 

@@ -12,16 +12,15 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
-
+from third_party.tt_forge_models.vit.image_classification.jax import ModelVariant
 from ..tester import ViTTester
 
-MODEL_PATH = "google/vit-large-patch16-384"
+VARIANT_NAME = ModelVariant.LARGE_PATCH16_384
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "vit",
-    "large_patch16_384",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -32,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -49,13 +48,7 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=337919.8125. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_vit_large_patch16_384_inference(
     inference_tester: ViTTester,
