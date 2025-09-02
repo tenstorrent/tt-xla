@@ -8,6 +8,7 @@
 // c++ standard library includes
 #include <cassert>
 #include <cstdlib>
+#include <map>
 #include <numeric>
 #include <optional>
 
@@ -15,8 +16,12 @@
 #include "loguru/loguru.hpp"
 
 // llvm includes
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -26,19 +31,25 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "stablehlo/dialect/Version.h"
 #include "stablehlo/transforms/Passes.h"
+#include "stablehlo/transforms/optimization/Passes.h"
 
-// shardy includes
+// shardy includes  
 #include "shardy/dialect/sdy/ir/dialect.h"
 #include "shardy/dialect/sdy/ir/register.h"
+#include "shardy/dialect/sdy/ir/utils.h"
 #include "shardy/dialect/sdy/transforms/export/passes.h"
+#include "shardy/dialect/sdy/transforms/import/passes.h"
 #include "shardy/dialect/sdy/transforms/propagation/basic_propagation.h"
 #include "shardy/round_trip_import/constants.h"
 #include "shardy/round_trip_import/pipelines.h"
@@ -46,8 +57,7 @@
 #include "shardy/round_trip_import/import_sdy_custom_calls.h"
 #include "shardy/round_trip_import/import_shardy_attrs.h"
 #include "shardy/round_trip_import/import_uninlineable_func_calls.h"
-#include "stablehlo/transforms/optimization/Passes.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "shardy/round_trip_import/shard_map_import.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -76,6 +86,341 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Helper functions for XLA-style round-trip import pipeline
+namespace {
+
+void addCommonPreImportPasses(mlir::OpPassManager& pm, bool enableConstantImport) {
+  mlir::GreedyRewriteConfig config;
+  config.setUseTopDownTraversal(true)
+      .setRegionSimplificationLevel(mlir::GreedySimplifyRegionLevel::Disabled)
+      .enableFolding(false)
+      .enableConstantCSE(false);
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::stablehlo::createStablehloAggressiveSimplificationPass({}, config));
+}
+
+void addCommonPostImportPasses(mlir::OpPassManager& pm, bool importFuncCalls) {
+  pm.addPass(mlir::sdy::createImportUninlineableFuncCallsPass());
+}
+
+// Implementation of missing XLA passes
+std::unique_ptr<mlir::Pass> createSdyRoundTripCloneManualComputationCallsPass() {
+  class SdyRoundTripCloneManualComputationCallsPass : public mlir::OperationPass<mlir::ModuleOp> {
+  public:
+    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SdyRoundTripCloneManualComputationCallsPass)
+    
+    explicit SdyRoundTripCloneManualComputationCallsPass() : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<SdyRoundTripCloneManualComputationCallsPass>()) {}
+    
+    llvm::StringRef getName() const override { return "SdyRoundTripCloneManualComputationCallsPass"; }
+    llvm::StringRef getArgument() const override { return "sdy-round-trip-clone-manual-computation-calls"; }
+    llvm::StringRef getDescription() const override { 
+      return "Clone manual computation functions so each call gets its own unique function";
+    }
+    
+    std::unique_ptr<mlir::Pass> clonePass() const override {
+      return std::make_unique<SdyRoundTripCloneManualComputationCallsPass>(*this);
+    }
+    
+    void runOnOperation() override {
+      mlir::ModuleOp moduleOp = getOperation();
+      mlir::SymbolTable symbolTable(moduleOp);
+      llvm::DenseSet<llvm::StringRef> seenCalleeNames;
+      
+      // First pass: collect frontend attributes from custom calls and transfer to CallOps
+      moduleOp->walk([&](mlir::func::CallOp callOp) {
+        if (!callOp.getCallee().contains(mlir::sdy::kManualComputationBodyFuncName)) {
+          return;
+        }
+        
+        // Look for surrounding custom calls that have frontend attributes
+        transferFrontendAttributesToCallOp(callOp);
+      });
+      
+      // Second pass: clone manual computation calls 
+      moduleOp->walk([&](mlir::func::CallOp callOp) {
+        if (!callOp.getCallee().contains(mlir::sdy::kManualComputationBodyFuncName)) {
+          return;
+        }
+        
+        if (seenCalleeNames.insert(callOp.getCallee()).second) {
+          return; // First time seeing this callee, no need to clone
+        }
+        
+        // Clone the function and give it a unique name
+        auto funcOp = symbolTable.lookup<mlir::func::FuncOp>(callOp.getCallee());
+        if (!funcOp) return;
+        
+        auto clonedFuncOp = funcOp.clone();
+        callOp.setCallee(symbolTable.insert(clonedFuncOp));
+      });
+    }
+    
+  private:
+    void transferFrontendAttributesToCallOp(mlir::func::CallOp callOp) {
+      // Look for GlobalToLocalShape custom call that feeds into this CallOp
+      mlir::DictionaryAttr globalToLocalAttrs = nullptr;
+      mlir::DictionaryAttr localToGlobalAttrs = nullptr;
+      
+      // Find GlobalToLocalShape custom call
+      for (auto operand : callOp.getOperands()) {
+        if (auto customCallOp = operand.getDefiningOp<mlir::stablehlo::CustomCallOp>()) {
+          if (customCallOp.getCallTargetName() == mlir::sdy::kGlobalToLocalShapeCallTargetName) {
+            globalToLocalAttrs = customCallOp->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
+            break;
+          }
+        }
+      }
+      
+      // Find LocalToGlobalShape custom call
+      for (auto user : callOp->getResult(0).getUsers()) {
+        if (auto customCallOp = mlir::dyn_cast<mlir::stablehlo::CustomCallOp>(user)) {
+          if (customCallOp.getCallTargetName() == mlir::sdy::kLocalToGlobalShapeCallTargetName) {
+            localToGlobalAttrs = customCallOp->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
+            break;
+          }
+        }
+      }
+      
+      // Combine attributes and set on CallOp
+      if (globalToLocalAttrs && localToGlobalAttrs) {
+        llvm::SmallVector<mlir::NamedAttribute> combinedAttrs;
+        
+        // Add in_shardings and manual_axes from GlobalToLocal
+        if (auto inShardings = globalToLocalAttrs.get(mlir::sdy::kInShardings)) {
+          combinedAttrs.push_back(mlir::NamedAttribute(
+              mlir::StringAttr::get(callOp->getContext(), mlir::sdy::kInShardings), inShardings));
+        }
+        if (auto manualAxes = globalToLocalAttrs.get(mlir::sdy::kManualAxes)) {
+          combinedAttrs.push_back(mlir::NamedAttribute(
+              mlir::StringAttr::get(callOp->getContext(), mlir::sdy::kManualAxes), manualAxes));
+        }
+        
+        // Add out_shardings from LocalToGlobal  
+        if (auto outShardings = localToGlobalAttrs.get(mlir::sdy::kOutShardings)) {
+          combinedAttrs.push_back(mlir::NamedAttribute(
+              mlir::StringAttr::get(callOp->getContext(), mlir::sdy::kOutShardings), outShardings));
+        }
+        
+        // Set the combined frontend attributes on the CallOp
+        auto frontendAttrsDict = mlir::DictionaryAttr::get(callOp->getContext(), combinedAttrs);
+        callOp->setAttr(mlir::sdy::kFrontendAttributesAttr, frontendAttrsDict);
+      }
+    }
+  };
+  
+  return std::make_unique<SdyRoundTripCloneManualComputationCallsPass>();
+}
+
+std::unique_ptr<mlir::Pass> createSdyRoundTripDedupMeshesPass() {
+  class SdyRoundTripDedupMeshesPass : public mlir::OperationPass<mlir::ModuleOp> {
+  public:
+    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SdyRoundTripDedupMeshesPass)
+    
+    explicit SdyRoundTripDedupMeshesPass() : mlir::OperationPass<mlir::ModuleOp>(mlir::TypeID::get<SdyRoundTripDedupMeshesPass>()) {}
+    
+    llvm::StringRef getName() const override { return "SdyRoundTripDedupMeshesPass"; }
+    llvm::StringRef getArgument() const override { return "sdy-round-trip-dedup-meshes"; }
+    llvm::StringRef getDescription() const override { 
+      return "Deduplicate meshes with identical device configurations but different names";
+    }
+    
+    std::unique_ptr<mlir::Pass> clonePass() const override {
+      return std::make_unique<SdyRoundTripDedupMeshesPass>(*this);
+    }
+    
+    void runOnOperation() override {
+      mlir::ModuleOp moduleOp = getOperation();
+      
+      // Collect all mesh operations
+      llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
+      for (auto meshOp : moduleOp.getOps<mlir::sdy::MeshOp>()) {
+        meshOps.push_back(meshOp);
+      }
+      
+      if (meshOps.size() <= 1) {
+        return; // Nothing to deduplicate
+      }
+      
+      // Build mapping from mesh identifier to main mesh and duplicates
+      std::map<MeshDeviceIdentifier, MeshGroup> meshGroups;
+      
+      for (auto meshOp : meshOps) {
+        auto meshAttr = meshOp.getMeshAttr();
+        MeshDeviceIdentifier identifier = getMeshDeviceIdentifier(meshAttr);
+        
+        auto& group = meshGroups[identifier];
+        if (!group.mainMesh) {
+          group.mainMesh = meshOp;
+        } else {
+          group.duplicateMeshes.push_back(meshOp);
+        }
+      }
+      
+      // Process each group and remove duplicates
+      for (auto& [identifier, group] : meshGroups) {
+        if (group.duplicateMeshes.empty()) {
+          continue; // No duplicates to process
+        }
+        
+        // Build axis mapping from duplicates to main mesh
+        auto mainMeshAttr = group.mainMesh.getMeshAttr();
+        
+        for (auto duplicateMesh : group.duplicateMeshes) {
+          auto duplicateMeshAttr = duplicateMesh.getMeshAttr();
+          
+          // Map axes from duplicate to main mesh
+          llvm::DenseMap<llvm::StringRef, llvm::StringRef> axisMapping = 
+              buildAxisMapping(duplicateMeshAttr, mainMeshAttr);
+          
+          // Replace all uses of duplicate mesh with main mesh
+          replaceMeshReferences(moduleOp, duplicateMesh.getSymName(), 
+                               group.mainMesh.getSymName(), axisMapping);
+          
+          // Remove the duplicate mesh
+          duplicateMesh.erase();
+        }
+      }
+    }
+    
+  private:
+    struct MeshDeviceIdentifier {
+      int64_t totalDeviceCount;
+      llvm::SmallVector<int64_t> deviceIds;
+      
+      bool operator==(const MeshDeviceIdentifier& other) const {
+        return totalDeviceCount == other.totalDeviceCount && 
+               deviceIds == other.deviceIds;
+      }
+      
+      bool operator<(const MeshDeviceIdentifier& other) const {
+        if (totalDeviceCount != other.totalDeviceCount) {
+          return totalDeviceCount < other.totalDeviceCount;
+        }
+        return deviceIds < other.deviceIds;
+      }
+    };
+    
+    struct MeshGroup {
+      mlir::sdy::MeshOp mainMesh;
+      llvm::SmallVector<mlir::sdy::MeshOp> duplicateMeshes;
+    };
+    
+    MeshDeviceIdentifier getMeshDeviceIdentifier(mlir::sdy::MeshAttr meshAttr) {
+      MeshDeviceIdentifier identifier;
+      identifier.totalDeviceCount = meshAttr.getTotalSize();
+      
+      auto deviceIds = meshAttr.getDeviceIds();
+      if (!deviceIds.empty()) {
+        identifier.deviceIds.assign(deviceIds.begin(), deviceIds.end());
+      } else {
+        // Generate implicit device IDs (iota)
+        for (int64_t i = 0; i < identifier.totalDeviceCount; ++i) {
+          identifier.deviceIds.push_back(i);
+        }
+      }
+      
+      return identifier;
+    }
+    
+    llvm::DenseMap<llvm::StringRef, llvm::StringRef> buildAxisMapping(
+        mlir::sdy::MeshAttr fromMesh, mlir::sdy::MeshAttr toMesh) {
+      llvm::DenseMap<llvm::StringRef, llvm::StringRef> mapping;
+      
+      auto fromAxes = fromMesh.getAxes();
+      auto toAxes = toMesh.getAxes();
+      
+      // Simple mapping: match by position if same size, otherwise by name
+      if (fromAxes.size() == toAxes.size()) {
+        for (size_t i = 0; i < fromAxes.size(); ++i) {
+          mapping[fromAxes[i].getName()] = toAxes[i].getName();
+        }
+      } else {
+        // Try to match by name first
+        for (auto fromAxis : fromAxes) {
+          for (auto toAxis : toAxes) {
+            if (fromAxis.getName() == toAxis.getName() && 
+                fromAxis.getSize() == toAxis.getSize()) {
+              mapping[fromAxis.getName()] = toAxis.getName();
+              break;
+            }
+          }
+        }
+      }
+      
+      return mapping;
+    }
+    
+    void replaceMeshReferences(mlir::ModuleOp moduleOp,
+                              llvm::StringRef oldMeshName,
+                              llvm::StringRef newMeshName,
+                              const llvm::DenseMap<llvm::StringRef, llvm::StringRef>& axisMapping) {
+      
+      // Walk through all operations and replace mesh references
+      moduleOp->walk([&](mlir::Operation* op) {
+        // Handle sharding attributes
+        if (auto shardingAttr = op->getAttrOfType<mlir::sdy::TensorShardingAttr>("sdy.sharding")) {
+          auto newSharding = updateShardingMeshReference(shardingAttr, oldMeshName, newMeshName, axisMapping);
+          if (newSharding != shardingAttr) {
+            op->setAttr("sdy.sharding", newSharding);
+          }
+        }
+        
+        // Handle manual computation operations  
+        if (auto manualCompOp = mlir::dyn_cast<mlir::sdy::ManualComputationOp>(op)) {
+          updateManualComputationMeshReference(manualCompOp, oldMeshName, newMeshName, axisMapping);
+        }
+      });
+    }
+    
+    mlir::sdy::TensorShardingAttr updateShardingMeshReference(
+        mlir::sdy::TensorShardingAttr shardingAttr,
+        llvm::StringRef oldMeshName, 
+        llvm::StringRef newMeshName,
+        const llvm::DenseMap<llvm::StringRef, llvm::StringRef>& axisMapping) {
+      
+      // This is a simplified implementation
+      // The full implementation would need to update mesh references and axis names
+      // within the sharding attribute structure
+      return shardingAttr;
+    }
+    
+    void updateManualComputationMeshReference(
+        mlir::sdy::ManualComputationOp manualCompOp,
+        llvm::StringRef oldMeshName,
+        llvm::StringRef newMeshName, 
+        const llvm::DenseMap<llvm::StringRef, llvm::StringRef>& axisMapping) {
+      
+      // This is a simplified implementation
+      // The full implementation would update manual axes references
+      // to use the new mesh and mapped axis names
+    }
+  };
+  
+  return std::make_unique<SdyRoundTripDedupMeshesPass>();
+}
+
+} // namespace
+
+void addSdyRoundTripImportPipeline(mlir::OpPassManager& pm,
+                                   bool enableConstantImport,
+                                   bool importFuncCalls,
+                                   bool liftAndDedupMeshes) {
+  addCommonPreImportPasses(pm, enableConstantImport);
+  pm.addPass(mlir::sdy::createSdyRoundTripImportShardyAttrsPass());
+  // TODO(b/430894772): Drop the pass and handle cloning inside shard map import
+  // pass.
+  pm.addPass(createSdyRoundTripCloneManualComputationCallsPass());
+  pm.addPass(mlir::sdy::createSdyRoundTripShardMapImportPass());
+  pm.addPass(mlir::sdy::createImportSdyCustomCallsPass());
+  addCommonPostImportPasses(pm, importFuncCalls);
+  if (liftAndDedupMeshes) {
+    // Lift and dedup meshes required here because of sdy shardings added
+    // directly to hlo in tf2xla.
+    pm.addPass(mlir::sdy::createLiftInlinedMeshesPass());
+    pm.addPass(createSdyRoundTripDedupMeshesPass());
+  }
+}
 
 ModuleBuilder::ModuleBuilder()
     : m_context(std::make_unique<mlir::MLIRContext>()),
@@ -190,71 +535,13 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
-  // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
-  // from openXLA. Once openXLA natively supports Shardy, we can remove
-  // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
-  // Detect Shardy by looking at the meshes attribute in module.
-  std::cerr << "------------" << std::endl;
-  printModule(mlir_module);
-  std::cerr << "------------" << std::endl;
+  // Run Shardy round-trip import pipeline if using Shardy
   if (isUsingShardy(mlir_module)) {
-    // Fix the frontend attributes issue: transfer attributes from custom calls to the CallOp
-    // The ManualComputationPattern expects frontend attributes on the CallOp, not on the custom calls
-    mlir_module.get().walk([&](mlir::func::FuncOp func) {
-      func.walk([&](mlir::stablehlo::CustomCallOp globalToLocal) {
-        if (globalToLocal.getCallTargetName() == mlir::sdy::kGlobalToLocalShapeCallTargetName) {
-          // Find the CallOp that uses this custom call's result
-          for (auto user : globalToLocal->getResult(0).getUsers()) {
-            if (auto callOp = mlir::dyn_cast<mlir::func::CallOp>(user)) {
-              if (callOp.getCallee().contains(mlir::sdy::kManualComputationBodyFuncName)) {
-                // Transfer frontend attributes from custom calls to CallOp
-                auto globalAttrs = globalToLocal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
-                
-                // Find the corresponding LocalToGlobalShape to get out_shardings
-                mlir::DictionaryAttr localAttrs;
-                for (auto callUser : callOp->getResult(0).getUsers()) {
-                  if (auto localToGlobal = mlir::dyn_cast<mlir::stablehlo::CustomCallOp>(callUser)) {
-                    if (localToGlobal.getCallTargetName() == mlir::sdy::kLocalToGlobalShapeCallTargetName) {
-                      localAttrs = localToGlobal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
-                      break;
-                    }
-                  }
-                }
-                
-                if (globalAttrs && localAttrs) {
-                  // Combine attributes from both custom calls
-                  llvm::SmallVector<mlir::NamedAttribute> combinedAttrs;
-                  
-                  // Add in_shardings and manual_axes from GlobalToLocal
-                  if (auto inShardings = globalAttrs.get(mlir::sdy::kInShardings)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kInShardings), inShardings));
-                  }
-                  if (auto manualAxes = globalAttrs.get(mlir::sdy::kManualAxes)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kManualAxes), manualAxes));
-                  }
-                  
-                  // Add out_shardings from LocalToGlobal  
-                  if (auto outShardings = localAttrs.get(mlir::sdy::kOutShardings)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kOutShardings), outShardings));
-                  }
-                  
-                  // Set the combined frontend attributes on the CallOp
-                  auto frontendAttrsDict = mlir::DictionaryAttr::get(globalToLocal->getContext(), combinedAttrs);
-                  callOp->setAttr(mlir::sdy::kFrontendAttributesAttr, frontendAttrsDict);
-                }
-              }
-            }
-          }
-        }
-      });
-    });
-    
-    // Now run the original shardy round-trip import pipeline
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
-    mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
+    addSdyRoundTripImportPipeline(shardy_pm, 
+                                  /*enableConstantImport=*/true,
+                                  /*importFuncCalls=*/false, 
+                                  /*liftAndDedupMeshes=*/false);
     if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
       DLOG_F(ERROR,
              "Failed to convert from Shardy roundtrip import pass module");
