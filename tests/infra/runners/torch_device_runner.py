@@ -39,10 +39,9 @@ class TorchDeviceRunner(DeviceRunner):
         kwargs_on_device = {}
 
         def attempt_to_device(x):
-            try:
+            if hasattr(x, "to"):
                 return x.to(device)
-            except:
-                return x
+            return x
 
         args_on_device = tree_map(attempt_to_device, workload.args)
         kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
