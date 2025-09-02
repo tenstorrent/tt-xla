@@ -64,7 +64,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
       - name: Set latest tag on the image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           DOCKER_CI_IMAGE=${{ steps.check.outputs.docker-image }}
           if [ -z "$DOCKER_CI_IMAGE" ]; then
@@ -75,11 +74,11 @@ jobs:
 
           CI_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//')
           echo "Setting latest tag on the image $CI_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:latest"
+          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:test02092025"
 
           IRD_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//' | sed 's/-ci-/-ird-/')
           echo "Setting latest tag on the image $IRD_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:latest"
+          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:test02092025"
 
   build-image:
     needs: check-if-docker-exist
