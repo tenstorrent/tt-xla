@@ -189,7 +189,7 @@ def generate_test_id(test_entry, models_root):
         return model_path
 
 
-class DynamicTester(TorchModelTester):
+class DynamicTorchModelTester(TorchModelTester):
     def __init__(
         self,
         model_name: str,
@@ -261,16 +261,6 @@ class DynamicTester(TorchModelTester):
 
     def _get_forward_method_kwargs(self):
         return super()._get_forward_method_kwargs()
-
-    # --- Compatibility wrappers expected by test_models ---
-
-    def test_model(self):
-        # Execute the standardized test flow
-        return self.test()
-
-    def finalize(self):
-        # Placeholder for symmetry with original runner API
-        pass
 
 
 def setup_models_path(project_root):
