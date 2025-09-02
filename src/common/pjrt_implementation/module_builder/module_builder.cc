@@ -481,56 +481,7 @@ void ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::PassManager pipeline_pm(mlir_module.get()->getName(),
                                 mlir::PassManager::Nesting::Implicit);
   
-  // If using Shardy, add preprocessing and round-trip import first
-  if (isUsingShardy(mlir_module)) {
-    // Fix frontend attributes: transfer from custom calls to CallOp
-    mlir_module.get().walk([&](mlir::func::FuncOp func) {
-      func.walk([&](mlir::stablehlo::CustomCallOp globalToLocal) {
-        if (globalToLocal.getCallTargetName() == mlir::sdy::kGlobalToLocalShapeCallTargetName) {
-          for (auto user : globalToLocal->getResult(0).getUsers()) {
-            if (auto callOp = mlir::dyn_cast<mlir::func::CallOp>(user)) {
-              if (callOp.getCallee().contains(mlir::sdy::kManualComputationBodyFuncName)) {
-                auto globalAttrs = globalToLocal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
-                
-                mlir::DictionaryAttr localAttrs;
-                for (auto callUser : callOp->getResult(0).getUsers()) {
-                  if (auto localToGlobal = mlir::dyn_cast<mlir::stablehlo::CustomCallOp>(callUser)) {
-                    if (localToGlobal.getCallTargetName() == mlir::sdy::kLocalToGlobalShapeCallTargetName) {
-                      localAttrs = localToGlobal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
-                      break;
-                    }
-                  }
-                }
-                
-                if (globalAttrs && localAttrs) {
-                  llvm::SmallVector<mlir::NamedAttribute> combinedAttrs;
-                  
-                  if (auto inShardings = globalAttrs.get(mlir::sdy::kInShardings)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kInShardings), inShardings));
-                  }
-                  if (auto manualAxes = globalAttrs.get(mlir::sdy::kManualAxes)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kManualAxes), manualAxes));
-                  }
-                  if (auto outShardings = localAttrs.get(mlir::sdy::kOutShardings)) {
-                    combinedAttrs.push_back(mlir::NamedAttribute(
-                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kOutShardings), outShardings));
-                  }
-                  
-                  auto frontendAttrsDict = mlir::DictionaryAttr::get(globalToLocal->getContext(), combinedAttrs);
-                  callOp->setAttr(mlir::sdy::kFrontendAttributesAttr, frontendAttrsDict);
-                }
-              }
-            }
-          }
-        }
-      });
-    });
-    
-    // Add Shardy round-trip import passes
-    mlir::sdy::addSdyRoundTripImportPipeline(pipeline_pm);
-  }
+  // Shardy preprocessing and round-trip import now handled in tt-mlir pipeline
   
   // Add standard StableHLO compilation pipeline
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
