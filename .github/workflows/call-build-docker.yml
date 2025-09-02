@@ -57,7 +57,6 @@ jobs:
 
       # Run the next steps only when pushed to main. Docker image must already exist, tag it as latest
       - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
