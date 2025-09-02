@@ -111,7 +111,7 @@ jobs:
         id: generate-forge-models-matrix
         shell: bash
         env:
-          TEST_GROUP_CNT: "10"
+          TEST_GROUP_CNT: "3"
         run: |
             SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
             TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
