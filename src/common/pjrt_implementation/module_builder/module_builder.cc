@@ -833,10 +833,8 @@ ModuleBuilder::createArgumentTypeMap(
   return argTypesMap;
 }
 
-} // namespace tt::pjrt::module_builder
 bool ModuleBuilder::shouldEnableIRPrinting() const {
   const char *log_level = std::getenv("TT_TORCH_IR_LOG_LEVEL");
   return log_level && std::string(log_level) == "DEBUG";
 }
-
-} // namespace tt::pjrt
+} // namespace tt::pjrt::module_builder
