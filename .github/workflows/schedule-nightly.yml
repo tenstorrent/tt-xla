@@ -53,6 +53,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
+      codecov: false
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'nightly'
       use-shared-runners: false # Run nightly tests on Civ1

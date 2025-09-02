@@ -12,6 +12,11 @@ on:
         description: 'Docker image to use for the build'
         required: true
         type: string
+      codecov:
+        description: 'Run code coverage tests and uploads'
+        required: false
+        default: true
+        type: boolean
       test_matrix:
         description: 'Test job matrix to use'
         required: false
@@ -110,7 +115,7 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        if [[ "${{ matrix.build.codecov }}" == "true" ]]; then
+        if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
