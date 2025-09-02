@@ -75,11 +75,11 @@ jobs:
 
           CI_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//')
           echo "Setting latest tag on the image $CI_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:test02092025"
+          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:latest"
 
           IRD_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//' | sed 's/-ci-/-ird-/')
           echo "Setting latest tag on the image $IRD_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:test02092025"
+          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:latest"
 
   build-image:
     needs: check-if-docker-exist
