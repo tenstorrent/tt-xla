@@ -43,6 +43,16 @@
 #include "shardy/round_trip_import/constants.h"
 #include "shardy/round_trip_import/pipelines.h"
 #include "shardy/round_trip_import/utils.h"
+#include "shardy/round_trip_import/import_sdy_custom_calls.h"
+#include "shardy/round_trip_import/import_shardy_attrs.h"
+#include "shardy/round_trip_import/import_uninlineable_func_calls.h"
+#include "stablehlo/transforms/optimization/Passes.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/Passes.h"
+#include "stablehlo/dialect/StablehloOps.h"
+#include "llvm/ADT/SmallVector.h"
+#include "mlir/IR/Builders.h"
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -184,7 +194,65 @@ void ModuleBuilder::convertFromVHLOToSHLO(
   // from openXLA. Once openXLA natively supports Shardy, we can remove
   // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
   // Detect Shardy by looking at the meshes attribute in module.
+  std::cerr << "------------" << std::endl;
+  printModule(mlir_module);
+  std::cerr << "------------" << std::endl;
   if (isUsingShardy(mlir_module)) {
+    // Fix the frontend attributes issue: transfer attributes from custom calls to the CallOp
+    // The ManualComputationPattern expects frontend attributes on the CallOp, not on the custom calls
+    mlir_module.get().walk([&](mlir::func::FuncOp func) {
+      func.walk([&](mlir::stablehlo::CustomCallOp globalToLocal) {
+        if (globalToLocal.getCallTargetName() == mlir::sdy::kGlobalToLocalShapeCallTargetName) {
+          // Find the CallOp that uses this custom call's result
+          for (auto user : globalToLocal->getResult(0).getUsers()) {
+            if (auto callOp = mlir::dyn_cast<mlir::func::CallOp>(user)) {
+              if (callOp.getCallee().contains(mlir::sdy::kManualComputationBodyFuncName)) {
+                // Transfer frontend attributes from custom calls to CallOp
+                auto globalAttrs = globalToLocal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
+                
+                // Find the corresponding LocalToGlobalShape to get out_shardings
+                mlir::DictionaryAttr localAttrs;
+                for (auto callUser : callOp->getResult(0).getUsers()) {
+                  if (auto localToGlobal = mlir::dyn_cast<mlir::stablehlo::CustomCallOp>(callUser)) {
+                    if (localToGlobal.getCallTargetName() == mlir::sdy::kLocalToGlobalShapeCallTargetName) {
+                      localAttrs = localToGlobal->getAttrOfType<mlir::DictionaryAttr>(mlir::sdy::kFrontendAttributesAttr);
+                      break;
+                    }
+                  }
+                }
+                
+                if (globalAttrs && localAttrs) {
+                  // Combine attributes from both custom calls
+                  llvm::SmallVector<mlir::NamedAttribute> combinedAttrs;
+                  
+                  // Add in_shardings and manual_axes from GlobalToLocal
+                  if (auto inShardings = globalAttrs.get(mlir::sdy::kInShardings)) {
+                    combinedAttrs.push_back(mlir::NamedAttribute(
+                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kInShardings), inShardings));
+                  }
+                  if (auto manualAxes = globalAttrs.get(mlir::sdy::kManualAxes)) {
+                    combinedAttrs.push_back(mlir::NamedAttribute(
+                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kManualAxes), manualAxes));
+                  }
+                  
+                  // Add out_shardings from LocalToGlobal  
+                  if (auto outShardings = localAttrs.get(mlir::sdy::kOutShardings)) {
+                    combinedAttrs.push_back(mlir::NamedAttribute(
+                        mlir::StringAttr::get(globalToLocal->getContext(), mlir::sdy::kOutShardings), outShardings));
+                  }
+                  
+                  // Set the combined frontend attributes on the CallOp
+                  auto frontendAttrsDict = mlir::DictionaryAttr::get(globalToLocal->getContext(), combinedAttrs);
+                  callOp->setAttr(mlir::sdy::kFrontendAttributesAttr, frontendAttrsDict);
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+    
+    // Now run the original shardy round-trip import pipeline
     mlir::PassManager shardy_pm(mlir_module.get()->getName());
     mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
     if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
