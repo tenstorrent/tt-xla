@@ -103,63 +103,6 @@ def handle_dot_rhs(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers, **kwa
     return (orig + lora_product).astype(orig.dtype)
 
 
-@quax.register(lax.conv_general_dilated_p)
-def handle_conv(inp: jax.Array, lora: LoraWeight, *, dimension_numbers, **params):
-    if isinstance(inp, LoraWeight):
-        warnings.warn(
-            "Using a LoraWeight as input to a convolution is not supported, so it will be materialized."
-        )
-        inp = inp.materialise()
-
-    if not dimension_numbers.rhs_spec[:1] != (
-        len(dimension_numbers.rhs_spec) - 1,
-        len(dimension_numbers.rhs_spec) - 2,
-    ):
-        raise ValueError(
-            "Lorax only supports convolutions with shape (..., in_features, out_features)"
-        )
-
-    params = {**params, "dimension_numbers": dimension_numbers}
-    op = partial(jax.lax.conv_general_dilated, **params)
-    orig = op(inp, lora.w)
-
-    lora_product = op(inp, lora.b)
-
-    params["window_strides"] = (1,) * (len(dimension_numbers.rhs_spec) - 2)
-    params["padding"] = "VALID"
-    lora_product = jax.lax.conv_general_dilated(
-        lora_product, lora.a * lora.get_scale(), **params
-    )
-
-    return (orig + lora_product).astype(orig.dtype)
-
-
-@quax.register(lax.gather_p)
-def handle_gather(
-    lora: LoraWeight, indices: jax.Array, *, dimension_numbers, slice_sizes, **params
-):
-    if dimension_numbers.offset_dims != (len(indices.shape) - 1,):
-        return NotImplemented
-
-    lora_dim = lora.b.shape[-1]
-
-    if slice_sizes != (1, lora.a.shape[1]):
-        return NotImplemented
-
-    params = {**params, "dimension_numbers": dimension_numbers}
-
-    orig = jax.lax.gather(lora.w, indices, slice_sizes=slice_sizes, **params)
-
-    new_slice_sizes = (1, lora_dim)
-
-    lora_product = jax.lax.gather(
-        lora.b, indices, slice_sizes=new_slice_sizes, **params
-    )
-    lora_product = lora_product @ (lora.a * lora.get_scale())
-
-    return (orig + lora_product).astype(orig.dtype)
-
-
 @quax.register(lax.transpose_p)
 def eval_lora_transpose(arg: LoraWeight, *, permutation):
     if not len(arg.shape) == 2 and permutation == (1, 0):

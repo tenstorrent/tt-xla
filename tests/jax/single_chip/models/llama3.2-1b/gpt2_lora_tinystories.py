@@ -93,7 +93,7 @@ def main():
     lora_params = lorax.init_lora(model.params, lora_spec, jax.random.PRNGKey(42))
 
     # Setup optimizer with proper parameter freezing
-    optimizer = optax.adamw(learning_rate=1e-5, weight_decay=0.01)
+    optimizer = optax.adamw(learning_rate=1e-4, weight_decay=0.01)
     optimizer = lorax.wrap_optimizer(optimizer, lora_spec)
     opt_state = optimizer.init(lora_params)
 
