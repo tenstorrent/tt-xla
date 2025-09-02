@@ -7,7 +7,7 @@ import gc
 from tests.runner.test_utils import (
     ModelStatus,
     import_model_loader_and_variant,
-    DynamicTester,
+    DynamicTorchModelTester,
     setup_test_discovery,
     create_test_id_generator,
     record_model_test_properties,
@@ -78,7 +78,7 @@ def test_all_models(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
-                tester = DynamicTester(
+                tester = DynamicTorchModelTester(
                     model_info.name,
                     run_mode,
                     loader=loader,
@@ -88,8 +88,7 @@ def test_all_models(
                     **test_metadata.to_tester_args(),
                 )
 
-                results = tester.test_model()
-                tester.finalize()
+                tester.test()
                 succeeded = True
 
         except Exception as e:
