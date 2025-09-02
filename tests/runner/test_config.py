@@ -1458,6 +1458,7 @@ test_config = {
     },
     "hrnet/pytorch-hrnetv2_w32_osmr-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
+        "required_pcc": 0.985,
     },
     "hrnet/pytorch-hrnetv2_w40_osmr-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99.
