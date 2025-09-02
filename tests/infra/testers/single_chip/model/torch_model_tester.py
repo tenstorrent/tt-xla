@@ -95,7 +95,7 @@ class TorchModelTester(ModelTester):
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
-        self._compile_for_backend(workload, backend="openxla")
+        self._compile_for_backend(workload, backend="tt")
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""

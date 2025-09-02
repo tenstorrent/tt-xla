@@ -167,6 +167,24 @@ bool isTTMarkFunction(const std::string &function_name) {
   return function_name.rfind(c_tt_mark_function_prefix, 0) == 0;
 }
 
+// Traces a value to its root block arguments.
+mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value) {
+  mlir::SmallVector<mlir::BlockArgument> blockArgs;
+  auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
+  if (blockArg) {
+    blockArgs.push_back(blockArg);
+  } else {
+    auto definingOp = value.getDefiningOp();
+    assert(definingOp && "This value does not have a defining operation, nor "
+                         "is it a block argument.");
+    for (mlir::Value operand : definingOp->getOperands()) {
+      blockArgs.append(getBlockArguments(operand));
+    }
+  }
+
+  return blockArgs;
+}
+
 // This pattern is used to populate function argument attributes. It looks for
 // calls to `tt.mark_argument` and populates the argument attributes using the
 // attributes of the `tt.mark_argument` call. It then erases the
@@ -190,22 +208,13 @@ struct PopulateArgumentAttrsFromTTMark final
       return mlir::failure();
     }
 
-    assert(op.getNumOperands() == 1 &&
-           "Expected one operand to a mark function");
-    assert(op.getNumResults() == 1 &&
-           "Expected one result from a mark function");
-
-    // Retrieve input and assert that it is indeed a block argument
-    mlir::Value input = op.getOperand(0);
-    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(input);
-    assert(blockArg && "Expected block argument as input to a mark function");
-
-    auto *parentOp = blockArg.getOwner()->getParentOp();
-    auto argIndex = blockArg.getArgNumber();
-
-    // Assert that the input is a block argument to a function
-    auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
-    assert(funcOp && "Expected function as parent of block argument");
+    assert(
+        op.getNumOperands() == 1 &&
+        std::string("Expected one operand to " + c_mark_argument_function_name)
+            .c_str());
+    assert(op.getNumResults() == 1 && std::string("Expected one result to " +
+                                                  c_mark_argument_function_name)
+                                          .c_str());
 
     // Torch XLA allows us to populate a frontend_attributes dictionary to
     // custom call ops. This dictionary is used to populate the argument type
@@ -249,14 +258,30 @@ struct PopulateArgumentAttrsFromTTMark final
       return mlir::failure();
     }
 
-    // Set argument type for this argument
-    funcOp.setArgAttr(argIndex, mlir::tt::ttcore::ArgumentTypeAttr::name,
-                      mlir::tt::ttcore::ArgumentTypeAttr::get(
-                          funcOp.getContext(), *argumentTypeEnum));
+    // Retrieve input and get its block arguments.
+    // Occasionally some torch decompositions will place operations on the input
+    // of the mark call. In that case the mark call will no longer be the first
+    // operation executed on the argument(s). However, that means we may
+    // populate all the roots of the input with the same attributes.
+    mlir::Value input = op.getOperand(0);
+    mlir::SmallVector<mlir::BlockArgument> blockArgs = getBlockArguments(input);
 
-    // Set argument name for this argument
-    funcOp.setArgAttr(argIndex, c_name_attr_name, nameStrAttr);
+    for (auto blockArg : blockArgs) {
+      auto *parentOp = blockArg.getOwner()->getParentOp();
+      auto argIndex = blockArg.getArgNumber();
 
+      // Assert that the input is a block argument to a function
+      auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
+      assert(funcOp && "Expected function as parent of block argument");
+
+      // Set argument type for this argument
+      funcOp.setArgAttr(argIndex, mlir::tt::ttcore::ArgumentTypeAttr::name,
+                        mlir::tt::ttcore::ArgumentTypeAttr::get(
+                            funcOp.getContext(), *argumentTypeEnum));
+
+      // Set argument name for this argument
+      funcOp.setArgAttr(argIndex, c_name_attr_name, nameStrAttr);
+    }
     // Remove the custom call op and replace it with the input
     // as the information is now embedded in the function argument attributes
     rewriter.replaceOp(op, input);

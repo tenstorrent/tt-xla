@@ -59,7 +59,7 @@ class OpTester(BaseTester):
 
         def compile_torch_workload(workload: Workload) -> None:
             assert workload.executable is not None
-            workload.executable = torch.compile(workload.executable, backend="openxla")
+            workload.executable = torch.compile(workload.executable, backend="tt")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
@@ -81,7 +81,7 @@ class OpTester(BaseTester):
 
         def compile_torch_workload(workload: Workload) -> None:
             assert workload.executable is not None
-            workload.executable = torch.compile(workload.executable, backend="openxla")
+            workload.executable = torch.compile(workload.executable, backend="tt")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"

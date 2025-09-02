@@ -5,7 +5,7 @@
 import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-from ttxla_tools import ttxla_tools
+import tt_torch
 
 from tests.torch.single_chip.models.mnist.cnn.dropout.model_implementation import (
     MNISTCNNDropoutModel,
@@ -34,8 +34,7 @@ def mnist_with_consteval():
 
     # Mark model inputs before compiling. This will allow the compiler to
     # distinguish between input and parameter arguments, enabling consteval and other optimizations.
-    ttxla_tools.mark_module_user_inputs(model)
-    model.compile(backend="openxla")
+    tt_torch.mark_module_user_inputs(model)
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
