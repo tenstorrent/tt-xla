@@ -35,7 +35,6 @@ def mnist_with_consteval():
     # Mark model inputs before compiling. This will allow the compiler to
     # distinguish between input and parameter arguments, enabling consteval and other optimizations.
     tt_torch.mark_module_user_inputs(model)
-    model.compile(backend="openxla")
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
