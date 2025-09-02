@@ -262,7 +262,7 @@ struct PopulateArgumentAttrsFromTTMark final
     // Occasionally some torch decompositions will place operations on the input
     // of the mark call. In that case the mark call will no longer be the first
     // operation executed on the argument(s). However, that means we may
-    // populate all the roots of the input with the same attribures.
+    // populate all the roots of the input with the same attributes.
     mlir::Value input = op.getOperand(0);
     mlir::SmallVector<mlir::BlockArgument> blockArgs = getBlockArguments(input);
 

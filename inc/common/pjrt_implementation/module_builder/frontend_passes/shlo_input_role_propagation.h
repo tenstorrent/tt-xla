@@ -49,6 +49,9 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 // Check is the function is tt_mark.
 bool isTTMarkFunction(const std::string &function_name);
 
+// Returns a vector of block arguments that traces from a given mlir::Value.
+mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value);
+
 } // namespace internal
 
 } // namespace tt::pjrt::module_builder::frontend_passes
