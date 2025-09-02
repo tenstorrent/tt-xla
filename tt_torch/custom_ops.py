@@ -33,13 +33,13 @@ def mark_argument_attributes(
     if name is not None:
         frontend_attributes["ttir.name"] = name
 
-    # @LPanosTT: stablehlo_custom_call causes issues within XLA for shapes which are 1D (or less?), it is unclear why.
+    # @LPanosTT: stablehlo_custom_call causes issues (sometimes) within XLA for shapes which are 2D (or less?), it is unclear why.
     # There is a todo within torch-xla addressing this: venv/lib/python3.10/site-packages/torch_xla/experimental/stablehlo_custom_call.py
     # I have implemented a workaround for this by reshaping the tensor to 2D if it is less than 2D, then reshaping back to the original shape.
     # This should not have performance impact as the custom call below will be removed by the graph, and the reshapes will thus be placed back-to-back. tt-mlir will fold both of them out.
     original_shape = list(tensor.shape)
-    if len(tensor.shape) < 2:
-        extra_dims = [1] * (2 - len(original_shape))
+    if len(tensor.shape) < 3:
+        extra_dims = [1] * (3 - len(original_shape))
         tensor = tensor.reshape((*extra_dims, *original_shape))
     result = stablehlo_custom_call.stablehlo_custom_call(
         [tensor],
@@ -48,7 +48,7 @@ def mark_argument_attributes(
         [tensor.dtype],
         frontend_attributes=frontend_attributes,
     )
-    if len(original_shape) < 2:
+    if len(original_shape) < 3:
         result = result.reshape(original_shape)
     return result
 
