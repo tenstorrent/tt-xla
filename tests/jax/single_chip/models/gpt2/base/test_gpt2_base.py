@@ -11,12 +11,11 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
-
+from third_party.tt_forge_models.gpt2.causal_lm.jax import ModelVariant
 from ..tester import GPT2Tester
 
-MODEL_PATH = "openai-community/gpt2"
+MODEL_VARIANT = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "gpt2",
@@ -30,12 +29,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH)
+    return GPT2Tester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> GPT2Tester:
-    return GPT2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return GPT2Tester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
