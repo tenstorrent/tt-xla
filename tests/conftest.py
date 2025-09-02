@@ -249,6 +249,8 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
+# TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
+# do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
 @pytest.fixture(autouse=True)
 def run_around_tests():
     torch.manual_seed(0)
