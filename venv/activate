@@ -17,6 +17,8 @@ else
     echo "Creating virtual environment in $TTMLIR_VENV_DIR"
     python3.11 -m venv $TTMLIR_VENV_DIR
     source $TTMLIR_VENV_DIR/bin/activate
+    # pytest alias should use venv interpreter
+    alias pytest='python -m pytest'
     pip install --upgrade pip
     # Requirements for third party projects are installed during their build in `CMakeLists.txt`
     pip install -r python_package/requirements.txt
