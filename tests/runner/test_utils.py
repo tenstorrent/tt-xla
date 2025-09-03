@@ -48,6 +48,9 @@ class ModelTestConfig:
             "bringup_status", default=BringupStatus.UNKNOWN
         )
 
+        # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
+        self.markers = self._normalize_markers(self._resolve("markers", default=[]))
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
@@ -69,6 +72,16 @@ class ModelTestConfig:
             config.allclose.enable()
             config.allclose.atol = self.relative_atol
         return config
+
+    def _normalize_markers(self, markers_value):
+        if markers_value is None:
+            return []
+        if isinstance(markers_value, str):
+            return [markers_value]
+        try:
+            return [str(m) for m in markers_value if m]
+        except TypeError:
+            return []
 
 
 # Helper to capture runtime failures and map them to bringup status
