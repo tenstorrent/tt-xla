@@ -73,7 +73,7 @@ class Gemma3Config(BaseConfig):
     pad_token_id: int = 0
     eos_token_id: int = 1
     bos_token_id: int = 2
-    tie_word_embeddings: bool = True
+    tie_word_embeddings: bool = False
     rope_scaling: dict[str, Any] | None = None
     hidden_activation: str = "gelu_pytorch_tanh"
     use_cache: bool = True
@@ -661,11 +661,24 @@ class Gemma3ForCausalLM(BaseModel):
             features=config.hidden_size,
             dtype=config.dtype,
             rngs=rngs,
+            embedding_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
         )
         self.layers = [
             Gemma3DecoderLayer(idx, config, rngs=rngs) for idx in range(config.num_hidden_layers)
         ]
         self.norm = Gemma3RMSNorm(config.hidden_size, eps=config.rms_norm_eps, rngs=rngs)
+        self.lm_head = nnx.Linear(
+            config.hidden_size,
+            config.vocab_size,
+            use_bias=False,
+            param_dtype=config.param_dtype,
+            rngs=rngs,
+            kernel_init=nnx.with_partitioning(
+                nnx.initializers.lecun_normal(), (None, "X")
+            ),
+        )
         self.cache_len = 0
 
     def __call__(
@@ -683,6 +696,9 @@ class Gemma3ForCausalLM(BaseModel):
         # Scale embeddings by sqrt(hidden_size)
         hidden_states = hidden_states * jnp.sqrt(float(self.config.hidden_size))
         hidden_states = hidden_states.astype(self.config.dtype)
+        hidden_states = jax.lax.all_gather(
+            hidden_states, axis_name="X", axis=-1, tiled=True
+        )
 
         # --- Prepare Inputs for Layers ---
         # Compute cache and kv sequence lengths
@@ -747,11 +763,10 @@ class Gemma3ForCausalLM(BaseModel):
 
         # --- Logits Calculation --- #
         # Final projection using embedding weights (weight tying)
-        if self.config.tie_word_embeddings:
-            logits = hidden_states @ self.embed_tokens.embedding.T
-        else:
-            # TODO: Add final LM head linear layer if not tied
-            raise NotImplementedError("Separate LM head not implemented yet.")
+        logits = self.lm_head(hidden_states)
+        logits = jax.lax.all_gather(
+            logits, axis_name="X", axis=-1, tiled=True
+        )
 
         # Apply final logit soft capping if specified
         if self.config.final_logit_soft_cap is not None:
@@ -787,6 +802,7 @@ class Gemma3ForCausalLM(BaseModel):
                     state["layers"][int(keys[3])][keys[4]]["weight"].value = tensor.astype(self.config.param_dtype)  # type: ignore
             elif keys[2] == "embed_tokens":
                 state["embed_tokens"].embedding.value = tensor.astype(self.config.param_dtype)  # type: ignore
+                state["lm_head"].kernel.value = tensor.T.astype(self.config.param_dtype)  # type: ignore
             elif keys[2] == "norm":
                 state["norm"].weight.value = tensor.astype(self.config.param_dtype)  # type: ignore
 

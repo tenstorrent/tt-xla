@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import os
 from dotenv import load_dotenv
 from flax import nnx
+import jax
 
 load_dotenv()
 
