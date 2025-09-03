@@ -52,7 +52,9 @@ def training_tester() -> VovNetTester:
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.xfail(
-    reason=incorrect_result("PCC comparison failed. Calculated: pcc=0.9894067645072937")
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9894067645072937 (https://github.com/tenstorrent/tt-xla/issues/1038)"
+    )
 )
 def test_torch_vovnet_inference(inference_tester: VovNetTester):
     inference_tester.test()
