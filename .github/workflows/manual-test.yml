@@ -14,10 +14,10 @@ on:
           - 'push'
           - 'nightly'
           - 'model_test'
-          - 'forge_models_passing'
+          - 'tt_forge_models'
           - 'Custom'
       test_mark:
-        description: 'Test mark to run (if preset is Custom)'
+        description: 'Test mark to run (if preset is Custom or tt_forge_models'
         type: string
       run_on:
         description: 'Run on specific hardware'
@@ -78,42 +78,13 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
 
   # Generate matrix for forge models preset (mirrors schedule-nightly)
-  generate-matrix:
-    if: inputs.preset == 'forge_models_passing'
-    runs-on: ubuntu-latest
+  generate-forge-models-matrix:
+    if: inputs.preset == 'tt_forge_models'
+    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
+    secrets: inherit
     needs: [ build-image ]
-    outputs:
-      test-forge-models-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Generate tt-forge-models matrix
-        id: generate-forge-models-matrix
-        shell: bash
-        env:
-          TEST_GROUP_CNT: ${{ inputs.test_group_cnt }}
-        run: |
-            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
-            TEST_MATRIX_PATH=".github/workflows/test-forge-models-matrix.json"
-            TESTS_TO_PARALLELIZE='[
-              {
-                "runs-on": "n150",
-                "name": "run_forge_models_torch",
-                "dir": "./tests/runner/test_models.py"
-              },
-              {
-                "runs-on": "p150",
-                "name": "run_forge_models_torch",
-                "dir": "./tests/runner/test_models.py"
-              }
-            ]'
-            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
-            echo "test-forge-models-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+    with:
+      test_group_cnt: ${{ inputs.test_group_cnt }}
 
   test-setup:
     runs-on: ubuntu-latest
@@ -126,7 +97,7 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          if [ '${{ inputs.preset }}' == 'Custom' ]; then
+          if [[ '${{ inputs.preset }}' == 'Custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
             echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
@@ -201,7 +172,7 @@ jobs:
           echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
-    if: always() && !cancelled() && inputs.preset != 'forge_models_passing'
+    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
@@ -212,16 +183,16 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-  test_full_model_forge_models_passing:
+  test_tt_forge_models:
     uses: ./.github/workflows/call-test.yml
-    if: inputs.preset == 'forge_models_passing' && (success() || failure())
+    if: inputs.preset == 'tt_forge_models' && (success() || failure())
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-matrix ]
+    needs: [ build-image, test-setup, build-ttxla, generate-forge-models-matrix ]
     with:
       timeout_minutes: 180
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: 'expected_passing'
-      test_matrix: ${{ needs.generate-matrix.outputs.test-forge-models-matrix }}
+      test_mark: ${{ needs.test-setup.outputs.test_mark }}
+      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
