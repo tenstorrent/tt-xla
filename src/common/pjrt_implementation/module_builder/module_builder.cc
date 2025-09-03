@@ -152,6 +152,10 @@ std::unique_ptr<mlir::Pass> createSdyRoundTripCloneManualComputationCallsPass() 
         if (!funcOp) return;
         
         auto clonedFuncOp = funcOp.clone();
+        
+        // Clone any tt.mark_* functions that this function references
+        cloneReferencedMarkFunctions(clonedFuncOp, symbolTable, seenCalleeNames.size());
+        
         callOp.setCallee(symbolTable.insert(clonedFuncOp));
       });
     }
@@ -206,6 +210,39 @@ std::unique_ptr<mlir::Pass> createSdyRoundTripCloneManualComputationCallsPass() 
         auto frontendAttrsDict = mlir::DictionaryAttr::get(callOp->getContext(), combinedAttrs);
         callOp->setAttr(mlir::sdy::kFrontendAttributesAttr, frontendAttrsDict);
       }
+    }
+    
+    void cloneReferencedMarkFunctions(mlir::func::FuncOp funcOp, mlir::SymbolTable& symbolTable, size_t cloneIndex) {
+      llvm::DenseMap<llvm::StringRef, std::string> oldToNewMarkFunctionNames;
+      
+      // First pass: find all tt.mark_* function calls and clone those functions
+      funcOp.walk([&](mlir::func::CallOp callOp) {
+        llvm::StringRef calleeName = callOp.getCallee();
+        if (calleeName.contains("tt.mark_")) {
+          // Check if we already cloned this mark function
+          if (oldToNewMarkFunctionNames.find(calleeName) != oldToNewMarkFunctionNames.end()) {
+            return;
+          }
+          
+          // Clone the tt.mark_* function
+          if (auto markFuncOp = symbolTable.lookup<mlir::func::FuncOp>(calleeName)) {
+            auto clonedMarkFunc = markFuncOp.clone();
+            std::string newMarkName = calleeName.str() + "_clone_" + std::to_string(cloneIndex);
+            
+            clonedMarkFunc.setSymName(newMarkName);
+            symbolTable.insert(clonedMarkFunc);
+            oldToNewMarkFunctionNames[calleeName] = newMarkName;
+          }
+        }
+      });
+      
+      // Second pass: update all call references to use the cloned mark functions
+      funcOp.walk([&](mlir::func::CallOp callOp) {
+        llvm::StringRef calleeName = callOp.getCallee();
+        if (auto it = oldToNewMarkFunctionNames.find(calleeName); it != oldToNewMarkFunctionNames.end()) {
+          callOp.setCallee(it->second);
+        }
+      });
     }
   };
   
