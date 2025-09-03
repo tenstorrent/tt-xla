@@ -205,14 +205,25 @@ jobs:
         apt-get update
         apt install -y libgl1 libglx-mesa0
 
+    # Ensure test_config.py for tt-forge-models test is valid, especially on PR's for uplifting tt-forge-models
+    # but still run tests even in case of failure here, will still treat overall job as failed.
+    - name: Validate Forge Models Tests test config file
+      if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
+      shell: bash
+      run: |
+        source venv/activate
+        pytest -vv tests/runner/test_models.py --validate-test-config
+
     - name: Collect Tests
+      if: success() || failure()
       shell: bash
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
-        pytest --collect-only -q ${{ env.BASE_PYTEST_CMD }}
+        pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
+      if: success() || failure()
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
