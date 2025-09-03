@@ -14,8 +14,6 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
-from python_package import TT_PJRT_PLUGIN_NAME
-
 THIS_DIR = Path(os.path.realpath(os.path.dirname(__file__)))
 REPO_DIR = Path(os.path.join(THIS_DIR, "..")).resolve()
 
@@ -23,40 +21,19 @@ REPO_DIR = Path(os.path.join(THIS_DIR, "..")).resolve()
 @dataclass
 class SetupConfig:
     """
-    Helper dataclass storing wheel config.
+    Helper dataclass storing wheel config for TT-XLA package.
 
-    Jax plugin must be bundled in following form:
+    The wheel structure is as follows:
     ```
-    jax_plugins
-    `-- <custom-plugin-name>
-        |-- __init__.py         # Contains plugin registration function
-        `-- <custom-plugin-name>.so   # Plugin itself
-    ```
-    to be automatically detected by `jax` lib. Upon installation, it will be unpacked
-    from wheel into user's python `env/lib` dir.
-
-    In our case we also want to bundle other necessary things in wheel. So our final
-    package tree looks like this:
-    ```
-    jax_plugins
-    `-- pjrt_plugin_tt
+    pjrt_plugin_tt/                     # PJRT plugin package
         |-- __init__.py
-        |-- pjrt_plugin_tt.so   # Plugin itself.
-        `-- tt-mlir             # Entire tt-mlir installation folder
-            `-- install
-                |-- include
-                |   `-- ...
-                |-- lib
-                |   |-- libTTMLIRCompiler.so
-                |   |-- libTTMLIRRuntime.so
-                |   `-- ...
-                `-- tt-metal    # We need to set TT_METAL_HOME to this dir when loading plugin
-                    |-- runtime
-                    |   `-- ...
-                    |-- tt_metal
-                    |   `-- ...
-                    `-- ttnn
-                        `-- ...
+        |-- pjrt_plugin_tt.so               # PJRT plugin binary
+        |-- tt-metal/                       # tt-metal runtime dependencies (kernels, riscv compiler/linker, etc.)
+        `-- lib/                            # shared library dependencies (tt-mlir, tt-metal)
+    jax_plugin_tt/                      # Thin JAX wrapper
+        `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
+    torch_plugin_tt                     # Thin PyTorch/XLA wrapper
+        `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
     ```
     """
 
@@ -84,26 +61,13 @@ class SetupConfig:
     @property
     def requirements(self) -> list:
         """
-        List of requirements needed for plugin to actually work.
-
-        requirements.txt is parsed and only JAX requirements are pulled from it.
+        List of requirements needed for plugins to actually work.
         """
         reqs = []
-        requirements_path = REPO_DIR / "requirements.txt"
+        requirements_path = THIS_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
-            # Filter for just pinned versions.
-            pin_pairs = [line.strip().split("==") for line in f if "==" in line]
-            pin_versions = dict(pin_pairs)
-
-            # Convert pinned versions to >= for install_requires.
-            for pin_name in ("jax", "jaxlib"):
-                assert (
-                    pin_name in pin_versions.keys()
-                ), f"Requirement {pin_name} not found in {requirements_path}"
-
-                pin_version = pin_versions[pin_name]
-                reqs.append(f"{pin_name}>={pin_version}")
+            reqs = f.read().splitlines()
 
         return reqs
 
@@ -115,69 +79,12 @@ class SetupConfig:
         with readme.open() as f:
             return f.read()
 
-    # --- Properties of project ---
-
-    @property
-    def pjrt_plugin_path(self) -> Path:
-        """Full path to custom TT PJRT plugin."""
-        return REPO_DIR / f"build/src/tt/{TT_PJRT_PLUGIN_NAME}"
-
-    @property
-    def tt_mlir_install_dir(self) -> Path:
-        """Full path to tt-mlir installation dir."""
-        return REPO_DIR / "third_party/tt-mlir/install"
-
-    @property
-    def project_is_built(self) -> bool:
-        """
-        Flag indicating project is already built.
-
-        It is considered built if PJRT plugin exists and tt-mlir install dir exists.
-        """
-        return self.pjrt_plugin_path.exists() and self.tt_mlir_install_dir.exists()
-
     # --- Properties of wheel bundle ---
 
     @property
-    def jax_plugin_target_dir_relpath(self) -> Path:
-        """Path to our custom jax plugin relative to this script."""
-        return Path(f"jax_plugins/pjrt_plugin_tt")
-
-    @property
-    def jax_plugin_target_dir(self) -> Path:
-        """
-        Full path to target dir in which .so file and tt-mlir installation tree root
-        will be copied.
-        """
-        return THIS_DIR / self.jax_plugin_target_dir_relpath
-
-    @property
-    def pjrt_plugin_copied(self) -> bool:
-        """Returns True if .so file is already copied to destination."""
-        return (self.jax_plugin_target_dir / TT_PJRT_PLUGIN_NAME).exists()
-
-    @property
-    def jax_plugin_init(self) -> Path:
-        """Path to __init__.py which initializes jax plugin."""
-        return THIS_DIR / "__init__.py"
-
-    @property
-    def jax_plugin_init_copied(self) -> bool:
-        """Returns True if __init__.py is already copied to destination."""
-        return (self.jax_plugin_target_dir / "__init__.py").exists()
-
-    @property
-    def tt_mlir_target_dir(self) -> Path:
-        """
-        Convenience accessor for tt-mlir target dir which is nested in jax plugin
-        target dir.
-        """
-        return self.jax_plugin_target_dir / "tt-mlir/install"
-
-    @property
-    def tt_mlir_copied(self) -> bool:
-        """Returns True if tt-mlir installation is already copied to destination."""
-        return self.tt_mlir_target_dir.exists()
+    def shared_device_package_target_dir_relpath(self) -> Path:
+        """Path to shared pjrt_plugin_tt package relative to this script."""
+        return Path("pjrt_plugin_tt")
 
     def __repr__(self) -> str:
         """Representes self as json string."""
@@ -216,6 +123,8 @@ class SetupConfig:
 
         return json.dumps(result, indent=4)
 
+    code_coverage: bool = False
+
 
 # Instantiate config.
 config = SetupConfig()
@@ -231,7 +140,20 @@ class BdistWheel(bdist_wheel):
       platform specificity.
     """
 
+    user_options = bdist_wheel.user_options + [
+        ("code-coverage", None, "Enable code coverage for the build")
+    ]
+
+    def initialize_options(self):
+        super().initialize_options()
+        self.code_coverage = False  # Default value for code coverage
+
     def finalize_options(self):
+        if self.code_coverage is None:
+            self.code_coverage = False
+
+        config.code_coverage = self.code_coverage
+
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False
 
@@ -260,72 +182,57 @@ class CMakeBuildPy(build_py):
     """
 
     def run(self):
+        if hasattr(self, "editable_mode") and self.editable_mode:
+            # No need to built the project in editable mode.
+            return
+
         print(f"Building wheel with following settings:\n{config}")
 
-        # Build the project if not already built.
-        if not config.project_is_built:
-            print("Building project...")
-            self.build_cmake_project()
-        else:
-            print("Project already built.")
-
-        # Create temp dir.
-        config.jax_plugin_target_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy __init__.py file into the python jax_plugins package directory.
-        if not config.jax_plugin_init_copied:
-            print("Copying __init__.py...")
-            shutil.copy2(config.jax_plugin_init, config.jax_plugin_target_dir)
-        else:
-            print("__init__.py already copied.")
-
-        # Copy the .so file into the python jax_plugins package directory.
-        if not config.pjrt_plugin_copied:
-            print("Copying PJRT plugin...")
-            shutil.copy2(config.pjrt_plugin_path, config.jax_plugin_target_dir)
-        else:
-            print("PJRT plugin already copied.")
-
-        # Copy tt-mlir install dir into the python jax_plugins package directory.
-        # TODO it might be an overkill that we are copying entire tt-mlir install dir,
-        # but various issues pop up if some tt-mlir lib is missing or `TT_METAL_HOME`
-        # doesn't point to tt-metal install dir. It might be worthwhile searching for a
-        # minimum set of things we need to copy from tt-mlir installation in order for
-        # plugin to work.
-        # See issue https://github.com/tenstorrent/tt-xla/issues/595.
-        if not config.tt_mlir_copied:
-            print("Copying tt-mlir installation...")
-            shutil.copytree(
-                config.tt_mlir_install_dir,
-                config.tt_mlir_target_dir,
-                dirs_exist_ok=True,
-            )
-        else:
-            print("tt-mlir installation already copied.")
+        # Install project to the shared device package directory.
+        print("Building project...")
+        self.build_cmake_project()
 
         # Continue with the rest of the Python build.
         super().run()
 
-        print("Wheel built.")
-
     def build_cmake_project(self):
+        install_dir = (
+            THIS_DIR / self.build_lib / config.shared_device_package_target_dir_relpath
+        )
+
+        code_coverage = "OFF"
+
+        if config.code_coverage:
+            code_coverage = "ON"
+
         cmake_args = [
             "-G",
             "Ninja",
             "-B",
             "build",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_C_COMPILER=clang-17",
-            "-DCMAKE_CXX_COMPILER=clang++-17",
-            "-DTTMLIR_ENABLE_RUNTIME=ON",
-            "-DTTMLIR_ENABLE_STABLEHLO=ON",
-            "-DTT_RUNTIME_ENABLE_PERF_TRACE=ON",
+            "-DCODE_COVERAGE=" + code_coverage,
+            "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
         ]
         build_command = ["--build", "build"]
+        install_command = ["--install", "build"]
+
+        print(f"CMake arguments: {cmake_args}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
         subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
+        subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
+
+    def copy_plugin_scripts(self):
+        scripts_to_copy = ["__init__.py", "monkeypatch.py"]
+        for script_file in scripts_to_copy:
+            script_src = THIS_DIR / script_file
+            script_dst = config.jax_plugin_target_dir / script_file
+            if not script_dst.exists():
+                print(f"Copying {script_file}...")
+                shutil.copy2(script_src, config.jax_plugin_target_dir)
+            else:
+                print(f"{script_file} already copied.")
 
 
 setup(
@@ -345,7 +252,9 @@ setup(
         # We must advertise which Python modules should be treated as loadable
         # plugins. This augments the path based scanning that Jax does, which
         # is not always robust to all packaging circumstances.
-        "jax_plugins": ["pjrt_plugin_tt = jax_plugins.pjrt_plugin_tt"],
+        "jax_plugins": ["pjrt_plugin_tt = jax_plugin_tt"],
+        # Entry point used by torch xla to register the plugin automatically.
+        "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
     },
     include_package_data=True,
     install_requires=config.requirements,
@@ -353,13 +262,21 @@ setup(
     long_description_content_type="text/markdown",
     long_description=config.long_description,
     name="pjrt-plugin-tt",
-    packages=["jax_plugins.pjrt_plugin_tt", "ttxla_tools"],
-    package_data={"jax_plugins.pjrt_plugin_tt": [TT_PJRT_PLUGIN_NAME]},
+    packages=[
+        "pjrt_plugin_tt",
+        "jax_plugin_tt",
+        "torch_plugin_tt",
+        "tt_jax",
+        "tt_torch",
+    ],
     package_dir={
-        f"jax_plugins.pjrt_plugin_tt": "jax_plugins/pjrt_plugin_tt",
-        "ttxla_tools": os.path.join("..", "ttxla_tools"),
+        "pjrt_plugin_tt": "pjrt_plugin_tt",
+        "jax_plugin_tt": "jax_plugin_tt",
+        "torch_plugin_tt": "torch_plugin_tt",
+        "tt_jax": os.path.join("..", "tt_jax"),
+        "tt_torch": os.path.join("..", "tt_torch"),
     },
-    python_requires=">=3.10, <3.11",
+    python_requires=">=3.11, <3.12",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.

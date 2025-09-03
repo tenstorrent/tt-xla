@@ -22,15 +22,15 @@ Before setup can happen, you must configure your hardware. You can skip this sec
 
 TT-XLA has the following system dependencies:
 * Ubuntu 22.04
-* Python 3.10
-* python3.10-venv
+* Python 3.11
+* python3.11-venv
 * Clang 17
 * GCC 11
 * Ninja
 * CMake 4.0.3
 
 ### Installing Python
-If your system already has Python installed, make sure it is Python 3.10:
+If your system already has Python installed, make sure it is Python 3.11:
 
 ```bash
 python3 --version
@@ -39,7 +39,7 @@ python3 --version
 If not, install Python:
 
 ```bash
-sudo apt install python3.10
+sudo apt install python3.11
 ```
 
 ### Installing CMake 4.0.3
@@ -142,7 +142,7 @@ git clone https://github.com/tenstorrent/tt-xla.git
 cd tt-xla
 ```
 
-4. Run the following set of commands to build TT-XLA:
+4. Run the following set of commands to build TT-XLA (this will build the PJRT plugin and install it into `venv`):
 
 ```bash
 source venv/activate
@@ -150,62 +150,41 @@ cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
 cmake --build build
 ```
 
-When the build completes, you are ready to set up the TT-XLA wheel.
+5. To verify that everything is working correctly, run the following command:
 
-### Building and Installing a Wheel
-To install and build a wheel do the following:
+```bash
+python -c "import jax; print(jax.devices('tt'))"
+```
 
-1. Inside the **tt-xla** directory, navigate into the **python_package** directory and set up the wheel:
+The command should output all available TT devices, e.g. `[TTDevice(id=0, arch=Wormhole_b0)]`
+
+6. (optional) If you want to build the TT-XLA wheel, run the following command:
 
 ```bash
 cd python_package
 python setup.py bdist_wheel
 ```
 
-The above command outputs a `python_package/dist/pjrt_plugin_tt*.whl` file which is self-contained.
-
-2. Install the **pjrt_plugin_tt** wheel:
+The above command outputs a `python_package/dist/pjrt_plugin_tt*.whl` file which is self-contained. To install the created wheel, run:
 
 ```bash
 pip install dist/pjrt_plugin_tt*.whl
 ```
 
-3. This step is not required, these are just example commands to test if the wheel is working. Open Python in the terminal and do the following:
-
-```bash
-python
-import jax
-tt_device = jax.devices("tt") # This will trigger plugin registration.
-print(tt_device) # This prints the Tenstorrent device info if everything is OK.
-```
-
 The wheel has the following structure:
-
-```bash
-jax_plugins
-`-- pjrt_plugin_tt
+```plaintext
+pjrt_plugin_tt/                     # PJRT plugin package
     |-- __init__.py
-    |-- pjrt_plugin_tt.so   # Plugin itself.
-    `-- tt-mlir             # Entire tt-mlir installation folder
-        `-- install
-            |-- include
-            |   `-- ...
-            |-- lib
-            |   |-- libTTMLIRCompiler.so
-            |   |-- libTTMLIRRuntime.so
-            |   `-- ...
-            `-- tt-metal    # We need to set TT_METAL_HOME to this dir when loading plugin
-                |-- runtime
-                |   `-- ...
-                |-- tt_metal
-                |   `-- ...
-                `-- ttnn
-                    `-- ...
+    |-- pjrt_plugin_tt.so               # PJRT plugin binary
+    |-- tt-metal/                       # tt-metal runtime dependencies (kernels, riscv compiler/linker, etc.)
+    `-- lib/                            # shared library dependencies (tt-mlir, tt-metal)
+jax_plugin_tt/                      # Thin JAX wrapper
+    `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
+torch_plugin_tt                     # Thin PyTorch/XLA wrapper
+    `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
 ```
 
-It contains a custom Tenstorrent PJRT plugin (an `.so` file), `__init__.py` file which holds a Python function for registering the PJRT plugin with `JAX` and the `tt-mlir` installation dir. This is needed in order to dynamically link TT-MLIR libs in runtime and to resolve various `tt-metal` dependencies without which the plugin does not work.
-
-Structuring wheel/folders this way allows JAX to automatically register the plugin upon usage (explained on OpenXLA's [Develop a New JPRT Plugin page here](https://openxla.org/xla/pjrt/pjrt_integration#step_2_use_jax_plugins_namespace_or_set_up_entry_point)).
+It contains a custom Tenstorrent PJRT plugin (`pjrt_plugin_tt.so`) and its dependencies (`tt-mlir` and `tt-metal`). Additionally, there are thin wrappers for JAX (`jax_plugin_tt`) and PyTorch/XLA (`torch_plugin_tt`) that import the PJRT plugin and set it up for use with the respective frameworks.
 
 ## Testing
 The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`.

@@ -15,8 +15,9 @@ from utils import (
 )
 
 from .tester import ResnetTester
+from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 
-VARIANT_NAME = "microsoft/resnet-50"
+VARIANT_NAME = ModelVariant.RESNET_50_HF
 
 
 MODEL_NAME = build_model_name(
@@ -51,12 +52,6 @@ def training_tester() -> ResnetTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
-    )
 )
 def test_torch_resnet_inference(inference_tester: ResnetTester):
     inference_tester.test()

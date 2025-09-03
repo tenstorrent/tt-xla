@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Optional
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
@@ -51,3 +51,13 @@ class BaseTester(ABC):
         self._comparator = ComparatorFactory.create_comparator(
             self._framework, self._comparison_config
         )
+
+    @abstractmethod
+    def _compile_for_cpu(self, workload: Workload) -> None:
+        """Compiles `workload` for CPU."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @abstractmethod
+    def _compile_for_tt_device(self, workload: Workload) -> None:
+        """Compiles `workload` for TT device."""
+        raise NotImplementedError("Subclasses must implement this method.")

@@ -72,6 +72,9 @@ class ModelSource(StrEnum):
     HUGGING_FACE = "huggingface"
     CUSTOM = "custom"
     TORCH_HUB = "torch_hub"
+    GITHUB = "github"
+    TIMM = "timm"
+    TORCHVISION = "torchvision"
 
 
 class BringupStatus(Enum):
