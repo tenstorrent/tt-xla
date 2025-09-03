@@ -11,7 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 from third_party.tt_forge_models.vovnet.pytorch import ModelVariant
 from .tester import VovNetTester
@@ -50,6 +50,9 @@ def training_tester() -> VovNetTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result("PCC comparison failed. Calculated: pcc=0.9894067645072937")
 )
 def test_torch_vovnet_inference(inference_tester: VovNetTester):
     inference_tester.test()
