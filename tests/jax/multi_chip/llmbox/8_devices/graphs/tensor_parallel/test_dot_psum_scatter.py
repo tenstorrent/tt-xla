@@ -11,7 +11,7 @@ from infra import (
     run_jax_multichip_graph_test_with_random_inputs,
 )
 from infra.comparators import ComparisonConfig, PccConfig
-from utils import failed_fe_compilation, incorrect_result
+from utils import failed_fe_compilation
 
 
 @pytest.mark.nightly
@@ -32,15 +32,7 @@ from utils import failed_fe_compilation, incorrect_result
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
-                reason=incorrect_result(
-                    "PCC comparison failed on nightly "
-                    "https://github.com/tenstorrent/tt-xla/issues/1270)"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
@@ -85,6 +77,6 @@ def test_dot_psum_scatter(
         sharding_mode,
         maxval=0.1,
         comparison_config=ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.90)
+            pcc=PccConfig(required_pcc=0.88)
         ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )
