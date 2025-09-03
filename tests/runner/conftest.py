@@ -65,6 +65,14 @@ def pytest_collection_modifyitems(config, items):
         elif meta.status == ModelStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
 
+        # Apply any custom/extra markers from config (e.g., "push", "nightly")
+        for marker_name in getattr(meta, "markers", []) or []:
+            try:
+                item.add_marker(getattr(pytest.mark, marker_name))
+            except Exception:
+                # Silently ignore unknown markers; they should be declared in pytest.ini
+                pass
+
     # If validating config, clear all items so no tests run
     if validate_config:
         items.clear()
