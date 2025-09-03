@@ -175,7 +175,12 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
-        pytest $PYTEST_FORKED --log-memory -sv \
+        which python
+        which pytest
+        python --version
+        pytest --version
+        python -m pytest --version
+        python -m pytest $PYTEST_FORKED --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 -m "$MARKS" \
                 --splits $TEST_GROUP_CNT \
