@@ -28,6 +28,6 @@ else
   export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 
   export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
-  export PYTHONPATH="$(pwd):$(pwd)/tests"
+  export PYTHONPATH="$(pwd):$(pwd)/tests:$(pwd)/python_package"
   export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
 fi
