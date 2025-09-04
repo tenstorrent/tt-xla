@@ -175,12 +175,8 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
-        echo "which python:" && which python
-        echo "which pytest:" && which pytest
-        echo "python --version:" && python --version
-        echo "pytest --version:" && pytest --version
-        echo "python -m pytest --version:" && python -m pytest --version
-        pytest $PYTEST_FORKED --log-memory -sv \
+        # Call pytest with 'python -m' to ensure that venv interpreter is used
+        python -m pytest $PYTEST_FORKED --log-memory -sv \
                 ${{ matrix.build.dir }}  \
                 -m "$MARKS" \
                 --splits $TEST_GROUP_CNT \
