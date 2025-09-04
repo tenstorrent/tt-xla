@@ -161,7 +161,7 @@ class JaxModelTester(ModelTester):
         assert workload.is_jax, "Workload must be JAX workload to compile"
         compiler_options = self._compiler_config.to_jax_compiler_options()
 
-        workload.executable = jax.jit(
+        workload.compiled_executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
             compiler_options=compiler_options,
@@ -172,7 +172,7 @@ class JaxModelTester(ModelTester):
         """JIT-compiles model's forward pass into optimized kernels."""
         assert workload.is_jax, "Workload must be JAX workload to compile"
 
-        workload.executable = jax.jit(
+        workload.compiled_executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
         )

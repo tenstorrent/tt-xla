@@ -73,22 +73,34 @@ def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     Create a tt.mark function definition in the MLIR module.
 
     This function creates a nop function that takes a tensor argument and returns
-    it unchanged. A new function is created for each func op creation.
+    it unchanged. Only creates a new function if one doesn't already exist for this tensor type.
 
     Args:
         module_op: The MLIR module operation to add the function to
         x: The operand to use for unique naming and type inference
 
     Returns:
-        str: The name of the created function
+        str: The name of the created or existing function
     """
-    operand_id = id(x)
-    func_name = f"tt.mark_{operand_id}"
-
     # Get tensor type from the operand
     tensor_type = ir.RankedTensorType(x.type)
+    
+    # Create a unique function name based on tensor type signature
+    # Extract shape and element type for uniqueness
+    shape_str = "x".join(str(d) for d in tensor_type.shape)
+    element_type = str(tensor_type.element_type)
+    operand_id = id(x)
+    func_name = f"tt.mark_{operand_id}_{shape_str}_{element_type}"
 
-    # Always create tt.mark function for each func op creation
+    # Check if function already exists in the module with matching signature
+    for op in module_op.regions[0].blocks[0].operations:
+        if (hasattr(op, 'attributes') and 
+            'sym_name' in op.attributes and 
+            str(op.attributes['sym_name']).strip('"') == func_name):
+            # Function already exists, return its name
+            return func_name
+
+    # Create tt.mark function only if it doesn't exist
     func_type = ir.FunctionType.get([tensor_type], [tensor_type])
 
     # Insert function at module level
