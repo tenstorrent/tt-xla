@@ -15,8 +15,9 @@ from utils import (
 )
 
 from ..tester import BloomTester
+from third_party.tt_forge_models.bloom.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "bigscience/bloom-7b1"
+MODEL_VARIANT = ModelVariant.BLOOM_7B
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "bloom",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> BloomTester:
-    return BloomTester(MODEL_PATH)
+    return BloomTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> BloomTester:
-    return BloomTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return BloomTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
