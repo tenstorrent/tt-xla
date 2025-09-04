@@ -203,7 +203,6 @@ def _setup_mark_weight_primitive():
 
     ad.primitive_jvps[mark_weight_p] = _mark_weight_jvp
 
-
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
