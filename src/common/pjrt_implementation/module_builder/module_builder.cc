@@ -476,6 +476,11 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
+  if (loguru::g_stderr_verbosity >= LOG_DEBUG_IR) {
+    shlo_to_ttir_pm.getContext()->disableMultithreading();
+    shlo_to_ttir_pm.enableIRPrinting();
+  }
+
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
     m_status = tt_pjrt_status::kInternal;
@@ -592,6 +597,11 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
+
+  if (loguru::g_stderr_verbosity >= LOG_DEBUG_IR) {
+    ttir_to_ttnn_pm.getContext()->disableMultithreading();
+    ttir_to_ttnn_pm.enableIRPrinting();
+  }
 
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
@@ -783,5 +793,4 @@ ModuleBuilder::createArgumentTypeMap(
 
   return argTypesMap;
 }
-
 } // namespace tt::pjrt::module_builder

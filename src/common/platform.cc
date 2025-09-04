@@ -34,7 +34,9 @@ void Platform::InitializeLogging() {
     return;
   }
 
-  if (strcmp(loguru_verbosity, "DEBUG") == 0) {
+  if (strcmp(loguru_verbosity, "DEBUG_IR") == 0) {
+    loguru::g_stderr_verbosity = LOG_DEBUG_IR;
+  } else if (strcmp(loguru_verbosity, "DEBUG") == 0) {
     loguru::g_stderr_verbosity = LOG_DEBUG;
   } else if (strcmp(loguru_verbosity, "INFO") == 0) {
     loguru::g_stderr_verbosity = loguru::NamedVerbosity::Verbosity_INFO;
