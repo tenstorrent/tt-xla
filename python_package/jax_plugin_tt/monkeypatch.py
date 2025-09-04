@@ -84,7 +84,7 @@ def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
     """
     # Get tensor type from the operand
     tensor_type = ir.RankedTensorType(x.type)
-    
+
     # Create a unique function name based on tensor type signature
     # Extract shape and element type for uniqueness
     shape_str = "x".join(str(d) for d in tensor_type.shape)
@@ -94,9 +94,11 @@ def _create_tt_mark_function(module_op: ir.Operation, x) -> str:
 
     # Check if function already exists in the module with matching signature
     for op in module_op.regions[0].blocks[0].operations:
-        if (hasattr(op, 'attributes') and 
-            'sym_name' in op.attributes and 
-            str(op.attributes['sym_name']).strip('"') == func_name):
+        if (
+            hasattr(op, "attributes")
+            and "sym_name" in op.attributes
+            and str(op.attributes["sym_name"]).strip('"') == func_name
+        ):
             # Function already exists, return its name
             return func_name
 

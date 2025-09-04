@@ -180,21 +180,6 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
-  // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
-  // from openXLA. Once openXLA natively supports Shardy, we can remove
-  // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
-  // Detect Shardy by looking at the meshes attribute in module.
-  if (isUsingShardy(mlir_module)) {
-    mlir::PassManager shardy_pm(mlir_module.get()->getName());
-    mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
-    if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
-      DLOG_F(ERROR,
-             "Failed to convert from Shardy roundtrip import pass module");
-      m_status = tt_pjrt_status::kInternal;
-      return;
-    }
-  }
-
   DLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
 }
