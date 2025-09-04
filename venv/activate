@@ -9,8 +9,6 @@ else
   export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
   export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
   export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
-  # pytest alias should use venv interpreter
-  alias pytest='python -m pytest'
 
   export TTMLIR_VENV_DIR="$(pwd)/venv"
   if [ -d $TTMLIR_VENV_DIR/bin ]; then
@@ -24,6 +22,7 @@ else
     pip install -r python_package/requirements.txt
     # Install dev/test requirements
     pip install -r venv/requirements-dev.txt
+    pip install pytest
   fi
 
   export TTXLA_ENV_ACTIVATED=1
