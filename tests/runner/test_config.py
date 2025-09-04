@@ -144,7 +144,7 @@ test_config = {
     "yolov5/pytorch-yolov5s-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "albert/masked_lm/pytorch-base_v2-full-inference": {
@@ -231,10 +231,10 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "dla/pytorch-dla102-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.7549546957015991. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "assert_pcc": False,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by removal of consteval on host
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "PCC comparison failed. Calculated: pcc=0.7549546957015991. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "dla/pytorch-dla102x2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -243,10 +243,10 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "dla/pytorch-dla169-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.626757800579071. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "assert_pcc": False,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by removal of consteval on host
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "PCC comparison failed. Calculated: pcc=0.626757800579071. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "dla/pytorch-dla34-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -574,9 +574,9 @@ test_config = {
         "required_pcc": 0.97,
     },
     "mlp_mixer/lucidrains/pytorch-base-full-inference": {
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1245
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'stablehlo.batch_norm_training'",
+        "reason": "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-xla/issues/1245",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "mistral/pytorch-ministral_3b_instruct-full-inference": {
@@ -878,25 +878,25 @@ test_config = {
     "yolov5/pytorch-yolov5n-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5m-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5l-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolov5/pytorch-yolov5x-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given",
+        "reason": "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_1_5/causal_lm/pytorch-0_5b-full-inference": {
@@ -1047,47 +1047,45 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "yolox/pytorch-yolox_nano-full-inference": {
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_tiny-full-inference": {
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_s-full-inference": {
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_m-full-inference": {
-        # Missing thop
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_l-full-inference": {
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_darknet-full-inference": {
-        # Missing thop
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "yolox/pytorch-yolox_x-full-inference": {
-        # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
+        "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-full-inference": {
@@ -1157,9 +1155,9 @@ test_config = {
         #         "required_pcc": 0.98,
         #     },
         # },
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1244
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Out of Memory: Not enough space to allocate 224460800 B DRAM buffer across 12 banks, where each bank needs to store 18706432 B",
+        "reason": "Out of Memory: Not enough space to allocate 224460800 B DRAM buffer across 12 banks, where each bank needs to store 18706432 B - https://github.com/tenstorrent/tt-xla/issues/1244",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "vit/pytorch-vit_l_16-full-inference": {
@@ -1326,9 +1324,9 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "deepseek/pytorch-full-inference": {
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1266
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'ttir.scatter'",
+        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "gemma/pytorch-google/gemma-1.1-2b-it-full-inference": {
@@ -1488,9 +1486,9 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1266
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'ttir.scatter'",
+        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "vovnet/pytorch-vovnet39-full-inference": {
@@ -1502,17 +1500,16 @@ test_config = {
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "vovnet/pytorch-ese_vovnet99b-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "assert_pcc": False,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Exposed by removal of consteval on host
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
         # "required_pcc": 0.97,
-        # "status": ModelStatus.EXPECTED_PASSING,
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1244
+        # Exposed by "Remove host-side consteval" change
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2148032 B which is beyond max L1 size of 1499136 B",
+        "reason": "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2148032 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/1244",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
