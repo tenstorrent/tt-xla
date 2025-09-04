@@ -203,7 +203,8 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
 
   tt::runtime::MeshDeviceOptions mesh_device_options;
 
-  return m_parent_mesh;
+  return tt::runtime::createSubMeshDevice(m_parent_mesh, devices_mesh_shape,
+                                          /*meshOffset=*/std::nullopt);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(

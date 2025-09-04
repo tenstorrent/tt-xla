@@ -133,9 +133,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  m_parent_mesh = ::tt::runtime::openMeshDevice(runtime::MeshDeviceOptions{
+  tt::runtime::MeshDeviceOptions mesh_options{
       .enableProgramCache = true,
-  });
+  };
+  m_parent_mesh = ::tt::runtime::openMeshDevice(mesh_options);
 
   return tt_pjrt_status::kSuccess;
 }
