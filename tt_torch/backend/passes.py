@@ -159,7 +159,6 @@ def rectify_buffer_inplace_copy(gm):
     Remove these illegal nodes, and replicate the inplace copy semantics using op fusion and
     buffer semantics in the backend.
     """
-
     for node in gm.graph.nodes:
         if node.op == "call_function" and node.target == torch.ops.aten.copy_.default:
             # Detect inplace copy with buffer destination
