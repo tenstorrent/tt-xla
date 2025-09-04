@@ -43,10 +43,8 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
-        self.reason = self._resolve("reason", default="Unknown Reason")
-        self.bringup_status = self._resolve(
-            "bringup_status", default=BringupStatus.UNKNOWN
-        )
+        self.reason = self._resolve("reason", default=None)
+        self.bringup_status = self._resolve("bringup_status", default=None)
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
@@ -98,7 +96,7 @@ def update_test_metadata_for_exception(
 
     msg = message.lower() if message else ""
     err = (stderr or "").lower()
-    print(f"KCM Found exception: {repr(exc)} message: {msg} stderr: {err}")
+    # print(f"Found exception: {repr(exc)} message: {msg} stderr: {err}")
 
     # Attempt to classify various exception types. Not robust, could be improved.
     if isinstance(exc, AssertionError) and "comparison failed" in msg:
@@ -327,8 +325,8 @@ def record_model_test_properties(
       plus owner and group properties.
     - Passing tests (test_passed=True) always record bringup_status=PASSED, ignoring configured/static values.
     - Failing tests classify bringup info in this order:
-      1) Runtime: use test_metadata.runtime_bringup_status/runtime_reason when both are present
-      2) Static: else use test_metadata.bringup_status/reason from config when both are present
+      1) Static: use test_metadata.bringup_status/reason from config when both are present
+      2) Runtime: else use test_metadata.runtime_bringup_status/runtime_reason when both are present
       3) Default: else use UNKNOWN/"Not specified"
     - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from static/default logic and call pytest.skip(reason).
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, leave execution to xfail via marker; properties still reflect runtime/static/default classification.
@@ -346,12 +344,12 @@ def record_model_test_properties(
         static_bringup_status = getattr(test_metadata, "bringup_status", None)
         static_reason = getattr(test_metadata, "reason", None)
 
-        if runtime_bringup_status and runtime_reason:
-            bringup_status = runtime_bringup_status
-            reason = runtime_reason or "Runtime failure"
-        elif static_bringup_status and static_reason:
+        if static_bringup_status and static_reason:
             bringup_status = static_bringup_status
             reason = static_reason
+        elif runtime_bringup_status and runtime_reason:
+            bringup_status = runtime_bringup_status
+            reason = runtime_reason or "Runtime failure"
         else:
             bringup_status = BringupStatus.UNKNOWN
             reason = "Not specified"
@@ -375,8 +373,12 @@ def record_model_test_properties(
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))
 
-    # Control flow for NOT_SUPPORTED_SKIP
+    # Control flow for skipped and xfailed tests is handled by pytest.
     if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
         import pytest
 
         pytest.skip(reason)
+    elif test_metadata.status == ModelStatus.KNOWN_FAILURE_XFAIL:
+        import pytest
+
+        pytest.xfail(reason)

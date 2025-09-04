@@ -108,6 +108,13 @@ jobs:
     with:
       test_group_cnt: '10' # Hardcode, lots of models in nightly.
 
+  generate-forge-models-matrix-xfail:
+    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
+    secrets: inherit
+    needs: [ set-inputs ]
+    with:
+      test_group_cnt: '3'
+
   test_full_model:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
@@ -134,6 +141,22 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'expected_passing'
       test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: false # Run full model tests on Civ1
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  # This is a single test job that runs all xfailing tt-forge-models tests.
+  test_forge_models_xfail:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla, generate-forge-models-matrix-xfail ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      timeout_minutes: 180
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: 'known_failure_xfail'
+      test_matrix: ${{ needs.generate-forge-models-matrix-xfail.outputs.test-forge-models-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
