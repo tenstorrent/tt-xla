@@ -62,6 +62,7 @@ def pytest_collection_modifyitems(items):
             "model_group",
             "run_mode",
             "bringup_status",
+            "execution_pass",
             "pcc",
             "atol",
         ]
