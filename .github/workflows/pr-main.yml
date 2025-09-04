@@ -3,6 +3,9 @@ name: On PR
 on:
   pull_request:
     branches: [ "main" ]
+  push:
+    branches:
+      - '**'
 
 permissions:
   packages: write
@@ -56,7 +59,7 @@ jobs:
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: false # needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:

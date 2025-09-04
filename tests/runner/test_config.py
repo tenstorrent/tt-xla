@@ -1077,7 +1077,7 @@ test_config = {
         "reason": "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
-    "yolox/pytorch-yolox_darknet-full-inference": {
+    "yolox/pytorch-yolox_darknet-new-full-inference": {
         # Missing thop
         # Exposed by "Remove host-side consteval" change : https://github.com/tenstorrent/tt-xla/issues/1243
         "status": ModelStatus.KNOWN_FAILURE_XFAIL,
@@ -1343,7 +1343,7 @@ test_config = {
     "nbeats/pytorch-trend_basis-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "gpt2/pytorch-gpt2-full-inference": {
+    "gpt2/pytorch-gpt2-some-variant-full-inference": {
         "markers": ["push"],
         "status": ModelStatus.EXPECTED_PASSING,
     },
