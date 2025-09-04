@@ -18,8 +18,8 @@ import jax
 import jax.lax
 import jax.nn
 from jax.extend import core
-from jax.interpreters.mlir import ir, register_lowering
 from jax.interpreters import ad
+from jax.interpreters.mlir import ir, register_lowering
 
 
 def _is_module_imported(module_name: str) -> bool:
