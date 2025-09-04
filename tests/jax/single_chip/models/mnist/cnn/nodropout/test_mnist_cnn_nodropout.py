@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -61,7 +62,11 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    execution_pass=ExecutionPass.BACKWARD,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason="error: failed to legalize operation 'ttir.select_and_scatter'"
+)
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()
