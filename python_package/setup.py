@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
@@ -262,20 +262,7 @@ setup(
     long_description_content_type="text/markdown",
     long_description=config.long_description,
     name="pjrt-plugin-tt",
-    packages=[
-        "pjrt_plugin_tt",
-        "jax_plugin_tt",
-        "torch_plugin_tt",
-        "tt_jax",
-        "tt_torch",
-    ],
-    package_dir={
-        "pjrt_plugin_tt": "pjrt_plugin_tt",
-        "jax_plugin_tt": "jax_plugin_tt",
-        "torch_plugin_tt": "torch_plugin_tt",
-        "tt_jax": os.path.join("..", "tt_jax"),
-        "tt_torch": os.path.join("..", "tt_torch"),
-    },
+    packages=find_packages(),
     python_requires=">=3.11, <3.12",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
