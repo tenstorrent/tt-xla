@@ -12,6 +12,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
 
 from .tester import OpenposeTester
@@ -44,6 +45,11 @@ def inference_tester() -> OpenposeTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.873953640460968 (https://github.com/tenstorrent/tt-xla/issues/1273)"
+    )
 )
 def test_torch_openpose_inference(inference_tester: OpenposeTester):
     inference_tester.test()
