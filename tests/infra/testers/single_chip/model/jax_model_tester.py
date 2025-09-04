@@ -176,17 +176,3 @@ class JaxModelTester(ModelTester):
             workload.executable,
             static_argnames=workload.static_argnames,
         )
-
-    def __del__(self):
-        if hasattr(self, "_model_path"):
-            try:
-                cache_dir = snapshot_download(self._model_path, local_files_only=True)
-                if cache_dir and os.path.exists(cache_dir):
-                    print(f"Deleting HF cache at: {cache_dir}")
-                    shutil.rmtree(cache_dir)
-            except NameError as e:
-                logger.warning(
-                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
-                )
-            except Exception as e:
-                logger.warning(f"Error during cache cleanup in __del__: {e}")
