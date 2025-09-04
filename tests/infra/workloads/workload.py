@@ -21,6 +21,7 @@ class Workload:
         self,
         framework: Framework,
         executable: Optional[Callable] = None,
+        compiled_executable: Optional[Callable] = None,
         model: Optional[Model] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
@@ -34,6 +35,7 @@ class Workload:
         ), f"Workload must either have executable or model provided"
 
         self.executable = executable
+        self.compiled_executable = compiled_executable
         self.model = model
 
         assert (
@@ -58,8 +60,14 @@ class Workload:
 
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
-        return (
-            self.model(*self.args, **self.kwargs)
-            if self.model is not None
-            else self.executable(*self.args, **self.kwargs)
-        )
+        if self.model is not None:
+            return self.model(*self.args, **self.kwargs)
+        elif self.compiled_executable is not None:
+            print("I AM EXECUTING")
+            return self.compiled_executable(*self.args, **self.kwargs)
+        elif self.executable is not None:
+            return self.executable(*self.args, **self.kwargs)
+        else:
+            raise ValueError(
+                "No model, compiled_executable, or executable provided in Workload."
+            )

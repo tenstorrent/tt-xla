@@ -27,7 +27,6 @@ class Comparator(ABC):
         """
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
-
         if self._comparison_config.equal.enabled:
             self._compare_equal(device_output, golden_output)
         if self._comparison_config.atol.enabled:

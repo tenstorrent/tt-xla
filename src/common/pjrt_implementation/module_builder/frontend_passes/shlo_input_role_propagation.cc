@@ -62,13 +62,13 @@ void propagateInputRoleAttributes(
         mlir::tt::ttcore::ArgumentTypeAttr::name);
     if (role_attr) {
       for (mlir::Value operand : call_op.getOperands()) {
-        propagateRoleAttribute(module, operand, role_attr);
+        internal::propagateRoleAttribute(module, operand, role_attr);
       }
     }
   });
 
   // Inline all private tt.mark_* functions to eliminate unnecessary calls.
-  inlineTTMarkFunctions(mlir_module);
+  internal::inlineTTMarkFunctions(mlir_module);
 }
 
 void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
@@ -113,7 +113,7 @@ void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
       if (call_op.getCallee() == funcName &&
           arg_index < call_op.getNumOperands()) {
         mlir::Value callerArg = call_op.getOperand(arg_index);
-        propagateRoleAttribute(module, callerArg, role_attr);
+        internal::propagateRoleAttribute(module, callerArg, role_attr);
       }
     });
   } else {
@@ -123,7 +123,7 @@ void propagateRoleAttribute(mlir::ModuleOp module, mlir::Value argument,
     // role attribute upwards through the call chain up to the module root
     // public function arguments.
     mlir::Value op_operand = parent_op->getOperand(arg_index);
-    propagateRoleAttribute(module, op_operand, role_attr);
+    internal::propagateRoleAttribute(module, op_operand, role_attr);
   }
 }
 
@@ -132,7 +132,7 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 
   mlir_module->walk([&](mlir::func::FuncOp func_op) {
     std::string func_name = func_op.getSymName().str();
-    if (isTTMarkFunction(func_name) && func_op.isPrivate()) {
+    if (internal::isTTMarkFunction(func_name) && func_op.isPrivate()) {
       functions_to_remove.push_back(func_op);
     }
   });
@@ -144,8 +144,8 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
     }
 
     std::string callee_name = callee_attr.getValue().str();
-    if (!isTTMarkFunction(callee_name) || call_op.getNumOperands() != 1 ||
-        call_op.getNumResults() != 1) {
+    if (!internal::isTTMarkFunction(callee_name) ||
+        call_op.getNumOperands() != 1 || call_op.getNumResults() != 1) {
       return;
     }
 
