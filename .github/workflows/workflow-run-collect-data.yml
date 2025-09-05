@@ -19,7 +19,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
     steps:
       - name: Collect CI/CD data
-        uses: tenstorrent/tt-github-actions/.github/actions/collect_data@main
+        uses: jameszianxuTT/tt-github-actions/.github/actions/collect_data@jzx/manual_error_message
         if: ${{ github.event_name == 'workflow_run' }}
         with:
           repository: ${{ github.repository }}
