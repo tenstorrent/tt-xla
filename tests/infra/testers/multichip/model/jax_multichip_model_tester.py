@@ -166,6 +166,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
 
         return JaxMultichipWorkload(
             self._workload.executable,
+            self._workload.compiled_executable,
             self._workload.args,
             self._workload.kwargs,
             device_mesh=mesh,

@@ -14,12 +14,13 @@ from utils import (
 )
 
 from ..tester import GPTSw3Tester
+from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "AI-Sweden-Models/gpt-sw3-1.3b-instruct"
+VARIANT_NAME = ModelVariant.INSTRUCT_1_3B
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "gpt-sw3",
-    "1.3b_instruct",
+    "1_3b_instruct",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> GPTSw3Tester:
-    return GPTSw3Tester(MODEL_PATH)
+    return GPTSw3Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> GPTSw3Tester:
-    return GPTSw3Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return GPTSw3Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

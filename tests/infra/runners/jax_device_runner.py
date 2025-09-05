@@ -7,7 +7,7 @@ from typing import Any, Sequence
 
 import jax
 from flax import linen
-from infra.connectors import DeviceConnector, DeviceType
+from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
@@ -74,6 +74,7 @@ class JaxDeviceRunner(DeviceRunner):
         return Workload(
             framework=workload.framework,  # Unchanged.
             executable=workload.executable,  # Unchanged.
+            compiled_executable=workload.compiled_executable,  # Unchanged.
             args=args_on_device,
             kwargs=kwargs_on_device,
             static_argnames=workload.static_argnames,
@@ -128,6 +129,7 @@ class JaxDeviceRunner(DeviceRunner):
 
         return JaxMultichipWorkload(
             multichip_workload.executable,
+            multichip_workload.compiled_executable,
             args_on_device,
             kwargs_on_device,
             device_mesh=multichip_workload.device_mesh,
