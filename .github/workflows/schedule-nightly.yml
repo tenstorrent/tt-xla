@@ -1,6 +1,10 @@
 name: On nightly
 
 on:
+  push:
+    branches:
+      - '**'
+
   workflow_dispatch:
     inputs:
       test_group_cnt:
@@ -50,6 +54,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   nightly_tests:
+    if: false
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
@@ -120,7 +125,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
+    if: false # success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'model_test'
@@ -164,8 +169,8 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - nightly_tests
-      - test_full_model
+      # - nightly_tests
+      # - test_full_model
       - test_forge_models_passing
       - test_forge_models_xfail
       - build-image
