@@ -174,6 +174,8 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
+  enableVerboseIRPrinting(vhlo_to_shlo_pm);
+
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
     m_status = tt_pjrt_status::kInternal;
@@ -454,6 +456,9 @@ void ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
+
+  enableVerboseIRPrinting(stablehlo_pipeline_pm);
+
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
@@ -476,10 +481,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
-  if (loguru::g_stderr_verbosity >= LOG_DEBUG_IR) {
-    shlo_to_ttir_pm.getContext()->disableMultithreading();
-    shlo_to_ttir_pm.enableIRPrinting();
-  }
+  enableVerboseIRPrinting(shlo_to_ttir_pm);
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -598,10 +600,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
-  if (loguru::g_stderr_verbosity >= LOG_DEBUG_IR) {
-    ttir_to_ttnn_pm.getContext()->disableMultithreading();
-    ttir_to_ttnn_pm.enableIRPrinting();
-  }
+  enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
@@ -715,6 +714,17 @@ void ModuleBuilder::printModule(
   mlir_module->dump();
 }
 
+void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
+  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
+    return;
+  }
+
+  // Multithreading must be disabled when printing at module scope
+  // to avoid interleaved output.
+  pm.getContext()->disableMultithreading();
+  pm.enableIRPrinting();
+}
+
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // If the module is using the Shardy dielect, it should have the
@@ -793,4 +803,5 @@ ModuleBuilder::createArgumentTypeMap(
 
   return argTypesMap;
 }
+
 } // namespace tt::pjrt::module_builder
