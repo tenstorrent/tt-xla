@@ -48,9 +48,12 @@ jobs:
 
       - name: Build tt-xla Wheel (manylinux)
         uses: pypa/cibuildwheel@v2.23.2
+        # https://cibuildwheel.pypa.io/en/stable/options/
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
-          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/tenstorrent/tt-xla/tt-xla-manylinux-2-34:${{ inputs.docker-tag || 'latest' }}
+          CIBW_SKIP: "*-musllinux_*"
+          CIBW_BUILD: "cp311-manylinux_x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/tenstorrent/tt-metal/tt-metalium/manylinux-amd64:latest
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
           package-dir: ${{ steps.strings.outputs.work-dir }}
