@@ -46,9 +46,9 @@ jobs:
     uses: ./.github/workflows/wheel-build.yml
     secrets: inherit
     name: "Build tt-xla manylinux wheel"
-    needs: [ build-image ]
-    with:
-      docker-tag: ${{ needs.build-image.outputs.docker-tag }}
+    #needs: [ build-image ]
+    #with:
+    #  docker-tag: ${{ needs.build-image.outputs.docker-tag }}
 
   test:
     needs: [ build-image, build-ttxla ]
