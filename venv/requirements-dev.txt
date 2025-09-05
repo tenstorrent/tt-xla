@@ -54,3 +54,4 @@ peft
 bi-lstm-crf==0.2.1
 yolov5
 patool
+yolov6detect
