@@ -29,16 +29,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    ClientInstance *client_instance) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        ClientInstance *client_instance)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -58,6 +62,17 @@ bool LoadedExecutableInstance::isDeleted() {
 }
 
 void LoadedExecutableInstance::releaseResources() {
+
+  if (m_client_instance->isRuntimeDeviceOpened()) {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Closing runtime device in releaseResources");
+    tt::runtime::closeMeshDevice(*m_client_instance->getRuntimeDevice());
+    m_client_instance->setRuntimeDeviceOpened(false);
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device closed successfully");
+  } else {
+    DLOG_F(LOG_DEBUG,
+           "[DEVICE] Runtime device already closed, no action needed");
+  }
+
   if (m_deleted) {
     return;
   }
@@ -96,13 +111,28 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  args->execute_device);
-  if (!runtime_device) {
-    // Logging is done inside `openDevices`.
-    return tt_pjrt_status::kInternal;
+  // std::optional<tt::runtime::Device> runtime_device =
+  //     openDevices(args->argument_lists, args->num_args, args->num_devices,
+  //                 args->execute_device);
+
+  if (!m_client_instance->isRuntimeDeviceOpened()) {
+    DLOG_F(LOG_DEBUG, "[DEVICE] Runtime device not opened, opening devices...");
+    std::optional<tt::runtime::Device> device =
+        openDevices(args->argument_lists, args->num_args, args->num_devices,
+                    args->execute_device);
+    if (!device) {
+      DLOG_F(ERROR, "[DEVICE] Failed to open runtime device");
+      return tt_pjrt_status::kInternal;
+    }
+    DLOG_F(LOG_DEBUG, "[DEVICE] Successfully opened runtime device");
+    m_client_instance->setRuntimeDevice(device);
+    m_client_instance->setRuntimeDeviceOpened(true);
+  } else {
+    DLOG_F(LOG_DEBUG,
+           "[DEVICE] Runtime device already opened, reusing existing device");
   }
+  std::optional<tt::runtime::Device> runtime_device =
+      m_client_instance->getRuntimeDevice();
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -157,7 +187,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeMeshDevice(*runtime_device);
+  // tt::runtime::closeMeshDevice(*runtime_device);
   tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
 
   return tt_pjrt_status::kSuccess;
