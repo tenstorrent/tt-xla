@@ -23,9 +23,10 @@ def insert_argument_type_markers(
             type_str = "input"
         elif in_spec.kind == InputKind.PARAMETER:
             type_str = "parameter"
-        # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
-        # We do not model the concept of a "buffer" tensor in tt-mlir yet, for now we will mark
-        # them both as "constant".
+        elif in_spec.kind == InputKind.BUFFER:
+            # Buffers like static cache should be treated as inputs, not constants
+            type_str = "input"
+        # InputKind.CONSTANT_TENSOR should still be marked as constant
         else:
             type_str = "constant"
 
