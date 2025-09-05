@@ -11,7 +11,6 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 // c++ standard library includes
-#include <iostream>
 #include <numeric>
 
 // tt-mlir includes
@@ -160,7 +159,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   tt::runtime::closeMeshDevice(*runtime_device);
   tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-  std::cerr << "Execution completed successfully\n";
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -383,8 +382,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
       tt::runtime::Tensor output_tensor =
           untilized_output_tensors[output_index][device_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-      std::cerr << "device index=" << device_index << std::endl;
-      std::cerr << "size=" << m_addressable_devices.size() << std::endl;
+
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               output_tensor, std::move(output_shape),

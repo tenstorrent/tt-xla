@@ -14,8 +14,6 @@
 #include <stdexcept>
 #include <thread>
 
-#include <iostream>
-
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
