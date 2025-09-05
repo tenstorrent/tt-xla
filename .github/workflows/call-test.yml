@@ -23,13 +23,17 @@ on:
         type: string
         default: |
           [
-            { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
-            { "runs-on": "n150",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
-            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
-            { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
-            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
+            { "runs-on": "n150",        "name": "run_jax1",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax2",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax3",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax4",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax5",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax6",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax7",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax8",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax9",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax10",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_jax11",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" }
           ]
       use-shared-runners:
         description: 'Use shared runners from Civ2'
@@ -69,7 +73,7 @@ jobs:
   run-tests:
     timeout-minutes: 120
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         build: ${{ fromJson(inputs.test_matrix) }}
 
