@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "dad8981939a1234a523b3f8ae9b92253f273b956")
+    set(TT_MLIR_VERSION "03beaaa36")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
@@ -29,6 +29,33 @@ else()
     include(ExternalProject)
     add_subdirectory(pjrt_c_api)
 
+    # ----- protobuf v21.12 (same version as tt-metal) -----
+    
+    include(FetchContent)
+    
+    FetchContent_Declare(
+        protobuf
+        GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
+        GIT_TAG v21.12
+        GIT_SHALLOW ON
+    )
+    
+    # Set compiler paths for protobuf build
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    
+    # Use full compiler paths to avoid protobuf build issues
+    if(CMAKE_C_COMPILER MATCHES "clang-17")
+        set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
+    endif()
+    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
+        set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
+    endif()
+    
+    FetchContent_MakeAvailable(protobuf)
+
     # ----- tt-mlir -----
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
@@ -45,6 +72,7 @@ else()
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
+        # INSTALL_COMMAND ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer && ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
@@ -54,10 +82,12 @@ else()
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
+          # -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
+          # -DTTMLIR_ENABLE_EXPLORER=ON
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
