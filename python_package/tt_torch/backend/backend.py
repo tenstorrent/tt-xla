@@ -38,9 +38,14 @@ def torch_pass_pipeline(
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
+    # print("example_inputs", example_inputs)
+    # print("gm graph:", gm.graph)
+    # print("gm state_dict keys:", list(gm.state_dict().keys()))
     program = torch.export.export_for_training(
         gm, tuple(example_inputs), strict=False
     ).run_decompositions(decompositions)
+    # print("program.graph_signature:", program.graph_signature)
+    # print("program inputs:", [str(inp) for inp in program.graph_signature.input_specs])
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
@@ -54,6 +59,10 @@ def torch_pass_pipeline(
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
+
+    # print("post pass program.graph_signature:", program.graph_signature)
+    # print("post pass program inputs:", [str(inp) for inp in program.graph_signature.input_specs])
+
     return compiled_graph
 
 
@@ -78,9 +87,12 @@ class XLAExecutor:
 
     def __call__(self, *args):
 
+        # self.module.graph.print_tabular()
+        print("args", args)
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
+        # torch_xla.sync()
         torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         return output
 
