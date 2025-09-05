@@ -79,12 +79,18 @@ public:
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
-      const std::unordered_map<std::string, std::string> &compile_options);
+      const std::unordered_map<std::string, std::string> &compile_options, int compile_device);
 
   // Gets custom compile options from the given compile options protobuf.
   static std::unordered_map<std::string, std::string>
   getCompileOptions(const char *compile_options_data,
                     size_t compile_options_size);
+
+  // Extracts replica device IDs from CompileOptionsProto -> ExecutableBuildOptionsProto 
+  // -> DeviceAssignmentProto -> ComputationDevice structure.
+  // Returns vector of vectors where each inner vector contains device IDs for one computation.
+  static std::vector<std::vector<int64_t>>
+  extractReplicaDeviceIds(const char *compile_options_data, size_t compile_options_size);
 
 protected:
   std::string cached_platform_name_;

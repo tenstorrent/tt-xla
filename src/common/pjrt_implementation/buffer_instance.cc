@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <thread>
 
+#include <iostream>
+
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -532,7 +534,13 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
 
   args->device = *BufferInstance::unwrap(args->buffer)->getDevice();
-
+  std::cerr << "device="
+            << BufferInstance::unwrap(args->buffer)
+                   ->getDevice()
+                   ->getDeviceDescription()
+                   .getDeviceId()
+            << std::endl;
+  std::cerr << "buffer=" << args->buffer << std::endl;
   return nullptr;
 }
 
