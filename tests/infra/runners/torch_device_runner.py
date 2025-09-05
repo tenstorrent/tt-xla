@@ -53,6 +53,7 @@ class TorchDeviceRunner(DeviceRunner):
             framework=workload.framework,
             model=workload.model,  # Moved to device if not None.
             executable=workload.executable,  # Unchanged.
+            compiled_executable=workload.compiled_executable,  # Unchanged.
             args=args_on_device,
             kwargs=kwargs_on_device,
         )
