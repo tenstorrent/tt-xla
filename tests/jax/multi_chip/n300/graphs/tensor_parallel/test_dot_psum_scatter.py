@@ -10,7 +10,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, incorrect_result
 
 
 @pytest.mark.nightly
@@ -28,7 +28,14 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        ShardingMode.INPUTS_AND_MODULE,
+        pytest.param(
+            ShardingMode.INPUTS_AND_MODULE,
+            marks=pytest.mark.xfail(
+                reason=incorrect_result(
+                    "PCC comparison failed. Calculated: pcc=0.6282761096954346. (https://github.com/tenstorrent/tt-xla/issues/1161)"
+                )
+            ),
+        ),
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(

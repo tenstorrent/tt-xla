@@ -1,9 +1,8 @@
 name: Update Test Durations
 
-description: |
-  This workflow updates test durations based on the latest nightly and push workflow runs.
-  It processes the JUnit XML reports from the last successful nightly and push workflows,
-  calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# This workflow updates test durations based on the latest nightly and push workflow runs.
+# It processes the JUnit XML reports from the last successful nightly and push workflows,
+# calculates the test durations, and creates a pull request to update the `.test_durations` file.
 
 on:
   workflow_dispatch:
@@ -21,8 +20,6 @@ jobs:
           fetch-depth: 0
           # ref: main
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
       - name: Process nightly test durations
         id: get-test-durations
         env:

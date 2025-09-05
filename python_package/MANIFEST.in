@@ -1,1 +1,0 @@
-recursive-include jax_plugins/pjrt_plugin_tt tt-mlir *

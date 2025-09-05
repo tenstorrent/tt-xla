@@ -34,7 +34,8 @@ RUN apt-get update && apt-get install -y \
     lcov \
     unzip \
     doxygen \
-    protobuf-compiler
+    protobuf-compiler \
+    libprotobuf-dev
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
@@ -68,3 +69,17 @@ RUN set -eux; \
     wget -qO "$TMP_DIR/ompi.deb" "$DEB_URL" && \
     apt-get install -f -y "$TMP_DIR/ompi.deb" && \
     rm -rf "$TMP_DIR"
+
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt update \
+    && apt install -y gh \
+    && gh --version \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python 3.11
+RUN add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils

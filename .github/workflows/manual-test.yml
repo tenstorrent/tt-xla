@@ -1,12 +1,11 @@
 name: Run Test
 
+# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
+# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+
 on:
   workflow_dispatch:
     inputs:
-      rebuild_xla:
-        description: 'Rebuild XLA'
-        required: false
-        type: boolean
       preset:
         description: 'Preset to use for the tests'
         type: choice
@@ -38,29 +37,35 @@ on:
             - multichip: 'jax/multi_chip'
             - All: run on n150 all singlechip, on llmbox all multichip
         type: string
+      mlir_override:
+          description: 'Git SHA of commit in tenstorrent/tt-mlir'
+          required: false
+          type: string
 
 permissions:
   packages: write
   checks: write
 
-run-name: 'Test (Rebuild: ${{ inputs.rebuild_xla }} - Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
+run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
 
 jobs:
   build-image:
-    uses: ./.github/workflows/build-image.yml
+    uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
 
-  build-xla:
-    if: inputs.rebuild_xla
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
+  build-ttxla:
     needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
 
   test-setup:
     runs-on: ubuntu-latest
-    needs: build-xla
+    needs: build-ttxla
     if: always() && !cancelled()
     outputs:
       run_id: ${{ steps.set_inputs.outputs.run_id }}
@@ -69,7 +74,6 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          echo "run_id=$(if [ '${{ inputs.rebuild_xla }}' == 'true' ]; then echo ${{ github.run_id }}; fi;)" >> $GITHUB_OUTPUT
           if [ '${{ inputs.preset }}' == 'Custom' ]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
@@ -111,18 +115,30 @@ jobs:
           else
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
+            name='run_single_chip_n150'
+            n150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
+            runson='p150'
             name='run_single_chip'
-            sc=$(make_json_array $dir)
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
+            p150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
+            runson='n300'
+            name='run_multi_chip_n300'
+            n300_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
-            name='run_multi_chip'
-            echo "test_matrix=[$sc,$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            name='run_multi_chip_llmbox'
+            llmbox_matrix=$(make_json_array $dir)
+
+            echo "test_matrix=[$n150_matrix,$p150_matrix,$n300_matrix,$llmbox_matrix]" >> $GITHUB_OUTPUT
           fi
       - name: Create job summary
         run: |
           echo "## Input Parameters" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Rebuild: ${{ inputs.rebuild_xla }}" >> $GITHUB_STEP_SUMMARY
           echo "- Preset: ${{ inputs.preset }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mark: ${{ inputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
           echo "- Run On: ${{ inputs.run_on }}" >> $GITHUB_STEP_SUMMARY
@@ -134,11 +150,12 @@ jobs:
 
   test:
     if: always() && !cancelled()
-    uses: ./.github/workflows/test.yml
-    needs: [build-image,test-setup]
+    uses: ./.github/workflows/call-test.yml
+    needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
-      run_id: ${{ needs.test-setup.outputs.run_id }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
