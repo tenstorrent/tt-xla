@@ -21,22 +21,21 @@ def llama():
     device = xm.xla_device()
 
     # Instantiate model.
-    model_name:str = "meta-llama/Llama-3.2-3B"
-    model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, use_cache=True)
+    model_name: str = "meta-llama/Llama-3.2-3B"
+    model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
+        model_name, torch_dtype=torch.bfloat16, use_cache=True
+    )
     model.config.num_hidden_layers = 1
 
     # Instantiate tokenizer.
-    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
-
 
     # Put it in inference mode
     model = model.eval()
     # import pdb;pdb.set_trace()
     # inplace compilation of nn.Module
     model.compile(backend="tt")
-    devices = {param.device for param in model.parameters()}
-    print("parameter devices before movement to xla",devices)
 
     # Generate inputs.
     inputs = tokenizer.encode_plus(
@@ -52,7 +51,7 @@ def llama():
         config=model.config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
-        device=device, # initialized on device
+        device=device,  # init static cache on device, since it doesn't have a simple .to() method
         dtype=torch.bfloat16,
     )
 
@@ -60,10 +59,10 @@ def llama():
     input_args = {
         "input_ids": inputs.input_ids.to(device),
         "past_key_values": static_cache,
-        "use_cache": True,
+        # "use_cache": True,
         "cache_position": cache_position.to(device),
     }
-    
+
     # Move inputs and model to device.
     # input = {k: v.to(device) for k, v in input_args.items() if hasattr(v, "to")}
     model = model.to(device)
@@ -79,12 +78,13 @@ def llama():
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
-        output:CausalLMOutputWithPast = model(**input_args)
+        output: CausalLMOutputWithPast = model(**input_args)
         print(output)
         output_logits: torch.Tensor = output.logits.to("cpu")
         output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
     print("Generated token:", output_text)
+
 
 # --------------------------------
 # main
