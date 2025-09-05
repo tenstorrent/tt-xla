@@ -28,6 +28,7 @@ permissions:
   packages: write
   checks: write
   contents: write
+  id-token: write
 
 jobs:
   docker-build:
