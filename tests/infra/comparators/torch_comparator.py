@@ -74,6 +74,11 @@ class TorchComparator(Comparator):
             leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
             flat_pccs, _ = tree_flatten(leaf_pccs)
             pcc = min(flat_pccs)
+
+            # Print passing PCC:
+            if pcc >= pcc_config.required_pcc:
+                print(f"PCC passed: {pcc}")
+
             assert pcc >= pcc_config.required_pcc, (
                 f"PCC comparison failed. "
                 f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
