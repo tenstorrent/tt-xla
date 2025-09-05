@@ -32,7 +32,8 @@ namespace tt::pjrt {
 
 namespace module_builder {
 class ModuleBuilder;
-}
+class BufferInstance;
+} // namespace module_builder
 
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
@@ -85,6 +86,16 @@ public:
   static std::unordered_map<std::string, std::string>
   getCompileOptions(const char *compile_options_data,
                     size_t compile_options_size);
+
+  // Runtime device access methods for loaded executable instances
+  bool isRuntimeDeviceOpened() const { return m_runtime_device_opened; }
+  std::optional<tt::runtime::Device> getRuntimeDevice() const {
+    return m_runtime_device;
+  }
+  void setRuntimeDevice(const std::optional<tt::runtime::Device> &device) {
+    m_runtime_device = device;
+  }
+  void setRuntimeDeviceOpened(bool opened) { m_runtime_device_opened = opened; }
 
 protected:
   std::string cached_platform_name_;
@@ -140,6 +151,10 @@ private:
   static std::unordered_map<std::string, std::string>
   extractCustomProtobufFields(
       const google::protobuf::UnknownFieldSet &unknown_fields);
+
+  // Shared runtime device handle across loaded executable instances
+  std::optional<tt::runtime::Device> m_runtime_device;
+  bool m_runtime_device_opened = false;
 };
 
 namespace internal {
