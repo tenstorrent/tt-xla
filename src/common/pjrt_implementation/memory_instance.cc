@@ -19,8 +19,8 @@
 
 namespace tt::pjrt {
 
-const std::string MemoryInstance::c_host_memory_kind_name = "tt_host";
-const std::string MemoryInstance::c_device_memory_kind_name = "tt_device";
+const std::string MemoryInstance::c_host_memory_kind_name = "pinned_host";
+const std::string MemoryInstance::c_device_memory_kind_name = "device";
 
 std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,

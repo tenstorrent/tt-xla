@@ -92,16 +92,16 @@ class JaxMultichipOpTester(BaseTester):
             for shape in input_shapes
         ]
         device_workload = JaxMultichipWorkload(
-            executable,
-            inputs,
+            executable=executable,
+            args=inputs,
             device_mesh=self._device_mesh,
             in_specs=self._in_specs,
             out_spec=self._out_spec,
             sharding_mode=sharding_mode,
         )
         cpu_workload = JaxMultichipWorkload(
-            executable,
-            inputs,
+            executable=executable,
+            args=inputs,
             device_mesh=self._cpu_mesh,
             in_specs=self._in_specs,
             out_spec=self._out_spec,
@@ -159,7 +159,7 @@ class JaxMultichipOpTester(BaseTester):
             else workload.executable
         )
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
-        workload.executable = jax.jit(
+        workload.compiled_executable = jax.jit(
             module_sharded_executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,

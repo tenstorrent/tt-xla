@@ -8,6 +8,7 @@ permissions:
   packages: write
   checks: write
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
