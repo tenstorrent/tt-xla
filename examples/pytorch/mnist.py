@@ -30,12 +30,14 @@ def mnist():
     # Move inputs and model to device.
     input = input.to(device)
     model = model.to(device)
-
-    # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
-        output = model(input)
+        # Run model (with no gradient calculation since we only need inference).
+        for i in range(10):
+            print("running inference step ", i)
+            with torch.no_grad():
+                output = model(input)
 
-    print(output)
+            print(output)
 
 
 # --------------------------------
