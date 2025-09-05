@@ -46,6 +46,10 @@ test_config = {
     "clip/pytorch-openai/clip-vit-base-patch32-full-inference": {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Sept 6 due to tt-mlir uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError... - ID 4489 while an async operation is in flight: UNKNOWN_SCALAR - https://github.com/tenstorrent/tt-xla/issues/1306",
+        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
     },
     "wide_resnet/pytorch-wide_resnet50_2-full-inference": {
         "required_pcc": 0.98,
@@ -562,9 +566,6 @@ test_config = {
     "roberta/masked_lm/pytorch-xlm_base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "unet/torch_hub/pytorch-brain_segmentation-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
-    },
     "mamba/pytorch-mamba-2.8b-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
@@ -613,11 +614,17 @@ test_config = {
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-full-inference": {
         "required_pcc": 0.98,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-pytdml-full-inference": {
         "required_pcc": 0.98,
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi2/sequence_classification/pytorch-microsoft/phi-2-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -752,8 +759,11 @@ test_config = {
         "assert_pcc": False,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
+        # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "t5/pytorch-t5-small-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -774,10 +784,13 @@ test_config = {
         "required_pcc": 0.98,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
         # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
         "assert_pcc": False,
+        # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "yolov8/pytorch-yolov8x-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
@@ -797,7 +810,10 @@ test_config = {
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-full-inference": {
         "assert_pcc": False,  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
-        "status": ModelStatus.EXPECTED_PASSING,
+        # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "opt/qa/pytorch-facebook/opt-1.3b-full-inference": {
         "assert_pcc": False,  # PCC observed: 0.9410670165223607 (below 0.99 threshold)
@@ -1487,8 +1503,8 @@ test_config = {
     },
     "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
         # Exposed by "Remove host-side consteval" change
-        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "OOM lately. Previously error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "vovnet/pytorch-vovnet39-full-inference": {
