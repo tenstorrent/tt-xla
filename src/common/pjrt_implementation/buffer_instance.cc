@@ -534,7 +534,7 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
 
   args->device = *BufferInstance::unwrap(args->buffer)->getDevice();
-  
+
   return nullptr;
 }
 

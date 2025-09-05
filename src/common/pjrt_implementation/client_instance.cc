@@ -257,7 +257,7 @@ ClientInstance::getCompileOptions(const char *compile_options_data,
 std::vector<int64_t>
 ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                                         size_t compile_options_size) {
-  std::set<int64_t> unique_device_ids; 
+  std::set<int64_t> unique_device_ids;
 
   google::protobuf::UnknownFieldSet unknown_fields;
 
@@ -268,11 +268,12 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
   }
 
   // The cose abofe parses the CompileOptionsProto protobuf based on its layout
-  // defined in https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
+  // defined in
+  // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
 
-  // The executable build compiler options that are defined in through the jax.jit()
-  // and contain the information about devices assignment are stored in the field
-  // number 3.
+  // The executable build compiler options that are defined in through the
+  // jax.jit() and contain the information about devices assignment are stored
+  // in the field number 3.
   constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
 
   for (int i = 0; i < unknown_fields.field_count(); ++i) {
@@ -336,9 +337,9 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                   const google::protobuf::UnknownField &comp_field =
                       comp_device_fields.field(l);
 
-                  // Device IDs are stored in field number 1 in ComputationDevice
-                  // structure. It is a repeated field, so we need to handle both
-                  // packed and unpacked representations.
+                  // Device IDs are stored in field number 1 in
+                  // ComputationDevice structure. It is a repeated field, so we
+                  // need to handle both packed and unpacked representations.
                   if (comp_field.number() == 1) {
                     if (comp_field.type() ==
                         google::protobuf::UnknownField::TYPE_VARINT) {
