@@ -257,10 +257,8 @@ ClientInstance::getCompileOptions(const char *compile_options_data,
 std::vector<int64_t>
 ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                                         size_t compile_options_size) {
-  std::set<int64_t>
-      unique_device_ids; // Use set to automatically handle uniqueness
+  std::set<int64_t> unique_device_ids; 
 
-  // Parse the compile options protobuf data using shared helper
   google::protobuf::UnknownFieldSet unknown_fields;
 
   if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
@@ -269,14 +267,20 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                                 unique_device_ids.end());
   }
 
-  // Look for ExecutableBuildOptionsProto (field 3 in CompileOptionsProto)
+  // The cose abofe parses the CompileOptionsProto protobuf based on its layout
+  // defined in https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
+
+  // The executable build compiler options that are defined in through the jax.jit()
+  // and contain the information about devices assignment are stored in the field
+  // number 3.
+  constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
+
   for (int i = 0; i < unknown_fields.field_count(); ++i) {
     const google::protobuf::UnknownField &field = unknown_fields.field(i);
 
-    if (field.number() == 3 &&
+    if (field.number() == kExecutableBuildOptionsProtoFieldNumber &&
         field.type() == google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
 
-      // Parse ExecutableBuildOptionsProto
       const std::string &exec_build_data = field.length_delimited();
       google::protobuf::UnknownFieldSet exec_build_fields;
       google::protobuf::io::CodedInputStream exec_input(
@@ -287,12 +291,14 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
         continue;
       }
 
-      // Look for DeviceAssignmentProto (field 9 in ExecutableBuildOptionsProto)
+      // DeviceAssignmentProto is field number 9 in ExecutableBuildOptionsProto
+      constexpr int kDeviceAssignmentProtoFieldNumber = 9;
+
       for (int j = 0; j < exec_build_fields.field_count(); ++j) {
         const google::protobuf::UnknownField &exec_field =
             exec_build_fields.field(j);
 
-        if (exec_field.number() == 9 &&
+        if (exec_field.number() == kDeviceAssignmentProtoFieldNumber &&
             exec_field.type() ==
                 google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
 
@@ -307,12 +313,14 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
             continue;
           }
 
-          // Look for computation_devices (field 3 in DeviceAssignmentProto)
+          // ComputationDevice is field number 3 in DeviceAssignmentProto
+          constexpr int kComputationDeviceFieldNumber = 3;
+
           for (int k = 0; k < device_assign_fields.field_count(); ++k) {
             const google::protobuf::UnknownField &da_field =
                 device_assign_fields.field(k);
 
-            if (da_field.number() == 3 &&
+            if (da_field.number() == kComputationDeviceFieldNumber &&
                 da_field.type() ==
                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
 
@@ -328,6 +336,9 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                   const google::protobuf::UnknownField &comp_field =
                       comp_device_fields.field(l);
 
+                  // Device IDs are stored in field number 1 in ComputationDevice
+                  // structure. It is a repeated field, so we need to handle both
+                  // packed and unpacked representations.
                   if (comp_field.number() == 1) {
                     if (comp_field.type() ==
                         google::protobuf::UnknownField::TYPE_VARINT) {
