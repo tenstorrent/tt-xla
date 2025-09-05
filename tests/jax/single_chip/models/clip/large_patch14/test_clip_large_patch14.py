@@ -11,12 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
+from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
 from ..tester import FlaxCLIPTester
 
-MODEL_PATH = "openai/clip-vit-large-patch14"
+VARIANT_NAME = ModelVariant.LARGE_PATCH14
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "clip_vit_patch14",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(MODEL_PATH)
+    return FlaxCLIPTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxCLIPTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,12 +49,12 @@ def training_tester() -> FlaxCLIPTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "BinaryOpType cannot be mapped to BcastOpMath "
-        "https://github.com/tenstorrent/tt-xla/issues/288"
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_clip_large_patch14_inference(inference_tester: FlaxCLIPTester):
