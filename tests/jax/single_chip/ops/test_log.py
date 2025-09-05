@@ -6,7 +6,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
-from utils import Category, incorrect_result
+from tests.infra.testers.compiler_config import CompilerConfig
+from utils import Category
 
 
 @pytest.mark.push
@@ -17,8 +18,21 @@ from utils import Category, incorrect_result
     shlo_op_name="stablehlo.log",
 )
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
-def test_log(x_shape: tuple):
+@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+def test_log(x_shape: tuple, format: str):
     def log(x: jax.Array) -> jax.Array:
         return jnp.log(x)
 
-    run_op_test_with_random_inputs(log, [x_shape])
+    if format == "float32":
+        dtype = None
+        compiler_config = None
+    elif format == "bfloat16":
+        dtype = jnp.bfloat16
+        compiler_config = None
+    else:  # bfp8
+        dtype = jnp.bfloat16
+        compiler_config = CompilerConfig(enable_bfp8_conversion=True)
+
+    run_op_test_with_random_inputs(
+        log, [x_shape], minval=1e-2, dtype=dtype, compiler_config=compiler_config
+    )

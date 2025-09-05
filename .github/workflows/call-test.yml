@@ -13,8 +13,9 @@ on:
         required: true
         type: string
       codecov:
-        description: 'Enable codecov upload'
+        description: 'Run code coverage tests and uploads'
         required: false
+        default: true
         type: boolean
       test_matrix:
         description: 'Test job matrix to use'
@@ -35,23 +36,32 @@ on:
         required: false
         default: false
         type: boolean
-      artifact_run_id:
-        description: 'Run ID of the artifacts'
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
         required: true
         type: string
-      wheel_artifact_name:
-        description: 'Name of the wheel artifact'
+      artifact_codecov_run_id:
+        description: 'Run ID of the artifacts (codecov)'
+        required: false
+        type: string
+      wheel_release_artifact_name:
+        description: 'Name of the wheel artifact (release)'
         required: true
+        type: string
+      wheel_codecov_artifact_name:
+        description: 'Name of the wheel artifact (codecov)'
+        required: false
         type: string
       build_artifact_name:
-        description: 'Name of the build artifact'
-        required: true
+        description: 'Name of the build artifact (codecov)'
+        required: false
         type: string
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
   DOCKER_CACHE_ROOT: /mnt/dockercache
   GH_TOKEN: ${{ github.token }} # for gh cli tool
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
 
 jobs:
 
@@ -107,20 +117,22 @@ jobs:
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
-          echo "build=codecov" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
         else
-          echo "build=release" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Download and install wheel
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
-        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_run_id }}"
-        gh run download ${{ inputs.artifact_run_id }} \
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ inputs.wheel_artifact_name }}
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
         echo "Downloaded wheel files:"
         ls -la wheels
 
@@ -131,10 +143,15 @@ jobs:
     - name: Download build artifacts
       if: steps.strings.outputs.do_codecov
       run: |
-        gh run download ${{ inputs.artifact_run_id }} \
+        echo "Downloading build artifacts"
+        gh run download ${{ inputs.artifact_codecov_run_id }} \
           --repo ${{ github.repository }} \
           --dir build \
           --name ${{ inputs.build_artifact_name }}
+        echo "Untar build artifacts"
+        cd build
+        tar xf artifact.tar
+        rm -f artifact.tar
 
     - name: Run tests
       env:
@@ -196,7 +213,6 @@ jobs:
 
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
-      continue-on-error: true # TODO fix codecov
       run: |
         lcov --directory build --capture --output-file coverage.info
         lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
@@ -205,7 +221,6 @@ jobs:
 
     - name: Upload coverage reports to Codecov
       if: steps.strings.outputs.do_codecov && (success() || failure())
-      continue-on-error: true # TODO fix codecov
       uses: codecov/codecov-action@v5
       with:
         files: coverage.info

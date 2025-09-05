@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
@@ -262,19 +262,8 @@ setup(
     long_description_content_type="text/markdown",
     long_description=config.long_description,
     name="pjrt-plugin-tt",
-    packages=[
-        "pjrt_plugin_tt",
-        "jax_plugin_tt",
-        "torch_plugin_tt",
-        "ttxla_tools",
-    ],
-    package_dir={
-        "pjrt_plugin_tt": "pjrt_plugin_tt",
-        "jax_plugin_tt": "jax_plugin_tt",
-        "torch_plugin_tt": "torch_plugin_tt",
-        "ttxla_tools": os.path.join("..", "ttxla_tools"),
-    },
-    python_requires=">=3.10, <3.11",
+    packages=find_packages(),
+    python_requires=">=3.11, <3.12",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.

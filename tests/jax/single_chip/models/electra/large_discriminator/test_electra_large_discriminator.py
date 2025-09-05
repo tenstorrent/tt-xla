@@ -11,12 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from ..tester import ElectraTester
 
-MODEL_PATH = "google/electra-large-discriminator"
+from third_party.tt_forge_models.electra.causal_lm.jax import ModelVariant
+
+VARIANT_NAME = ModelVariant.LARGE_DISCRIMINATOR
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "electra",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ElectraTester:
-    return ElectraTester(MODEL_PATH)
+    return ElectraTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ElectraTester:
-    return ElectraTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return ElectraTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

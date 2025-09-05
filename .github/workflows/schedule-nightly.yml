@@ -53,12 +53,12 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      codecov: false
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'nightly'
       use-shared-runners: false # Run nightly tests on Civ1
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   generate-matrix:
     runs-on: ubuntu-latest
@@ -70,8 +70,6 @@ jobs:
         uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
 
       - name: Generate matrix
         id: generate-matrix
@@ -109,13 +107,12 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'model_test'
       test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   fail-notify:
     if: always()

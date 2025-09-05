@@ -37,6 +37,10 @@ on:
             - multichip: 'jax/multi_chip'
             - All: run on n150 all singlechip, on llmbox all multichip
         type: string
+      mlir_override:
+          description: 'Git SHA of commit in tenstorrent/tt-mlir'
+          required: false
+          type: string
 
 permissions:
   packages: write
@@ -48,6 +52,8 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
     needs: build-image
@@ -55,6 +61,7 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
 
   test-setup:
     runs-on: ubuntu-latest
@@ -108,12 +115,25 @@ jobs:
           else
             dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
             runson='n150'
+            name='run_single_chip_n150'
+            n150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
+            runson='p150'
             name='run_single_chip'
-            sc=$(make_json_array $dir)
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
+            p150_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
+            runson='n300'
+            name='run_multi_chip_n300'
+            n300_matrix=$(make_json_array $dir)
+
+            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
             runson='n300-llmbox'
-            name='run_multi_chip'
-            echo "test_matrix=[$sc,$(make_json_array $dir)]" >> $GITHUB_OUTPUT
+            name='run_multi_chip_llmbox'
+            llmbox_matrix=$(make_json_array $dir)
+
+            echo "test_matrix=[$n150_matrix,$p150_matrix,$n300_matrix,$llmbox_matrix]" >> $GITHUB_OUTPUT
           fi
       - name: Create job summary
         run: |
@@ -134,9 +154,8 @@ jobs:
     needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}

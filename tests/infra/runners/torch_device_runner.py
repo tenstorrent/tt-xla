@@ -5,6 +5,7 @@
 from typing import Sequence
 
 import torch
+from torch.utils._pytree import tree_map
 from infra.connectors import DeviceType
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
@@ -37,17 +38,13 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        for arg in workload.args:
-            try:
-                args_on_device.append(arg.to(device))
-            except:
-                args_on_device.append(arg)
+        def attempt_to_device(x):
+            if hasattr(x, "to"):
+                return x.to(device)
+            return x
 
-        for key, value in workload.kwargs.items():
-            try:
-                kwargs_on_device[key] = value.to(device)
-            except:
-                kwargs_on_device[key] = value
+        args_on_device = tree_map(attempt_to_device, workload.args)
+        kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
 
         if workload.model is not None:
             workload.model.to(device)

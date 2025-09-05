@@ -4,6 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
+from tests.infra.testers.compiler_config import CompilerConfig
 from utils import (
     BringupStatus,
     Category,
@@ -42,7 +43,10 @@ def training_tester() -> ResNetTester:
 
 @pytest.fixture
 def inference_tester_optimizer() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, run_mode=RunMode.INFERENCE, use_optimizer=True)
+    compiler_config = CompilerConfig(enable_optimizer=True)
+    return ResNetTester(
+        MODEL_VARIANT, run_mode=RunMode.INFERENCE, compiler_config=compiler_config
+    )
 
 
 # ----- Tests -----
