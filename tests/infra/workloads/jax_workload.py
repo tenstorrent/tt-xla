@@ -23,6 +23,7 @@ class JaxMultichipWorkload(Workload):
     def __init__(
         self,
         executable: Callable,
+        compiled_executable: Optional[Callable] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
         static_argnames: Optional[Sequence[str]] = None,
@@ -35,6 +36,7 @@ class JaxMultichipWorkload(Workload):
         super().__init__(
             framework=Framework.JAX,
             executable=executable,
+            compiled_executable=compiled_executable,
             args=args,
             kwargs=kwargs,
             static_argnames=static_argnames,

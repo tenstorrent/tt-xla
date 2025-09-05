@@ -11,12 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import RegNetTester
+from third_party.tt_forge_models.regnet.image_classification.jax import ModelVariant
 
-MODEL_PATH = "facebook/regnet-y-040"
+VARIANT_NAME = ModelVariant.REGNET_Y_040
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "regnet",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> RegNetTester:
-    return RegNetTester(MODEL_PATH)
+    return RegNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> RegNetTester:
-    return RegNetTester(MODEL_PATH, RunMode.TRAINING)
+    return RegNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,13 +49,12 @@ def training_tester() -> RegNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 802816 B L1 buffer "
-        "across 1 banks, where each bank needs to store 802816 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.3722558617591858. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_regnet_y_040_inference(inference_tester: RegNetTester):
