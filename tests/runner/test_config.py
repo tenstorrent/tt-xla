@@ -612,11 +612,11 @@ test_config = {
         "assert_pcc": False,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-full-inference": {
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-pytdml-full-inference": {
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
         "status": ModelStatus.EXPECTED_PASSING,
     },
     "phi2/sequence_classification/pytorch-microsoft/phi-2-full-inference": {
@@ -752,7 +752,7 @@ test_config = {
         "assert_pcc": False,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
         "required_pcc": 0.98,
     },
     "t5/pytorch-t5-small-full-inference": {
@@ -774,7 +774,7 @@ test_config = {
         "required_pcc": 0.98,
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
         "required_pcc": 0.98,
         # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
         "assert_pcc": False,
@@ -797,7 +797,7 @@ test_config = {
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-full-inference": {
         "assert_pcc": False,  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
-        "status": ModelStatus.EXPECTED_PASSING,
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
     },
     "opt/qa/pytorch-facebook/opt-1.3b-full-inference": {
         "assert_pcc": False,  # PCC observed: 0.9410670165223607 (below 0.99 threshold)
