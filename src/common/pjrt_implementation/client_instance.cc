@@ -13,7 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
-#include <unordered_set>
+#include <set>
 #include <utility>
 
 // tt-mlir includes
@@ -257,7 +257,7 @@ ClientInstance::getCompileOptions(const char *compile_options_data,
 std::vector<int64_t>
 ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
                                         size_t compile_options_size) {
-  std::unordered_set<int64_t>
+  std::set<int64_t>
       unique_device_ids; // Use set to automatically handle uniqueness
 
   // Parse the compile options protobuf data using shared helper
