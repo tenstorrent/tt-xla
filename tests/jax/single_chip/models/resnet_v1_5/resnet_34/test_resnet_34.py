@@ -13,9 +13,10 @@ from utils import (
     build_model_name,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from ..tester import ResNetTester
+from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
-MODEL_VARIANT = ResNetVariant.RESNET_34
+VARIANT_NAME = ModelVariant.RESNET_34
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "resnet_v1.5",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+    return ResNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
