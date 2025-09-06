@@ -1,5 +1,4 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-from .serialization import serialize_function, serialize_function_to_disk
+from .serialization import parse_executable

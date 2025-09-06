@@ -26,6 +26,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -136,6 +137,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
+  m_ttir_mlir = getMlirCode(mlir_module);
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
@@ -143,6 +145,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
+
+  m_ttnn_mlir = getMlirCode(mlir_module);
 
   createFlatbufferBinary(mlir_module);
 
@@ -191,6 +195,15 @@ void ModuleBuilder::runFrontendSHLOPipeline(
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
+}
+
+std::string ModuleBuilder::getMlirCode(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  std::string mlir_code;
+  llvm::raw_string_ostream os(mlir_code);
+  mlir_module.get()->print(os, mlir::OpPrintingFlags().enableDebugInfo());
+  os.flush();
+  return mlir_code;
 }
 
 void ModuleBuilder::collectInputShardings(
@@ -702,7 +715,7 @@ void ModuleBuilder::printModule(
     return;
   }
 
-  mlir_module->dump();
+  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
 }
 
 bool ModuleBuilder::isUsingShardy(
