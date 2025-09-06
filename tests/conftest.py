@@ -67,6 +67,7 @@ def pytest_collection_modifyitems(items):
             "run_mode",
             "parallelism",
             "bringup_status",
+            "execution_pass",
             "pcc",
             "atol",
         ]
