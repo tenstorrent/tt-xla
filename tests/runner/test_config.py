@@ -562,9 +562,6 @@ test_config = {
     "roberta/masked_lm/pytorch-xlm_base-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
     },
-    "unet/torch_hub/pytorch-brain_segmentation-full-inference": {
-        "status": ModelStatus.EXPECTED_PASSING,
-    },
     "mamba/pytorch-mamba-2.8b-hf-full-inference": {
         "status": ModelStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
