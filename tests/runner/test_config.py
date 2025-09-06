@@ -1484,8 +1484,8 @@ test_config = {
     },
     "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
         # Exposed by "Remove host-side consteval" change
-        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
+        "status": ModelStatus.NOT_SUPPORTED_SKIP,
+        "reason": "OOM lately. Previously error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "vovnet/pytorch-vovnet39-full-inference": {
