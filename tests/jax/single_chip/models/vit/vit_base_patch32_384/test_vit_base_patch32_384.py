@@ -12,16 +12,16 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_runtime,
 )
-
+from third_party.tt_forge_models.vit.image_classification.jax import ModelVariant
 from ..tester import ViTTester
 
-MODEL_PATH = "google/vit-base-patch32-384"
+VARIANT_NAME = ModelVariant.BASE_PATCH32_384
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "vit",
-    "base_patch32_384",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -32,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -49,12 +49,13 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=393216.4375. Required: atol=0.16. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate  7782400 B L1 buffer across 5 banks, "
+        "where each bank needs to store 1556480 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
 def test_vit_base_patch32_384_inference(

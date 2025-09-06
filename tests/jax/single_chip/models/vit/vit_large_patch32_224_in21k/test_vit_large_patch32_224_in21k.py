@@ -12,16 +12,16 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_runtime,
 )
-
+from third_party.tt_forge_models.vit.image_classification.jax import ModelVariant
 from ..tester import ViTTester
 
-MODEL_PATH = "google/vit-large-patch32-224-in21k"
+VARIANT_NAME = ModelVariant.LARGE_PATCH32_224_IN_21K
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "vit",
-    "large_patch32_224_in21k",
+    str(VARIANT_NAME),
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
@@ -32,7 +32,7 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -49,7 +49,14 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate  2287616 B L1 buffer across 2 banks, "
+        "where each bank needs to store 1143808 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+    )
 )
 def test_vit_large_patch32_224_in21k_inference(
     inference_tester: ViTTester,
