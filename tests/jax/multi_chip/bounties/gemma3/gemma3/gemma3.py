@@ -1,5 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """
-Gemma 3 model implementation for JAXgarden, based on the implementation in Transformers"""
+Gemma 3 model implementation for JAXgarden, based on the implementation in Transformers
+"""
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -11,6 +16,7 @@ from flax import nnx
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
+
 
 @dataclass
 class Gemma3Config(BaseConfig):
@@ -209,27 +215,6 @@ class Gemma3RotaryEmbedding(nnx.Module):
         else:
             # Default RoPE or other scaling types
             base_freq = self.theta
-
-            # if rope_scaling is not None:
-            #     rope_type = rope_scaling.get("rope_type", "default")
-            #     if rope_type != "default":
-            #         scaling_factor = rope_scaling["factor"]
-            #         if rope_type == "linear":
-            #             base_freq = base_freq * scaling_factor
-            #         elif rope_type == "dynamic":
-            #             orig_max_pos = rope_scaling["original_max_position_embeddings"]
-            #             base_freq = base_freq * (orig_max_pos / max_position_embeddings)
-            #         elif rope_type == "yarn":
-            #             # YARN (Yet Another RoPE extensioN)
-            #             beta_fast = rope_scaling.get("beta_fast", 32.0)
-            #             beta_slow = rope_scaling.get("beta_slow", 1.0)
-            #             pos_ratio = (
-            #                 max_position_embeddings
-            #                 / rope_scaling["original_max_position_embeddings"]
-            #             )
-            #             alpha = (pos_ratio - 1) / (beta_fast * pos_ratio)
-            #             base_freq = base_freq * (1 / (1 + alpha * beta_slow))
-
             self.inv_freq = 1.0 / (
                 base_freq ** (jnp.arange(0, self.dim, 2, dtype=jnp.float32) / self.dim)
             )
@@ -734,7 +719,7 @@ class Gemma3ForCausalLM(BaseModel):
     def convert_weights_from_hf(
         self, state: nnx.State | dict[str, jnp.ndarray], weights: Iterator[tuple[Any, Any]]
     ) -> None:
-        num_layers = len(state['layers'])
+        num_layers = len(state["layers"])
         for wholekey, tensor in weights:
             keys = wholekey.split(".")
             if keys[0] != "language_model":
@@ -742,25 +727,36 @@ class Gemma3ForCausalLM(BaseModel):
             if keys[2] == "layers" and int(keys[3]) < num_layers:
                 if keys[4] == "self_attn":
                     if keys[5] == "k_norm" or keys[5] == "q_norm":
-                        state["layers"][int(keys[3])][keys[4]][keys[5]]["weight"].value = tensor.astype(self.config.param_dtype)  # type: ignore
+                        state["layers"][int(keys[3])][keys[4]][keys[5]][
+                            "weight"
+                        ].value = tensor.astype(self.config.param_dtype)
                     else:
-                        state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T.astype(self.config.param_dtype)  # type: ignore
+                        state["layers"][int(keys[3])][keys[4]][keys[5]][
+                            "kernel"
+                        ].value = tensor.T.astype(self.config.param_dtype)
                 elif keys[4] == "mlp":
-                    state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = tensor.T.astype(self.config.param_dtype)  # type: ignore
-                elif keys[4] == "input_layernorm" or \
-                    keys[4] == "post_attention_layernorm" or \
-                    keys[4] == "post_feedforward_layernorm" or \
-                    keys[4] == "pre_feedforward_layernorm":
-                    state["layers"][int(keys[3])][keys[4]]["weight"].value = tensor.astype(self.config.param_dtype)  # type: ignore
+                    state["layers"][int(keys[3])][keys[4]][keys[5]]["kernel"].value = (
+                        tensor.T.astype(self.config.param_dtype)
+                    )
+                elif (
+                    keys[4] == "input_layernorm"
+                    or keys[4] == "post_attention_layernorm"
+                    or keys[4] == "post_feedforward_layernorm"
+                    or keys[4] == "pre_feedforward_layernorm"
+                ):
+                    state["layers"][int(keys[3])][keys[4]]["weight"].value = (
+                        tensor.astype(self.config.param_dtype)
+                    )
             elif keys[2] == "embed_tokens":
-                state["embed_tokens"].embedding.value = tensor.astype(self.config.param_dtype)  # type: ignore
+                state["embed_tokens"].embedding.value = tensor.astype(
+                    self.config.param_dtype
+                )
             elif keys[2] == "norm":
-                state["norm"].weight.value = tensor.astype(self.config.param_dtype)  # type: ignore
+                state["norm"].weight.value = tensor.astype(self.config.param_dtype)
 
     def generate(
         self,
         input_ids,
-        attention_mask,
         max_new_tokens=20,
         eos_token_id=None,
     ):
