@@ -7,10 +7,11 @@ from huggingface_hub import login
 import numpy as np
 import jax.numpy as jnp
 import os
-from dotenv import load_dotenv
+import sys
 from flax import nnx
+import jax
 
-load_dotenv()
+sys.path.append(os.getcwd())
 
 from gemma3.gemma3 import Gemma3ForCausalLM as FlaxGemma3ForCausalLM
 from gemma3.gemma3 import Gemma3Config as FlaxGemma3Config
@@ -39,13 +40,9 @@ def prepare_pytorch_inputs(model_id: str, prompt: str):
     return input_ids, attention_mask, tokenizer
 
 
-def prepare_jax_inputs(jax_model, pt_input_ids, pt_attention_mask, max_len):
+def prepare_jax_inputs(pt_input_ids):
     input_ids = jnp.array(pt_input_ids)
-    attention_mask = jnp.array(pt_attention_mask)
-    # input_ids, attention_mask, position_ids = jax_model.prepare_inputs_for_generation(
-    #     input_ids, max_len, attention_mask
-    # )
-    return input_ids, attention_mask, None #position_ids
+    return input_ids
 
 
 def load_pytorch_model_from_hf(model_id, config):
@@ -60,10 +57,7 @@ def load_jax_model(config):
     rng = nnx.Rngs(0)
     model = FlaxGemma3ForCausalLM(config, rngs=rng)
     model.from_hf(
-        model_id,
-        save_in_orbax=False,
-        remove_hf_after_conversion=False,
-        use_cache=True
+        model_id, save_in_orbax=False, remove_hf_after_conversion=False, use_cache=True
     )
 
     return model
@@ -77,16 +71,13 @@ def run_pytorch_model(pt_model, pt_input_ids, pt_attention_mask):
     )
 
 
-def run_jax_model(
-    jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len
-):
+def run_jax_model(jax_model, jax_input_ids, max_len):
     _, seq_len = jax_input_ids.shape
-    return jax_model.generate(
+    out = jax_model.generate(
         input_ids=jax_input_ids,
-        attention_mask=jax_attention_mask,
         max_new_tokens=max_len - seq_len,
-        # position_ids=jax_position_ids,
     )
+    return jax.device_get(out)
 
 
 def compare_outputs(pt_outputs, jax_outputs):
@@ -112,12 +103,8 @@ def run_comparison_test(model_id: str, prompt: str):
     jax_config = FlaxGemma3Config()
     jax_config.update(**config.text_config.to_dict())
     jax_model = load_jax_model(jax_config)
-    jax_input_ids, jax_attention_mask, jax_position_ids = prepare_jax_inputs(
-        jax_model, pt_input_ids, pt_attention_mask, max_len
-    )
-    jax_outputs = run_jax_model(
-        jax_model, jax_input_ids, jax_attention_mask, jax_position_ids, max_len
-    )
+    jax_input_ids = prepare_jax_inputs(pt_input_ids)
+    jax_outputs = run_jax_model(jax_model, jax_input_ids, max_len)
 
     result_pt = tokenizer.decode(pt_outputs[0], skip_special_tokens=False)
     result_jax = tokenizer.decode(
