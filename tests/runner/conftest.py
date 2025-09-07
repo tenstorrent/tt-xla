@@ -10,12 +10,17 @@ import difflib
 # Global set to track collected test node IDs
 _collected_nodeids = set()
 
+# Allowed architecture identifiers for arch_overrides and --arch option
+ALLOWED_ARCHES = {"n150", "p150"}
+
 
 def pytest_addoption(parser):
+    """Register CLI options for selecting target arch and enabling config validation."""
     parser.addoption(
         "--arch",
         action="store",
         default=None,
+        choices=sorted(ALLOWED_ARCHES),
         help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config.py",
     )
     parser.addoption(
@@ -28,12 +33,14 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def test_metadata(request) -> ModelTestConfig:
+    """Expose per-test ModelTestConfig attached during collection."""
     meta = getattr(request.node, "_test_meta", None)
     assert meta is not None, f"No ModelTestConfig attached for {request.node.nodeid}"
     return meta
 
 
 def pytest_collection_modifyitems(config, items):
+    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config."""
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
 
@@ -61,19 +68,15 @@ def pytest_collection_modifyitems(config, items):
 
         # Apply any custom/extra markers from config (e.g., "push", "nightly")
         for marker_name in getattr(meta, "markers", []) or []:
-            try:
-                item.add_marker(getattr(pytest.mark, marker_name))
-            except Exception:
-                # Silently ignore unknown markers; they should be declared in pytest.ini
-                pass
+            item.add_marker(getattr(pytest.mark, marker_name))
 
     # If validating config, clear all items so no tests run
     if validate_config:
         items.clear()
 
 
-# Verify that the test_config.py file is valid.
 def pytest_sessionfinish(session, exitstatus):
+    """At session end, validate test_config entries and arch_overrides against collected tests."""
     if not session.config.getoption("--validate-test-config"):
         return  # Skip check unless explicitly requested
 
@@ -81,6 +84,35 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
+    # Basic validation: ensure all arch_overrides keys use allowed arches
+    invalid_arch_entries = []
+    for test_name, cfg in test_config.items():
+        if not isinstance(cfg, dict):
+            continue
+        overrides = cfg.get("arch_overrides")
+        if overrides is None:
+            continue
+        if not isinstance(overrides, dict):
+            invalid_arch_entries.append((test_name, "arch_overrides is not a dict"))
+            continue
+        for arch_key in overrides.keys():
+            if arch_key not in ALLOWED_ARCHES:
+                invalid_arch_entries.append((test_name, f"unknown arch '{arch_key}'"))
+
+    if invalid_arch_entries:
+        print("ERROR: Found invalid arch_overrides entries (unknown arches):")
+        for test_name, reason in sorted(invalid_arch_entries):
+            print(f"  - {test_name}: {reason}")
+        print("\nAllowed arches:", ", ".join(sorted(ALLOWED_ARCHES)))
+        print("\n" + "=" * 60)
+        raise pytest.UsageError(
+            "test_config.py contains arch_overrides with unknown arches"
+        )
+    else:
+        print("All arch_overrides entries are valid")
+
+    # Validate that entries in test_config.py are found in the collected tests. They can diverge if
+    # model variants are renamed, removed, have import errors, etc.
     declared_nodeids = set(test_config.keys())
     unknown = declared_nodeids - _collected_nodeids
     unlisted = _collected_nodeids - declared_nodeids
