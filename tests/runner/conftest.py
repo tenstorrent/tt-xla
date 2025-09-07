@@ -4,7 +4,7 @@
 
 import pytest
 from tests.runner.test_config import test_config
-from tests.runner.test_utils import ModelTestConfig, ModelStatus
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 import difflib
 
 # Global set to track collected test node IDs
@@ -57,13 +57,13 @@ def pytest_collection_modifyitems(config, items):
         # Uncomment this to print info for each test collected.
         # print(f"DEBUG nodeid: {nodeid} meta.status: {meta.status}")
 
-        if meta.status == ModelStatus.EXPECTED_PASSING:
+        if meta.status == ModelTestStatus.EXPECTED_PASSING:
             item.add_marker(pytest.mark.expected_passing)
-        elif meta.status == ModelStatus.KNOWN_FAILURE_XFAIL:
+        elif meta.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
             item.add_marker(pytest.mark.known_failure_xfail)
-        elif meta.status == ModelStatus.NOT_SUPPORTED_SKIP:
+        elif meta.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
             item.add_marker(pytest.mark.not_supported_skip)
-        elif meta.status == ModelStatus.UNSPECIFIED:
+        elif meta.status == ModelTestStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
 
         # Apply any custom/extra markers from config (e.g., "push", "nightly")
