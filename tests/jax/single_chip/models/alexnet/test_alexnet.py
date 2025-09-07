@@ -15,11 +15,14 @@ from utils import (
 )
 
 from .tester import AlexNetTester
+from third_party.tt_forge_models.alexnet.image_classification.jax import ModelVariant
+
+VARIANT = ModelVariant.CUSTOM
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "alexnet",
-    None,
+    "custom",
     ModelTask.CV_IMAGE_CLS,
     ModelSource.CUSTOM,
 )
@@ -30,12 +33,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> AlexNetTester:
-    return AlexNetTester()
+    return AlexNetTester(VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> AlexNetTester:
-    return AlexNetTester(run_mode=RunMode.TRAINING)
+    return AlexNetTester(VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
