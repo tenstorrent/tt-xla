@@ -46,6 +46,10 @@ test_config = {
     "clip/pytorch-openai/clip-vit-base-patch32-full-inference": {
         "assert_pcc": False,
         "status": ModelStatus.EXPECTED_PASSING,
+        # Newly exposed in Sept 6 due to tt-mlir uplift.
+        "status": ModelStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError... - ID 4489 while an async operation is in flight: UNKNOWN_SCALAR - FIXME Open ticket",
+        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
     },
     "wide_resnet/pytorch-wide_resnet50_2-full-inference": {
         "required_pcc": 0.98,
