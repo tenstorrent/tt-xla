@@ -15,9 +15,9 @@ on:
           - 'nightly'
           - 'model_test'
           - 'tt_forge_models'
-          - 'Custom'
+          - 'custom'
       test_mark:
-        description: 'Test mark to run (if preset is Custom or tt_forge_models'
+        description: 'Test mark to run (if preset is custom or tt_forge_models)'
         type: string
       run_on:
         description: 'Run on specific hardware'
@@ -97,7 +97,7 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          if [[ '${{ inputs.preset }}' == 'Custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
+          if [[ '${{ inputs.preset }}' == 'custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
             echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
@@ -184,10 +184,10 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   test_tt_forge_models:
+    if: always() && !cancelled() && inputs.preset == 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    if: inputs.preset == 'tt_forge_models' && (success() || failure())
+    needs: [ build-image,test-setup,build-ttxla,generate-forge-models-matrix ]
     secrets: inherit
-    needs: [ build-image, test-setup, build-ttxla, generate-forge-models-matrix ]
     with:
       timeout_minutes: 180
       docker_image: ${{ needs.build-image.outputs.docker-image }}

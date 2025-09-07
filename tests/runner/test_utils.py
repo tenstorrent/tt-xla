@@ -9,11 +9,18 @@ import torch
 import inspect
 from enum import Enum
 import collections
+from dataclasses import dataclass
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from tests.utils import BringupStatus, Category
 
 
-class ModelStatus(Enum):
+@dataclass
+class ModelTestEntry:
+    path: str
+    variant_info: tuple
+
+
+class ModelTestStatus(Enum):
     # Passing tests
     EXPECTED_PASSING = "expected_passing"
     # Known failures that should be xfailed
@@ -30,14 +37,18 @@ class ModelTestConfig:
         self.arch = arch
 
         # For marking tests as expected passing, known failures, etc
-        self.status = self._resolve("status", default=ModelStatus.UNSPECIFIED)
+        self.status = self._resolve("status", default=ModelTestStatus.UNSPECIFIED)
 
         # Arguments to ModelTester
         self.required_pcc = self._resolve("required_pcc", default=None)
         self.assert_pcc = self._resolve("assert_pcc", default=None)
-        # TODO(kmabee) - Consider enabling atol checking.
+        # Enable/override absolute-tolerance comparator
         self.assert_atol = self._resolve("assert_atol", default=False)
-        self.relative_atol = self._resolve("relative_atol", default=None)
+        self.required_atol = self._resolve("required_atol", default=None)
+        # Allclose comparator controls
+        self.assert_allclose = self._resolve("assert_allclose", default=False)
+        self.allclose_rtol = self._resolve("allclose_rtol", default=None)
+        self.allclose_atol = self._resolve("allclose_atol", default=None)
 
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
@@ -58,17 +69,40 @@ class ModelTestConfig:
     def to_comparison_config(self) -> ComparisonConfig:
         """Build a ComparisonConfig directly from this test metadata."""
         config = ComparisonConfig()
+        # PCC comparator
         if self.assert_pcc is False:
             config.pcc.disable()
         else:
             config.pcc.enable()
         if self.required_pcc is not None:
             config.pcc.required_pcc = self.required_pcc
-        if self.assert_atol:
+
+        # ATOL comparator (absolute tolerance only, separate from allclose)
+        if self.assert_atol or (self.required_atol is not None):
             config.atol.enable()
-        if self.relative_atol is not None:
+            if self.required_atol is not None:
+                config.atol.required_atol = self.required_atol
+
+        # ALLCLOSE comparator (rtol/atol)
+        enable_allclose = bool(
+            self.assert_allclose
+            or self.allclose_rtol is not None
+            or self.allclose_atol is not None
+        )
+        if enable_allclose:
             config.allclose.enable()
-            config.allclose.atol = self.relative_atol
+
+            # Apply provided thresholds
+            if self.allclose_rtol is not None:
+                config.allclose.rtol = self.allclose_rtol
+            if self.allclose_atol is not None:
+                config.allclose.atol = self.allclose_atol
+
+            # Keep PCC fallback allclose thresholds in sync if user provided overrides
+            if self.allclose_rtol is not None:
+                config.pcc.allclose.rtol = self.allclose_rtol
+            if self.allclose_atol is not None:
+                config.pcc.allclose.atol = self.allclose_atol
         return config
 
     def _normalize_markers(self, markers_value):
@@ -190,8 +224,8 @@ def get_model_variants(loader_path, loader_paths, models_root):
 
 def generate_test_id(test_entry, models_root):
     """Generate test ID from test entry with optional variant."""
-    model_path = os.path.relpath(os.path.dirname(test_entry["path"]), models_root)
-    variant_info = test_entry["variant_info"]
+    model_path = os.path.relpath(os.path.dirname(test_entry.path), models_root)
+    variant_info = test_entry.variant_info
     variant_name = variant_info[0] if variant_info else None
     return f"{model_path}-{variant_name}" if variant_name else model_path
 
@@ -211,35 +245,19 @@ class DynamicTorchModelTester(TorchModelTester):
             run_mode=run_mode,
         )
 
-    def _load_model(self):
-        # Check if load_model method supports dtype_override parameter
-        sig = inspect.signature(self.loader.load_model)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_model(dtype_override=torch.bfloat16)
-        else:
-            return self.loader.load_model()
-
-    def _load_inputs(self):
-        # Check if load_inputs method supports dtype_override parameter
-        sig = inspect.signature(self.loader.load_inputs)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_inputs(dtype_override=torch.bfloat16)
-        else:
-            return self.loader.load_inputs()
-
     # --- TorchModelTester interface implementations ---
 
     def _get_model(self):
-        return self._load_model()
+        sig = inspect.signature(self.loader.load_model)
+        if "dtype_override" in sig.parameters:
+            return self.loader.load_model(dtype_override=torch.bfloat16)
+        return self.loader.load_model()
 
     def _get_input_activations(self):
-        return self._load_inputs()
-
-    def _get_forward_method_args(self):
-        return super()._get_forward_method_args()
-
-    def _get_forward_method_kwargs(self):
-        return super()._get_forward_method_kwargs()
+        sig = inspect.signature(self.loader.load_inputs)
+        if "dtype_override" in sig.parameters:
+            return self.loader.load_inputs(dtype_override=torch.bfloat16)
+        return self.loader.load_inputs()
 
 
 def setup_models_path(project_root):
@@ -289,7 +307,9 @@ def create_test_entries(loader_paths):
     # Store variant tuple along with the ModelLoader
     for loader_path, variant_tuples in loader_paths.items():
         for variant_info in variant_tuples:
-            test_entries.append({"path": loader_path, "variant_info": variant_info})
+            test_entries.append(
+                ModelTestEntry(path=loader_path, variant_info=variant_info)
+            )
 
     return test_entries
 
@@ -362,6 +382,7 @@ def record_model_test_properties(
         "specific_test_case": str(request.node.name),
         "category": str(Category.MODEL_TEST),
         "model_name": str(model_info.name),
+        "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
     }
@@ -377,11 +398,11 @@ def record_model_test_properties(
         record_property("group", str(model_info.group))
 
     # Control flow for skipped and xfailed tests is handled by pytest.
-    if test_metadata.status == ModelStatus.NOT_SUPPORTED_SKIP:
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         import pytest
 
         pytest.skip(reason)
-    elif test_metadata.status == ModelStatus.KNOWN_FAILURE_XFAIL:
+    elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         import pytest
 
         pytest.xfail(reason)

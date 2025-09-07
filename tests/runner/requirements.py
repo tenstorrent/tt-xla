@@ -8,8 +8,9 @@ import tempfile
 import fcntl
 from typing import Dict, Tuple, Set, Optional
 
-# Debug flag: set TT_TORCH_REQS_DEBUG=1 to see detailed output
-DEBUG_ENV = "TT_TORCH_REQS_DEBUG"
+# Debug flag: set TT_XLA_REQS_DEBUG=1 to see detailed output
+DEBUG_ENV = "TT_XLA_REQS_DEBUG"
+DISABLE_ENV = "TT_XLA_DISABLE_MODEL_REQS"
 
 
 def _dbg(msg: str) -> None:
@@ -49,12 +50,12 @@ class RequirementsManager:
         if not self.requirements_path:
             return self
 
-        if os.environ.get("TT_TORCH_DISABLE_MODEL_REQS", "0") == "1":
+        if os.environ.get(DISABLE_ENV, "0") == "1":
             return self
 
         # Acquire a global lock for pip operations
         lock_path = os.path.join(
-            tempfile.gettempdir(), "tt_torch_model_requirements.lock"
+            tempfile.gettempdir(), "tt_xla_model_requirements.lock"
         )
         self._lock_file = open(lock_path, "w")
         fcntl.flock(self._lock_file, fcntl.LOCK_EX)
@@ -85,7 +86,7 @@ class RequirementsManager:
             if not self.requirements_path:
                 return
 
-            if os.environ.get("TT_TORCH_DISABLE_MODEL_REQS", "0") == "1":
+            if os.environ.get(DISABLE_ENV, "0") == "1":
                 return
 
             # Uninstall newly installed packages
