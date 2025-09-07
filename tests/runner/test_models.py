@@ -4,7 +4,7 @@
 import pytest
 import os
 from tests.runner.test_utils import (
-    ModelStatus,
+    ModelTestStatus,
     DynamicTorchModelTester,
     setup_test_discovery,
     create_test_id_generator,
@@ -42,8 +42,8 @@ def test_all_models(
     test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
 ):
 
-    loader_path = test_entry["path"]
-    variant, ModelLoader = test_entry["variant_info"]
+    loader_path = test_entry.path
+    variant, ModelLoader = test_entry.variant_info
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
@@ -57,7 +57,7 @@ def test_all_models(
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
-            if test_metadata.status != ModelStatus.NOT_SUPPORTED_SKIP:
+            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
                 tester = DynamicTorchModelTester(
                     run_mode,
                     loader=loader,
