@@ -82,7 +82,9 @@ class ModelTestConfig:
             return []
 
 
-# Helper to capture runtime failures and map them to bringup status
+# This attempts to classify various exception types but is not robust at all.
+# Soon https://github.com/tenstorrent/tt-xla/issues/1052 will improve bringup_status reporting
+# and this would be updated to use actual bringup_status achieved by a model.
 def update_test_metadata_for_exception(
     test_metadata, exc: Exception, stderr: str
 ) -> None:
@@ -98,7 +100,6 @@ def update_test_metadata_for_exception(
     err = (stderr or "").lower()
     # print(f"Found exception: {repr(exc)} message: {msg} stderr: {err}")
 
-    # Attempt to classify various exception types. Not robust, could be improved.
     if isinstance(exc, AssertionError) and "comparison failed" in msg:
         status = BringupStatus.INCORRECT_RESULT
     elif isinstance(exc, RuntimeError):
@@ -138,6 +139,7 @@ def get_models_root(project_root):
 
 
 def import_model_loader(loader_path, models_root):
+    """Dynamically import and return ModelLoader class from a loader.py path, ensuring relative imports work."""
     # Import the base module first to ensure it's available
     models_parent = os.path.dirname(models_root)
     if models_parent not in sys.path:
@@ -169,6 +171,7 @@ def import_model_loader(loader_path, models_root):
 
 
 def get_model_variants(loader_path, loader_paths, models_root):
+    """Fill loader_paths[loader_path] with (variant_name, ModelLoader) tuples by querying the loader; on failure, log and continue."""
     try:
         # Import the ModelLoader class from the module
         ModelLoader = import_model_loader(loader_path, models_root)
@@ -251,7 +254,7 @@ def setup_models_path(project_root):
 
 
 def discover_loader_paths(models_root):
-    """Discover all loader.py files in the models directory."""
+    """Discover all pytorch (for now) loader.py files in the models directory, with exclusions."""
     loader_paths = {}
 
     # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
