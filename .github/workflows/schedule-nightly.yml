@@ -169,9 +169,10 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - nightly_tests
-      - test_full_model
+      # - nightly_tests
+      # - test_full_model
       - test_forge_models_passing
+      - test_forge_models_xfail
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
