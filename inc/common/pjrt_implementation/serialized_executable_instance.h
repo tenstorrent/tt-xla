@@ -66,7 +66,8 @@ struct SerializationHeader {
   size_t getHeaderSize() const { return sizeof(*this); }
 
   size_t getPayloadSize() const {
-    return getHeaderSize() + ttir_size + ttnn_size + fb_size;
+    return getHeaderSize() + ttir_size + ttnn_size +
+           fb_size; // only correct because we pack them contiguously
   }
 };
 
