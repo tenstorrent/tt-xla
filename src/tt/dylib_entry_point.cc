@@ -7,9 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-#include "common/dylib_platform.h"
 #include "common/pjrt_implementation/api_bindings.h"
 #include "common/pjrt_implementation/client_instance.h"
+#include "common/platform.h"
 
 // Provides the shared library exports.
 #include "common/dylib_entry_point.cc.inc"
@@ -19,7 +19,7 @@ namespace {
 
 // Declared but not implemented by the include file.
 void InitializeAPI(PJRT_Api *api) {
-  BindApi<DylibPlatform, tt::pjrt::ClientInstance>(api);
+  BindApi<Platform, tt::pjrt::ClientInstance>(api);
 }
 
 } // namespace

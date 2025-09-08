@@ -30,11 +30,10 @@ namespace tt::pjrt {
 
 class Platform {
 public:
-  virtual ~Platform();
   tt_pjrt_status Initialize();
 
 protected:
-  virtual tt_pjrt_status SubclassInitialize() = 0;
+  tt_pjrt_status SubclassInitialize();
   void InitializeLogging();
 };
 

@@ -7,27 +7,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # https://llvm.org/LICENSE.txt
 
-# ----- TTPJRTCommonDylibPlatform -----
-# Static lib containing platform specific logic.
-# Depends on: loguru
-
 find_package(Protobuf REQUIRED)
-
-add_library(TTPJRTCommonDylibPlatform
-    "dylib_platform.cc"
-)
-
-add_dependencies(TTPJRTCommonDylibPlatform
-    loguru
-)
-
-target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
-)
 
 # ----- TTPJRTCommon -----
 # Static lib containing core logic implementation, handling device/client/buffer/etc.
-# Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTCommonDylibPlatform, loguru, coverage_config
+# Depends on: TTMLIRCompiler, TTMLIRRuntime, loguru, coverage_config
 
 add_library(TTPJRTCommon
     "platform.cc"
@@ -70,7 +54,6 @@ target_link_libraries(TTPJRTCommon PUBLIC
     protobuf::libprotobuf
     loguru
     coverage_config
-    TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
 )

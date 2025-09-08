@@ -22,7 +22,10 @@ namespace tt::pjrt {
 // Platform
 //===----------------------------------------------------------------------===//
 
-Platform::~Platform() = default;
+tt_pjrt_status Platform::SubclassInitialize() {
+  DLOG_F(LOG_DEBUG, "Platform::SubclassInitialize");
+  return tt_pjrt_status::kSuccess;
+}
 
 void Platform::InitializeLogging() {
   // Everything with a verbosity equal or below g_stderr_verbosity will

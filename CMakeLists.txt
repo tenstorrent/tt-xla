@@ -15,7 +15,6 @@
 # │
 # ├── TTPJRTTT  # src/tt/CMakeLists.txt
 # │   └── TTPJRTCommon  # src/common/CMakeLists.txt
-# │       ├── TTPJRTCommonDylibPlatform   # src/common/CMakeLists.txt
 # │       ├── TTMLIRCompiler (tt-mlir dynamic lib, product of tt-mlir build)
 # │       ├── TTMLIRRuntime (tt-mlir dynamic lib, product of tt-mlir build)
 # │       └── loguru
