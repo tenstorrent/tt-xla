@@ -30,6 +30,15 @@ jobs:
       - uses: ./.github/actions/inspect-changes
         id: inspect
 
+  build-ttxla-wheel:
+    needs: [ pre-commit, inspect-changes ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/wheel-build.yml
+    secrets: inherit
+    name: "Build tt-xla manylinux wheel"
+
   build-image:
     needs: [ pre-commit, inspect-changes ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
