@@ -357,15 +357,17 @@ def record_model_test_properties(
 
     # Determine bringup status and reason based on runtime/test outcome
     reason = None
+    static_bringup_status = getattr(test_metadata, "bringup_status", None)
+    static_reason = getattr(test_metadata, "reason", None)
 
-    # Highest priority: explicit pass outcome overrides config
     if test_passed:
-        bringup_status = BringupStatus.PASSED
+        # If custom bringup_status and reason are provided, use them.
+        reason = static_reason or None
+        bringup_status = static_bringup_status or BringupStatus.PASSED
+
     else:
         runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
-        static_bringup_status = getattr(test_metadata, "bringup_status", None)
-        static_reason = getattr(test_metadata, "reason", None)
 
         if static_bringup_status and static_reason:
             bringup_status = static_bringup_status
@@ -387,9 +389,10 @@ def record_model_test_properties(
         "bringup_status": str(bringup_status),
     }
 
-    # If we have an explanatory reason, include it as a top-level property too for convenience
+    # If we have an explanatory reason, include it as a top-level property too for DB visibility
+    # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("reason", reason)
+        record_property("error_message", reason)
 
     # Write properties
     record_property("tags", tags)

@@ -12,6 +12,8 @@ test_config = {
         # PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "reason": "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-full-inference": {
         "required_pcc": 0.98,
@@ -20,18 +22,22 @@ test_config = {
     "gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-full-inference": {
         "assert_pcc": False,  # 0.749 on BH / 0.76 on WH
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "vovnet/pytorch-vovnet27s-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "vovnet/pytorch-vovnet39_th-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "vovnet/pytorch-vovnet57_th-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "hardnet/pytorch-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98.
@@ -42,6 +48,7 @@ test_config = {
     "qwen_2_5/casual_lm/pytorch-1_5b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "clip/pytorch-openai/clip-vit-base-patch32-full-inference": {
         "assert_pcc": False,
@@ -70,6 +77,7 @@ test_config = {
     "xglm/pytorch-xglm-1.7B-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "resnet/pytorch-resnet_50_hf-full-inference": {
         "required_pcc": 0.96,  # Aug 7 - Drop from 0.97 https://github.com/tenstorrent/tt-torch/issues/1151
@@ -82,6 +90,7 @@ test_config = {
     "openpose/v2/pytorch-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "albert/masked_lm/pytorch-xxlarge_v2-full-inference": {
         "required_pcc": 0.98,
@@ -106,41 +115,44 @@ test_config = {
     "t5/pytorch-google/flan-t5-small-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "t5/pytorch-google/flan-t5-base-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "t5/pytorch-google/flan-t5-large-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "musicgen_small/pytorch-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-3B-Base-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
@@ -201,8 +213,9 @@ test_config = {
     },
     "densenet/pytorch-densenet161-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # PCC Drop to 0.41146078113061335 Aug5: Issue https://github.com/tenstorrent/tt-torch/issues/1142
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "PCC Drop to 0.41146078113061335 Aug5 - https://github.com/tenstorrent/tt-torch/issues/1142",
     },
     "densenet/pytorch-densenet169-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9880856871604919. Required: pcc=0.99.
@@ -236,7 +249,8 @@ test_config = {
     },
     "dla/pytorch-dla102-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.7549546957015991. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
@@ -248,7 +262,8 @@ test_config = {
     },
     "dla/pytorch-dla169-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.626757800579071. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
@@ -453,61 +468,61 @@ test_config = {
     },
     "swin/image_classification/pytorch-swin_t-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.7627570629119873. Required: pcc=0.99
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7627570629119873. Required: pcc=0.99  - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-swin_s-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.7249900698661804. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7249900698661804. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-swin_b-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.5627762079238892. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.5627762079238892. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-swin_v2_t-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.2837284207344055. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.2837284207344055. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-swin_v2_s-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.31774118542671204. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.31774118542671204. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-swin_v2_b-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.35581427812576294. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.35581427812576294. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
@@ -583,34 +598,42 @@ test_config = {
     "mistral/pytorch-ministral_3b_instruct-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mlp_mixer/pytorch-mixer_b16_224-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mlp_mixer/pytorch-mixer_l16_224-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mlp_mixer/pytorch-mixer_l16_224_in21k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mlp_mixer/pytorch-mixer_b16_224.goog_in21k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi2/causal_lm/pytorch-microsoft/phi-2-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi2/token_classification/pytorch-microsoft/phi-2-full-inference": {
         "required_pcc": 0.98,
@@ -683,21 +706,21 @@ test_config = {
     },
     "beit/pytorch-base-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.14377377927303314. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.14377377927303314. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "beit/pytorch-large-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.13767358660697937. Required: pcc=0.99
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.13767358660697937. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
@@ -757,6 +780,8 @@ test_config = {
         # Later on Sept 2 started failing in WH too:
         # AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
         "assert_pcc": False,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2",
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference": {
         "required_pcc": 0.98,
@@ -767,11 +792,11 @@ test_config = {
     },
     "t5/pytorch-t5-small-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.849456787109375. Required: pcc=0.99
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.849456787109375. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
@@ -797,16 +822,22 @@ test_config = {
         "required_pcc": 0.98,
     },
     "albert/token_classification/pytorch-base_v2-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.9709743889025922 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9709743889025922. Required: pcc=0.99",
     },
     "albert/token_classification/pytorch-xxlarge_v2-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.958276593048647 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99",
     },
     "opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.9574284831613491 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99",
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-full-inference": {
         "assert_pcc": False,  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
@@ -816,72 +847,106 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "opt/qa/pytorch-facebook/opt-1.3b-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.9410670165223607 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99",
     },
     "yolov8/pytorch-yolov8n-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.9296823098857484 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9296823098857484. Required: pcc=0.99",
     },
     "stereo/pytorch-small-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.9212397387139992 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9212397387139992. Required: pcc=0.99",
     },
     "albert/token_classification/pytorch-xlarge_v2-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.872334097539835 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99",
     },
     "t5/pytorch-t5-base-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.8489356254421029 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.8489356254421029. Required: pcc=0.99",
     },
     "t5/pytorch-t5-large-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.5978668686425952 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.5978668686425952. Required: pcc=0.99",
     },
     "stereo/pytorch-medium-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.3149577673900601 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.0017802508273225888 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.0017802508273225888. Required: pcc=0.99",
     },
     "monodepth2/pytorch-stereo_no_pt_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-stereo_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-stereo_1024x320-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono_no_pt_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono_1024x320-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono+stereo_no_pt_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono+stereo_640x192-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono+stereo_1024x320-full-inference": {
-        "assert_pcc": False,  # PCC observed: 0.001758846541901752 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
     },
     "stereo/pytorch-large-full-inference": {
-        "assert_pcc": False,  # PCC observed: -0.43084077321771863 (below 0.99 threshold)
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99",
     },
     "qwen_3/embedding/pytorch-embedding_0_6b-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -936,58 +1001,72 @@ test_config = {
     "qwen_3/causal_lm/pytorch-4b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_3/causal_lm/pytorch-1_7b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5_coder/pytorch-3b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_3/causal_lm/pytorch-0_6b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5/casual_lm/pytorch-3b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5/casual_lm/pytorch-3b_instruct-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5_coder/pytorch-3b_instruct-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5_coder/pytorch-1_5b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "retinanet/pytorch-retinanet_rn34fpn-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "qwen_2_5/casual_lm/pytorch-1_5b_instruct-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "retinanet/pytorch-retinanet_rn18fpn-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "retinanet/pytorch-retinanet_rn152fpn-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "retinanet/pytorch-retinanet_rn50fpn-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "retinanet/pytorch-retinanet_rn101fpn-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "inception/pytorch-inception_v4-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97.
@@ -1020,21 +1099,24 @@ test_config = {
     },
     "llama/causal_lm/pytorch-llama_3_2_1b-full-inference": {
         "required_pcc": 0.98,
-        # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_3b-full-inference": {
         "required_pcc": 0.98,
-        # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-inference": {
         "required_pcc": 0.98,
-        # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference": {
         "required_pcc": 0.97,
@@ -1042,9 +1124,10 @@ test_config = {
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-full-inference": {
         "required_pcc": 0.98,
-        # FIXME - PCC check should consider attention_mask: https://github.com/tenstorrent/tt-torch/issues/1176
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "yolov6/pytorch-yolov6n-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1133,31 +1216,31 @@ test_config = {
     },
     "swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.7274536490440369. Required: pcc=0.99
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7274536490440369. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.6931940317153931. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.6931940317153931. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
     "swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        # Was passing before, started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.3293600380420685. Required: pcc=0.99.
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3293600380420685. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
             },
         },
     },
@@ -1517,7 +1600,8 @@ test_config = {
     },
     "vovnet/pytorch-ese_vovnet99b-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
@@ -1551,22 +1635,27 @@ test_config = {
     "yolov10/pytorch-yolov10x-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "yolov10/pytorch-yolov10n-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "gemma/pytorch-google/gemma-2b-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "autoencoder/pytorch-conv-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "phi3/phi_3_5/pytorch-mini_instruct-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "stable_diffusion_1_4/pytorch-base-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
