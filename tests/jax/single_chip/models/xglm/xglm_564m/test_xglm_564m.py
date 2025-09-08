@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_runtime,
 )
 from third_party.tt_forge_models.xglm.causal_lm.jax.loader import ModelVariant
 from ..tester import XGLMTester
@@ -46,7 +47,13 @@ def training_tester() -> XGLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Invalid data size. numElements * elementSize == data->size(). "
+        "Issue: https://github.com/tenstorrent/tt-xla/issues/1313"
+    )
 )
 def test_xglm_564m_inference(inference_tester: XGLMTester):
     inference_tester.test()
