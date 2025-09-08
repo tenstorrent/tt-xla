@@ -178,6 +178,23 @@ class ModelLoader(ForgeModel):
             mean = torch.tensor(params["mean"]).view(1, 3, 1, 1)
 
             img_tensor = transforms.ToTensor()(img).unsqueeze(0)
+
+            # Ensure dimensions are divisible by 32 (UNet output stride requirement)
+            # Pad the image to the next multiple of 32
+            _, _, h, w = img_tensor.shape
+            output_stride = 32
+            new_h = ((h - 1) // output_stride + 1) * output_stride
+            new_w = ((w - 1) // output_stride + 1) * output_stride
+
+            # Pad if needed
+            if h != new_h or w != new_w:
+                pad_h = new_h - h
+                pad_w = new_w - w
+                # Pad: (left, right, top, bottom)
+                img_tensor = torch.nn.functional.pad(
+                    img_tensor, (0, pad_w, 0, pad_h), mode="constant", value=0
+                )
+
             inputs = (img_tensor - mean) / std
 
         else:
