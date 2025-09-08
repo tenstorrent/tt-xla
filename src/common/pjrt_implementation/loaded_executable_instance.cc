@@ -205,7 +205,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
 
   // Check if submesh is compatible with the parent mesh.
   std::vector<uint32_t> parent_shape = {
-      1, static_cast<uint32_t>(this->m_addressable_devices.size())};
+      2, static_cast<uint32_t>(this->m_addressable_devices.size()) / 8};
   bool correct = false;
   for (int i = 0; i < devices_mesh_shape.size(); ++i) {
 
