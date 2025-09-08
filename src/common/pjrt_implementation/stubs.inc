@@ -59,8 +59,6 @@
   // ---------------------------------------------------------------------------
   // PJRT_LoadedExecutable stubs:
 
-  // Implemented in executable_instance.cc
-
   // Not required to be implemented and unclear how this is used by the clients
   // (if at all).
   _STUB(PJRT_Executable_GetCostAnalysis);
