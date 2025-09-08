@@ -1,4 +1,4 @@
-name: On nightly DB Test
+name: On nightly
 
 on:
   push:
