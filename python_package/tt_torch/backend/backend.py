@@ -88,7 +88,7 @@ class XLAExecutor:
     def __call__(self, *args):
 
         # self.module.graph.print_tabular()
-        print("args", args)
+        # print("args", args)
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
