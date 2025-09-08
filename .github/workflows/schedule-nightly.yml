@@ -1,9 +1,9 @@
-name: On nightly
+name: On nightly DB Test
 
 on:
-  # push:
-  #   branches:
-  #     - '**'
+  push:
+    branches:
+      - '**'
 
   workflow_dispatch:
     inputs:
