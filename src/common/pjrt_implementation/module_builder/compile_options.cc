@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <algorithm>
+#include <optional>
 #include <string>
 
 namespace tt::pjrt {
@@ -23,7 +24,14 @@ CompileOptions CompileOptions::parse(
           .value_or(false);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(Backend::Default);
-
+  options.dump_inputs = internal::parseBoolOption(
+      compile_options,
+      "dump_inputs"); // nonexistent value is handled differently based on other
+                      // options, therefore no explicit defaulting with
+                      // value_or.
+  options.export_path =
+      internal::parseStringOption(compile_options, "export_path")
+          .value_or("codegen_solution");
   return options;
 }
 
@@ -69,7 +77,17 @@ std::optional<Backend> parseBackendOption(
     ABORT_F("Unknown backend option value: %s for %s", option_value.c_str(),
             option_name.c_str());
   }
-  return Backend::Default;
+  return std::nullopt;
+}
+
+std::optional<std::string> parseStringOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    std::string option_name) {
+  if (auto it = compile_options.find(option_name);
+      it != compile_options.end()) {
+    return it->second;
+  }
+  return std::nullopt;
 }
 
 } // namespace internal
