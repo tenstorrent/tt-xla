@@ -87,7 +87,7 @@ public:
                     size_t compile_options_size);
 
 protected:
-  std::string cached_platform_name_;
+  std::string cached_platform_name_ = "tt";
   std::string cached_platform_version_;
 
 private:

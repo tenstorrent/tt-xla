@@ -9,38 +9,21 @@
 
 include(ExternalProject)
 
-# ----- TTPJRTTT -----
-# Static lib that implements client logic.
-# Depends on: loguru, TTPJRTCommon.
-
-add_library(TTPJRTTT
-    "client.cc"
-)
-
-target_include_directories(TTPJRTTT PUBLIC
-    ${PROJECT_SOURCE_DIR}/src/common
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
-)
-
-target_link_libraries(TTPJRTTT PUBLIC
-    loguru
-    TTPJRTCommon
-)
-
 # ----- TTPJRTTTDylib -----
 # Final dynamic library plugin `pjrt_plugin_tt.so`.
-# Depends on: TTPJRTTT, coverage_config
+# Depends on: TTPJRTCommon, coverage_config
 
 add_library(TTPJRTTTDylib SHARED
     "dylib_entry_point.cc"
 )
 
 target_include_directories(TTPJRTTTDylib PUBLIC
+    ${PROJECT_SOURCE_DIR}/src/common
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
 )
 
 target_link_libraries(TTPJRTTTDylib PUBLIC
-    TTPJRTTT
+    TTPJRTCommon
     coverage_config
 )
 

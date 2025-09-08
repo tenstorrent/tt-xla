@@ -9,7 +9,7 @@
 
 #include "common/dylib_platform.h"
 #include "common/pjrt_implementation/api_bindings.h"
-#include "tt/client.h"
+#include "common/pjrt_implementation/client_instance.h"
 
 // Provides the shared library exports.
 #include "common/dylib_entry_point.cc.inc"
@@ -19,7 +19,7 @@ namespace {
 
 // Declared but not implemented by the include file.
 void InitializeAPI(PJRT_Api *api) {
-  BindApi<DylibPlatform, device::TTClientInstance>(api);
+  BindApi<DylibPlatform, tt::pjrt::ClientInstance>(api);
 }
 
 } // namespace
