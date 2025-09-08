@@ -2,9 +2,9 @@ name: "[internal] Collect workflow data"
 run-name: "Collect data Kyle Testing (event: ${{ github.event_name }})"
 
 on:
-  push:
-    branches:
-      - '**'
+  # push:
+  #   branches:
+  #     - '**'
   workflow_run:
     workflows: # List workflow that we want to collect data for
       - "On PR"
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
         GH_TOKEN: ${{ github.token }}
-        HARDCODED_RUN_ID: "17565110363"
+        HARDCODED_RUN_ID: "REPLACE_WITH_RUN_ID"
         HARDCODED_RUN_ATTEMPT: "1"
     steps:
       - name: Collect CI/CD data
