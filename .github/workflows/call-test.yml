@@ -238,6 +238,7 @@ jobs:
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     - name: Sanitize test_mark
       id: sanitize
+      shell: bash
       run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
       env:
         TEST_MARK: ${{ inputs.test_mark }}
