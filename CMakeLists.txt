@@ -15,7 +15,6 @@
 # │
 # ├── TTPJRTTT  # src/tt/CMakeLists.txt
 # │   └── TTPJRTCommon  # src/common/CMakeLists.txt
-# │       ├── TTPJRTCommonDylibPlatform   # src/common/CMakeLists.txt
 # │       ├── TTMLIRCompiler (tt-mlir dynamic lib, product of tt-mlir build)
 # │       ├── TTMLIRRuntime (tt-mlir dynamic lib, product of tt-mlir build)
 # │       └── loguru
@@ -75,6 +74,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
 
-add_subdirectory(src)
+add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
