@@ -81,17 +81,16 @@ jobs:
       run_id_source: tt-xla
       ref: main
 
+  # return to the old setup
   check-all-green:
     if: always()
     needs:
       - pre-commit
-      - build-image
-      - build-ttxla-codecov
       - test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, test
+        allowed-skips: test
         jobs: ${{ toJSON(needs) }}
