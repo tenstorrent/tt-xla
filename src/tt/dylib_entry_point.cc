@@ -18,9 +18,7 @@ namespace tt::pjrt {
 namespace {
 
 // Declared but not implemented by the include file.
-void InitializeAPI(PJRT_Api *api) {
-  BindApi<Platform, tt::pjrt::ClientInstance>(api);
-}
+void InitializeAPI(PJRT_Api *api) { BindApi(api); }
 
 } // namespace
 } // namespace tt::pjrt
