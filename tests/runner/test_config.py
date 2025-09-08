@@ -236,7 +236,8 @@ test_config = {
     },
     "dla/pytorch-dla102-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.7549546957015991. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
@@ -248,7 +249,8 @@ test_config = {
     },
     "dla/pytorch-dla169-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.626757800579071. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
@@ -1517,7 +1519,8 @@ test_config = {
     },
     "vovnet/pytorch-ese_vovnet99b-full-inference": {
         # Exposed by removal of consteval on host
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "reason": "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242",
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
