@@ -15,6 +15,7 @@ import pytest
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 from pathlib import Path
+from third_party.tt_forge_models.config import ModelInfo
 from typing import Any
 
 
@@ -33,7 +34,9 @@ def pytest_configure(config: pytest.Config):
         - Model tests:
             - `model_name`: name of the model under test
             - 'model_group': utils.ModelGroup
+            - `model_info`: third_party.tt_forge_models.config.ModelInfo
             - `run_mode`: infra.RunMode
+            - `parallelism`: third_party.tt_forge_models.config.Parallelism
             - `bringup_status`: utils.BringupStatus
             - `pcc`: float
             - `atol`: float
@@ -53,14 +56,16 @@ def pytest_collection_modifyitems(items):
     Pytest hook to process the custom marker and attach recorder properties to the test.
     """
 
-    def validate_keys(keys: dict, is_model_test: bool):
+    def validate_keys(keys: dict, tagged_as_model_test: bool):
         valid_keys = [
             "category",
             "jax_op_name",
             "shlo_op_name",
             "model_name",
             "model_group",
+            "model_info",
             "run_mode",
+            "parallelism",
             "bringup_status",
             "pcc",
             "atol",
@@ -74,20 +79,30 @@ def pytest_collection_modifyitems(items):
             )
 
         # If model test, check all necessary properties are provided.
-        if is_model_test:
-            mandatory_model_properties = [
+        if tagged_as_model_test:
+            # Check if using new property set
+            new_mandatory_properties = [
+                "model_info",
+                "run_mode",
+                "bringup_status",
+            ]
+
+            # Check if using old property set
+            old_mandatory_properties = [
                 "model_name",
                 "model_group",
                 "run_mode",
                 "bringup_status",
             ]
 
-            if not all(
-                model_property in keys for model_property in mandatory_model_properties
-            ):
+            has_new_properties = all(prop in keys for prop in new_mandatory_properties)
+            has_old_properties = all(prop in keys for prop in old_mandatory_properties)
+
+            # Ensure exactly one property set is used (XOR condition)
+            if has_new_properties == has_old_properties:
                 raise KeyError(
-                    f"Model tests must have following properties: "
-                    f"{mandatory_model_properties}."
+                    f"Model tests must have either new properties: {new_mandatory_properties} "
+                    f"or old properties: {old_mandatory_properties}."
                 )
 
     for item in items:
@@ -98,7 +113,7 @@ def pytest_collection_modifyitems(items):
         properties_marker = item.get_closest_marker(name="record_test_properties")
 
         # Utils flags helping handling model tests properly.
-        is_model_test = False
+        tagged_as_model_test = False
         model_group = None
 
         if properties_marker:
@@ -106,27 +121,28 @@ def pytest_collection_modifyitems(items):
             properties: dict = properties_marker.kwargs
 
             # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
+            tagged_as_model_test = (
+                item.get_closest_marker(name="model_test") is not None
+            )
 
             # Validate that only allowed keys are used.
-            validate_keys(properties.keys(), is_model_test)
+            validate_keys(properties.keys(), tagged_as_model_test)
 
-            # Turn all properties to strings.
-            for k, v in properties.items():
-                properties[k] = str(v)
-
-            if is_model_test:
-                model_group = properties.get("model_group")
-
-            # Tag them.
+            # Put all properties in tags.
             for key, value in properties.items():
-                # Skip model_group, we don't need it in tags, we will insert it separately.
-                if key != "model_group":
-                    tags[key] = value
+                if key == "model_info":
+                    model_info: ModelInfo = value
+                    tags["model_name"] = model_info.name
+                    tags["model_info"] = model_info.to_report_dict()
+                    model_group = str(model_info.group)
+                elif key == "model_group":
+                    model_group = str(value)
+                else:
+                    tags[key] = str(value)
 
-        # Attach metadata and tags dictionary as a single property.
+        # Attach tags dictionary as a single property. Also set owner.
         item.user_properties.extend([("tags", tags), ("owner", "tt-xla")])
-        if is_model_test:
+        if tagged_as_model_test:
             # Add model group independently of tags dict.
             item.user_properties.append(("group", model_group))
 
