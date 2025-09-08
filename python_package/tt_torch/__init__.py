@@ -9,4 +9,7 @@ import tt_torch.backend.backend
 import tt_torch.custom_ops
 
 from .tools import mark_module_user_inputs
-from .serialization import parse_from_cache, parse_from_cache_to_disk
+from .serialization import (
+    parse_compiled_artifacts_from_cache,
+    parse_compiled_artifacts_from_cache_to_disk,
+)
