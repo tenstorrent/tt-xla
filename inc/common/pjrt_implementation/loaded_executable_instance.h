@@ -40,15 +40,12 @@ class ClientInstance;
 // execute.
 class LoadedExecutableInstance {
 public:
-  // Creates new loaded executable instance from the executable image.
-  static std::unique_ptr<LoadedExecutableInstance>
-  createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 std::vector<DeviceInstance *> &&addressable_devices,
-                 ClientInstance *client_instance);
-
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
   static void bindApi(PJRT_Api *api);
+
+  // Virtual destructor for proper cleanup of derived classes
+  virtual ~LoadedExecutableInstance() = default;
 
   // Casts this loaded executable instance to PJRT_LoadedExecutable pointer.
   operator PJRT_LoadedExecutable *() {
@@ -79,9 +76,9 @@ public:
   void releaseResources();
 
   // Runs execution of this loaded executable.
-  tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args);
+  virtual tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) = 0;
 
-private:
+protected:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
@@ -92,6 +89,47 @@ private:
         m_client_instance(client_instance) {}
 
   // Gets the appropriate runtime device from the `ClientInstance`.
+  // Executable image instance which is shared between executable and loaded
+  // executable instances.
+  std::shared_ptr<ExecutableImage> m_executable_image;
+
+  // Subset of client's addressable devices that this executable will run on.
+  const std::vector<DeviceInstance *> m_addressable_devices;
+
+  // True if loaded executable was deleted, i.e. its resources are released.
+  bool m_deleted;
+
+  // Mutex guarding loaded executable deletion.
+  std::mutex m_deleted_mutex;
+
+  // Client instance that created this loaded executable.
+  ClientInstance *m_client_instance;
+};
+
+// Derived class for Flatbuffer-based loaded executables
+class FlatbufferLoadedExecutableInstance : public LoadedExecutableInstance {
+public:
+  // Creates new flatbuffer loaded executable instance.
+  static std::unique_ptr<FlatbufferLoadedExecutableInstance>
+  createInstance(std::shared_ptr<FlatbufferExecutableImage> executable_image,
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 ClientInstance *client_instance);
+
+  // Shares the underlying executable image.
+  std::shared_ptr<SOExecutableImage> getSharedExecutableImage() const {
+    return std::static_pointer_cast<SOExecutableImage>(m_executable_image);
+  }
+
+  // Releases the resources this loaded executable uses.
+  void releaseResources();
+
+  // Runs execution of this loaded executable.
+  tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
+
+private:
+  // Opens devices on which input arguments are placed, which we assume are the
+  // the devices where computation will run, if their count is equal to the
+  // corresponding devices count in the mesh shape estimated by the compiler.
   std::optional<tt::runtime::Device>
   getOrCreateMeshDevice(PJRT_Buffer *const *const *argument_lists,
                         size_t num_args, size_t num_devices,
@@ -147,21 +185,49 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
-  // Executable image instance which is shared between executable and loaded
-  // executable instances.
-  std::shared_ptr<ExecutableImage> m_executable_image;
+  // Creates flatbuffer loaded executable instance from the executable image.
+  FlatbufferLoadedExecutableInstance(
+      std::shared_ptr<FlatbufferExecutableImage> executable_image,
+      const std::vector<DeviceInstance *> &addressable_devices,
+    ClientInstance *client_instance);
+};
 
-  // Subset of client's addressable devices that this executable will run on.
-  const std::vector<DeviceInstance *> m_addressable_devices;
+// Derived class for SO-based loaded executables
+class SOLoadedExecutableInstance : public LoadedExecutableInstance {
+public:
+  // Creates new SO loaded executable instance.
+  static std::unique_ptr<SOLoadedExecutableInstance>
+  createInstance(std::shared_ptr<SOExecutableImage> executable_image,
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 ClientInstance *client_instance);
 
-  // True if loaded executable was deleted, i.e. its resources are released.
-  bool m_deleted;
+  // Shares the underlying executable image.
+  std::shared_ptr<SOExecutableImage> getSharedExecutableImage() const {
+    return std::static_pointer_cast<SOExecutableImage>(m_executable_image);
+  }
 
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
 
-  // Client instance that created this loaded executable.
-  ClientInstance *m_client_instance;
+  // Releases the resources this loaded executable uses.
+  void releaseResources();
+
+  // Runs execution of this loaded executable.
+  tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
+
+protected:
+  // Converts input tensor to desired layout. This might move it on device.
+  tt::runtime::Tensor
+  convertTensorLayout(tt::runtime::Tensor input_tensor,
+                      std::uint32_t program_index, size_t arg_index,
+                      const tt::runtime::Device &runtime_device);
+
+private:
+  // Creates SO loaded executable instance from the executable image.
+  SOLoadedExecutableInstance(
+      std::shared_ptr<SOExecutableImage> executable_image,
+      const std::vector<DeviceInstance *> &addressable_devices,
+      ClientInstance *client_instance);
 };
 
 namespace internal {
