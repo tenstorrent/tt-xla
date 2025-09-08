@@ -8,6 +8,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 
@@ -44,6 +45,18 @@ namespace tt::pjrt::module_builder {
 // MLIR program format name. This would ideally be defined in PJRT API header.
 extern const std::string c_mlir_format_name;
 
+// Struct to hold tt-alchemist library handles and function pointers.
+struct TTAlchemistHandles {
+  void *handle;
+  void *(*get_instance)();
+  bool (*generate_python)(void *instance, const char *input_file,
+                          const char *output_dir, bool is_local,
+                          const char *pipeline_options);
+  bool (*generate_cpp)(void *instance, const char *input_file,
+                       const char *output_dir, bool is_local,
+                       const char *pipeline_options);
+};
+
 struct NumArgumentsResult {
   size_t num_inputs;
   size_t num_outputs;
@@ -61,6 +74,7 @@ struct NumDevicesResult {
 class ModuleBuilder {
 public:
   ModuleBuilder();
+  ~ModuleBuilder();
 
   // Compiles given mlir module code and returns produced executable image
   // for execution on a given system, together with the compilation status
@@ -285,8 +299,29 @@ private:
       std::vector<size_t> &&output_memory_kinds_sizes,
       CompileOptions &&compile_options);
 
+  // Invokes tt-alchemist to generate a ready-to-run C++ solution independently
+  // of the frontend. In the future, this will also prepare everything to
+  // generate an .so file.
+  tt_pjrt_status performCodegenCpp(std::string_view ttir_mlir,
+                                   const CompileOptions &compile_options);
+
+  // Invokes tt-alchemist to generate a ready-to-run Python solution
+  // independently of the frontend.
+  tt_pjrt_status performCodegenPy(std::string_view ttir_mlir,
+                                  const CompileOptions &compile_options);
+
+  // Finds tt-alchemist library path using environment variables
+  std::string findTTAlchemistLibraryPath();
+
+  // Loads tt-alchemist library and function pointers
+  void loadTTAlchemistFunctions();
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
+
+  // function pointers to fns from tt-alchemist - nullopt signals that loading
+  // failed
+  std::optional<TTAlchemistHandles> m_tt_alchemist_handles;
 };
 
 } // namespace tt::pjrt::module_builder

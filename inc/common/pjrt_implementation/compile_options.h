@@ -63,6 +63,14 @@ struct CompileOptions {
   // host overhead for creating and dispatching operations
   // that are repeated multiple times.
   bool enable_trace = false;
+  
+  // Enables saving graph inputs to disk whenever Execute() is called.
+  // This is useful for chisel and codegen. Defaults to false on the default
+  // backend and true on the codegen backend.
+  std::optional<bool> dump_inputs = std::nullopt;
+
+  // Path that will contain the codegen solution and saved inputs.
+  std::string export_path = "";
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
@@ -77,6 +85,10 @@ std::optional<bool> parseBoolOption(
 
 // Parse backend option from string to enum
 std::optional<BackendRuntime> parseBackendOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    std::string option_name);
+
+std::optional<std::string> parseStringOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     std::string option_name);
 

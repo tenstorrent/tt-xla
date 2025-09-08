@@ -88,6 +88,62 @@ FlatbufferExecutableImage::createInstance(
       std::move(compile_options));
 }
 
+std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
+    std::string original_mlir_code, std::string ttir_mlir_code,
+    std::string ttnn_mlir_code, std::string executable_name, size_t num_inputs,
+    size_t num_outputs,
+    std::vector<std::vector<std::uint32_t>> output_dimensions,
+    std::vector<size_t> output_ranks,
+    std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+    size_t num_replicas, size_t num_devices_to_utilize,
+    const std::vector<std::uint32_t> &devices_mesh_shape,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+    std::vector<const char *> output_memory_kinds,
+    std::vector<size_t> output_memory_kinds_sizes,
+    CompileOptions &&compile_options) {
+  struct make_shared_enabler : public SOExecutableImage {
+    make_shared_enabler(
+        std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+        std::string &&ttnn_mlir_code, std::string &&executable_name,
+        size_t num_inputs, size_t num_outputs,
+        std::vector<std::vector<std::uint32_t>> output_dimensions,
+        std::vector<size_t> output_ranks,
+        std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+        size_t num_replicas, size_t num_devices_to_utilize,
+        const std::vector<std::uint32_t> &devices_mesh_shape,
+        const std::vector<mlir::tt::sharding_utils::MeshSharding>
+            &input_sharding,
+        const std::vector<mlir::tt::sharding_utils::MeshSharding>
+            &output_sharding,
+        const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+        std::vector<const char *> &&output_memory_kinds,
+        std::vector<size_t> &&output_memory_kinds_sizes,
+        CompileOptions &&compile_options)
+        : SOExecutableImage(
+              std::move(original_mlir_code), std::move(ttir_mlir_code),
+              std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
+              num_outputs, std::move(output_dimensions),
+              std::move(output_ranks), std::move(output_dimensions_flat),
+              num_partitions, num_replicas, num_devices_to_utilize,
+              devices_mesh_shape, input_sharding, output_sharding,
+              expected_output_data_types, std::move(output_memory_kinds),
+              std::move(output_memory_kinds_sizes),
+              std::move(compile_options)) {}
+  };
+
+  return std::make_shared<make_shared_enabler>(
+      std::move(original_mlir_code), std::move(ttir_mlir_code),
+      std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
+      num_outputs, std::move(output_dimensions), std::move(output_ranks),
+      std::move(output_dimensions_flat), num_partitions, num_replicas,
+      num_devices_to_utilize, devices_mesh_shape, input_sharding,
+      output_sharding, expected_output_data_types,
+      std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
+      std::move(compile_options));
+}
+
 ExecutableImage::ExecutableImage(
     std::string &&original_mlir_code, std::string &&ttir_mlir_code,
     std::string &&ttnn_mlir_code, std::string &&executable_name,
