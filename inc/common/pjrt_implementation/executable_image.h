@@ -203,7 +203,7 @@ private:
   const module_builder::CompileOptions m_compile_options;
 
   // Cached fingerprint for this executable.
-  const std::string m_fingerprint;
+  std::string m_fingerprint;
 };
 
 } // namespace tt::pjrt

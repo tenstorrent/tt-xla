@@ -78,8 +78,10 @@ ExecutableImage::ExecutableImage(
       m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
       m_output_types(expected_output_data_types),
-      m_compile_options(std::move(compile_options)),
-      m_fingerprint(generateFingerprint()) {
+      m_compile_options(std::move(compile_options)) {
+
+  // Generate fingerprint after all dependencies are initialized
+  m_fingerprint = generateFingerprint();
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
