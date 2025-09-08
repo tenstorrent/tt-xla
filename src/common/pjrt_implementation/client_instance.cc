@@ -136,6 +136,11 @@ tt_pjrt_status ClientInstance::populateDevices() {
   tt::runtime::MeshDeviceOptions mesh_options{
       .enableProgramCache = true,
   };
+  if (devices_count > 1) {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+  } else {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  }
   m_parent_mesh = ::tt::runtime::openMeshDevice(mesh_options);
 
   return tt_pjrt_status::kSuccess;
