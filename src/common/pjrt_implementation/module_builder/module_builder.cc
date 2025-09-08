@@ -8,7 +8,12 @@
 // c++ standard library includes
 #include <cassert>
 #include <cstdlib>
+#include <dlfcn.h>
+#include <filesystem>
+#include <fstream>
+#include <memory>
 #include <numeric>
+#include <string>
 
 // loguru includes
 #include "loguru/loguru.hpp"
@@ -16,6 +21,7 @@
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -30,6 +36,7 @@
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/Cpp/CppEmitter.h"
 #include "mlir/Transforms/Passes.h"
 
 // stablehlo includes
@@ -54,6 +61,7 @@
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/RegisterAll.h"
+#include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
 // tt-xla includes
@@ -71,7 +79,11 @@ namespace tt::pjrt::module_builder {
 const std::string c_mlir_format_name = "mlir";
 
 ModuleBuilder::ModuleBuilder()
-    : m_context(std::make_unique<mlir::MLIRContext>()) {
+    : m_context(std::make_unique<mlir::MLIRContext>()),
+      m_tt_alchemist_handle(nullptr), m_alchemist_available(false),
+      m_tt_alchemist_get_instance(nullptr),
+      m_tt_alchemist_generate_python(nullptr),
+      m_tt_alchemist_generate_cpp(nullptr) {
   // Register all the required dialects and passes.
   mlir::DialectRegistry registry;
 
@@ -96,6 +108,16 @@ ModuleBuilder::ModuleBuilder()
   // https://github.com/tenstorrent/tt-xla/issues/355
   m_context->allowUnregisteredDialects();
   m_context->appendDialectRegistry(registry);
+
+  // Try to load tt-alchemist library and function pointers
+  loadTTAlchemistFunctions();
+}
+
+ModuleBuilder::~ModuleBuilder() {
+  if (m_tt_alchemist_handle) {
+    dlclose(m_tt_alchemist_handle);
+    m_tt_alchemist_handle = nullptr;
+  }
 }
 
 std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
@@ -121,7 +143,6 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
-
   status = runFrontendSHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -170,19 +191,18 @@ ModuleBuilder::buildModule(
   collectMemoryKinds(num_arguments.num_outputs, output_memory_kinds,
                      output_memory_kinds_sizes);
 
-  std::string ttnn_mlir;
-  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                 compile_options, client_instance, mesh_shape,
-                                 ttnn_mlir);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
-
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
   if (compile_options.backend == Backend::Default) {
+    std::string ttnn_mlir;
+    status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                   compile_options, mesh_shape, ttnn_mlir);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
     tt::runtime::Binary flatbuffer(nullptr);
     status = createFlatbufferBinary(mlir_module, input_shardings,
                                     output_shardings, flatbuffer);
@@ -205,11 +225,108 @@ ModuleBuilder::buildModule(
             std::move(output_memory_kinds),
             std::move(output_memory_kinds_sizes), std::move(compile_options))};
   } else if (compile_options.backend == Backend::CodegenCpp) {
-    return {tt_pjrt_status::kUnimplemented, nullptr};
-  } else {
-    DLOG_F(ERROR, "Unsupported backend option");
-    return {tt_pjrt_status::kInvalidArgument, nullptr};
+    status = buildForCodegenCpp(ttir_mlir, compile_options);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    return {tt_pjrt_status::kSuccess,
+            SOExecutableImage::createInstance(
+                std::move(original_mlir_code), std::move(ttir_mlir),
+                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
+                num_outputs, output_dimensions, output_ranks,
+                output_dimensions_flat, num_partitions, num_replicas,
+                num_devices_to_utilize, mesh_shape, input_shardings,
+                output_shardings, output_types, std::move(output_memory_kinds),
+                std::move(output_memory_kinds_sizes),
+                std::move(compile_options))};
+  } else if (compile_options.backend == Backend::CodegenPy) {
+    status = buildForCodegenPy(ttir_mlir, compile_options);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+    return {tt_pjrt_status::kSuccess,
+            SOExecutableImage::createInstance(
+                std::move(original_mlir_code), std::move(ttir_mlir),
+                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
+                num_outputs, output_dimensions, output_ranks,
+                output_dimensions_flat, num_partitions, num_replicas,
+                num_devices_to_utilize, mesh_shape, input_shardings,
+                output_shardings, output_types, std::move(output_memory_kinds),
+                std::move(output_memory_kinds_sizes),
+                std::move(compile_options))};
   }
+
+  DLOG_F(ERROR, "Unsupported backend option");
+  return {tt_pjrt_status::kInvalidArgument, nullptr};
+}
+
+tt_pjrt_status
+ModuleBuilder::buildForCodegenCpp(std::string_view ttir_mlir,
+                                  const CompileOptions &compile_options) {
+  std::string folder = compile_options.export_path;
+  std::filesystem::create_directories(folder);
+
+  std::ofstream ttir_file(folder + "/ttir.mlir");
+  ttir_file << ttir_mlir;
+  ttir_file.close();
+
+  if (!m_alchemist_available) {
+    DLOG_F(ERROR, "tt-alchemist library or functions not available");
+    return tt_pjrt_status::kInternal;
+  }
+
+  void *instance = m_tt_alchemist_get_instance();
+  if (!instance) {
+    DLOG_F(ERROR, "Failed to get tt-alchemist instance");
+    return tt_pjrt_status::kInternal;
+  }
+
+  auto input_file = folder + "/ttir.mlir";
+  auto output_dir = folder;
+  bool is_local = false;
+  bool cpp_result = m_tt_alchemist_generate_cpp(
+      instance, input_file.c_str(), output_dir.c_str(), is_local, "");
+  if (!cpp_result) {
+    DLOG_F(ERROR, "tt-alchemist generateCpp failed");
+    return tt_pjrt_status::kInternal;
+  }
+
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status
+ModuleBuilder::buildForCodegenPy(std::string_view ttir_mlir,
+                                 const CompileOptions &compile_options) {
+  std::string folder = compile_options.export_path;
+  std::filesystem::create_directories(folder);
+
+  std::ofstream ttir_file(folder + "/ttir.mlir");
+  ttir_file << ttir_mlir;
+  ttir_file.close();
+
+  if (!m_alchemist_available) {
+    DLOG_F(ERROR, "tt-alchemist library or functions not available");
+    return tt_pjrt_status::kInternal;
+  }
+
+  void *instance = m_tt_alchemist_get_instance();
+  if (!instance) {
+    DLOG_F(ERROR, "Failed to get tt-alchemist instance");
+    return tt_pjrt_status::kInternal;
+  }
+
+  auto input_file = folder + "/ttir.mlir";
+  auto output_dir = folder;
+  bool is_local = false;
+  bool python_result = m_tt_alchemist_generate_python(
+      instance, input_file.c_str(), output_dir.c_str(), is_local, "");
+  if (!python_result) {
+    DLOG_F(ERROR, "tt-alchemist generatePython failed");
+    return tt_pjrt_status::kInternal;
+  }
+
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ModuleBuilder::createVHLOModule(
@@ -218,6 +335,15 @@ tt_pjrt_status ModuleBuilder::createVHLOModule(
   vhlo_module = mlir::parseSourceString<mlir::ModuleOp>(
       llvm::StringRef(mlir_code.data(), mlir_code.size()),
       mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
+  if (!vhlo_module) {
+    DLOG_F(ERROR, "Failed to create VHLO module from the input program code");
+    return tt_pjrt_status::kInternal;
+  }
+
+  DLOG_F(LOG_DEBUG, "VHLO Module:");
+  printModule(vhlo_module);
+
+  return tt_pjrt_status::kSuccess;
 
   if (!vhlo_module) {
     DLOG_F(ERROR, "Failed to create VHLO module from the input program code");
@@ -905,6 +1031,81 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   }
 
   return found_mesh_op;
+}
+
+std::string ModuleBuilder::findTTAlchemistLibraryPath() {
+  // HACK!
+
+  // Option 1: Use VIRTUAL_ENV if available
+  if (const char *venv = std::getenv("VIRTUAL_ENV")) {
+    std::string venv_path(venv);
+    // We can't assume it will be a python3.11 venv
+    for (const auto &entry :
+         std::filesystem::directory_iterator(venv_path + "/lib")) {
+      if (entry.is_directory() &&
+          entry.path().filename().string().find("python") == 0) {
+        std::string python_dir_path =
+            entry.path().string() +
+            "/site-packages/tt_alchemist/lib/libtt-alchemist-lib.so";
+        if (std::filesystem::exists(python_dir_path)) {
+          return python_dir_path;
+        }
+      }
+    }
+  }
+
+  return ""; // Not found
+}
+
+void ModuleBuilder::loadTTAlchemistFunctions() {
+  std::string so_path = findTTAlchemistLibraryPath();
+  if (so_path.empty()) {
+    DLOG_F(WARNING, "tt-alchemist library not found in Python environment");
+    m_alchemist_available = false;
+  }
+
+  dlerror(); // Clear any existing error
+  m_tt_alchemist_handle = dlopen(so_path.c_str(), RTLD_LAZY);
+  const char *dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_get_instance = (void *(*)())dlsym(
+      m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_getInstance");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_generate_python =
+      (bool (*)(void *, const char *, const char *, bool, const char *))dlsym(
+          m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_generatePython");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_generate_cpp =
+      (bool (*)(void *, const char *, const char *, bool, const char *))dlsym(
+          m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_generateCpp");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_alchemist_available = true;
 }
 
 } // namespace tt::pjrt::module_builder
