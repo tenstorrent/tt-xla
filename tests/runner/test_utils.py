@@ -387,9 +387,10 @@ def record_model_test_properties(
         "bringup_status": str(bringup_status),
     }
 
-    # If we have an explanatory reason, include it as a top-level property too for convenience
+    # If we have an explanatory reason, include it as a top-level property too for DB visibility
+    # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("reason", reason)
+        record_property("error_message", reason)
 
     # Write properties
     record_property("tags", tags)
