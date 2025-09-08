@@ -99,26 +99,31 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::optional<tt::runtime::Device> runtime_device =
       openDevices(args->argument_lists, args->num_args, args->num_devices,
                   args->execute_device);
+
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
   }
 
+  auto submesh =
+      runtime::createSubMeshDevice(*runtime_device, devices_mesh_shape);
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
-      args->argument_lists, args->num_args, args->num_devices, *runtime_device,
+      args->argument_lists, args->num_args, args->num_devices, submesh,
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
 
-  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
-      input_tensors);
+  std::vector<tt::runtime::Tensor> output_tensors =
+      tt::runtime::submit(submesh, m_executable_image->getFlatbufferBinary(),
+                          program_index, input_tensors);
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
     DLOG_F(ERROR,
