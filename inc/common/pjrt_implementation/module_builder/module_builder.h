@@ -183,7 +183,7 @@ private:
   bool isScalarType(mlir::Type type);
 
   // Converts a MLIR module into it's textual representation
-  std::string getMlirCode(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  std::string getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collect input sharding if we are using GSPMD.
   void

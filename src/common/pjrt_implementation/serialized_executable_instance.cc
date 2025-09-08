@@ -37,7 +37,8 @@ SerializedExecutableInstance::SerializedExecutableInstance(
   const std::string &ttnn_code = executable_image->getTTNNMlirCode();
 
   std::vector<std::byte> flatbuffer_data;
-  // TODO(stefan): We could avoid double copy if storeToMemory took a span.
+  // TODO(sgligorijevic): We could avoid double copy if storeToMemory took a
+  // span. Issue: https://github.com/tenstorrent/tt-mlir/issues/4822
   flatbuffer_binary.storeToMemory(flatbuffer_data);
 
   SerializationHeader header(ttir_code, ttnn_code, flatbuffer_data);

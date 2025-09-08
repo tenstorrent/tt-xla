@@ -11,6 +11,9 @@
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// c++ standard library includes
+#include <cstddef>
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 
@@ -18,7 +21,6 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/executable_instance.h"
 #include "common/status.h"
-#include <cstddef>
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_SERIALIZED_EXECUTABLE_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_SERIALIZED_EXECUTABLE_INSTANCE_H_
@@ -27,14 +29,22 @@ namespace tt::pjrt {
 
 struct SerializationHeader {
   // Serialization format:
-  // Magic string: "TTSERv00", 8 bytes
-  // Header: 48 bytes, 3*2*sizeof(u64)
-  // Offset + size for TTIR, TTNN and FB
-  // Body:
-  // TTIR, variable
-  // TTNN, variable
-  // Flatbuffer, variable
-  // Total size: 8 + 48 + TTIR.size() + TTNN.size() + flatbuffer_data.size()
+  //   1. Header, 56 bytes
+  //    1.1. Magic string: "TTSERv00", 8 bytes
+  //    1.2  (Offset, Size) pairs for each section in data, 48 bytes
+  //     1.2.1. Offset + size for TTIR, 2*sizeof(u64)
+  //     1.2.2. Offset + size for TTNN, 2*sizeof(u64)
+  //     1.2.3. Offset + size for Flatbuffer, 2*sizeof(u64)
+  //   2. Body: variable size
+  //     2.1. TTIR, variable size
+  //     2.2. TTNN, variable size
+  //     2.3. Flatbuffer, variable size
+  // The offsets are relative to the start of the body.
+  // Subsections in 2. are **NOT** assumed to be contiguous.
+  // However the current serializer does pack them contiguously.
+  // Subsections in 2. are assumed to be in the order defined above.
+  // Total size: 56: + (flatbuffer_offset + flatbuffer_size)
+  // This struct contains only the header part.
 
   char magic[8];
   uint64_t ttir_offset;
@@ -53,7 +63,8 @@ struct SerializationHeader {
     std::memcpy(magic, "TTSERv00", sizeof(magic));
   }
 
-  size_t getHeaderSize() const { return sizeof(magic) + 3 * sizeof(uint64_t); }
+  size_t getHeaderSize() const { return sizeof(*this); }
+
   size_t getPayloadSize() const {
     return getHeaderSize() + ttir_size + ttnn_size + fb_size;
   }
@@ -90,16 +101,21 @@ private:
   // Creates serialized executable instance from the executable image.
   SerializedExecutableInstance(const ExecutableImage *executable_image);
 
+  // Helper function that fills the buffer with data and advances the pointer.
   std::byte *writeRaw(std::byte *dst, const void *src, size_t size) {
     std::memcpy(dst, src, size);
     return dst + size;
   }
 
+  // Helper wrapper around writeRaw for writing proper C++ types.
   template <typename T> std::byte *write(std::byte *dst, const T &src) {
+    static_assert(std::is_trivially_copyable_v<T>,
+                  "T must be trivially copyable");
     return writeRaw(dst, &src, sizeof(src));
   }
 
-  // Serialized flatbuffer binary data.
+  // Executable Instance packaged up for serialization in our custom format.
+  // As per the comments in SerializationHeader.
   std::vector<std::byte> m_payload;
 };
 

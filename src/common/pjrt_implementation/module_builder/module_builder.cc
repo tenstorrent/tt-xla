@@ -132,7 +132,6 @@ tt_pjrt_status ModuleBuilder::buildModule(
     return m_status;
   }
 
-  m_ttir_mlir = getMlirCode(mlir_module);
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
@@ -140,8 +139,6 @@ tt_pjrt_status ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
-
-  m_ttnn_mlir = getMlirCode(mlir_module);
 
   createFlatbufferBinary(mlir_module);
 
@@ -194,11 +191,11 @@ void ModuleBuilder::runFrontendSHLOPipeline(
   printModule(mlir_module);
 }
 
-std::string ModuleBuilder::getMlirCode(
-    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+std::string
+ModuleBuilder::getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   std::string mlir_code;
   llvm::raw_string_ostream os(mlir_code);
-  mlir_module.get()->print(os, mlir::OpPrintingFlags().enableDebugInfo());
+  mlir_module->print(os, mlir::OpPrintingFlags().enableDebugInfo());
   os.flush();
   return mlir_code;
 }
@@ -497,6 +494,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
     return;
   }
 
+  m_ttir_mlir = getMlirCode(mlir_module);
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
 }
@@ -617,6 +615,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     return;
   }
 
+  m_ttnn_mlir = getMlirCode(mlir_module);
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
 }

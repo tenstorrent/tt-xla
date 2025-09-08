@@ -10,11 +10,13 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from torch_xla.experimental import plugins
 
-from tt_torch import parse_from_cache_to_disk
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
 xr.set_device_type("TT")
 
-xr.initialize_cache(f"{os.getcwd()}/cachedir")
+cache_dir = f"{os.getcwd()}/cachedir"
+
+xr.initialize_cache(cache_dir)
 
 
 class SimpleModel(nn.Module):
@@ -30,4 +32,4 @@ output = model(x, y)
 output.to("cpu")
 
 
-parse_from_cache_to_disk("output/model", f"{os.getcwd()}/cachedir")
+parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")

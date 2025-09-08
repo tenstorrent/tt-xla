@@ -3,17 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-PyTorch-specific functions for ttxla_tools.
+Serialization tools specific to PyTorch.
 """
 
 import os
+import io
 
 from ttxla_tools import parse_executable
 
 
-def parse_from_cache(cache_path):
+def parse_compiled_artifacts_from_cache(cache_path: str):
     """
     Load a serialized executable from PyTorch persistent cache and parse it.
+    Expects there to be only one file in the cache directory.
 
     Args:
         cache_path (str): Path to the persistent cache folder
@@ -51,32 +53,38 @@ def parse_from_cache(cache_path):
     with open(cache_file_path, "rb") as f:
         executable_data = f.read()
 
-    return parse_executable(executable_data)
+    executable_io = io.BytesIO(executable_data)
+
+    return parse_executable(executable_io)
 
 
-def parse_from_cache_to_disk(output_prefix, cache_path):
+def parse_compiled_artifacts_from_cache_to_disk(cache_path: str, output_prefix: str):
     """
     Load a serialized executable from PyTorch persistent cache and save components to disk.
+    Expects there to be only one file in the cache directory.
 
     Creates three files: {output_prefix}_ttir.mlir, {output_prefix}_ttnn.mlir, and {output_prefix}.ttnn.
     Output directory is created if it doesn't exist.
 
     Example:
     ```
-        parse_from_cache_to_disk("output/my_model", "/path/to/cache")
+        parse_from_cache_to_disk("/path/to/cache", "output/my_model")
         # This creates: output/my_model_ttir.mlir, output/my_model_ttnn.mlir, output/my_model.ttnn
     ```
 
     Args:
-        output_prefix (str): Base path and filename prefix for output files
         cache_path (str): Path to the persistent cache folder
+        output_prefix (str): Base path and filename prefix for output files
+
 
     Raises:
         FileNotFoundError: If cache_path doesn't exist or is empty
         AssertionError: If multiple files are found in cache_path
         ValueError: If no files are found in cache_path
     """
-    ttir_mlir, ttnn_mlir, flatbuffer_binary = parse_from_cache(cache_path)
+    ttir_mlir, ttnn_mlir, flatbuffer_binary = parse_compiled_artifacts_from_cache(
+        cache_path
+    )
 
     dirname = os.path.dirname(output_prefix)
     if dirname:

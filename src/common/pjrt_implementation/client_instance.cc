@@ -170,8 +170,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
     return compile_status;
   }
 
-  std::string original_mlir_code(mlir_code);
-
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
@@ -182,8 +180,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   std::shared_ptr<ExecutableImage> executable_image =
       ExecutableImage::createInstance(
-          m_module_builder->getFlatbufferBinary(),
-          std::move(original_mlir_code), m_module_builder->getTTIRMlirCode(),
+          m_module_builder->getFlatbufferBinary(), std::string(mlir_code),
+          m_module_builder->getTTIRMlirCode(),
           m_module_builder->getTTNNMlirCode(), std::move(executable_name),
           m_module_builder->getNumPartitions(),
           m_module_builder->getNumReplicas(),
