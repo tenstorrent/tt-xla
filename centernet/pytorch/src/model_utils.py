@@ -10,9 +10,13 @@ import cv2
 import torch
 
 from .large_hourglass import get_large_hourglass_net
+from .resnet_dcn import get_pose_net as get_pose_net_dcn
+from .pose_dla_dcn import get_pose_net
 
 _model_factory = {
     "hourglass": get_large_hourglass_net,
+    "resdcn": get_pose_net_dcn,
+    "dla": get_pose_net,
 }
 
 

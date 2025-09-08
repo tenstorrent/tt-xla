@@ -27,8 +27,6 @@ from .src.model_utils import create_model, pre_process, load_model
 class CenterNetConfig(ModelConfig):
     """Configuration specific to CenterNet models"""
 
-    source: ModelSource
-    heads: dict
     head_conv: int
 
 
@@ -38,6 +36,14 @@ class ModelVariant(StrEnum):
     # Hourglass-based variants
     HOURGLASS_COCO = "hourglass_coco"
 
+    # Resnet-based variants
+    RESNET_18_COCO = "resnet18_coco"
+    RESNET_101_COCO = "resnet101_coco"
+
+    # DLA-based variants
+    DLA_1X_COCO = "dla1x_coco"
+    DLA_2X_COCO = "dla2x_coco"
+
 
 class ModelLoader(ForgeModel):
     """CenterNet model loader implementation."""
@@ -46,14 +52,37 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.HOURGLASS_COCO: CenterNetConfig(
             pretrained_model_name="hourglass_coco",
-            source=ModelSource.TORCH_HUB,
-            heads={"hm": 80, "wh": 2, "reg": 2},  # COCO has 80 classes
             head_conv=64,
+        ),
+        ModelVariant.RESNET_18_COCO: CenterNetConfig(
+            pretrained_model_name="resnet18_coco",
+            head_conv=64,
+        ),
+        ModelVariant.RESNET_101_COCO: CenterNetConfig(
+            pretrained_model_name="resnet101_coco",
+            head_conv=64,
+        ),
+        ModelVariant.DLA_1X_COCO: CenterNetConfig(
+            pretrained_model_name="dla1x_coco",
+            head_conv=256,
+        ),
+        ModelVariant.DLA_2X_COCO: CenterNetConfig(
+            pretrained_model_name="dla2x_coco",
+            head_conv=256,
         ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.HOURGLASS_COCO
+
+    # mapping variant → arch + checkpoint
+    ARCH_WEIGHTS = {
+        ModelVariant.HOURGLASS_COCO: ("hourglass", "ctdet_coco_hg.pth"),
+        ModelVariant.RESNET_18_COCO: ("resdcn_18", "ctdet_coco_resdcn18.pth"),
+        ModelVariant.RESNET_101_COCO: ("resdcn_101", "ctdet_coco_resdcn101.pth"),
+        ModelVariant.DLA_1X_COCO: ("dla_34", "ctdet_coco_dla_1x.pth"),
+        ModelVariant.DLA_2X_COCO: ("dla_34", "ctdet_coco_dla_2x.pth"),
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -78,15 +107,12 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Get source from variant config
-        source = cls._VARIANTS[variant].source
-
         return ModelInfo(
             model="centernet",
             variant=variant,
             group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
-            source=source,
+            source=ModelSource.GITHUB,
             framework=Framework.TORCH,
         )
 
@@ -103,12 +129,18 @@ class ModelLoader(ForgeModel):
         # Get the configuration from the instance's variant config
         config = self._variant_config
 
-        # Create model using the heads and head_conv from config
-        model = create_model("hourglass", config.heads, config.head_conv)
+        # pick arch + checkpoint based on variant
+        arch, checkpoint_name = self.ARCH_WEIGHTS[self._variant]
+
+        # Create the model with the specified head configuration and head_conv value
+        head_config = {"hm": 80, "wh": 2, "reg": 2}
+
+        # build model
+        model = create_model(arch, head_config, config.head_conv)
 
         # Load model weights
         model = load_model(
-            model, get_file("test_files/pytorch/centernet/ctdet_coco_hg.pth")
+            model, get_file(f"test_files/pytorch/centernet/{checkpoint_name}")
         )
 
         # Set model to evaluation mode
