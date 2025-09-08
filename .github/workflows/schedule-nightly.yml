@@ -1,9 +1,9 @@
 name: On nightly
 
 on:
-  push:
-    branches:
-      - '**'
+  # push:
+  #   branches:
+  #     - '**'
 
   workflow_dispatch:
     inputs:
