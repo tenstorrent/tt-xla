@@ -1,7 +1,10 @@
 name: "[internal] Collect workflow data"
-run-name: "Collect data for run_id ${{ github.event.workflow_run.id }} attempt ${{ github.event.workflow_run.run_attempt }}"
+run-name: "Collect data Kyle Testing (event: ${{ github.event_name }})"
 
 on:
+  push:
+    branches:
+      - '**'
   workflow_run:
     workflows: # List workflow that we want to collect data for
       - "On PR"
@@ -17,14 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
         GH_TOKEN: ${{ github.token }}
+        HARDCODED_RUN_ID: "17561232479"
+        HARDCODED_RUN_ATTEMPT: "1"
     steps:
       - name: Collect CI/CD data
         uses: jameszianxuTT/tt-github-actions/.github/actions/collect_data@jzx/manual_error_message
-        if: ${{ github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' || (github.event_name == 'push' && env.HARDCODED_RUN_ID != 'REPLACE_WITH_RUN_ID') }}
         with:
           repository: ${{ github.repository }}
-          run_id: ${{ github.event.workflow_run.id }}
-          run_attempt: ${{ github.event.workflow_run.run_attempt }}
+          run_id: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || env.HARDCODED_RUN_ID }}
+          run_attempt: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.run_attempt || env.HARDCODED_RUN_ATTEMPT }}
           sftp_host: ${{ secrets.SFTP_CICD_WRITER_HOSTNAME }}
           sftp_user: ${{ secrets.SFTP_CICD_WRITER_USERNAME }}
           ssh-private-key: ${{ secrets.SFTP_CICD_WRITER_KEY }}
