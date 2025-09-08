@@ -13,16 +13,23 @@
 // c++ standard library includes
 #include <cassert>
 #include <functional>
+#include <memory>
 #include <sstream>
 #include <string>
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 
 namespace tt::pjrt {
 
-ExecutableImage::ExecutableImage() : m_flatbuffer_binary(nullptr) {}
+ExecutableImage::ExecutableImage() {}
+
+FlatbufferExecutableImage::FlatbufferExecutableImage()
+    : m_flatbuffer_binary(nullptr) {}
+
+SOExecutableImage::SOExecutableImage() {}
 
 bool vectors_same(std::vector<std::uint32_t> a, std::vector<std::uint32_t> b) {
   if (a.size() != b.size()) {
@@ -36,7 +43,7 @@ bool vectors_same(std::vector<std::uint32_t> a, std::vector<std::uint32_t> b) {
   return true;
 }
 
-void ExecutableImage::validate() {
+void FlatbufferExecutableImage::validate() {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   assert(m_num_inputs ==
@@ -85,6 +92,14 @@ void ExecutableImage::validate() {
   }
 }
 
+void SOExecutableImage::validate() {
+  // TODO: Implement validation for SO-based executables
+  // This could include:
+  // - Verifying SO file exists and is accessible
+  // - Checking for required symbols in the SO
+  // - Validating input/output metadata consistency
+}
+
 const std::vector<std::uint32_t> &
 ExecutableImage::getOutputShape(size_t output_index) const {
   assert(output_index < m_output_dimensions.size() &&
@@ -117,7 +132,16 @@ std::string ExecutableImage::generateFingerprint() const {
   data_to_hash << "enable_bfp8_conversion:"
                << m_compile_options.enable_bfp8_conversion << "\n";
 
-  // 3. Add compiler version
+  return data_to_hash.str();
+}
+
+std::string FlatbufferExecutableImage::generateFingerprint() const {
+  std::stringstream data_to_hash;
+
+  // Get base fingerprint data
+  data_to_hash << ExecutableImage::generateFingerprint();
+
+  // 3. Add compiler version (specific to flatbuffer)
   data_to_hash << "ttmlir_version:" << m_flatbuffer_binary.getVersion() << "\n";
 
   // 4. Generate hash using std::hash
@@ -128,6 +152,40 @@ std::string ExecutableImage::generateFingerprint() const {
   std::stringstream hex_ss;
   hex_ss << std::hex << hash_value;
   return hex_ss.str();
+}
+
+std::string SOExecutableImage::generateFingerprint() const {
+  std::stringstream data_to_hash;
+
+  // Get base fingerprint data
+  data_to_hash << ExecutableImage::generateFingerprint();
+
+  // 3. Add SO-specific information
+  data_to_hash << "so_path:" << m_so_path << "\n";
+
+  // 4. Generate hash using std::hash
+  std::hash<std::string> hasher;
+  size_t hash_value = hasher(data_to_hash.str());
+
+  // Convert to hex string
+  std::stringstream hex_ss;
+  hex_ss << std::hex << hash_value;
+  return hex_ss.str();
+}
+
+std::unique_ptr<LoadedExecutableInstance>
+FlatbufferExecutableImage::toExecutableInstance(
+    std::vector<DeviceInstance *> &&addressable_devices) {
+
+  return FlatbufferLoadedExecutableInstance::createInstance(
+      shared_from_this(), std::move(addressable_devices));
+}
+
+std::unique_ptr<LoadedExecutableInstance>
+SOExecutableImage::toExecutableInstance(
+    std::vector<DeviceInstance *> &&addressable_devices) {
+  return SOLoadedExecutableInstance::createInstance(
+      shared_from_this(), std::move(addressable_devices));
 }
 
 } // namespace tt::pjrt

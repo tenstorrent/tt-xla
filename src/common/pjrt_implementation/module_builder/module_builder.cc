@@ -11,7 +11,6 @@
 #include <memory>
 #include <numeric>
 #include <optional>
-#include <variant>
 
 // loguru includes
 #include "common/status.h"
@@ -30,6 +29,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/OwningOpRef.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -102,20 +102,37 @@ ModuleBuilder::buildModule(
     const std::unordered_map<std::string, std::string> &compile_options_map) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
-  tt_pjrt_status status = tt_pjrt_status::kSuccess;
-
-  auto executable = ExecutableImage::make();
-
   auto compile_options = CompileOptions::parse(compile_options_map);
-  executable->m_compile_options = compile_options;
 
-  auto result = createVHLOModule(mlir_code);
-  status = std::get<tt_pjrt_status>(result);
+  if (compile_options.backend == Backend::Default) {
+    auto fbexecutable = FlatbufferExecutableImage::createInstance();
+    fbexecutable->m_compile_options = compile_options;
+
+    auto [status, mlir_module] = buildCommon(mlir_code, fbexecutable.get());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    status = buildFlatbuffer(mlir_module, system_descriptor_path,
+                             fbexecutable.get());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    fbexecutable->validate();
+    return {status, fbexecutable};
+  } else { // Codegen
+    return {tt_pjrt_status::kUnimplemented, nullptr};
+  }
+}
+
+std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
+ModuleBuilder::buildCommon(const std::string_view &mlir_code,
+                           ExecutableImage *executable) {
+  auto [status, mlir_module] = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
-  auto mlir_module =
-      std::move(std::get<mlir::OwningOpRef<mlir::ModuleOp>>(result));
 
   executable->m_original_mlir_code = std::string(mlir_code);
 
@@ -129,47 +146,56 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  status = collectInputShardings(mlir_module, executable.get());
+  status = collectInputShardings(mlir_module, executable);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  status = collectOutputShardings(mlir_module, executable.get());
+  status = collectOutputShardings(mlir_module, executable);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  collectInputArgumentRoles(mlir_module, executable.get());
-  collectNumArguments(mlir_module, executable.get());
-  collectOutputTypes(mlir_module, executable.get());
+  collectInputArgumentRoles(mlir_module, executable);
+  collectNumArguments(mlir_module, executable);
+  collectOutputTypes(mlir_module, executable);
 
   status = runCompilerStableHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  status = convertFromSHLOToTTIR(mlir_module, executable.get());
+  status = convertFromSHLOToTTIR(mlir_module, executable);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  collectMeshShape(mlir_module, executable.get());
-  collectNumDevicesToUtilize(mlir_module, executable.get());
+  collectMeshShape(mlir_module, executable);
+  collectNumDevicesToUtilize(mlir_module, executable);
 
-  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                 compile_options, executable.get());
+  return {tt_pjrt_status::kSuccess, std::move(mlir_module)};
+}
+
+tt_pjrt_status
+ModuleBuilder::buildFlatbuffer(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                               const std::string &system_descriptor_path,
+                               FlatbufferExecutableImage *executable) {
+
+  tt_pjrt_status status =
+      convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                            executable->m_compile_options, executable);
   if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
+    return status;
   }
+  executable->m_ttnn_mlir = getMlirCode(mlir_module);
 
-  status = createFlatbufferBinary(mlir_module, executable.get());
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
+  return createFlatbufferBinary(mlir_module, executable);
+}
 
-  executable->validate();
-
-  return {status, std::move(executable)};
+tt_pjrt_status
+ModuleBuilder::buildSO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                       SOExecutableImage *executable) {
+  return tt_pjrt_status::kUnimplemented;
 }
 
 std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
@@ -717,15 +743,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
 tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    ExecutableImage *executable) {
+    FlatbufferExecutableImage *executable) {
   executable->m_flatbuffer_binary =
       mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
   return verifyCreatedFlatbufferBinary(executable);
 }
 
-tt_pjrt_status
-ModuleBuilder::verifyCreatedFlatbufferBinary(ExecutableImage *executable) {
+tt_pjrt_status ModuleBuilder::verifyCreatedFlatbufferBinary(
+    FlatbufferExecutableImage *executable) {
   if (executable->m_flatbuffer_binary.handle == nullptr) {
     DLOG_F(ERROR, "Failed to generate flatbuffer binary");
     return tt_pjrt_status::kInternal;
