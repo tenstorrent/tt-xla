@@ -244,7 +244,7 @@ PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
   const ExecutableInstance *executable_instance =
       ExecutableInstance::unwrap(args->executable);
 
-  const std::string &fingerprint = 
+  const std::string &fingerprint =
       executable_instance->getExecutableImage()->getFingerprint();
 
   args->executable_fingerprint = fingerprint.data();

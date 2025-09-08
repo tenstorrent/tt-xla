@@ -18,7 +18,6 @@
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/memory_instance.h"
 
-
 namespace tt::pjrt {
 
 std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
@@ -145,24 +144,25 @@ ExecutableImage::getOutputSharding(size_t output_index) const {
   return m_output_sharding[output_index];
 }
 
-
 std::string ExecutableImage::generateFingerprint() const {
   std::stringstream data_to_hash;
-  
+
   // 1. Add MLIR code
   data_to_hash << "mlir:" << m_original_mlir_code << "\n";
-  
+
   // 2. Add compile options
-  data_to_hash << "enable_optimizer:" << m_compile_options.enable_optimizer << "\n";
-  data_to_hash << "enable_bfp8_conversion:" << m_compile_options.enable_bfp8_conversion << "\n";
-  
+  data_to_hash << "enable_optimizer:" << m_compile_options.enable_optimizer
+               << "\n";
+  data_to_hash << "enable_bfp8_conversion:"
+               << m_compile_options.enable_bfp8_conversion << "\n";
+
   // 3. Add compiler version
   data_to_hash << "ttmlir_version:" << m_flatbuffer_binary.getVersion() << "\n";
-  
+
   // 4. Generate hash using std::hash
   std::hash<std::string> hasher;
   size_t hash_value = hasher(data_to_hash.str());
-  
+
   // Convert to hex string
   std::stringstream hex_ss;
   hex_ss << std::hex << hash_value;

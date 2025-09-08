@@ -24,7 +24,7 @@
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
-// tt-xla includes  
+// tt-xla includes
 #include "common/pjrt_implementation/module_builder/compile_options.h"
 
 namespace tt::pjrt {
@@ -122,9 +122,7 @@ public:
   }
 
   // Returns the fingerprint for this executable.
-  const std::string &getFingerprint() const {
-    return m_fingerprint;
-  }
+  const std::string &getFingerprint() const { return m_fingerprint; }
 
 private:
   // Constructs executable image instance from the information given by the
