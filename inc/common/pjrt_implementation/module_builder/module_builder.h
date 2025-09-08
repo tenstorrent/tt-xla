@@ -170,7 +170,7 @@ private:
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Enable printing of IR between passes if the log level for debug purposes
+  // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
   // Checks if a particular type is scalar.
