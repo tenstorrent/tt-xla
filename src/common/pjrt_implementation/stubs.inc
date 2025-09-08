@@ -59,11 +59,7 @@
   // ---------------------------------------------------------------------------
   // PJRT_LoadedExecutable stubs:
 
-  // This is not required to be implemented by all platforms. Shouldn't be hard
-  // to implement though, we can take hash of the optimized program, compile
-  // options, compiler version, metal version, etc.
-  // https://github.com/tenstorrent/tt-xla/issues/495
-  _STUB(PJRT_Executable_Fingerprint);
+  // Implemented in executable_instance.cc
 
   // Not required to be implemented and unclear how this is used by the clients
   // (if at all).

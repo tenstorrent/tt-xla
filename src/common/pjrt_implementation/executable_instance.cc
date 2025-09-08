@@ -50,6 +50,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Executable_OutputMemoryKinds =
       internal::onExecutableOutputMemoryKinds;
   api->PJRT_Executable_Serialize = internal::onExecutableSerialize;
+  api->PJRT_Executable_Fingerprint = internal::onExecutableFingerprint;
 }
 
 namespace internal {
@@ -233,6 +234,21 @@ PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
     delete SerializedExecutableInstance::unwrap(exec);
   };
   args->serialized_executable = *serialized_executable.release();
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Fingerprint");
+
+  const ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+
+  const std::string &fingerprint = 
+      executable_instance->getExecutableImage()->getFingerprint();
+
+  args->executable_fingerprint = fingerprint.data();
+  args->executable_fingerprint_size = fingerprint.size();
 
   return nullptr;
 }

@@ -24,6 +24,9 @@
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
+// tt-xla includes  
+#include "common/pjrt_implementation/module_builder/compile_options.h"
+
 namespace tt::pjrt {
 
 // Represents compiled image containing all the required information for its
@@ -42,7 +45,8 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      module_builder::CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -112,6 +116,16 @@ public:
     return m_output_memory_kinds_sizes;
   }
 
+  // Returns the compile options used to create this executable.
+  const module_builder::CompileOptions &getCompileOptions() const {
+    return m_compile_options;
+  }
+
+  // Returns the fingerprint for this executable.
+  const std::string &getFingerprint() const {
+    return m_fingerprint;
+  }
+
 private:
   // Constructs executable image instance from the information given by the
   // compiler.
@@ -124,7 +138,11 @@ private:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      module_builder::CompileOptions &&compile_options);
+
+  // Generates the fingerprint for this executable based on compilation inputs.
+  std::string generateFingerprint() const;
 
   // Flatbuffer binary produced by the compiler.
   tt::runtime::Binary m_flatbuffer_binary;
@@ -182,6 +200,12 @@ private:
   // Holds the information about the individual sizes of the memory kind strings
   // of the outputs.
   std::vector<size_t> m_output_memory_kinds_sizes;
+
+  // Compile options used to create this executable.
+  const module_builder::CompileOptions m_compile_options;
+
+  // Cached fingerprint for this executable.
+  const std::string m_fingerprint;
 };
 
 } // namespace tt::pjrt

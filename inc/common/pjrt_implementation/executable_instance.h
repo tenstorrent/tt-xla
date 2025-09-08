@@ -109,6 +109,9 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
 // Implements PJRT_Executable_Serialize API function.
 PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args);
 
+// Implements PJRT_Executable_Fingerprint API function.
+PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt
