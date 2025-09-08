@@ -175,6 +175,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   auto executable_image =
       std::get<std::shared_ptr<ExecutableImage>>(compile_result);
+
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
   // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
@@ -188,8 +189,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           executable_image->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
-      LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
+      executable_image->toExecutableInstance(std::move(addressable_devices));
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.

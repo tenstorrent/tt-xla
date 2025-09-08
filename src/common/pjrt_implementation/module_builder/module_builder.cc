@@ -11,6 +11,7 @@
 #include <numeric>
 
 // loguru includes
+#include "common/pjrt_implementation/module_builder/compile_options.h"
 #include "loguru/loguru.hpp"
 
 // llvm includes
@@ -168,6 +169,12 @@ ModuleBuilder::buildModule(
   size_t num_replicas = num_devices_result.num_replicas;
   size_t num_devices_to_utilize = num_devices_result.num_devices_to_utilize;
 
+  // Collect memory kinds for output buffers
+  std::vector<const char *> output_memory_kinds;
+  std::vector<size_t> output_memory_kinds_sizes;
+  collectMemoryKinds(num_outputs, output_memory_kinds,
+                     output_memory_kinds_sizes);
+
   std::string ttnn_mlir;
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
                                  compile_options, mesh_shape, ttnn_mlir);
@@ -175,25 +182,20 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  tt::runtime::Binary flatbuffer(nullptr);
+  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
+  // a name, otherwise some default string like the current one.
+  std::string executable_name = "tt_executable";
+
+  if(compile_options.backend == Backend::Default) {
+    tt::runtime::Binary flatbuffer(nullptr);
   status = createFlatbufferBinary(mlir_module, input_shardings,
                                   output_shardings, flatbuffer);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  // Collect memory kinds for output buffers
-  std::vector<const char *> output_memory_kinds;
-  std::vector<size_t> output_memory_kinds_sizes;
-  collectMemoryKinds(num_outputs, output_memory_kinds,
-                     output_memory_kinds_sizes);
-
-  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
-  // a name, otherwise some default string like the current one.
-  std::string executable_name = "tt_executable";
-
   return {tt_pjrt_status::kSuccess,
-          ExecutableImage::createInstance(
+          FlatbufferExecutableImage::createInstance(
               flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
               std::move(ttnn_mlir), executable_name, num_inputs, num_outputs,
               output_dimensions, output_ranks, output_dimensions_flat,
@@ -202,6 +204,16 @@ ModuleBuilder::buildModule(
               std::move(output_memory_kinds),
               std::move(output_memory_kinds_sizes),
               std::move(compile_options))};
+  }
+  else if (compile_options.backend == Backend::CodegenCpp) {
+    return {tt_pjrt_status::kUnimplemented,
+            nullptr};
+  }
+  else {
+    DLOG_F(ERROR, "Unsupported backend option");
+    return {tt_pjrt_status::kInvalidArgument, nullptr};
+  }
+  
 }
 
 tt_pjrt_status ModuleBuilder::createVHLOModule(
