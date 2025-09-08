@@ -85,11 +85,13 @@ jobs:
     if: always()
     needs:
       - pre-commit
+      - build-image
+      - build-ttxla-codecov
       - test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: test
+        allowed-skips: build-image, build-ttxla-codecov, test
         jobs: ${{ toJSON(needs) }}
