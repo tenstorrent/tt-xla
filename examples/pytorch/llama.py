@@ -9,8 +9,8 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     PreTrainedTokenizer,
-    StaticCache,
 )
+from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 # --------------------------------
@@ -44,16 +44,20 @@ def llama():
         truncation=True,
     )
 
-    # Instantiate static cache
+    # Instantiate static cache on host then transfer it to device to avoid CE creation ops
     batch_size = 1
     max_cache_len = 1024
-    static_cache = StaticCache(
+    static_cache: StaticCache = StaticCache(
         config=model.config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
-        device=device,  # init static cache on device, since it doesn't have a simple .to() method
+        # device='xla',  # 'xla' device will create the c.ache on host then we move it to device
         dtype=torch.bfloat16,
     )
+
+    # move static cache to device after host-side initialization
+    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
+    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
 
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
     input_args = {
