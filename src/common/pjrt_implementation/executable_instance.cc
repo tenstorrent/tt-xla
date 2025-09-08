@@ -17,6 +17,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
 #include "common/pjrt_implementation/serialized_executable_instance.h"
 #include "common/status.h"

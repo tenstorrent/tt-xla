@@ -5,13 +5,6 @@
 #ifndef TT_PJRT_STATUS
 #define TT_PJRT_STATUS
 
-// TODO(mrakita): Extract logging utils into separate file from status.
-#include "loguru/loguru.hpp"
-
-// Loguru doesn't have debug named verbosity and the next verbosity after INFO
-// is called `Verbosity_1`, so defining this to avoid doing `DLOG_F(1, ...)`.
-#define LOG_DEBUG 1
-
 // TODO(mrakita): Move into `tt::pjrt::status` namespace, rename enum class and
 // `tt_pjrt_status_is_ok` function.
 namespace tt::pjrt {

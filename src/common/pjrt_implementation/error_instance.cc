@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/error_instance.h"
 
+// tt-xla includes
+#include "common/pjrt_implementation/logging.h"
+
 namespace tt::pjrt {
 
 std::unique_ptr<ErrorInstance> ErrorInstance::makeError(tt_pjrt_status status) {

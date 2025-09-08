@@ -15,7 +15,7 @@
 #include <cstring>
 
 // tt-xla includes
-#include "common/status.h"
+#include "common/pjrt_implementation/logging.h"
 
 namespace tt::pjrt {
 

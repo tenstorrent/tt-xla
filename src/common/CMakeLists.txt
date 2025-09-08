@@ -14,7 +14,6 @@ find_package(Protobuf REQUIRED)
 # Depends on: TTMLIRCompiler, TTMLIRRuntime, loguru, coverage_config
 
 add_library(TTPJRTCommon
-    "platform.cc"
     "plugin_attributes.cc"
     "pjrt_implementation/api_bindings.cc"
     "pjrt_implementation/buffer_instance.cc"
@@ -27,6 +26,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/executable_image.cc"
     "pjrt_implementation/executable_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/logging.cc"
     "pjrt_implementation/memory_instance.cc"
     "pjrt_implementation/module_builder/compile_options.cc"
     "pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.cc"

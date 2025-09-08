@@ -22,7 +22,6 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
-#include "common/platform.h"
 #include "common/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
@@ -38,7 +37,7 @@ class ModuleBuilder;
 class ClientInstance {
 
 public:
-  ClientInstance(std::unique_ptr<Platform> platform);
+  ClientInstance();
   virtual ~ClientInstance();
 
   // Binds monomorphic entry-points for the client.
@@ -51,7 +50,6 @@ public:
   // Before the client is usable, it must be initialized.
   PJRT_Error *Initialize();
 
-  Platform &platform() { return *platform_; }
   const std::string &cached_platform_name() { return cached_platform_name_; }
   const std::string &cached_platform_version() {
     return cached_platform_version_;
@@ -93,8 +91,6 @@ protected:
 private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
-
-  std::unique_ptr<Platform> platform_;
 
   // Process index of this client. Always 0 in single-process settings.
   int m_process_index;

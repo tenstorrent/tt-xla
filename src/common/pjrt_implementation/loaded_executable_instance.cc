@@ -23,6 +23,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/logging.h"
 
 namespace tt::pjrt {
 

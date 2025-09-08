@@ -27,13 +27,14 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
 
 namespace tt::pjrt {
 
-ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
-    : platform_(std::move(platform)), m_system_descriptor(nullptr),
+ClientInstance::ClientInstance()
+    : m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 

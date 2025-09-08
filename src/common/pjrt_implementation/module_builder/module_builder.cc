@@ -56,6 +56,7 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
 namespace tt::pjrt::module_builder {

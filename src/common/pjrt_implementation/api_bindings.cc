@@ -18,8 +18,8 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/executable_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/memory_instance.h"
-#include "common/platform.h"
 #include "common/plugin_attributes.h"
 
 namespace tt::pjrt {
@@ -90,19 +90,15 @@ void BindApi(PJRT_Api *api) {
   // Bind polymorphic entry-points.
   api->PJRT_Client_Create = +[](PJRT_Client_Create_Args *args) -> PJRT_Error * {
     DLOG_F(LOG_DEBUG, "PJRT_Client_Create");
-    auto platform = std::make_unique<Platform>();
 
     // Populate config_vars() from the client create_options.
     for (size_t i = 0; i < args->num_options; ++i) {
       DLOG_F(WARNING, "Unused config var: %s", args->create_options[i].name);
     }
 
-    auto status = platform->Initialize();
-    if (!tt_pjrt_status_is_ok(status)) {
-      return *ErrorInstance::makeError(status).release();
-    }
+    InitializeLogging();
 
-    auto client = std::make_unique<ClientInstance>(std::move(platform));
+    auto client = std::make_unique<ClientInstance>();
     auto *error = client->Initialize();
     if (error)
       return error;

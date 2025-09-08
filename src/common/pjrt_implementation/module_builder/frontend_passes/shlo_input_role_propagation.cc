@@ -27,6 +27,7 @@
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
+#include "common/pjrt_implementation/logging.h"
 #include "common/status.h"
 
 namespace tt::pjrt::module_builder::frontend_passes {

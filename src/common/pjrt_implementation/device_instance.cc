@@ -11,8 +11,8 @@
 #include "common/pjrt_implementation/device_instance.h"
 
 // tt-xla includes
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/memory_instance.h"
-#include "common/status.h"
 
 namespace tt::pjrt {
 

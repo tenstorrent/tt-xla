@@ -26,6 +26,7 @@
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
+#include "common/pjrt_implementation/logging.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
 
