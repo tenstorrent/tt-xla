@@ -165,19 +165,11 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
-  auto compile_result = m_module_builder->buildModule(
+  auto [status, executable_image] = m_module_builder->buildModule(
       mlir_code, m_cached_system_descriptor_path, compile_options);
-  tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
-
-  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
-  // a name, otherwise some default string like the current one.
-  std::string executable_name = "tt_executable";
-
-  auto executable_image =
-      std::get<std::shared_ptr<ExecutableImage>>(compile_result);
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
@@ -192,8 +184,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           executable_image->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
-      LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
+      executable_image->toExecutableInstance(std::move(addressable_devices));
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
