@@ -43,26 +43,22 @@ class SqueezeBertTester(JaxModelTester):
     # @override
     def _get_model(self) -> nn.Module:
         config = SqueezeBertConfig.from_pretrained(MODEL_PATH)
-        return SqueezeBertForMaskedLM(config)
+        model = SqueezeBertForMaskedLM(config)
 
-    # @override
-    def _get_forward_method_name(self):
-        return "apply"
+        model_file = hf_hub_download(
+            repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
+        )
+        state_dict = torch.load(model_file, weights_only=True)
+
+        model.params = model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
+
+        return model
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         inputs = tokenizer("The [MASK] barked at me", return_tensors="jax")
         return inputs
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        model_file = hf_hub_download(
-            repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
-        )
-        state_dict = torch.load(model_file, weights_only=True)
-
-        return self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
 
     def _get_forward_method_args(self) -> list:
         return []

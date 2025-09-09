@@ -47,7 +47,7 @@ class MlpMixerTester(JaxModelTester):
     # @override
     def _get_model(self) -> nn.Module:
         patch = ml_collections.ConfigDict({"size": (patch_size, patch_size)})
-        return MlpMixer(
+        model = MlpMixer(
             patches=patch,
             num_classes=num_classes,
             num_blocks=num_blocks,
@@ -55,25 +55,19 @@ class MlpMixerTester(JaxModelTester):
             tokens_mlp_dim=token_mlp_dim,
             channels_mlp_dim=channel_mlp_dim,
         )
+        link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
+        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
+            weights = numpy.load(f, encoding="bytes")
+            state_dict = {k: v for k, v in weights.items()}
+            model.params = {"params": flax.traverse_util.unflatten_dict(state_dict, sep="/")}
 
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
+        return model
 
     # @override
     def _get_input_activations(self) -> jax.Array:
         key = jax.random.PRNGKey(42)
         random_image = jax.random.normal(key, (1, 224, 224, 3))
         return random_image
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        # TODO(stefan): Discuss how weights should be handled org wide
-        link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
-        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
-            weights = numpy.load(f, encoding="bytes")
-            state_dict = {k: v for k, v in weights.items()}
-            return {"params": flax.traverse_util.unflatten_dict(state_dict, sep="/")}
 
 
 # ----- Fixtures -----

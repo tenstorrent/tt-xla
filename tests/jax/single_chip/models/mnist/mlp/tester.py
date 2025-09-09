@@ -36,16 +36,10 @@ class MNISTMLPTester(JaxModelTester):
 
     # @override
     def _get_model(self) -> nn.Module:
-        return MNISTMLPModel(self._hidden_sizes)
-
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
+        model = MNISTMLPModel(self._hidden_sizes)
+        model.params = model.init(jax.random.PRNGKey(42), self._get_input_activations())
+        return model
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
         return create_mnist_random_input_image()
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        return self._model.init(jax.random.PRNGKey(42), self._input_activations)
