@@ -235,27 +235,18 @@ jobs:
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
-    # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
-    # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
-    - name: Sanitize test_mark
-      id: sanitize
-      shell: bash
-      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
-      env:
-        TEST_MARK: ${{ inputs.test_mark }}
-
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-log-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
 
     - name: Upload Test Report
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ matrix.build.runs-on }}-${{ inputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
