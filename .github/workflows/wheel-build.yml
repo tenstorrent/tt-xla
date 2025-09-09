@@ -23,8 +23,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Maximize space
-        uses: tenstorrent/tt-github-actions/.github/actions/maximize_space@main
 
       - uses: actions/checkout@v4
 
@@ -37,7 +35,19 @@ jobs:
         uses: pypa/cibuildwheel@v2.23.2
         # https://cibuildwheel.pypa.io/en/stable/options/
         env:
-          CIBW_BEFORE_ALL: "source venv/activate"
+          CIBW_BEFORE_ALL: |
+            # From Dockerfile.ci container build step
+
+            export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+            mkdir -p $TTMLIR_TOOLCHAIN_DIR
+
+            cmake -B toolchain -DTOOLCHAIN=ON third_party/ 
+            cd third_party/tt-mlir/src/tt-mlir/ 
+            source env/activate 
+            cmake -B env/build env 
+            cmake --build env/build 
+            chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
+          CIBW_BUILD_FRONTEND: build
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BUILD: "cp311-manylinux_x86_64"
