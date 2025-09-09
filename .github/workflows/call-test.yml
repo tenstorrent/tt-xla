@@ -165,7 +165,7 @@ jobs:
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
         for n in run_torch run_large_jax_models run_forge_models_torch; do
-          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+          if [[ "${{ matrix.build.name }}" == "$n" && "${{ matrix.build['runs-on'] }}" == "n150" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
         done
