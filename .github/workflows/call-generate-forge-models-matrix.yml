@@ -35,10 +35,6 @@ jobs:
               {
                 "runs-on": "n150",
                 "name": "run_forge_models_torch"
-              },
-              {
-                "runs-on": "p150",
-                "name": "run_forge_models_torch"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
