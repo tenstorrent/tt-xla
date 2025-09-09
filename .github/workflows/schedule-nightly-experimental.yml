@@ -19,6 +19,10 @@ on:
   schedule:
     - cron: '0 4 * * *'
 
+  push:
+    branches:
+      - '**'
+
 permissions:
   packages: write
   checks: write
