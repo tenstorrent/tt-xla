@@ -11,12 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_runtime,
 )
 
+from third_party.tt_forge_models.longt5.text_classification.jax import ModelVariant
 from ..tester import LongT5Tester
 
-MODEL_PATH = "google/long-t5-tglobal-xl"
+MODEL_VARIANT = ModelVariant.XL_TGLOBAL
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "longt5",
@@ -30,12 +31,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_PATH)
+    return LongT5Tester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return LongT5Tester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -47,14 +48,15 @@ def training_tester() -> LongT5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Fatal Python error: Floating point exception "
-        "https://github.com/tenstorrent/tt-xla/issues/463"
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
+        "https://github.com/tenstorrent/tt-xla/issues/580"
     )
 )
+@pytest.mark.large
 def test_longt5_xl_tglobal_inference(inference_tester: LongT5Tester):
     inference_tester.test()
 

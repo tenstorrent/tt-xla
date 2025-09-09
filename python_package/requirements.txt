@@ -1,0 +1,4 @@
+jax==0.7.1
+jaxlib==0.7.1
+torch==2.7.0
+torch_xla==2.7.0

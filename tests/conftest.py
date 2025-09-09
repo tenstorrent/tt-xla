@@ -3,23 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
-from functools import partial
 import gc
 import sys
 import threading
 import time
 
-import jax
+import torch
 import psutil
 import pytest
-import transformers
-import transformers.modeling_flax_utils
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 from pathlib import Path
+from third_party.tt_forge_models.config import ModelInfo
 from typing import Any
 
 
@@ -38,7 +34,9 @@ def pytest_configure(config: pytest.Config):
         - Model tests:
             - `model_name`: name of the model under test
             - 'model_group': utils.ModelGroup
+            - `model_info`: third_party.tt_forge_models.config.ModelInfo
             - `run_mode`: infra.RunMode
+            - `parallelism`: third_party.tt_forge_models.config.Parallelism
             - `bringup_status`: utils.BringupStatus
             - `pcc`: float
             - `atol`: float
@@ -52,20 +50,31 @@ def pytest_configure(config: pytest.Config):
         "record_test_properties(key_value_pairs): Record custom properties for the test",
     )
 
+    """
+    Register a marker to disable auto user_properties injection at collection time, when they
+    would otherwise be populated at runtime.
+    """
+    config.addinivalue_line(
+        "markers",
+        "no_auto_properties: disable auto user_properties injection at collection",
+    )
+
 
 def pytest_collection_modifyitems(items):
     """
     Pytest hook to process the custom marker and attach recorder properties to the test.
     """
 
-    def validate_keys(keys: dict, is_model_test: bool):
+    def validate_keys(keys: dict, tagged_as_model_test: bool):
         valid_keys = [
             "category",
             "jax_op_name",
             "shlo_op_name",
             "model_name",
             "model_group",
+            "model_info",
             "run_mode",
+            "parallelism",
             "bringup_status",
             "pcc",
             "atol",
@@ -79,23 +88,38 @@ def pytest_collection_modifyitems(items):
             )
 
         # If model test, check all necessary properties are provided.
-        if is_model_test:
-            mandatory_model_properties = [
+        if tagged_as_model_test:
+            # Check if using new property set
+            new_mandatory_properties = [
+                "model_info",
+                "run_mode",
+                "bringup_status",
+            ]
+
+            # Check if using old property set
+            old_mandatory_properties = [
                 "model_name",
                 "model_group",
                 "run_mode",
                 "bringup_status",
             ]
 
-            if not all(
-                model_property in keys for model_property in mandatory_model_properties
-            ):
+            has_new_properties = all(prop in keys for prop in new_mandatory_properties)
+            has_old_properties = all(prop in keys for prop in old_mandatory_properties)
+
+            # Ensure exactly one property set is used (XOR condition)
+            if has_new_properties == has_old_properties:
                 raise KeyError(
-                    f"Model tests must have following properties: "
-                    f"{mandatory_model_properties}."
+                    f"Model tests must have either new properties: {new_mandatory_properties} "
+                    f"or old properties: {old_mandatory_properties}."
                 )
 
     for item in items:
+
+        # Skip collection-time user_properies for this test, populate at runtime.
+        if item.get_closest_marker("no_auto_properties"):
+            continue
+
         # Add some test metadata in a 'tags' dictionary.
         tags = {"test_name": item.originalname, "specific_test_case": item.name}
 
@@ -103,7 +127,7 @@ def pytest_collection_modifyitems(items):
         properties_marker = item.get_closest_marker(name="record_test_properties")
 
         # Utils flags helping handling model tests properly.
-        is_model_test = False
+        tagged_as_model_test = False
         model_group = None
 
         if properties_marker:
@@ -111,27 +135,28 @@ def pytest_collection_modifyitems(items):
             properties: dict = properties_marker.kwargs
 
             # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
+            tagged_as_model_test = (
+                item.get_closest_marker(name="model_test") is not None
+            )
 
             # Validate that only allowed keys are used.
-            validate_keys(properties.keys(), is_model_test)
+            validate_keys(properties.keys(), tagged_as_model_test)
 
-            # Turn all properties to strings.
-            for k, v in properties.items():
-                properties[k] = str(v)
-
-            if is_model_test:
-                model_group = properties.get("model_group")
-
-            # Tag them.
+            # Put all properties in tags.
             for key, value in properties.items():
-                # Skip model_group, we don't need it in tags, we will insert it separately.
-                if key != "model_group":
-                    tags[key] = value
+                if key == "model_info":
+                    model_info: ModelInfo = value
+                    tags["model_name"] = model_info.name
+                    tags["model_info"] = model_info.to_report_dict()
+                    model_group = str(model_info.group)
+                elif key == "model_group":
+                    model_group = str(value)
+                else:
+                    tags[key] = str(value)
 
-        # Attach metadata and tags dictionary as a single property.
+        # Attach tags dictionary as a single property. Also set owner.
         item.user_properties.extend([("tags", tags), ("owner", "tt-xla")])
-        if is_model_test:
+        if tagged_as_model_test:
             # Add model group independently of tags dict.
             item.user_properties.append(("group", model_group))
 
@@ -254,65 +279,10 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-@dataclass
-class MonkeyPatchConfig:
-    """Configuration class for managing monkey patching operations.
-
-    This class provides a structured way to temporarily replace functions or methods
-    in modules with custom implementations. We primarily use this to wrap JAX operations
-    in StableHLO CompositeOps, for easier matching in the compiler.
-
-    Attributes:
-        target_module (Any): The module object containing the function to be patched.
-        target_function (str): The name of the function/method to be replaced.
-        replacement_factory (Callable): A factory function that creates the replacement
-            function. Should accept this config instance as a parameter.
-        post_patch (Callable): Optional callback function executed after the patch
-            is applied. Defaults to a no-op lambda function.
-        backup (Any): Storage for the original function before patching. Used to
-            restore the original implementation later. Initially None.
-    """
-
-    target_module: Any
-    target_function: str
-    replacement_factory: Callable
-    post_patch: Callable = lambda: None
-    backup: Any = None
-
-    def patch(self):
-        """Apply the monkey patch if not already applied."""
-        if self.backup is None:
-            self.backup = getattr(self.target_module, self.target_function)
-
-            replacement = self.replacement_factory(self)
-            setattr(self.target_module, self.target_function, replacement)
-
-            self.post_patch()
-
-
-monkeypatches = [
-    MonkeyPatchConfig(
-        target_module=jax.nn,
-        target_function="gelu",
-        replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-            lambda x: config.backup(x, approximate=approximate),
-            "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-        )(
-            x
-        ),
-        post_patch=lambda: transformers.modeling_flax_utils.ACT2FN.update(
-            {
-                "gelu": partial(jax.nn.gelu, approximate=False),
-                "gelu_new": partial(jax.nn.gelu, approximate=True),
-            }
-        ),
-    )
-]
-
-# Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
+# TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
+# do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
 @pytest.fixture(autouse=True)
-def monkeypatch_import(request):
-    for patch_config in monkeypatches:
-        patch_config.patch()
-
+def run_around_tests():
+    torch.manual_seed(0)
     yield
+    torch._dynamo.reset()

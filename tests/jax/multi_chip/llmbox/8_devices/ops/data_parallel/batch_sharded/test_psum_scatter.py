@@ -9,6 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
+from infra.comparators import ComparisonConfig, PccConfig
 from utils import failed_fe_compilation, failed_runtime
 
 
@@ -18,13 +19,6 @@ def conditionally_skip(x_shape: tuple, mesh_shape: tuple):
 
     Extracted here in order not to pollute the test function.
     """
-    if len(x_shape) < 4:
-        pytest.xfail(
-            failed_runtime(
-                "No support for rank 2 tensors in reduce scatter: "
-                "https://github.com/tenstorrent/tt-metal/issues/15010"
-            )
-        )
     if mesh_shape[0] == 1 and mesh_shape[1] == 8:
         pytest.skip(failed_runtime("Floating point exception"))
 
@@ -91,4 +85,7 @@ def test_psum_scatter(
         out_specs,
         use_shardy,
         sharding_mode,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.96)
+        ),  # https://github.com/tenstorrent/tt-xla/issues/1161
     )

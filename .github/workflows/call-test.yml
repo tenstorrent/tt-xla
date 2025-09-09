@@ -1,0 +1,288 @@
+name: Test (call)
+
+on:
+  workflow_call:
+    inputs:
+      test_mark:
+        description: 'Test mark to run'
+        required: false
+        default: 'push'
+        type: string
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+      codecov:
+        description: 'Run code coverage tests and uploads'
+        required: false
+        default: true
+        type: boolean
+      test_matrix:
+        description: 'Test job matrix to use'
+        required: false
+        type: string
+        default: |
+          [
+            { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "n150",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
+            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large" },
+            { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
+            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
+            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
+          ]
+      use-shared-runners:
+        description: 'Use shared runners from Civ2'
+        required: false
+        default: false
+        type: boolean
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
+        required: true
+        type: string
+      artifact_codecov_run_id:
+        description: 'Run ID of the artifacts (codecov)'
+        required: false
+        type: string
+      wheel_release_artifact_name:
+        description: 'Name of the wheel artifact (release)'
+        required: true
+        type: string
+      wheel_codecov_artifact_name:
+        description: 'Name of the wheel artifact (codecov)'
+        required: false
+        type: string
+      build_artifact_name:
+        description: 'Name of the build artifact (codecov)'
+        required: false
+        type: string
+      timeout_minutes:
+        description: 'Timeout minutes for the test job'
+        required: false
+        default: 120
+        type: number
+
+env:
+  IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
+  DOCKER_CACHE_ROOT: /mnt/dockercache
+  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
+
+jobs:
+
+  # Run tests on TT hardware
+  run-tests:
+    timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(inputs.test_matrix) }}
+
+    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+
+    # Keep this name in sync with the fetch-job-id step
+    name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    container:
+      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
+          echo "do_codecov=true" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download and install wheel
+      shell: bash
+      run: |
+        echo "=== Downloading wheel ==="
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        pip install wheels/*.whl
+
+    - name: Download build artifacts
+      if: steps.strings.outputs.do_codecov
+      run: |
+        echo "Downloading build artifacts"
+        gh run download ${{ inputs.artifact_codecov_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir build \
+          --name ${{ inputs.build_artifact_name }}
+        echo "Untar build artifacts"
+        cd build
+        tar xf artifact.tar
+        rm -f artifact.tar
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
+        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models_torch; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
+        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        # Pass arch to forge models tests to resolve arch_overrides in test_config.py
+        ARCH=""
+        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
+          ARCH="--arch ${{ matrix.build.runs-on }}"
+        fi
+
+        if [[ -n "${{ matrix.build.extra_test_marks }}" ]]; then
+          MARKS="${{ inputs.test_mark }} and ${{ matrix.build.extra_test_marks }}"
+        else
+          MARKS="${{ inputs.test_mark }}"
+        fi
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
+          --durations=0 \
+          ${{ matrix.build.dir }} \
+          $ARCH \
+          -m \"$MARKS\" \
+          --splits ${{ matrix.build.test_group_cnt || 1}} \
+          --group ${{ matrix.build.test_group_id || 1}} \
+          --splitting-algorithm least_duration"
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+
+    - name: Install System Deps for Forge Models Tests
+      if: ${{ matrix.build.name == 'run_forge_models_torch' }}
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
+    # Ensure test_config.py for tt-forge-models test is valid, especially on PR's for uplifting tt-forge-models
+    # but still run tests even in case of failure here, will still treat overall job as failed.
+    - name: Validate Forge Models Tests test config file
+      if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest -vv tests/runner/test_models.py --validate-test-config
+
+    - name: Collect Tests
+      if: success() || failure()
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
+        python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
+
+    - name: Run tests
+      if: success() || failure()
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               2>&1 | tee pytest.log
+
+    # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
+    # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
+    - name: Sanitize test_mark
+      id: sanitize
+      shell: bash
+      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
+      env:
+        TEST_MARK: ${{ inputs.test_mark }}
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: pytest.log
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-reports-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Show Test Report
+      continue-on-error: true
+      uses: mikepenz/action-junit-report@v5
+      if: success() || failure()
+      with:
+        report_paths: ${{ steps.strings.outputs.test_report_path }}
+        check_name: TT-XLA Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
+        token: ${{ github.token }}
+
+    - name: Prepare code coverage report
+      if: steps.strings.outputs.do_codecov && (success() || failure())
+      run: |
+        lcov --directory build --capture --output-file coverage.info
+        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage reports to Codecov
+      if: steps.strings.outputs.do_codecov && (success() || failure())
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}

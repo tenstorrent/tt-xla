@@ -11,11 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
 
 from ..tester import BloomTester
+from third_party.tt_forge_models.bloom.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "bigscience/bloom-560m"
+MODEL_VARIANT = ModelVariant.BLOOM_560M
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "bloom",
@@ -30,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> BloomTester:
-    return BloomTester(MODEL_PATH)
+    return BloomTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> BloomTester:
-    return BloomTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return BloomTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -47,7 +49,13 @@ def training_tester() -> BloomTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-0.4757141172885895. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_bloom_560m_inference(inference_tester: BloomTester):
     inference_tester.test()

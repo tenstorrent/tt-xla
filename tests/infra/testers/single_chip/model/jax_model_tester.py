@@ -11,8 +11,9 @@ import shutil
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, PyTree
-from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
@@ -40,12 +41,13 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode, Framework.JAX)
+        super().__init__(comparison_config, run_mode, Framework.JAX, compiler_config)
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -105,10 +107,9 @@ class JaxModelTester(ModelTester):
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
-        self._workload = WorkloadFactory.create_workload(
-            self._framework,
+        self._workload = Workload(
+            framework=self._framework,
             executable=forward_pass_method,
-            model=self._model,
             args=args,
             kwargs=kwargs,
             static_argnames=forward_static_args,
@@ -155,34 +156,23 @@ class JaxModelTester(ModelTester):
         return []
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        return self._compile(workload)
+    def _compile_for_tt_device(self, workload: Workload) -> None:
+        """JIT-compiles model's forward pass into optimized kernels."""
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+        compiler_options = self._compiler_config.to_jax_compiler_options()
+
+        workload.compiled_executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
+            compiler_options=compiler_options,
+        )
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        return self._compile(workload)
-
-    def _compile(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
+        assert workload.is_jax, "Workload must be JAX workload to compile"
 
-        workload.executable = jax.jit(
-            workload.executable, static_argnames=workload.static_argnames
+        workload.compiled_executable = jax.jit(
+            workload.executable,
+            static_argnames=workload.static_argnames,
         )
-        return workload
-
-    def __del__(self):
-        if hasattr(self, "_model_path"):
-            try:
-                cache_dir = snapshot_download(self._model_path, local_files_only=True)
-                if cache_dir and os.path.exists(cache_dir):
-                    print(f"Deleting HF cache at: {cache_dir}")
-                    shutil.rmtree(cache_dir)
-            except NameError as e:
-                logger.warning(
-                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
-                )
-            except Exception as e:
-                logger.warning(f"Error during cache cleanup in __del__: {e}")

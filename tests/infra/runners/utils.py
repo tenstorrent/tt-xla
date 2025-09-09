@@ -6,7 +6,7 @@ from functools import wraps
 from typing import Callable
 
 from infra.utilities import Framework
-from infra.workloads import WorkloadFactory
+from infra.workloads.workload import Workload
 
 from .device_runner_factory import DeviceRunnerFactory
 
@@ -17,8 +17,8 @@ def run_on_tt_device(framework: Framework):
     def decorator(f: Callable):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            workload = WorkloadFactory.create_workload(
-                framework, executable=f, args=args, kwargs=kwargs
+            workload = Workload(
+                framework=framework, executable=f, args=args, kwargs=kwargs
             )
             runner = DeviceRunnerFactory.create_runner(framework)
             return runner.run_on_tt_device(workload)
@@ -34,8 +34,8 @@ def run_on_cpu(framework: Framework):
     def decorator(f: Callable):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            workload = WorkloadFactory.create_workload(
-                framework, executable=f, args=args, kwargs=kwargs
+            workload = Workload(
+                framework=framework, executable=f, args=args, kwargs=kwargs
             )
             runner = DeviceRunnerFactory.create_runner(framework)
             return runner.run_on_cpu(workload)

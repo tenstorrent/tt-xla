@@ -10,7 +10,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation, failed_runtime
+from utils import failed_fe_compilation, incorrect_result
 
 
 @pytest.mark.nightly
@@ -31,9 +31,8 @@ from utils import failed_fe_compilation, failed_runtime
         pytest.param(
             ShardingMode.INPUTS_AND_MODULE,
             marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "No support for rank 2 tensors in reduce scatter: "
-                    "https://github.com/tenstorrent/tt-metal/issues/15010"
+                reason=incorrect_result(
+                    "PCC comparison failed. Calculated: pcc=0.6282761096954346. (https://github.com/tenstorrent/tt-xla/issues/1161)"
                 )
             ),
         ),
