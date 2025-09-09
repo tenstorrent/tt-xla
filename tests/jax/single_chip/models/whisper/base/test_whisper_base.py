@@ -3,27 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_fe_compilation,
+    incorrect_result,
 )
-
+from third_party.tt_forge_models.whisper.audio_classification.jax import (
+    ModelVariant,
+    ModelLoader,
+)
+from third_party.tt_forge_models.config import Parallelism
 from ..tester import WhisperTester
 
-MODEL_PATH = "openai/whisper-base"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "whisper",
-    "base",
-    ModelTask.AUDIO_CLS,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.BASE
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -31,12 +25,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> WhisperTester:
-    return WhisperTester(MODEL_PATH)
+    return WhisperTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> WhisperTester:
-    return WhisperTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return WhisperTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,14 +39,15 @@ def training_tester() -> WhisperTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_fe_compilation(
-        "Segfault (https://github.com/tenstorrent/tt-xla/issues/546)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99."
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_whisper_base_inference(inference_tester: WhisperTester):
@@ -62,8 +57,8 @@ def test_whisper_base_inference(inference_tester: WhisperTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
