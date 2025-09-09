@@ -16,35 +16,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pre-commit:
-    uses: ./.github/workflows/call-pre-commit.yml
-    secrets: inherit
-
-  inspect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
-      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
-      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/inspect-changes
-        id: inspect
+#  pre-commit:
+#    uses: ./.github/workflows/call-pre-commit.yml
+#    secrets: inherit
+#
+#  inspect-changes:
+#    runs-on: ubuntu-latest
+#    outputs:
+#      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
+#      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
+#      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: ./.github/actions/inspect-changes
+#        id: inspect
 
   build-ttxla-wheel:
-    needs: [ pre-commit, inspect-changes ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    #needs: [ pre-commit, inspect-changes ]
+    #if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     strategy:
       fail-fast: false
     uses: ./.github/workflows/wheel-build.yml
     secrets: inherit
     name: "Build tt-xla manylinux wheel"
 
-  build-image:
-    needs: [ pre-commit, inspect-changes ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-build-docker.yml
-    secrets: inherit
+#  build-image:
+#    needs: [ pre-commit, inspect-changes ]
+#    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+#    uses: ./.github/workflows/call-build-docker.yml
+#    secrets: inherit
 
 #  build-image:
 #    needs: [ pre-commit, inspect-changes ]

@@ -37,6 +37,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.23.2
         # https://cibuildwheel.pypa.io/en/stable/options/
         env:
+          CIBW_BEFORE_ALL: "source venv/activate"
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BUILD: "cp311-manylinux_x86_64"
