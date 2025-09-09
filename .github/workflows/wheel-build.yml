@@ -18,7 +18,6 @@ on:
 
 jobs:
   build-ttxla-wheel:
-    timeout-minutes: 60
     name: Build tt-xla Python Wheel
     runs-on: ubuntu-latest
 
