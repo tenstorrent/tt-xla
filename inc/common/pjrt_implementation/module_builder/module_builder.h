@@ -17,6 +17,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Pass/PassManager.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -168,6 +169,9 @@ private:
 
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+  // Enables IR printing between passes with VERBOSE or higher logger level.
+  static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);

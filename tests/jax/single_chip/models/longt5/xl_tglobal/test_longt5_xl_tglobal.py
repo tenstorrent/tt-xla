@@ -56,6 +56,7 @@ def training_tester() -> LongT5Tester:
         "https://github.com/tenstorrent/tt-xla/issues/580"
     )
 )
+@pytest.mark.large
 def test_longt5_xl_tglobal_inference(inference_tester: LongT5Tester):
     inference_tester.test()
 
