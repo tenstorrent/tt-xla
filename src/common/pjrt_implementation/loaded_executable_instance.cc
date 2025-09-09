@@ -204,17 +204,29 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   tt::runtime::MeshDeviceOptions mesh_device_options;
 
   // Check if submesh is compatible with the parent mesh.
-  std::vector<uint32_t> parent_shape = {
-      2, static_cast<uint32_t>(this->m_addressable_devices.size()) / 8};
+  std::vector<uint32_t> parent_shape = tt::runtime::getMeshShape(m_parent_mesh);
   bool correct = false;
   for (int i = 0; i < devices_mesh_shape.size(); ++i) {
-
     correct = devices_mesh_shape[i] - 1 < parent_shape[i];
   }
 
   if (!correct) {
+    std::cerr << "Reshaping parent mesh from {";
+    for (auto dim : parent_shape) {
+      std::cerr << dim << ", ";
+    }
+    std::cerr << "} to {";
+    for (auto dim : devices_mesh_shape) {
+      std::cerr << dim << ", ";
+    }
+    std::cerr << "}" << std::endl;
     tt::runtime::reshapeMeshDevice(m_parent_mesh, devices_mesh_shape);
   }
+  std::cerr << "Creating submesh: ";
+  for (auto dim : devices_mesh_shape) {
+    std::cerr << dim << ", ";
+  }
+  std::cerr << "}" << std::endl;
   return tt::runtime::createSubMeshDevice(m_parent_mesh, devices_mesh_shape,
                                           /*meshOffset=*/std::nullopt);
 }
