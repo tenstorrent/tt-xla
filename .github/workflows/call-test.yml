@@ -129,6 +129,26 @@ jobs:
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
+    - name: Check for second attempt
+      id: check-second-attempt
+      run: |
+        if [ "${{ github.run_attempt }}" -gt 1 ]; then
+          echo "Second attempt detected"
+          echo "second_attempt=true" >> "$GITHUB_OUTPUT"
+          attempt=$(({{ github.run_attempt }} - 1))
+          echo "Downloading test reports from previous attempt"
+          rm -rf old-reports
+          mkdir old-reports
+          gh run download ${{ github.run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-*" \
+            -D old-reports
+            || echo "No previous test reports found"
+          python .github/scripts/find_all_failed_tests.py old-reports
+        else
+          echo "First attempt"
+        fi
+
     - name: Download and install wheel
       shell: bash
       run: |
@@ -255,7 +275,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
