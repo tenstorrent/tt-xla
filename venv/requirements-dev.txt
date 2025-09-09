@@ -38,3 +38,6 @@ transformers
 vgg_pytorch
 
 wheel
+
+#flux model
+diffusers
