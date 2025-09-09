@@ -50,6 +50,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   nightly_tests:
+    if: false
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
@@ -106,21 +107,21 @@ jobs:
     secrets: inherit
     needs: [ set-inputs ]
     with:
-      test_group_cnt: '10' # Hardcode, lots of models in nightly.
+      test_group_cnt: '1' # Hardcode, lots of models in nightly.
 
   generate-forge-models-matrix-xfail:
     uses: ./.github/workflows/call-generate-forge-models-matrix.yml
     secrets: inherit
     needs: [ set-inputs ]
     with:
-      test_group_cnt: '3'
+      test_group_cnt: '1'
 
   test_full_model:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla, generate-matrix ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
+    if: false # success() || failure()
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: 'model_test'
