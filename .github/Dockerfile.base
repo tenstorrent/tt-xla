@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     libprotobuf-dev \
     xxd \
+    ffmpeg \  # For whisper and wav2vec2 models
     sudo
 
 # Install clang 17
