@@ -182,6 +182,9 @@ void ModuleBuilder::convertFromVHLOToSHLO(
     return;
   }
 
+  DLOG_F(LOG_DEBUG, "Is using shardy? %s",
+         isUsingShardy(mlir_module) ? "true" : "false");
+
   // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
   // from openXLA. Once openXLA natively supports Shardy, we can remove
   // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
