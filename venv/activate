@@ -8,7 +8,9 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
 else
   export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
   export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-  export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
+  # TODO(kmabe): usage of SYSTEM_DIST_PACKAGES on PYTHONPATH is breaking many
+  # torch models - https://github.com/tenstorrent/tt-xla/issues/1324
+  export PYTHONPATH="$(pwd):$(pwd)/tests"
   # pytest alias for venv interpreter
   alias pytest='python -m pytest'
 

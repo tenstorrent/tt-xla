@@ -14,9 +14,10 @@ on:
           - 'push'
           - 'nightly'
           - 'model_test'
-          - 'Custom'
+          - 'tt_forge_models'
+          - 'custom'
       test_mark:
-        description: 'Test mark to run (if preset is Custom)'
+        description: 'Test mark to run (if preset is custom or tt_forge_models)'
         type: string
       run_on:
         description: 'Run on specific hardware'
@@ -41,6 +42,19 @@ on:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
           type: string
+      test_group_cnt:
+        description: 'Parallel groups for forge models preset'
+        required: false
+        default: '5'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '8'
+          - '10'
 
 permissions:
   packages: write
@@ -63,6 +77,15 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
 
+  # Generate matrix for forge models preset (mirrors schedule-nightly)
+  generate-forge-models-matrix:
+    if: inputs.preset == 'tt_forge_models'
+    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      test_group_cnt: ${{ inputs.test_group_cnt }}
+
   test-setup:
     runs-on: ubuntu-latest
     needs: build-ttxla
@@ -74,7 +97,7 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          if [ '${{ inputs.preset }}' == 'Custom' ]; then
+          if [[ '${{ inputs.preset }}' == 'custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
             echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
@@ -149,7 +172,7 @@ jobs:
           echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
 
   test:
-    if: always() && !cancelled()
+    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [build-image,test-setup,build-ttxla]
     secrets: inherit
@@ -157,5 +180,19 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       test_mark: ${{ needs.test-setup.outputs.test_mark }}
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  test_tt_forge_models:
+    if: always() && !cancelled() && inputs.preset == 'tt_forge_models'
+    uses: ./.github/workflows/call-test.yml
+    needs: [ build-image,test-setup,build-ttxla,generate-forge-models-matrix ]
+    secrets: inherit
+    with:
+      timeout_minutes: 180
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      test_mark: ${{ needs.test-setup.outputs.test_mark }}
+      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
+      use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
