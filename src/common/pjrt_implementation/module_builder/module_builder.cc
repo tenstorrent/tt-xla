@@ -722,27 +722,16 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
 
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  // Check for "xla.sdy.meshes" attribute
+  if (module.get()->getAttrOfType<mlir::DictionaryAttr>("xla.sdy.meshes")) {
+    return true;
+  }
+
   // After running through the SdyRoundTripImportPipeline, the module which uses
   // shardy dialect will have the sdy.mesh op.
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);
 
   return mesh_op.has_value();
-}
-
-bool ModuleBuilder::isUsingShardyManualComputation(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  if (!isUsingShardy(module)) {
-    return false;
-  }
-
-  bool is_using_shardy_manual_computation = false;
-  module.get().walk([&](mlir::sdy::ManualComputationOp op) {
-    is_using_shardy_manual_computation = true;
-
-    return mlir::WalkResult::interrupt();
-  });
-
-  return is_using_shardy_manual_computation;
 }
 
 std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
