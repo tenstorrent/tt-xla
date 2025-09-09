@@ -23,9 +23,9 @@ on:
         type: string
         default: |
           [
-            { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
-            { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
-            { "runs-on": "n150",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
+            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
+            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
+            { "runs-on": "n300",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
             { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
             { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
             { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
