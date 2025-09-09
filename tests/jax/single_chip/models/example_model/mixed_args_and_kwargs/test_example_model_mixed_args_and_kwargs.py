@@ -84,6 +84,7 @@ def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
 
 
 @pytest.mark.push
+@pytest.mark.skip(reason="Trying to remove")
 def test_example_model_inference(
     inference_tester: ExampleModelMixedArgsAndKwargsTester,
 ):

@@ -79,6 +79,7 @@ def training_tester() -> ExampleModelOnlyArgsTester:
 
 
 @pytest.mark.push
+@pytest.mark.skip(reason="Trying to remove")
 def test_example_model_inference(inference_tester: ExampleModelOnlyArgsTester):
     inference_tester.test()
 

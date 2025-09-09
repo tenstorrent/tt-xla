@@ -79,15 +79,19 @@ class JaxModelTester(ModelTester):
 
     def _get_input_parameters(self) -> PyTree:
         """
-        Returns input parameters.
-
-        By default returns existing model parameters for the HF FlaxPreTrainedModel.
+        Returns input parameters if model is not a nnx.Module.
         """
-        if isinstance(self._model, FlaxPreTrainedModel):
-            assert hasattr(self._model, "params")
-            return self._model.params
+        if isinstance(self._model, nnx.Module):
+            return None
 
-        raise NotImplementedError("Subclasses must implement this method.")
+        elif isinstance(self._model, (FlaxPreTrainedModel, linen.Module)):
+            # Check if params are already attached to model (custom initialization)
+            if hasattr(self._model, "params"):
+                return self._model.params
+            # Otherwise, subclasses must implement parameter initialization
+            raise NotImplementedError("Subclasses must implement this method for linen models without pre-attached params.")
+
+        raise NotImplementedError("Not supported model type.")
 
     # @override
     def _initialize_workload(self) -> None:
@@ -96,43 +100,49 @@ class JaxModelTester(ModelTester):
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
         forward_static_args = self._get_static_argnames()
-        forward_method_name = self._get_forward_method_name()
 
         assert (
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
-        assert hasattr(
-            self._model, forward_method_name
-        ), f"Model does not have {forward_method_name} method provided."
 
-        forward_pass_method = getattr(self._model, forward_method_name)
+        if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
+            self._workload = Workload(
+                framework=self._framework,
+                model=self._model,
+                args=args,
+                kwargs=kwargs,
+                static_argnames=forward_static_args,
+            )
 
-        self._workload = Workload(
-            framework=self._framework,
-            executable=forward_pass_method,
-            args=args,
-            kwargs=kwargs,
-            static_argnames=forward_static_args,
-        )
+        elif isinstance(self._model, linen.Module):
+            forward_pass_method = getattr(self._model, "apply")
+
+            self._workload = Workload(
+                framework=self._framework,
+                executable=forward_pass_method,
+                args=args,
+                kwargs=kwargs,
+                static_argnames=forward_static_args,
+            )
+
+        else:
+            raise NotImplementedError("Not supported model type.")
 
     def _get_forward_method_args(self) -> Sequence[Any]:
         """
         Returns positional arguments for model's forward pass.
-
-        By default returns input parameters and activations for the Flax linen models,
-        and empty list for other type of models.
         """
         if isinstance(self._model, linen.Module):
             return [self._input_parameters, self._input_activations]
 
+        elif isinstance(self._model, nnx.Module):
+            return [self._input_activations]
+        
         return []
 
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
         """
         Returns keyword arguments for model's forward pass.
-
-        By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel, and empty dict for other type of models.
         """
         if isinstance(self._model, FlaxPreTrainedModel):
             return {
@@ -156,23 +166,27 @@ class JaxModelTester(ModelTester):
         return []
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> None:
+    def _compile_for_tt_device(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert workload.is_jax, "Workload must be JAX workload to compile"
-        compiler_options = self._compiler_config.to_jax_compiler_options()
-
-        workload.compiled_executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-            compiler_options=compiler_options,
+        self._jit_compile_workload(
+            workload,
+            compiler_options=self._compiler_config.to_jax_compiler_options()
         )
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> None:
+    def _compile_for_cpu(self, workload: Workload) -> Workload:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert workload.is_jax, "Workload must be JAX workload to compile"
+        self._jit_compile_workload(workload)
 
-        workload.compiled_executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-        )
+    def _jit_compile_workload(self, workload: Workload, **jit_options) -> Workload:
+      """JIT-compiles workload with given options."""
+      assert workload.is_jax, "Workload must be JAX workload to compile"
+
+      target = workload.executable if workload.executable else workload.model
+      compiled_target = jax.jit(target, static_argnames=workload.static_argnames, **jit_options)
+
+      if workload.executable:
+          workload.compiled_executable = compiled_target
+      else:
+          workload.model = compiled_target
+    
