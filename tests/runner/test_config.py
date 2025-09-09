@@ -1917,4 +1917,9 @@ test_config = {
         "reason": "d_fine xlarge hangs forever, removing all of them.",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "detr3d/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 592969728 B DRAM buffer across 12 banks, where each bank needs to store 49414144 B - https://github.com/tenstorrent/tt-xla/issues/1353",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }
