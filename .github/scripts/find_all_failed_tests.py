@@ -59,7 +59,7 @@ def find_xml_files(dir):
         for test_case in failed_test_cases:
             print(f" - {test_case}")
 
-        with open(".collected_test_cases", "w") as f:
+        with open(".pytest_tests_to_run", "w") as f:
             for test_case in failed_test_cases:
                 f.write(f"{test_case}\n")
     else:
