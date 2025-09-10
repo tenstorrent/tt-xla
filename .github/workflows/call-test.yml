@@ -135,7 +135,7 @@ jobs:
         if [ "${{ github.run_attempt }}" -gt 1 ]; then
           echo "Second attempt detected"
           echo "second_attempt=true" >> "$GITHUB_OUTPUT"
-          attempt=$(({{ github.run_attempt }} - 1))
+          attempt=((${{ github.run_attempt }} - 1))
           echo "Downloading test reports from previous attempt"
           rm -rf old-reports
           mkdir old-reports
