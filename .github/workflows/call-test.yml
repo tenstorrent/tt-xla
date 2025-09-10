@@ -223,6 +223,7 @@ jobs:
 
     - name: Check for second attempt
       id: check-second-attempt
+      shell: bash
       run: |
         source venv/activate
         rm -f .pytest_tests_to_run
