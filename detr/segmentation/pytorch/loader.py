@@ -71,23 +71,16 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_feature_extractor(self, dtype_override=None):
+    def _load_feature_extractor(self):
         """Load feature extractor for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the feature extractor's default dtype.
 
         Returns:
             The loaded feature extractor instance
         """
-        # Initialize feature extractor with dtype override if specified
-        extractor_kwargs = {}
-        if dtype_override is not None:
-            extractor_kwargs["torch_dtype"] = dtype_override
 
         # Load the feature extractor
         self.feature_extractor = DetrFeatureExtractor.from_pretrained(
-            self._variant_config.pretrained_model_name, **extractor_kwargs
+            self._variant_config.pretrained_model_name
         )
 
         return self.feature_extractor
@@ -107,7 +100,7 @@ class ModelLoader(ForgeModel):
 
         # Ensure feature extractor is loaded
         if self.feature_extractor is None:
-            self._load_feature_extractor(dtype_override=dtype_override)
+            self._load_feature_extractor()
 
         # Load the model with dtype override if specified
         model_kwargs = {}
@@ -133,7 +126,7 @@ class ModelLoader(ForgeModel):
         """
         # Ensure feature extractor is initialized
         if self.feature_extractor is None:
-            self._load_feature_extractor(dtype_override=dtype_override)
+            self._load_feature_extractor()
 
         # Get the Image
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
@@ -144,5 +137,8 @@ class ModelLoader(ForgeModel):
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+                # Convert the input dtype to dtype_override if specified
+                if dtype_override is not None:
+                    inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
