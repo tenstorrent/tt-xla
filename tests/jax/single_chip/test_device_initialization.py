@@ -42,13 +42,10 @@ def is_tt_device(device: jax.Device) -> bool:
 # ---------- Tests ----------
 
 
-@pytest.mark.sumrak
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 def test_devices_are_connected():
-    assert False, "This test is designed to fail"
-
     cpus = jax.devices("cpu")
 
     assert len(cpus) > 0, f"Expected at least one CPU to be connected"
@@ -60,7 +57,6 @@ def test_devices_are_connected():
     assert is_tt_device(tt_devices[0])
 
 
-@pytest.mark.sumrak
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
@@ -76,7 +72,6 @@ def test_put_tensor_on_device(cpu: jax.Device, tt_device: jax.Device):
     assert is_tt_device(x.device)
 
 
-@pytest.mark.sumrak
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
