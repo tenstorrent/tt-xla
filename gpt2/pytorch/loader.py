@@ -68,7 +68,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="gpt2",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=task,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

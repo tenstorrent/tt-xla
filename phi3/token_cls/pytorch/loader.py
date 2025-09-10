@@ -48,7 +48,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="phi3_token_cls",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

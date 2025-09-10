@@ -54,7 +54,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="oft_stable_diffusion",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

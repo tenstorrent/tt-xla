@@ -69,16 +69,11 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        # Determine group based on variant
-        if variant == ModelVariant.PHI2:
-            group = ModelGroup.RED
-        else:
-            group = ModelGroup.GENERALITY
 
         return ModelInfo(
             model="phi2",
             variant=variant,
-            group=group,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

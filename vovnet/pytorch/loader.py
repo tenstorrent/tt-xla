@@ -123,10 +123,16 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         source = cls._VARIANTS[variant].source
+
+        if variant in [ModelVariant.TIMM_VOVNET19B_DW_RAIN1K]:
+            group = ModelGroup.RED
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="vovnet",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,

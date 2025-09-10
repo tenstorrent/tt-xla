@@ -135,16 +135,10 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Set group based on variant (instruct variants are RED priority)
-        if "instruct" in variant.value or "70b" in variant.value:
-            group = ModelGroup.RED
-        else:
-            group = ModelGroup.GENERALITY
-
         return ModelInfo(
             model="llama_seq_cls",
             variant=variant,
-            group=group,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

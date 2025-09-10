@@ -67,12 +67,18 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+
+        if variant in [ModelVariant.YOLOV10X]:
+            group = ModelGroup.RED
+        else:
+            group = ModelGroup.GENERALITY
+
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="yolov10",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,

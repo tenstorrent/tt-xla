@@ -45,12 +45,18 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None):
+
+        if variant in [ModelVariant.GLINER_MULTI_V21]:
+            group = ModelGroup.RED
+        else:
+            group = ModelGroup.GENERALITY
+
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="gliner",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

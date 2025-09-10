@@ -109,7 +109,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="retinanet",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=source,
             framework=Framework.TORCH,

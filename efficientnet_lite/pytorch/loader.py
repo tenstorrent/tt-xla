@@ -68,7 +68,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="efficientnet_lite",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.TIMM,
             framework=Framework.TORCH,

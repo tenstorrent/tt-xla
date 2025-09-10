@@ -70,10 +70,21 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+
+        if variant in [
+            ModelVariant.FALCON_1B,
+            ModelVariant.FALCON_3B,
+            ModelVariant.FALCON_7B,
+            ModelVariant.FALCON_10B,
+        ]:
+            group = ModelGroup.RED
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="falcon",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

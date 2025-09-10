@@ -65,7 +65,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="phi-4",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
