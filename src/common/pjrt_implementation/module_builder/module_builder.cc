@@ -480,6 +480,8 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
                                     mlir::PassManager::Nesting::Implicit);
+  // shlo_to_ttir_pm.getContext()->disableMultithreading();
+  // shlo_to_ttir_pm.enableIRPrinting();
 
   mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
   shlo_options.arithDialectConversionsEnabled = true;
@@ -498,6 +500,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
+  std::cerr << "TTIR Module:\n";
 }
 
 void ModuleBuilder::collectMeshShape(
@@ -588,6 +591,10 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const CompileOptions &compile_options) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
+    // shlo_to_ttir_pm.getContext()->disableMultithreading();
+  // shlo_to_ttir_pm.enableIRPrinting();
+  ttir_to_ttnn_pm.getContext()->disableMultithreading();
+  ttir_to_ttnn_pm.enableIRPrinting();
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
