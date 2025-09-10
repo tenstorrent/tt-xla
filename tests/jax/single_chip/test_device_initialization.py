@@ -46,6 +46,8 @@ def is_tt_device(device: jax.Device) -> bool:
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 def test_devices_are_connected():
+    assert False, "This test is designed to fail"
+
     cpus = jax.devices("cpu")
 
     assert len(cpus) > 0, f"Expected at least one CPU to be connected"

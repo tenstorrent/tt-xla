@@ -15,12 +15,6 @@ from utils import Category, enable_x64
 
 
 @pytest.mark.push
-def test_dtypes_failure():
-    """Test that intentionally fails for testing purposes."""
-    assert False, "This test is designed to fail"
-
-
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OTHER)
 @pytest.mark.parametrize(
