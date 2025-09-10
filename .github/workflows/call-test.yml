@@ -239,6 +239,7 @@ jobs:
             echo "No previous test reports found"
           else
             echo "Found previous test reports"
+            source venv/activate
             python .github/scripts/find_all_failed_tests.py old-reports
             echo "second_attempt=true" >> "$GITHUB_OUTPUT"
           fi
