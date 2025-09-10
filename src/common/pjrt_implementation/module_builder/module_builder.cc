@@ -110,6 +110,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
+  return tt_pjrt_status::kCancelled;
 
   runFrontendSHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -158,7 +159,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
-  printModule(vhlo_module);
+  //printModule(vhlo_module);
 
   return vhlo_module;
 }
@@ -702,9 +703,9 @@ void ModuleBuilder::checkOutputShardingShapes(
 
 void ModuleBuilder::printModule(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  if (loguru::g_stderr_verbosity < LOG_DEBUG) {
-    return;
-  }
+  //if (loguru::g_stderr_verbosity < LOG_DEBUG) {
+  //  return;
+  //}
 
   mlir_module->dump();
 }
