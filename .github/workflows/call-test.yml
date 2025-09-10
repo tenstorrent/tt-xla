@@ -142,7 +142,7 @@ jobs:
           gh run download ${{ github.run_id }} \
             --repo ${{ github.repository }} \
             --pattern "test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-*" \
-            -D old-reports
+            -D old-reports \
             || echo "No previous test reports found"
           python .github/scripts/find_all_failed_tests.py old-reports
         else
@@ -235,7 +235,6 @@ jobs:
         python -m pytest -vv tests/runner/test_models.py --validate-test-config
 
     - name: Collect Tests
-      if: success() || failure()
       shell: bash
       run: |
         source venv/activate
@@ -243,7 +242,6 @@ jobs:
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
-      if: success() || failure()
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
