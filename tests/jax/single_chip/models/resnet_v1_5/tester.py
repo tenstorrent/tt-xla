@@ -6,11 +6,11 @@ from typing import Dict
 import jax
 
 from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.resnet.image_classification.jax import (
     ModelLoader,
     ModelVariant,
 )
-from tests.infra.testers.compiler_config import CompilerConfig
 
 
 class ResNetTester(JaxModelTester):
