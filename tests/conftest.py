@@ -5,6 +5,8 @@
 import ctypes
 from contextlib import contextmanager
 import gc
+import os
+import shutil
 import sys
 import threading
 import time
@@ -175,6 +177,13 @@ def pytest_addoption(parser):
     )
 
 
+def _is_on_CIv2() -> bool:
+    """
+    Check if we are on CIv2.
+    """
+    return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
+
+
 @contextmanager
 def newline_logger():
     """
@@ -277,6 +286,31 @@ def initialize_device_connectors():
     """
     DeviceConnectorFactory.create_connector(Framework.JAX)
     DeviceConnectorFactory.create_connector(Framework.TORCH)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_cache():
+    """
+    Pytest fixture that cleans up cache directories after each test.
+    Only runs if we are running on CIv2.
+    """
+    yield
+    if not _is_on_CIv2():
+        return
+
+    cache_dirs = [
+        Path.home().joinpath(".cache", "lfcache"),
+        Path.home().joinpath(".cache", "url_cache"),
+        Path("/mnt/dockercache/huggingface"),
+    ]
+
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
