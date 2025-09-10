@@ -135,16 +135,21 @@ jobs:
         if [ "${{ github.run_attempt }}" -gt 1 ]; then
           echo "Second attempt detected"
           echo "second_attempt=true" >> "$GITHUB_OUTPUT"
-          attempt=((${{ github.run_attempt }} - 1))
+          attempt=$((${{ github.run_attempt }} - 1))
           echo "Downloading test reports from previous attempt"
           rm -rf old-reports
           mkdir old-reports
+          set +e
           gh run download ${{ github.run_id }} \
             --repo ${{ github.repository }} \
             --pattern "test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-*" \
-            -D old-reports \
-            || echo "No previous test reports found"
-          python .github/scripts/find_all_failed_tests.py old-reports
+            -D old-reports
+          if [ $? -ne 0 ]; then
+            echo "No previous test reports found"
+          else
+            echo "Found previous test reports"
+            python .github/scripts/find_all_failed_tests.py old-reports
+          fi
         else
           echo "First attempt"
         fi
