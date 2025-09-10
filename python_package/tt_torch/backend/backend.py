@@ -87,9 +87,47 @@ class XLAExecutor:
         torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         return output
 
+graph = 0
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
+    import os, io, contextlib
+    try:
+        from torch.fx.passes.shape_prop import ShapeProp
+        ShapeProp(gm).propagate(*example_inputs)
+    except Exception:
+        pass
+
+    os.makedirs("graphs", exist_ok=True)
+    global graph
+    idx = graph
+    graph = idx + 1
+    path = f"graphs/graph_{idx:03d}.txt"
+
+    buf = io.StringIO()
+    # 이 버전에선 file= 미지원 → stdout 리다이렉트로 캡처
+    with contextlib.redirect_stdout(buf):
+        try:
+            gm.graph.print_tabular(show_meta=True)  # 가능하면 메타까지
+        except TypeError:
+            gm.graph.print_tabular()                # show_meta도 없을 때
+
+    with open(path, "w") as f:
+        f.write(buf.getvalue())
+        try:
+            f.write("\n\n# FX-generated code:\n")
+            f.write(gm.code)
+        except Exception:
+            pass
+    
+    # print(f"Saved graph to {path}")
+    print("Before passes:")
+    # print(gm.graph)
+
 
     module = torch_pass_pipeline(gm, example_inputs)
+    print("After passes:")
+
+    path = f"graphs/graph_{idx:03d}_after.txt"
+
     return XLAExecutor(module)
