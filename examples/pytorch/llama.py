@@ -74,8 +74,7 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = 1
-
+    model.config.num_hidden_layers = 28
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
@@ -146,13 +145,32 @@ def llama():
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
     # Run model (with no gradient calculation since we only need inference).
-    with torch.no_grad():
-        output: CausalLMOutputWithPast = model(**input_args)
-        print(output)
-        output_logits: torch.Tensor = output.logits.to("cpu")
-        output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
+    tokens_to_generate = 10
 
-    print("Generated token:", output_text)
+    output_tokens = []
+
+    with torch.no_grad():
+        # Custom generation loop impl
+        for step in range(tokens_to_generate):
+            output: CausalLMOutputWithPast = model(**input_args)
+            print(output)
+            output_logits: torch.Tensor = output.logits.to("cpu")
+            output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
+
+            output_tokens.append(output_text)
+            print("Generated token:", output_text)
+
+            # Update inputs for next iteration
+            # cache_position = input_args["cache_position"][-1:] + 1
+
+            next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
+            input_args["input_ids"] = next_token.to(device)
+
+            host_cache_pos = input_args["cache_position"].to("cpu")
+            host_cache_pos = host_cache_pos[-1:] + 1
+            input_args["cache_position"] = host_cache_pos.to(device)
+
+    print("output tokens:", output_tokens)
 
 
 # --------------------------------
