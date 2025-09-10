@@ -50,7 +50,6 @@ def training_tester() -> AlexNetMultichipTester:
     bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
-    assert False, "Intended to fail"
     inference_tester.test()
 
 
