@@ -4,6 +4,7 @@
 from typing import Tuple
 import torch
 from torch.export import ExportedProgram
+import torch_xla
 
 
 from .decompositions import (
@@ -39,7 +40,7 @@ def torch_pass_pipeline(
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
+        gm, tuple(example_inputs), strict=False, dynamic_shapes=[], 
     ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
@@ -77,7 +78,7 @@ class XLAExecutor:
         self.devices = list(self.devices)
 
     def __call__(self, *args):
-
+        # module = torch_xla.compile(self.module, full_graph=False, )
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
@@ -87,6 +88,11 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
-
+    # gm.graph.print_tabular()
+    # return gm
+    print('Before passes:')
+    gm.graph.print_tabular()
     module = torch_pass_pipeline(gm, example_inputs)
+    print("After passes:")
+    module.graph.print_tabular()
     return XLAExecutor(module)
