@@ -53,12 +53,17 @@ def find_xml_files(dir):
     for xml_file in xml_files:
         failed_test_cases.extend(find_failed_test_case(xml_file))
 
-    with open(".collected_test_cases", "w") as f:
+    if len(failed_test_cases) > 0:
+        # Save failed test cases to a file
+        print(f"Found {len(failed_test_cases)} failed test cases:")
         for test_case in failed_test_cases:
-            f.write(f"{test_case}\n")
+            print(f" - {test_case}")
 
-    print(f"Collected {len(failed_test_cases)} failed test cases:")
-    print(failed_test_cases)
+        with open(".collected_test_cases", "w") as f:
+            for test_case in failed_test_cases:
+                f.write(f"{test_case}\n")
+    else:
+        print("No failed test cases found.")
 
 
 if __name__ == "__main__":
