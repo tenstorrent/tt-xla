@@ -94,7 +94,7 @@ def llama():
 
     # Instantiate static cache on host then transfer it to device to avoid CE creation ops
     batch_size = 1
-    max_cache_len = 1024
+    max_cache_len = 32
     static_cache: StaticCache = StaticCache(
         config=model.config,
         max_batch_size=batch_size,
@@ -158,7 +158,7 @@ def llama():
             output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
             output_tokens.append(output_text)
-            print("Generated token:", output_text)
+            print(f"\nGenerated token @ step {step}:", output_text)
 
             # Update inputs for next iteration
             # cache_position = input_args["cache_position"][-1:] + 1
@@ -169,6 +169,32 @@ def llama():
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = host_cache_pos[-1:] + 1
             input_args["cache_position"] = host_cache_pos.to(device)
+
+            # tx kv cache tensors back to host
+            if return_tensors_to_host := False:
+                host_caches = []
+                for i, (key, value) in enumerate(
+                    zip(
+                        input_args["past_key_values"].key_cache,
+                        input_args["past_key_values"].value_cache,
+                    )
+                ):
+                    key = key.to("cpu")
+                    value = value.to("cpu")
+                    # host_caches.append(key)
+                    # host_caches.append(value)
+                    print(
+                        f"key cache tensor {i} mean along seqlen: {torch.mean(key[0,0,:,:], dim=-1)}"
+                    )
+                    print(
+                        f"value cache tensor {i} mean along seqlen: {torch.mean(value[0,0,:,:], dim=-1)}"
+                    )
+
+                    # place back on device.
+                    key = key.to(device)
+                    value = value.to(device)
+                    xs.mark_sharding(key, mesh, (None, "model", None, None))
+                    xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     print("output tokens:", output_tokens)
 
