@@ -188,7 +188,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   // tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  // tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
 
   return tt_pjrt_status::kSuccess;
 }
