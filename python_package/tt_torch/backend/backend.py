@@ -90,6 +90,10 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
+    # gm.graph.print_tabular()
+    # return gm
 
     module = torch_pass_pipeline(gm, example_inputs)
+    print("After passes:")
+    module.graph.print_tabular()
     return XLAExecutor(module)
