@@ -37,10 +37,8 @@ target_include_directories(TTPJRTApi PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )
 
-target_link_libraries(TTPJRTApi
-PUBLIC
+target_link_libraries(TTPJRTApi PUBLIC
     TTPJRTUtils
-PRIVATE
     protobuf::libprotobuf
     coverage_config
     TTMLIRCompiler

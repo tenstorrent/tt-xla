@@ -28,10 +28,8 @@ add_dependencies(TTPJRTUtils
     tt-mlir
 )
 
-target_link_libraries(TTPJRTUtils
-PUBLIC
+target_link_libraries(TTPJRTUtils PUBLIC
     loguru
-PRIVATE
     coverage_config
 )
 
