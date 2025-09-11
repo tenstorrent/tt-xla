@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import flax.traverse_util
 import fsspec
 import jax
@@ -21,6 +20,7 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .model_implementation import MlpMixer
 
@@ -99,6 +99,7 @@ def training_tester() -> MlpMixerTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -118,6 +119,7 @@ def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mlpmixer_training(training_tester: MlpMixerTester):

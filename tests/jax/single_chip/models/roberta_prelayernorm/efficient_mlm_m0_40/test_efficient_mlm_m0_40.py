@@ -15,20 +15,16 @@ from transformers import (
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+)
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
+    ModelVariant,
+    ModelLoader,
 )
 
 MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "roberta_prelayernorm",
-    "efficient_mlm_m0.40",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.EFFICIENT_MLM_M0_40
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
@@ -79,9 +75,9 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_flax_roberta_prelayernorm_inference(
@@ -93,9 +89,9 @@ def test_flax_roberta_prelayernorm_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_roberta_prelayernorm_training(

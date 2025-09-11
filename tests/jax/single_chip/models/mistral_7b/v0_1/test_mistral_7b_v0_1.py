@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -13,6 +15,7 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import Mistral7BTester
 
@@ -45,8 +48,9 @@ def training_tester() -> Mistral7BTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
@@ -67,6 +71,7 @@ def test_mistral_7b_v0_1_inference(inference_tester: Mistral7BTester):
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")

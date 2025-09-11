@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -13,6 +15,7 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .tester import VisionTextDualEncoderTester
 
@@ -20,8 +23,8 @@ IMAGE_MODEL_PATH = "google/vit-base-patch16-224"
 TEXT_MODEL_PATH = "google-bert/bert-base-uncased"
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "vision_text_dual_encoder",
-    "vit_base_patch16_224_bert_base",
+    "vision-text-dual-encoder",
+    "base",
     ModelTask.MM_IMAGE_TTT,
     ModelSource.HUGGING_FACE,
 )
@@ -50,6 +53,7 @@ def training_tester() -> VisionTextDualEncoderTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -70,6 +74,7 @@ def test_vision_text_dual_encoder_inference(
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_vision_text_dual_encoder_training(

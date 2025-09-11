@@ -13,6 +13,7 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import WhisperTester
 
@@ -25,7 +26,6 @@ MODEL_NAME = build_model_name(
     ModelTask.AUDIO_CLS,
     ModelSource.HUGGING_FACE,
 )
-
 
 # ----- Fixtures -----
 
@@ -49,6 +49,7 @@ def training_tester() -> WhisperTester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
@@ -68,6 +69,7 @@ def test_whisper_large_v3_inference(inference_tester: WhisperTester):
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")

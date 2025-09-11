@@ -63,4 +63,8 @@ def test_blenderbot_small_90m_inference(inference_tester: BlenderBotTester):
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_blenderbot_small_90m_training(training_tester: BlenderBotTester):
+<<<<<<< HEAD
     training_tester.test()
+=======
+    training_tester.test()
+>>>>>>> bbae47f6 (refactored models to use modelinfo set-1)

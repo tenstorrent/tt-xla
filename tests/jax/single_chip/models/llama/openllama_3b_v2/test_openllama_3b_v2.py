@@ -3,39 +3,39 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+    incorrect_result,
 )
-from third_party.tt_forge_models.llama.causal_lm.jax import ModelVariant
+from third_party.tt_forge_models.config import Parallelism
+
+from third_party.tt_forge_models.llama.causal_lm.jax import (
+    ModelVariant,
+    ModelLoader,
+)
 from ..tester import LLamaTester
 
 VARIANT_NAME = ModelVariant._3B_V2
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "open_llama",
-    str(VARIANT_NAME),
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
-
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> LLamaTester:
-    return LLamaTester(VARIANT_NAME)
+    # Couldn't extract exact model name so extracting it and passing it
+    model_loader = ModelLoader(VARIANT_NAME)
+    model_name = model_loader._model_name
+    return LLamaTester(model_name)
 
 
 @pytest.fixture
 def training_tester() -> LLamaTester:
-    return LLamaTester(VARIANT_NAME, RunMode.TRAINING)
+    model_loader = ModelLoader(VARIANT_NAME)
+    model_name = model_loader._model_name
+    return LLamaTester(model_name, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -44,12 +44,18 @@ def training_tester() -> LLamaTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.large
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99. "
+#         "https://github.com/tenstorrent/tt-xla/issues/379"
+#     )
+# )
 def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()
 
@@ -57,9 +63,9 @@ def test_openllama3b_inference(inference_tester: LLamaTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
