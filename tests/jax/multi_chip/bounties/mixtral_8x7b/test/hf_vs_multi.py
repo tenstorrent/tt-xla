@@ -16,7 +16,7 @@ load_dotenv()
 from multichip.multichipmixtral import FlaxMixtralForCausalLM
 
 # need a token
-hf_token = os.getenv("HF_TOKEN")
+hf_token = os.getenv("HF_TOKEN_2")
 login(token=hf_token)
 
 
