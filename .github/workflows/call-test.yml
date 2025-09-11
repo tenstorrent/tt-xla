@@ -210,11 +210,7 @@ jobs:
         done
 
         # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
-        if [[ -n "$PYTEST_FORKED" ]]; then
-          VERBOSITY="-vv"
-        else
-          VERBOSITY="-sv"
-        fi
+        VERBOSITY="-svv"
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config.py
         ARCH=""
