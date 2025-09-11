@@ -181,6 +181,10 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
+  // Parse compile options for fingerprint generation
+  module_builder::CompileOptions parsed_compile_options =
+      module_builder::CompileOptions::parse(compile_options);
+
   std::shared_ptr<ExecutableImage> executable_image =
       ExecutableImage::createInstance(
           m_module_builder->getFlatbufferBinary(),
@@ -192,7 +196,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
           m_module_builder->getIsOutputScalar(),
-          m_module_builder->getOutputDataTypes());
+          m_module_builder->getOutputDataTypes(),
+          std::move(parsed_compile_options));
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
