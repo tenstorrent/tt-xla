@@ -98,7 +98,7 @@ jobs:
     steps:
       - id: set_inputs
         run: |
-          echo "timeout=$(( 1440 / ${{ inputs.test_group_cnt }} ))" >> $GITHUB_OUTPUT
+          echo "timeout=$(( 1440 / ${{ inputs.test_group_cnt }} + 60 ))" >> $GITHUB_OUTPUT
           if [[ '${{ inputs.preset }}' == 'custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
             echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
           else
