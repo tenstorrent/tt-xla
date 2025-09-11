@@ -755,37 +755,4 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   return mesh_op;
 }
 
-llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-ModuleBuilder::createArgumentTypeMap(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-      argTypesMap;
-
-  if (m_input_argument_roles.empty()) {
-    return argTypesMap;
-  }
-
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  size_t arg_offset = 0;
-
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
-    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
-      assert(arg_offset + i < m_input_argument_roles.size() &&
-             "TTIR module should have the same number of input arguments as "
-             "the SHLO module");
-      if (m_input_argument_roles[arg_offset + i] ==
-          InputArgumentRole::kWeight) {
-        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
-      } else {
-        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
-      }
-    }
-    argTypesMap[func_op.getName().str()] = argTypes;
-    arg_offset += func_op.getNumArguments();
-  }
-
-  return argTypesMap;
-}
-
 } // namespace tt::pjrt::module_builder
