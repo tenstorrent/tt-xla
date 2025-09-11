@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
-
 import torch
 from torch.utils._pytree import tree_map
-from infra.connectors import DeviceType
+from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 
@@ -16,12 +14,19 @@ from .device_runner import DeviceRunner
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
+    def __init__(self, device_connector: DeviceConnector) -> None:
+        self.training_mode = False
+        super().__init__(device_connector)
+
+    def set_training_mode(self, training_mode: bool = True) -> None:
+        self.training_mode = training_mode
+
     # @override
     def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
         # TODO this context manager disables gradient calculation to save memory. We
         # will need to enable it for training.
 
-        with torch.no_grad():
+        with torch.set_grad_enabled(self.training_mode):
             return workload.execute()
 
     # @override
