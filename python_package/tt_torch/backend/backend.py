@@ -14,8 +14,6 @@ from .passes import (
     bypass_redundant_getitem,
     bypass_dtype_promotion,
     bypass_redundant_cast,
-    rectify_buffer_inplace_copy,
-    run_shape_prop,
     insert_argument_type_markers,
     bypass_assert_tensor_metadata,
 )
@@ -51,7 +49,6 @@ def torch_pass_pipeline(
     compiled_graph = bypass_dtype_promotion(compiled_graph)
     compiled_graph = bypass_redundant_cast(compiled_graph)
     compiled_graph = bypass_redundant_getitem(compiled_graph)
-    compiled_graph = rectify_buffer_inplace_copy(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
     # Recompile the GraphModule to ensure the modifications made by the above
