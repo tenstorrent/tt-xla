@@ -31,7 +31,25 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
 ) -> torch.fx.GraphModule:
-    decompositions = torch._decomp.core_aten_decompositions()
+    decompositions_prev = torch._decomp.core_aten_decompositions()
+
+    already_printed3 = []
+
+    def print_wrapper(fn, op):
+        op_name = str(op)  # turn OpOverload object into a readable string
+
+        def wrapper(*args, **kwargs):
+            if op_name not in already_printed3:
+                print(f"decomposition_core_aten: {op_name}")
+                already_printed3.append(op_name)
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    decompositions = {
+        op: print_wrapper(fn, op) for op, fn in decompositions_prev.items()
+    }
+
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
