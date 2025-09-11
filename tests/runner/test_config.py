@@ -1683,8 +1683,9 @@ test_config = {
                 "status": ModelTestStatus.EXPECTED_PASSING,
             },
             "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "running the test CRASHED with signal 9",
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
@@ -1743,8 +1744,9 @@ test_config = {
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99",
             },
             "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 367001600 B DRAM buffer across 12 banks",
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
