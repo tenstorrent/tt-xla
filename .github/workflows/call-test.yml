@@ -169,22 +169,32 @@ jobs:
         if [ "${{ github.run_attempt }}" -gt 1 ]; then
           echo "Second attempt detected"
           attempt=$((${{ github.run_attempt }} - 1))
-          echo "Downloading test reports from previous attempt"
           rm -rf old-reports
           mkdir old-reports
           set +e
-          gh run download ${{ github.run_id }} \
-            --repo ${{ github.repository }} \
-            --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
-            -D old-reports
-          if [ $? -ne 0 ]; then
+          result=1
+          while [ $attempt -ge 1 ]; do
+            echo "Downloading test reports from attempt $attempt"
+            gh run download ${{ github.run_id }} \
+              --repo ${{ github.repository }} \
+              --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
+              -D old-reports
+            result=$?
+            if [ $result -eq 0 ]; then
+              break
+            fi
+            attempt=$((attempt - 1))
+          done
+          if [ $result -ne 0 ]; then
             echo "No previous test reports found"
           else
-            echo "Found previous test reports"
+            echo "Found test reports from attempt $attempt"
             python .github/scripts/find_all_failed_tests.py old-reports
             if [ -f ".pytest_tests_to_run" ]; then
               echo "There are tests to rerun"
               echo "second_attempt=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "All tests will rerun"
             fi
           fi
         else
