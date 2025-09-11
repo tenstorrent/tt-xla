@@ -1729,8 +1729,10 @@ test_config = {
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-8.055820217123255e-06. Required: pcc=0.99",
             },
             "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                # "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
