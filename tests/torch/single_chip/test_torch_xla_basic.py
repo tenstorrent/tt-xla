@@ -33,9 +33,10 @@ def test_simple_mm(bias):
     model = MM()
     golden = model(input_x)
 
-    model = torch.compile(model, backend="tt")
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
 
-    output = model(input_x)
+    output = model(input_x.to(device))
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
@@ -107,9 +108,10 @@ def test_conv2d(
     model = Conv()
     golden = model(input_x)
 
-    model = torch.compile(model, backend="tt")
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
 
-    output = model(input_x)
+    output = model(input_x.to(device))
 
     comparator = TorchComparator(
         ComparisonConfig(
@@ -239,11 +241,13 @@ def test_eltwise_unary(op):
     model = Unary()
     golden = model(input_x)
 
-    model = torch.compile(model, backend="tt")
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
 
-    output = model(input_x)
+    output = model(input_x.to(device))
 
     # Not verifying data as many are wrong. Simply testing compile and execute
+
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.01),
@@ -346,9 +350,10 @@ def test_eltwise_binary(op):
     model = Binary()
     golden = model(input_x, input_y)
 
-    model = torch.compile(model, backend="tt")
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
 
-    output = model(input_x, input_y)
+    output = model(input_x.to(device), input_y.to(device))
 
     # Not verifying data as many are wrong. Simply testing compile and execute
     comparator = TorchComparator(

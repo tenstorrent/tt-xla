@@ -44,7 +44,11 @@ def training_tester() -> ResNetTester:
 
 @pytest.fixture
 def inference_tester_optimizer() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, run_mode=RunMode.INFERENCE, use_optimizer=True)
+    return ResNetTester(
+        VARIANT_NAME,
+        run_mode=RunMode.INFERENCE,
+        compiler_config=CompilerConfig(enable_optimizer=True),
+    )
 
 
 # ----- Tests -----

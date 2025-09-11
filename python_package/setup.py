@@ -171,7 +171,7 @@ class CMakeBuildPy(build_py):
     the package for wheel creation.
 
     It first ensures project is built, then it copies pre-written __init__.py file
-    containing plugin initialization code inside the plugin di, afterwards copies
+    containing plugin initialization code inside the plugin dir, afterwards copies
     created JAX plugin (product of the build) `pjrt_plugin_tt.so` inside the plugin dir,
     and finally copies entire tt-mlir installation dir inside the plugin dir as well,
     for them all to be packaged together.
