@@ -177,6 +177,9 @@ def pytest_addoption(parser):
     )
 
 
+# DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
+# TODO: Consider using a more explicit way to differentiate CIv2-specific environment
+# Issue: https://github.com/tenstorrent/github-ci-infra/issues/772
 def _is_on_CIv2() -> bool:
     """
     Check if we are on CIv2.
