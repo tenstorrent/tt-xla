@@ -20,9 +20,6 @@
 
 namespace tt::pjrt {
 
-// Top-level API bindings.
-void BindMonomorphicApi(PJRT_Api *api);
-
 void BindUndefineds(PJRT_Api *api);
 
 // Initializes and returns PJRT plugin attributes.

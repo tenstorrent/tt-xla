@@ -24,7 +24,7 @@
 
 namespace tt::pjrt {
 
-void BindMonomorphicApi(PJRT_Api *api) {
+void BindApi(PJRT_Api *api) {
   api->struct_size = PJRT_Api_STRUCT_SIZE;
   api->extension_start = nullptr;
   api->pjrt_api_version.major_version = PJRT_API_MAJOR;
@@ -85,7 +85,5 @@ PJRT_Error *InitializePluginAttributes(PJRT_Plugin_Attributes_Args *args) {
 
   return nullptr;
 }
-
-void BindApi(PJRT_Api *api) { BindMonomorphicApi(api); }
 
 } // namespace tt::pjrt
