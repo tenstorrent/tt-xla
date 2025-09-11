@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+from os import wait
 from typing import Any, Dict, Mapping, Sequence
 
 import torch
@@ -33,10 +34,11 @@ class TorchModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        skip_compilation: bool = False,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-
+        self._skip_compilation = skip_compilation
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
@@ -54,6 +56,7 @@ class TorchModelTester(ModelTester):
     def _configure_model_for_training(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
+        self._device_runner.set_training_mode()
 
     # @override
     def _cache_model_inputs(self) -> None:
@@ -110,4 +113,41 @@ class TorchModelTester(ModelTester):
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
 
+        if self._skip_compilation:
+            return
+
         workload.model.compile(backend=backend)
+
+    def _test_training(self):
+        self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
+        random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
+
+        cpu_backward_workload = Workload(
+            framework=self._framework,
+            executable=cpu_res.backward,
+            args=[],
+            kwargs={"gradient": random_grad},
+        )
+        self._run_on_cpu(cpu_backward_workload)
+
+        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
+        self._workload.model.zero_grad()
+
+        self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(self._workload)
+        torch_xla.sync(wait=True)
+
+        tt_backward_workload = Workload(
+            framework=self._framework,
+            executable=tt_res.backward,
+            args=[],
+            kwargs={"gradient": random_grad},
+        )
+        self._run_on_tt_device(tt_backward_workload)
+        tt_grads = {
+            name: p.grad.clone().cpu() for name, p in self._model.named_parameters()
+        }
+
+        self._compare(tt_res, cpu_res)
+        self._compare(tt_grads, cpu_grads)
