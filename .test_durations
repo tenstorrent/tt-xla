@@ -1495,5 +1495,18 @@
     "tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50_timm-full-inference]": 97.755,
     "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference]": 332.379,
     "tests/runner/test_models.py::test_all_models[phi3/phi_3_5/pytorch-mini_instruct-full-inference]": 208.069,
-    "tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]": 77.784
+    "tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]": 77.784,
+    "tests/runner/test_models.py::test_all_models[stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference]": 7.486,
+    "tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference]": 9.163,
+    "tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference]": 5.754,
+    "tests/runner/test_models.py::test_all_models[phi3/phi_3_5_vision/pytorch-instruct-full-inference]": 6.364,
+    "tests/runner/test_models.py::test_all_models[bi_lstm_crf/pytorch-default-full-inference]": 21.837,
+    "tests/runner/test_models.py::test_all_models[gliner/pytorch-urchade/gliner_multi-v2.1-full-inference]": 23.118,
+    "tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-1.1-7b-it-full-inference]": 0.576,
+    "tests/runner/test_models.py::test_all_models[mistral/pixtral/pytorch-full-inference]": 85.604,
+    "tests/runner/test_models.py::test_all_models[flux/pytorch-schnell-full-inference]": 0.564,
+    "tests/runner/test_models.py::test_all_models[flux/pytorch-dev-full-inference]": 0.617,
+    "tests/runner/test_models.py::test_all_models[phi4/causal_lm/pytorch-microsoft/phi-4-full-inference]": 96.926,
+    "tests/runner/test_models.py::test_all_models[oft/pytorch-full-inference]": 47.013,
+    "tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]": 473.0
 }
