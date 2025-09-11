@@ -87,7 +87,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="qwen_3_embedding",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.GENERALITY
+            if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B
+            else ModelGroup.RED,
             task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

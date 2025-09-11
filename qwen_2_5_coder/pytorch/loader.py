@@ -104,7 +104,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="qwen_2_5_coder",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED
+            if variant == ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT
+            else ModelGroup.GENERALITY,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

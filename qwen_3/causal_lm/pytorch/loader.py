@@ -102,7 +102,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="qwen_3",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

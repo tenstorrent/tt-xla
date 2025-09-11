@@ -86,7 +86,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="whisper",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED
+            if variant == ModelVariant.WHISPER_LARGE_V3
+            else ModelGroup.GENERALITY,
             task=ModelTask.AUDIO_ASR,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

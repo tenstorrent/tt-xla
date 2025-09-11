@@ -106,7 +106,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="vit",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED
+            if variant == ModelVariant.BASE
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,

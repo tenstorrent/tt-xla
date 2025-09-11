@@ -136,10 +136,23 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+
+        group = ModelGroup.GENERALITY
+        if variant in [
+            ModelVariant.QWEN_2_5_0_5B_INSTRUCT,
+            ModelVariant.QWEN_2_5_1_5B_INSTRUCT,
+            ModelVariant.QWEN_2_5_3B_INSTRUCT,
+            ModelVariant.QWEN_2_5_7B_INSTRUCT,
+            ModelVariant.QWEN_2_5_14B_INSTRUCT,
+            ModelVariant.QWEN_2_5_32B_INSTRUCT,
+            ModelVariant.QWEN_2_5_72B_INSTRUCT,
+        ]:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="qwen_2_5",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
