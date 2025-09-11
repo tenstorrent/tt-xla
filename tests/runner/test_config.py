@@ -1917,4 +1917,9 @@ test_config = {
         "reason": "d_fine xlarge hangs forever, removing all of them.",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "bevformer/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('dynamic-update-slice.212'): error: failed to legalize operation 'stablehlo.dynamic_update_slice'",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }
