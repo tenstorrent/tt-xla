@@ -17,7 +17,6 @@
 
 // loguru includes
 #include "common/status.h"
-#include "common/util/lockfile.h"
 #include "loguru/loguru.hpp"
 
 // llvm includes
@@ -248,8 +247,6 @@ tt_pjrt_status ModuleBuilder::buildForCodegenCpp(
   std::string folder = executable->compile_options.export_path;
   std::filesystem::create_directories(folder);
 
-  util::LockFile lock(folder + "/.lockfile");
-
   auto ttir = executable->m_ttir_mlir;
   std::ofstream ttir_file(folder + "/ttir.mlir");
   ttir_file << ttir;
@@ -284,8 +281,6 @@ ModuleBuilder::buildForCodegenPy(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                                  SOExecutableImage *executable) {
   std::string folder = executable->compile_options.export_path;
   std::filesystem::create_directories(folder);
-
-  util::LockFile lock(folder + "/.lockfile");
 
   auto ttir = executable->m_ttir_mlir;
   std::ofstream ttir_file(folder + "/ttir.mlir");
@@ -1057,49 +1052,53 @@ std::string ModuleBuilder::findTTAlchemistLibraryPath() {
 
 void ModuleBuilder::loadTTAlchemistFunctions() {
   std::string so_path = findTTAlchemistLibraryPath();
-  if (!so_path.empty()) {
-    m_tt_alchemist_handle = dlopen(so_path.c_str(), RTLD_LAZY);
-    if (m_tt_alchemist_handle) {
-      dlerror();
-
-      m_tt_alchemist_get_instance = (void *(*)())dlsym(
-          m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_getInstance");
-
-      const char *dlsym_error = dlerror();
-      if (dlsym_error) {
-        return;
-      }
-
-      m_tt_alchemist_generate_python =
-          (bool (*)(void *, const char *, const char *, bool, const char *))
-              dlsym(m_tt_alchemist_handle,
-                    "tt_alchemist_TTAlchemist_generatePython");
-
-      dlsym_error = dlerror();
-      if (dlsym_error) {
-        return;
-      }
-
-      m_tt_alchemist_generate_cpp =
-          (bool (*)(void *, const char *, const char *, bool,
-                    const char *))dlsym(m_tt_alchemist_handle,
-                                        "tt_alchemist_TTAlchemist_generateCpp");
-
-      dlsym_error = dlerror();
-      if (dlsym_error) {
-        return;
-      }
-
-      m_alchemist_available = true;
-
-    } else {
-      DLOG_F(WARNING, "Cannot load tt-alchemist library: %s", dlerror());
-      m_alchemist_available = false;
-    }
-  } else {
+  if (so_path.empty()) {
     DLOG_F(WARNING, "tt-alchemist library not found in Python environment");
     m_alchemist_available = false;
   }
+
+  dlerror(); // Clear any existing error
+  m_tt_alchemist_handle = dlopen(so_path.c_str(), RTLD_LAZY);
+  const char *dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_get_instance = (void *(*)())dlsym(
+      m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_getInstance");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_generate_python =
+      (bool (*)(void *, const char *, const char *, bool, const char *))dlsym(
+          m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_generatePython");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_tt_alchemist_generate_cpp =
+      (bool (*)(void *, const char *, const char *, bool, const char *))dlsym(
+          m_tt_alchemist_handle, "tt_alchemist_TTAlchemist_generateCpp");
+
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error while loading tt-alchemist library: %s",
+           dlsym_error);
+    return;
+  }
+
+  m_alchemist_available = true;
 }
 
 } // namespace tt::pjrt::module_builder
