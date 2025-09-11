@@ -158,6 +158,37 @@ jobs:
         tar xf artifact.tar
         rm -f artifact.tar
 
+    - name: Check for second attempt
+      id: check-second-attempt
+      shell: bash
+      run: |
+        source venv/activate
+        rm -f .pytest_tests_to_run
+        if [ "${{ github.run_attempt }}" -gt 1 ]; then
+          echo "Second attempt detected"
+          attempt=$((${{ github.run_attempt }} - 1))
+          echo "Downloading test reports from previous attempt"
+          rm -rf old-reports
+          mkdir old-reports
+          set +e
+          gh run download ${{ github.run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
+            -D old-reports
+          if [ $? -ne 0 ]; then
+            echo "No previous test reports found"
+          else
+            echo "Found previous test reports"
+            python .github/scripts/find_all_failed_tests.py old-reports
+            if [ -f ".pytest_tests_to_run" ]; then
+              echo "There are tests to rerun"
+              echo "second_attempt=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        else
+          echo "First attempt"
+        fi
+
     - name: Set pytest command
       shell: bash
       run: |
@@ -188,14 +219,21 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
+        if [ "${{ steps.check-second-attempt.outputs.second_attempt }}" == "true" ]; then
+          echo "Only running previously failed tests"
+          PYTEST_SPLITS=""
+        else
+          echo "Running all tests"
+          PYTEST_SPLITS="--splits ${{ matrix.build.test_group_cnt || 1}} \
+            --group ${{ matrix.build.test_group_id || 1}} \
+            --splitting-algorithm least_duration"
+        fi
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" \
-          --splits ${{ matrix.build.test_group_cnt || 1}} \
-          --group ${{ matrix.build.test_group_id || 1}} \
-          --splitting-algorithm least_duration"
+          $PYTEST_SPLITS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
@@ -220,34 +258,6 @@ jobs:
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
-
-    - name: Check for second attempt
-      id: check-second-attempt
-      shell: bash
-      run: |
-        source venv/activate
-        rm -f .pytest_tests_to_run
-        if [ "${{ github.run_attempt }}" -gt 1 ]; then
-          echo "Second attempt detected"
-          attempt=$((${{ github.run_attempt }} - 1))
-          echo "Downloading test reports from previous attempt"
-          rm -rf old-reports
-          mkdir old-reports
-          set +e
-          gh run download ${{ github.run_id }} \
-            --repo ${{ github.repository }} \
-            --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
-            -D old-reports
-          if [ $? -ne 0 ]; then
-            echo "No previous test reports found"
-          else
-            echo "Found previous test reports"
-            python .github/scripts/find_all_failed_tests.py old-reports
-            echo "second_attempt=true" >> "$GITHUB_OUTPUT"
-          fi
-        else
-          echo "First attempt"
-        fi
 
     - name: Run tests
       env:

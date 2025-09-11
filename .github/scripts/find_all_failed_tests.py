@@ -28,7 +28,9 @@ def find_failed_test_case(xml_file):
                 try:
                     path = testcase.get("classname").replace(".", "/")
                     name = testcase.get("name")
-                    if testcase.find("failure") is not None:
+                    if (testcase.find("failure") is not None) or (
+                        testcase.find("error") is not None
+                    ):
                         failed_test_cases.append(f"{path}.py::{name}")
                 except:
                     print(f"Error encountered in {xml_file} for test case '{name}'")
