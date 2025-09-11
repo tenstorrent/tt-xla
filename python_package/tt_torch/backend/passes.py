@@ -58,7 +58,10 @@ def insert_argument_type_markers(
             )
 
         for user in users:
-            if user.target == torch.ops.aten.copy_.default and user.args[0] == input_node:
+            if (
+                user.target == torch.ops.aten.copy_.default
+                and user.args[0] == input_node
+            ):
                 continue
             user.replace_input_with(input_node, new_input)
 
