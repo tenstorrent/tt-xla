@@ -34,11 +34,10 @@ class TorchModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
-        skip_compilation: bool = False,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        self._skip_compilation = skip_compilation
+        self._skip_compilation = True if run_mode == RunMode.TRAINING else False
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
