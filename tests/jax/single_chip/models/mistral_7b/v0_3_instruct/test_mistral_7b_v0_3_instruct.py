@@ -17,7 +17,7 @@ from utils import (
 from ..tester import Mistral7BV02Tester
 
 MODEL_PATH = "unsloth/mistral-7b-instruct-v0.3"
-MODEL_GROUP = ModelGroup.RED
+MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mistral-7b",

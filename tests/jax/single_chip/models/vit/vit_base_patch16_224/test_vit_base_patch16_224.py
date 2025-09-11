@@ -45,7 +45,7 @@ def training_tester() -> ViTTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=ModelGroup.RED,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -59,7 +59,7 @@ def test_vit_base_patch16_224_inference(
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_group=ModelGroup.RED,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
