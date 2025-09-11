@@ -24,6 +24,10 @@ target_include_directories(TTPJRTUtils PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/include
 )
 
+add_dependencies(TTPJRTUtils
+    tt-mlir
+)
+
 target_link_libraries(TTPJRTUtils
 PUBLIC
     loguru
