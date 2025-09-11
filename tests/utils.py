@@ -84,6 +84,7 @@ class BringupStatus(Enum):
     INCORRECT_RESULT = "incorrect_result"
     PASSED = "passed"
     UNKNOWN = "unknown"
+    NOT_STARTED = "not_started"
 
     def __str__(self) -> str:
         return self.name

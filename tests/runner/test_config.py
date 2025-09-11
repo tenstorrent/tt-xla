@@ -5,6 +5,151 @@
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
 
+# Note: List of placeholder model names that are important, planned but not yet merged.
+# They will be consumed by test_placeholder_models and automatically generate reports
+# for dashboard with ModelGroup.RED and bringup_status=NOT_STARTED unless overriden
+# per model below. The key is model name which will be converted to lower case name,
+# and most fields will be default initialized.
+#
+# Important: When model is actually added to tt-forge-models and this file to be run
+# in CI, placeholder entries must be removed to prevent duplicated model reports.
+
+PLACEHOLDER_MODELS = {
+    "Qwen/Qwen2.5-VL-72B-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Qwen/Qwen2.5-VL-3B-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "meta-llama/Llama-3.2-11B-Vision-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "meta-llama/Llama-3.2-90B-Vision-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "deepseek-ai/DeepSeek-V3": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "deepseek-ai/DeepSeek-R1": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "panoptic deeplab": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "oft-net": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "ssr-net": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mistral-Small-3.1-24B-Instruct-2503": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Devstral-Small-2505": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Magistral-Small-2506": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mistral-Large-Instruct-2411": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mistral-Small-24B-Instruct-2501": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mistral-Small-3.2-24B-Instruct-2506": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "genmo/mochi-1-preview": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "openbmb/MiniCPM-o-2_6": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Qwen/Qwen2.5-VL-7B-Instruct": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mixtral-8x7B-Instruct-v0.1": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "BAAI/bge-m3": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "openai/gpt-oss-20b": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "openai/gpt-oss-120b": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Hiperglobal Shallow uNet": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "KLA K-SegNet": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "KLA Klassify": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Mistral-Nemo-Instruct-2407": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Qwen/QVQ-72B-Preview": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "detr3d": {
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "reason": "PR exists to add model, hits DRAM Out of memory",
+    },
+    "Sentencizer": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "bevdepth": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "bevformer": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "pointpillars": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "uniad": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "vadv2": {
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "reason": "PR exists to add model, hits DRAM Out of memory",
+    },
+    "maptr": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "MiniMaxAI/MiniMax-Text-01": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "MiniMaxAI/MiniMax-VL-01": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Pixtral-Large-Instruct-2411": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistralai/Pixtral-12B-2409": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "upstage/SOLAR-10.7B-Instruct-v1.0": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Gaussian Splatting": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "Open VLA": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+    "mistral-community/pixtral-12b": {
+        "bringup_status": BringupStatus.NOT_STARTED,
+    },
+}
 
 test_config = {
     "gpt_neo/causal_lm/pytorch-gpt_neo_125M-full-inference": {
