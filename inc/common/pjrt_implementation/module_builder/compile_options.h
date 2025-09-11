@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
+#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
+
 // c++ standard library includes
 #include <string>
 #include <unordered_map>
@@ -37,3 +40,5 @@ bool parseBoolOption(
 } // namespace internal
 
 } // namespace tt::pjrt::module_builder
+
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
