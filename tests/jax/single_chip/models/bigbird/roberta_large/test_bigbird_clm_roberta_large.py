@@ -9,28 +9,28 @@ from utils import (
     Category,
     failed_ttmlir_compilation,
 )
-
-from ..tester import BlenderBotTester
-from third_party.tt_forge_models.blenderbot.summarization.jax.loader import (
-    ModelVariant,
-    ModelLoader,
-)
 from third_party.tt_forge_models.config import Parallelism
+from ..tester import BigBirdCLMTester
+from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
+    ModelLoader,
+    ModelVariant,
+)
 
-VARIANT_NAME = ModelVariant.BLENDERBOT_3B
+
+VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
+
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
-def inference_tester() -> BlenderBotTester:
-    return BlenderBotTester(VARIANT_NAME)
+def inference_tester() -> BigBirdCLMTester:
+    return BigBirdCLMTester(VARIANT_NAME)
 
 
-@pytest.fixture
-def training_tester() -> BlenderBotTester:
-    return BlenderBotTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> BigBirdCLMTester:
+    return BigBirdCLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -40,18 +40,17 @@ def training_tester() -> BlenderBotTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
-        "https://github.com/tenstorrent/tt-xla/issues/911"
+        "failed to legalize operation 'ttir.gather' "
+        "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
-def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
+def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
     inference_tester.test()
 
 
@@ -59,10 +58,9 @@ def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
-@pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_blenderbot_3b_training(training_tester: BlenderBotTester):
+def test_bigbird_roberta_large_training(training_tester: BigBirdCLMTester):
     training_tester.test()

@@ -6,6 +6,7 @@ from typing import Dict
 import jax
 
 from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.resnet.image_classification.jax import (
     ModelLoader,
     ModelVariant,
@@ -20,9 +21,10 @@ class ResNetTester(JaxModelTester):
         variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._model_loader = ModelLoader(variant_name)
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     # @override
     def _get_model(self) -> Model:

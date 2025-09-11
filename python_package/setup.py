@@ -132,11 +132,11 @@ config = SetupConfig()
 
 class BdistWheel(bdist_wheel):
     """
-    Custom wheel builder for a platform-specific, non-pure Python package.
+    Custom wheel builder for a platform-specific Python package.
 
     - Marks the wheel as non-pure (`root_is_pure = False`) to ensure proper installation
       of native binaries.
-    - Overrides the tag to be Python-version agnostic (`py3-none`) while preserving
+    - Overrides the tag to be Python 3.11-specific (`cp311-cp311`) while preserving
       platform specificity.
     """
 
@@ -159,9 +159,8 @@ class BdistWheel(bdist_wheel):
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # We don't contain any python extensions so are version agnostic
-        # but still want to be platform specific.
-        python, abi = "py3", "none"
+        # Force specific Python 3.11 ABI format for the wheel
+        python, abi = "cp311", "cp311"
         return python, abi, plat
 
 

@@ -2,23 +2,64 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Dict, Sequence
+import jax
+from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
+    ModelLoader as BigBirdCLMModelLoader,
+    ModelVariant as BigBirdCLMModelVariant,
+)
+from third_party.tt_forge_models.bigbird.question_answering.jax.loader import (
+    ModelLoader as BigBirdQAModelLoader,
+    ModelVariant as BigBirdQAModelVariant,
+)
 
-from infra import ComparisonConfig, JaxModelTester, RunMode
 
-
-class BigBirdTester(JaxModelTester):
-    """Tester for BigBird Model variants."""
+class BigBirdQATester(JaxModelTester):
+    """Tester for BigBird Question Answering Model variants."""
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: BigBirdQAModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = BigBirdQAModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
-    # override
+    # @override
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
+
+    # @override
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
+        return self._model_loader.load_inputs()
+
+    # @override
+    def _get_static_argnames(self) -> Sequence[str]:
+        return ["train"]
+
+
+class BigBirdCLMTester(JaxModelTester):
+    """Tester for BigBird Causal LM Model variants."""
+
+    def __init__(
+        self,
+        variant_name: BigBirdCLMModelVariant,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ) -> None:
+        self._model_loader = BigBirdCLMModelLoader(variant_name)
+        super().__init__(comparison_config, run_mode)
+
+    # @override
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
+
+    # @override
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
+        return self._model_loader.load_inputs()
+
+    # @override
     def _get_static_argnames(self) -> Sequence[str]:
         return ["train"]
