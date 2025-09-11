@@ -11,6 +11,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -75,6 +76,15 @@ public:
     return m_addressable_memories_raw;
   }
 
+  tt::runtime::Device getParentMesh() const { return *m_parent_mesh; }
+
+  // Returns the mesh device of the provided shape. If there is already opened
+  // mesh device within this client instance and its shape matches the provided
+  // shape, it is returned. Otherwise, we close any previously opened mesh
+  // device and open a new one with the provided shape.
+  tt::runtime::Device
+  getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -93,6 +103,11 @@ protected:
 private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
+
+  // Wrapper method around `tt::runtime::openMeshDevice` that also handles
+  // setting fabric config when needed.
+  tt::runtime::Device
+  openMeshDevice(::tt::runtime::MeshDeviceOptions options = {});
 
   std::unique_ptr<Platform> platform_;
 
@@ -134,6 +149,9 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  // Currently in-use mesh device.
+  std::optional<tt::runtime::Device> m_parent_mesh;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
