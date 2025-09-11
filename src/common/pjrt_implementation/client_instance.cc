@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 
 // tt-mlir includes
@@ -22,6 +23,7 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/unknown_field_set.h>
+#include <optional>
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -29,12 +31,14 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
+#include "tt/runtime/types.h"
 
 namespace tt::pjrt {
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
-      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()) {
+      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
+      m_parent_mesh(std::nullopt) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
   // TODO(mrakita): Add support for multi-process environment. Process index is
@@ -130,6 +134,13 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
+  bool reuse_device_enabled = std::getenv("TT_REUSE_DEVICE") != nullptr;
+  if (devices_count == 1 || reuse_device_enabled) {
+    // In case of single chip - open the device in advance. This opened device
+    // will be reused during the process lifetime for all executable instances.
+    m_parent_mesh = ::tt::runtime::openMeshDevice();
+  }
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -166,6 +177,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   tt_pjrt_status compile_status = m_module_builder->buildModule(
       mlir_code, m_cached_system_descriptor_path, compile_options);
+
   if (!tt_pjrt_status_is_ok(compile_status)) {
     return compile_status;
   }
@@ -213,7 +225,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               m_parent_mesh);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.

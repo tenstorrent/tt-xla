@@ -140,6 +140,8 @@ private:
   static std::unordered_map<std::string, std::string>
   extractCustomProtobufFields(
       const google::protobuf::UnknownFieldSet &unknown_fields);
+
+  std::optional<tt::runtime::Device> m_parent_mesh;
 };
 
 namespace internal {

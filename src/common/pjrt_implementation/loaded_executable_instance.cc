@@ -11,7 +11,10 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <cassert>
+#include <iostream>
 #include <numeric>
+#include <stdexcept>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -29,16 +32,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    std::optional<tt::runtime::Device> parent_mesh) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        std::optional<tt::runtime::Device> parent_mesh)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   std::move(parent_mesh)) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               std::move(parent_mesh));
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -96,9 +103,29 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
+  bool device_provided = m_parent_mesh.has_value();
+  if (device_provided) {
+    // Check if submesh is compatible with the parent mesh.
+    std::vector<uint32_t> parent_shape =
+        tt::runtime::getMeshShape(*m_parent_mesh);
+    const std::vector<std::uint32_t> &devices_mesh_shape =
+        m_executable_image->getDevicesMeshShape();
+    assert(
+        parent_shape == devices_mesh_shape &&
+        "The device reuse works only if we are reusing the device of the same "
+        "mesh shape!");
+    if (parent_shape != devices_mesh_shape) {
+      throw std::runtime_error("The device reuse works only if we are reusing "
+                               "the device of the same mesh shape!");
+    }
+  }
+
   std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  args->execute_device);
+      m_parent_mesh.has_value()
+          ? m_parent_mesh
+          : openDevices(args->argument_lists, args->num_args, args->num_devices,
+                        args->execute_device);
+
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
@@ -157,8 +184,11 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  if (!device_provided) {
+    std::cerr << "Closing mesh device!" << std::endl;
+    tt::runtime::closeMeshDevice(*runtime_device);
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  }
 
   return tt_pjrt_status::kSuccess;
 }
@@ -208,6 +238,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
 
+  std::cerr << "Opening mesh device!" << std::endl;
   return tt::runtime::openMeshDevice(mesh_device_options);
 }
 
