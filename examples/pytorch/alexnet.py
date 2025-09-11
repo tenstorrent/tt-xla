@@ -7,22 +7,7 @@ import os
 import torch
 import torch.nn as nn
 import torch_xla.core.xla_model as xm
-from torch_xla.experimental import plugins
-
-# --------------------------------
-# Plugin registration
-# --------------------------------
-os.environ["PJRT_DEVICE"] = "TT"
-os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-
-
-class TTPjrtPlugin(plugins.DevicePlugin):
-    def library_path(self):
-        return os.path.join(os.getcwd(), "build/src/tt/pjrt_plugin_tt.so")
-
-
-plugins.register_plugin("TT", TTPjrtPlugin())
-
+import torch_xla.runtime as xr
 
 # --------------------------------
 # Test run
@@ -35,7 +20,7 @@ def alexnet():
 
     # Put it in inference mode and compile it.
     model = model.eval()
-    model.compile(backend="openxla")
+    model.compile(backend="tt")
 
     # Generate inputs.
     input = torch.rand((1, 3, 224, 224))
@@ -58,4 +43,7 @@ def alexnet():
 # main
 # --------------------------------
 if __name__ == "__main__":
+    # By default torch_xla uses the CPU device so we have to set it to TT device.
+    xr.set_device_type("TT")
+
     alexnet()

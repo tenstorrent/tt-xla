@@ -13,15 +13,15 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
-
+from third_party.tt_forge_models.autoencoder.pytorch.loader import ModelVariant
 from .tester import AutoencoderLinearTester
 
-VARIANT_NAME = "autoencoder_linear"
+VARIANT_NAME = ModelVariant.LINEAR
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "autoencoder_linear",
-    "base",
+    "autoencoder",
+    str(VARIANT_NAME),
     ModelTask.CV_IMG_TO_IMG,
     ModelSource.CUSTOM,
 )

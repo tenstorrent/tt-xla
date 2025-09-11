@@ -26,19 +26,6 @@ jax.config.update("jax_num_cpu_devices", 8)
 jax.config.update("jax_use_shardy_partitioner", False)
 
 
-def register_pjrt_plugin():
-    """Registers TT PJRT plugin."""
-
-    plugin_path = os.path.join(
-        os.path.dirname(__file__), "../build/src/tt/pjrt_plugin_tt.so"
-    )
-    if not os.path.exists(plugin_path):
-        raise FileNotFoundError(f"Could not find TT PJRT plugin at {plugin_path}")
-
-    xb.register_plugin("tt", library_path=plugin_path)
-    jax.config.update("jax_platforms", "cpu,tt")
-
-
 def generate_inputs_on_cpu(prng_key: jax.Array) -> Sequence[jax.Array]:
     """Generates inputs on CPU."""
 
@@ -81,8 +68,6 @@ def initialize_parameters(
 
 
 def run_alexnet():
-    register_pjrt_plugin()
-
     tt_devices = jax.devices("tt")
     num_tt_devices = len(jax.devices("tt"))
 

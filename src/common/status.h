@@ -11,6 +11,7 @@
 // Loguru doesn't have debug named verbosity and the next verbosity after INFO
 // is called `Verbosity_1`, so defining this to avoid doing `DLOG_F(1, ...)`.
 #define LOG_DEBUG 1
+#define LOG_VERBOSE 2
 
 // TODO(mrakita): Move into `tt::pjrt::status` namespace, rename enum class and
 // `tt_pjrt_status_is_ok` function.

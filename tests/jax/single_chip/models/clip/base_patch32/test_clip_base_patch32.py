@@ -13,10 +13,11 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
 from ..tester import FlaxCLIPTester
 
-MODEL_PATH = "openai/clip-vit-base-patch32"
+VARIANT_NAME = ModelVariant.BASE_PATCH32
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "clip_vit_patch32",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(MODEL_PATH)
+    return FlaxCLIPTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxCLIPTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----

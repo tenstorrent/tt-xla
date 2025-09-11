@@ -51,11 +51,11 @@ target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 set_target_properties(TTPJRTTTDylib PROPERTIES
     PREFIX "" # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    BUILD_RPATH "$ORIGIN:$ORIGIN/tt-mlir/install/lib"
-    INSTALL_RPATH "$ORIGIN:$ORIGIN/tt-mlir/install/lib"
+    BUILD_RPATH "$ORIGIN:$ORIGIN/lib"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib"
 )
 
-install(TARGETS TTPJRTTTDylib DESTINATION lib)
+install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Setting build type to 'Release' as none was specified.")
@@ -80,3 +80,13 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     target_compile_definitions(TTPJRTTTDylib PRIVATE NDEBUG)
     target_compile_options(TTPJRTTTDylib PRIVATE -Os)
 endif()
+
+add_custom_target(install-dylib-editable ALL
+    COMMAND ln -sf $<TARGET_FILE:TTPJRTTTDylib> ${CMAKE_SOURCE_DIR}/python_package/pjrt_plugin_tt/pjrt_plugin_tt.so
+    COMMENT "Installing pjrt_plugin_tt.so to python_package/pjrt_plugin_tt"
+    COMMAND pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
+    COMMENT "Running editable installation..."
+    USES_TERMINAL
+)
+
+add_dependencies(install-dylib-editable TTPJRTTTDylib)

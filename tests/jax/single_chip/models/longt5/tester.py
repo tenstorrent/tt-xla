@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Mapping
+from typing import Dict
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from transformers import (
-    AutoTokenizer,
-    FlaxLongT5ForConditionalGeneration,
-    FlaxPreTrainedModel,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.longt5.text_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
@@ -18,36 +18,20 @@ class LongT5Tester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxLongT5ForConditionalGeneration.from_pretrained(self._model_path)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer(
-            "My friends are cool but they eat too many carbs.", return_tensors="jax"
-        )
-        return inputs
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        decoder_input_ids = tokenizer(
-            text_target="I eat less carbs.", return_tensors="jax"
-        ).input_ids
-        return {
-            "params": self._input_parameters,
-            "decoder_input_ids": decoder_input_ids,
-            **self._input_activations,
-        }
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_static_argnames(self):

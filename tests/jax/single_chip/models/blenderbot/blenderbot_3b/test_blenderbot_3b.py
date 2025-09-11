@@ -3,39 +3,34 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_ttmlir_compilation,
 )
 
 from ..tester import BlenderBotTester
-
-MODEL_PATH = "facebook/blenderbot-3B"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "blenderbot",
-    "3b",
-    ModelTask.NLP_SUMMARIZATION,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.blenderbot.summarization.jax.loader import (
+    ModelVariant,
+    ModelLoader,
 )
+from third_party.tt_forge_models.config import Parallelism
+
+VARIANT_NAME = ModelVariant.BLENDERBOT_3B
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH)
+    return BlenderBotTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> BlenderBotTester:
-    return BlenderBotTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return BlenderBotTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -44,8 +39,8 @@ def training_tester() -> BlenderBotTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
@@ -63,8 +58,8 @@ def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.large

@@ -4,6 +4,6 @@
 
 from .comparator import Comparator
 from .comparator_factory import ComparatorFactory
-from .comparison_config import ComparisonConfig
+from .comparison_config import ComparisonConfig, PccConfig
 from .jax_comparator import JaxComparator
 from .torch_comparator import TorchComparator

@@ -14,9 +14,10 @@ from utils import (
     failed_runtime,
 )
 
+from third_party.tt_forge_models.gpt_j.causal_lm.jax import ModelVariant
 from ..tester import GPTJTester
 
-MODEL_PATH = "EleutherAI/gpt-j-6B"
+MODEL_VARIANT = ModelVariant._6B
 MODEL_NAME = build_model_name(
     Framework.JAX, "gpt-j", "6b", ModelTask.NLP_CAUSAL_LM, ModelSource.HUGGING_FACE
 )
@@ -27,12 +28,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> GPTJTester:
-    return GPTJTester(MODEL_PATH)
+    return GPTJTester(MODEL_VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> GPTJTester:
-    return GPTJTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return GPTJTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

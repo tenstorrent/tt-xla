@@ -12,10 +12,11 @@ from utils import (
     ModelTask,
     build_model_name,
 )
+from third_party.tt_forge_models.gpt_neo.causal_lm.jax import ModelVariant
 
 from ..tester import GPTNeoTester
 
-MODEL_PATH = "EleutherAI/gpt-neo-2.7b"
+VARIANT_NAME = ModelVariant.GPT_NEO_2_7B
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "gpt_neo",
@@ -29,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> GPTNeoTester:
-    return GPTNeoTester(MODEL_PATH)
+    return GPTNeoTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> GPTNeoTester:
-    return GPTNeoTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return GPTNeoTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

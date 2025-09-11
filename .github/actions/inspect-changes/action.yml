@@ -1,0 +1,46 @@
+name: "inspect-changes"
+description: "Detects changes to source code, documentation, or other directories and sets flags for workflow control."
+inputs: {}
+outputs:
+  skip-build-and-test:
+    description: "True if only documentation/non-build files changed."
+    value: ${{ steps.inspect.outputs.skip-build-and-test }}
+  run-pr-tests:
+    description: "True if code changes require PR tests."
+    value: ${{ steps.inspect.outputs.run-pr-tests }}
+  run-perf-tests:
+    description: "True if performance-related files changed."
+    value: ${{ steps.inspect.outputs.run-perf-tests }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+    - name: Inspect changes
+      id: inspect
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        skip_build_and_test=true
+        run_pr_tests=false
+        run_perf_tests=false
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
+          for file in $CHANGED_FILES; do
+            # Only allow docs, markdown, gitignore, LICENSE to skip build/test
+            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* && $file != docs/* ]]; then
+              skip_build_and_test=false
+              run_pr_tests=true
+            fi
+            # Example: detect perf uplift (customize as needed)
+            if [[ $file == *"perf"* ]]; then
+              run_perf_tests=true
+            fi
+          done
+        else
+          skip_build_and_test=false
+          run_pr_tests=true
+        fi
+        echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
+        echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
+        echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"

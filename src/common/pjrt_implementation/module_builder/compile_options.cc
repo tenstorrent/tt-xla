@@ -14,7 +14,9 @@ CompileOptions CompileOptions::parse(
   CompileOptions options;
 
   options.enable_optimizer =
-      internal::parseBoolOption(compile_options, "optimize");
+      internal::parseBoolOption(compile_options, "enable_optimizer");
+  options.enable_bfp8_conversion =
+      internal::parseBoolOption(compile_options, "enable_bfp8_conversion");
 
   return options;
 }

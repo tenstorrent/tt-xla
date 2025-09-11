@@ -6,7 +6,10 @@
 /src/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
 
 # CI
-/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT
+/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT @vvukomanTT @kmabeeTT @jameszianxuTT
 
 # Tests
-/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
+/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT
+
+# Python package
+/python_package/ @ajakovljevicTT @mrakitaTT @pilkicTT

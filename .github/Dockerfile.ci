@@ -26,7 +26,9 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     cd third_party/tt-mlir/src/tt-mlir/ && \
     source env/activate && \
     cmake -B env/build env && \
-    cmake --build env/build
+    cmake --build env/build && \
+    rm -rf $TTMLIR_TOOLCHAIN_DIR/venv && \
+    chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
 
 # Final stage
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci

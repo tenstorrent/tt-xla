@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import jax
-import jax._src.xla_bridge as xb
 from infra.utilities import Device
 
 from .device_connector import DeviceConnector, DeviceType
@@ -12,29 +11,8 @@ from .device_connector import DeviceConnector, DeviceType
 class JaxDeviceConnector(DeviceConnector):
     """Device connector used with JAX."""
 
-    # @override
-    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
-        """
-        Registers TT plugin which will make TTDevice available in JAX.
-
-        For wheel installs plugin is self-registered so this only updates the JAX config.
-        If wheel plugin is not available, registers the plugin from build directory.
-        """
-        try:
-            if wheel_plugin_path is not None:
-                # Wheel-installed plugin is present, it will self-register on demand.
-                self._update_jax_config()
-                return
-
-            # No wheel plugin found, fall back to local build.
-            xb.register_plugin(DeviceType.TT.value, library_path=build_plugin_path)
-            self._update_jax_config()
-        except Exception as e:
-            raise RuntimeError(
-                "Failed to initialize TT PJRT plugin for JAX from wheel or local build."
-            ) from e
-
-    def _update_jax_config(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
         # Allocating enough CPU devices so we can create various meshes depending on
         # which TT device tests are running. Can't be set to exact number of TT
         # devices because after calling `jax.devices` function this config update

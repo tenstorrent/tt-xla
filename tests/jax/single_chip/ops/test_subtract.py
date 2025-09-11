@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from tests.infra.testers.compiler_config import CompilerConfig
 from utils import Category
 
 
@@ -24,8 +25,24 @@ from utils import Category
     ],
     ids=lambda val: f"{val}",
 )
-def test_subtract(x_shape: tuple, y_shape: tuple):
+@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+def test_subtract(x_shape: tuple, y_shape: tuple, format: str):
     def subtract(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.subtract(x, y)
 
-    run_op_test_with_random_inputs(subtract, [x_shape, y_shape])
+    if format == "float32":
+        dtype = None
+        compiler_config = None
+    elif format == "bfloat16":
+        dtype = jnp.bfloat16
+        compiler_config = None
+    else:  # bfp8
+        dtype = jnp.bfloat16
+        compiler_config = CompilerConfig(enable_bfp8_conversion=True)
+
+    run_op_test_with_random_inputs(
+        subtract,
+        [x_shape, y_shape],
+        dtype=dtype,
+        compiler_config=compiler_config,
+    )

@@ -5,9 +5,17 @@
 
 set -e
 
+# Parse command line arguments
+CHECK_ONLY=false
+if [[ "$1" == "--check-only" ]]; then
+    CHECK_ONLY=true
+fi
+
 REPO=tenstorrent/tt-xla
 BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-22-04
 CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-22-04
+BASE_IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ird-ubuntu-22-04
+IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-22-04
 
 # Compute the hash of the Dockerfile
 DOCKER_TAG=$(./.github/get-docker-tag.sh)
@@ -20,11 +28,22 @@ build_and_push() {
     local image_name=$1
     local dockerfile=$2
     local on_main=$3
+    local from_image=$4
 
-
+    IMAGE_EXISTS=false
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
+        IMAGE_EXISTS=true
+    fi
+
+    if [ "$CHECK_ONLY" = true ] && [ "$IMAGE_EXISTS" = true ]; then
         echo "Image $image_name:$DOCKER_TAG already exists"
-    else
+        return 0
+    elif [ "$CHECK_ONLY" = true ] && [ "$IMAGE_EXISTS" = false ]; then
+        echo "Image $image_name:$DOCKER_TAG does not exist (check-only mode)"
+        return 2
+    elif [ "$CHECK_ONLY" = false ] && [ "$IMAGE_EXISTS" = true ]; then
+        echo "Image $image_name:$DOCKER_TAG already exists"
+    elif [ "$CHECK_ONLY" = false ] && [ "$IMAGE_EXISTS" = false ]; then
         echo "Docker build neccessary, ensure dependencies for toolchain build..."
         sudo apt-get update && sudo apt-get install -y cmake build-essential
 
@@ -32,6 +51,7 @@ build_and_push() {
         docker build \
             --progress=plain \
             --build-arg FROM_TAG=$DOCKER_TAG \
+            ${from_image:+--build-arg FROM_IMAGE=$from_image} \
             -t $image_name:$DOCKER_TAG \
             -t $image_name:latest \
             -f $dockerfile .
@@ -48,6 +68,8 @@ build_and_push() {
 
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base $ON_MAIN
 build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN
+build_and_push $BASE_IRD_IMAGE_NAME .github/Dockerfile.ird $ON_MAIN base
+build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ird $ON_MAIN ci
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"
