@@ -26,8 +26,10 @@ def insert_argument_type_markers(
         # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
         # We do not model the concept of a "buffer" tensor in tt-mlir yet, for now we will mark
         # them both as "constant".
-        else:
+        elif in_spec.kind == InputKind.CONSTANT_TENSOR:
             type_str = "constant"
+        else:
+            type_str = "input"
 
         if in_spec.target is not None:
             get_attr_target_type_dict[in_spec.target] = type_str
@@ -56,6 +58,8 @@ def insert_argument_type_markers(
             )
 
         for user in users:
+            if user.target == torch.ops.aten.copy_.default and user.args[0] == input_node:
+                continue
             user.replace_input_with(input_node, new_input)
 
     return gm
