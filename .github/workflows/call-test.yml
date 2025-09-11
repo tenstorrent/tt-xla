@@ -175,6 +175,9 @@ jobs:
         # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
         VERBOSITY="-svv"
 
+        # Show Python logging on the console too
+        LOGGING_OPTS='-o log_cli=true --log-cli-level=INFO --log-cli-format="%(asctime)s %(levelname)s %(name)s: %(message)s" --log-cli-date-format="%H:%M:%S"'
+
         # Pass arch to forge models tests to resolve arch_overrides in test_config.py
         ARCH=""
         if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
@@ -193,7 +196,8 @@ jobs:
           -m \"$MARKS\" \
           --splits ${{ matrix.build.test_group_cnt || 1}} \
           --group ${{ matrix.build.test_group_id || 1}} \
-          --splitting-algorithm least_duration"
+          --splitting-algorithm least_duration \
+          $LOGGING_OPTS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
@@ -226,6 +230,7 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        PYTHONUNBUFFERED: "1"
       shell: bash
       run: |
         source venv/activate
