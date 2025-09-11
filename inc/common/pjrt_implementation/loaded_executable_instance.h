@@ -123,6 +123,8 @@ public:
   // Releases the resources this loaded executable uses.
   void releaseResources();
 
+  void dumpInputs(std::vector<tt::runtime::Tensor> &input_tensors);
+
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
 
