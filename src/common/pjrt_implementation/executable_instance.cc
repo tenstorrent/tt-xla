@@ -43,6 +43,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Executable_NumOutputs = internal::onExecutableNumOutputs;
   api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
       internal::onExecutableSizeOfGeneratedCodeInBytes;
+  api->PJRT_Executable_Fingerprint = internal::onExecutableFingerprint;
   api->PJRT_Executable_OutputElementTypes =
       internal::onExecutableOutputElementTypes;
   api->PJRT_Executable_OutputDimensions =
@@ -156,6 +157,21 @@ PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
   // clients either return 0 or -1, so it is probably not required to implement.
   // Returning -1 for now since we cannot estimate device memory usage.
   args->size_in_bytes = -1;
+
+  return nullptr;
+}
+
+PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Fingerprint");
+
+  const ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+
+  const std::string &fingerprint =
+      executable_instance->getExecutableImage()->getFingerprint();
+
+  args->executable_fingerprint = fingerprint.data();
+  args->executable_fingerprint_size = fingerprint.size();
 
   return nullptr;
 }

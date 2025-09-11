@@ -36,17 +36,12 @@
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
+#include "shardy/dialect/sdy/ir/constants.h"
 #include "shardy/dialect/sdy/ir/dialect.h"
 #include "shardy/dialect/sdy/ir/register.h"
-#include "shardy/dialect/sdy/transforms/export/passes.h"
-#include "shardy/dialect/sdy/transforms/propagation/basic_propagation.h"
-#include "shardy/round_trip_import/constants.h"
-#include "shardy/round_trip_import/pipelines.h"
-#include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
@@ -174,6 +169,8 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
+  enableVerboseIRPrinting(vhlo_to_shlo_pm);
+
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
     m_status = tt_pjrt_status::kInternal;
@@ -208,7 +205,7 @@ void ModuleBuilder::collectInputShardingsGSPMD(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getArgAttr(i, mlir::sdy::kXlaShardingAttr)));
+          func_op.getArgAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
     }
   }
 
@@ -264,7 +261,7 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getResultAttr(i, mlir::sdy::kXlaShardingAttr)));
+          func_op.getResultAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
     }
   }
 
@@ -454,6 +451,9 @@ void ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
+
+  enableVerboseIRPrinting(stablehlo_pipeline_pm);
+
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
@@ -475,6 +475,8 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
+
+  enableVerboseIRPrinting(shlo_to_ttir_pm);
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -593,6 +595,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  enableVerboseIRPrinting(ttir_to_ttnn_pm);
+
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
@@ -705,19 +709,19 @@ void ModuleBuilder::printModule(
   mlir_module->dump();
 }
 
-bool ModuleBuilder::isUsingShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  // If the module is using the Shardy dielect, it should have the
-  // xla.sdy.meshes attribute denoting the shape of its meshes as a module
-  // attribute. Note: this is only true for the Shardy dialect gotten directly
-  // from xla, after passing trough SdyRoundTripImportPipeline, it will no
-  // longer have this attribute.
-  if (mlir::sdy::tryGetFrontendAttr<mlir::DictionaryAttr>(
-          module.get(), mlir::sdy::kMeshesRoundTripAttr)
-          .has_value()) {
-    return true;
+void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
+  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
+    return;
   }
 
+  // Multithreading must be disabled when printing at module scope
+  // to avoid interleaved output.
+  pm.getContext()->disableMultithreading();
+  pm.enableIRPrinting();
+}
+
+bool ModuleBuilder::isUsingShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // After running through the SdyRoundTripImportPipeline, the module which uses
   // shardy dialect will have the sdy.mesh op.
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);

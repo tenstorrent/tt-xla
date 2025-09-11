@@ -83,6 +83,7 @@ class BringupStatus(Enum):
     FAILED_RUNTIME = "failed_runtime"
     INCORRECT_RESULT = "incorrect_result"
     PASSED = "passed"
+    UNKNOWN = "unknown"
 
     def __str__(self) -> str:
         return self.name
