@@ -140,6 +140,9 @@ private:
 
 namespace internal {
 
+// Implements PJRT_Client_Create API function.
+PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args);
+
 // Implements PJRT_Client_Destroy API function.
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args);
 

@@ -72,8 +72,7 @@ PJRT_Error *ClientInstance::Initialize() {
 }
 
 void ClientInstance::bindApi(PJRT_Api *api) {
-  // TODO(mrakita): Add `PJRT_Client_Create` here too, currently it is
-  // polymorphic and defined in `api_bindings.h`.
+  api->PJRT_Client_Create = internal::onClientCreate;
   api->PJRT_Client_Destroy = internal::onClientDestroy;
   api->PJRT_Client_PlatformName = internal::onClientPlatformName;
   api->PJRT_Client_ProcessIndex = internal::onClientProcessIndex;
@@ -308,6 +307,24 @@ ClientInstance::extractCustomProtobufFields(
 }
 
 namespace internal {
+
+PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Create");
+
+  // Populate config_vars() from the client create_options.
+  for (size_t i = 0; i < args->num_options; ++i) {
+    DLOG_F(WARNING, "Unused config var: %s", args->create_options[i].name);
+  }
+
+  auto client = std::make_unique<ClientInstance>();
+  auto *error = client->Initialize();
+  if (error)
+    return error;
+
+  // Successful return.
+  args->client = reinterpret_cast<PJRT_Client *>(client.release());
+  return nullptr;
+}
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");

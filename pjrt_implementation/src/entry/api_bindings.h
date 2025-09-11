@@ -14,7 +14,6 @@
 
 // tt-xla includes
 #include "api/error_instance.h"
-#include "utils/status.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_API_BINDINGS_H_
