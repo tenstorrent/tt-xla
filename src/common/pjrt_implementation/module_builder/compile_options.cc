@@ -29,9 +29,13 @@ CompileOptions CompileOptions::parse(
       "dump_inputs"); // nonexistent value is handled differently based on other
                       // options, therefore no explicit defaulting with
                       // value_or.
-  options.export_path =
-      internal::parseStringOption(compile_options, "export_path")
-          .value_or("codegen_solution");
+  auto maybe_export_path =
+      internal::parseStringOption(compile_options, "export_path");
+  if (!maybe_export_path.has_value() && options.backend != Backend::Default) {
+    ABORT_F("Compile option 'export_path' must be provided when backend is not "
+            "'default'");
+  }
+  options.export_path = maybe_export_path.value();
   return options;
 }
 
