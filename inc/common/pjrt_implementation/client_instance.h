@@ -11,6 +11,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -73,6 +74,25 @@ public:
 
   const std::vector<MemoryInstance *> &getAddressableMemoriesRaw() const {
     return m_addressable_memories_raw;
+  }
+
+  tt::runtime::Device getParentMesh() const { return *m_parent_mesh; }
+
+  tt::runtime::Device
+  reshapeParentMesh(const std::vector<std::uint32_t> &new_mesh_shape) {
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+    auto options = tt::runtime::MeshDeviceOptions{.meshShape = new_mesh_shape};
+    auto num_devices = 1;
+    for (auto dim : new_mesh_shape) {
+      num_devices *= dim;
+    }
+    if (num_devices > 1) {
+      tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+    } else {
+      tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+    }
+    m_parent_mesh = tt::runtime::openMeshDevice(options);
+    return *m_parent_mesh;
   }
 
   // Compiles given mlir program.
@@ -140,6 +160,8 @@ private:
   static std::unordered_map<std::string, std::string>
   extractCustomProtobufFields(
       const google::protobuf::UnknownFieldSet &unknown_fields);
+
+  std::optional<tt::runtime::Device> m_parent_mesh;
 };
 
 namespace internal {

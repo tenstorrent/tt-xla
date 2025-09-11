@@ -11,7 +11,11 @@
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <cassert>
+#include <iostream>
 #include <numeric>
+#include <sstream>
+#include <stdexcept>
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -22,6 +26,7 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
 namespace tt::pjrt {
@@ -29,16 +34,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    ClientInstance *client_instance) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        ClientInstance *client_instance)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -75,6 +84,56 @@ void LoadedExecutableInstance::releaseResources() {
   m_deleted = true;
 }
 
+template <typename T> std::string to_string(const std::vector<T> vec) {
+  std::stringstream res;
+  res << "[";
+  for (auto &el : vec) {
+    res << el << ", ";
+  }
+  res << "]";
+  return res.str();
+}
+
+tt::runtime::Device LoadedExecutableInstance::reshapeMeshIfNeeded() {
+  auto parent_mesh = m_client_instance->getParentMesh();
+  auto parent_mesh_shape = tt::runtime::getMeshShape(parent_mesh);
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
+
+  if (parent_mesh_shape == devices_mesh_shape) {
+    LOG_F(INFO,
+          "LoadedExectuableInstance::reshapeMeshIfNeeded - reusing "
+          "already opened mesh device %s",
+          to_string(parent_mesh_shape).c_str());
+    return parent_mesh;
+  }
+
+  bool compatible = true;
+  for (size_t i = 0;
+       i < devices_mesh_shape.size() && i < parent_mesh_shape.size(); i++) {
+    compatible &= devices_mesh_shape[i] <= parent_mesh_shape[i];
+  }
+
+  // if (compatible) {
+  //   LOG_F(INFO,
+  //         "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+  //         "creating sub-mesh device - %s -> %s",
+  //         to_string(parent_mesh_shape).c_str(),
+  //         to_string(devices_mesh_shape).c_str());
+  //   return tt::runtime::createSubMeshDevice(parent_mesh, devices_mesh_shape);
+  // }
+
+  LOG_F(INFO,
+        "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+        "reshaping mesh device - %s -> %s",
+        to_string(parent_mesh_shape).c_str(),
+        to_string(devices_mesh_shape).c_str());
+  // NOTE: Instead of using the reshape API, try closing and reopening the mesh.
+  // tt::runtime::reshapeMeshDevice(parent_mesh, devices_mesh_shape);
+
+  return m_client_instance->reshapeParentMesh(devices_mesh_shape);
+}
+
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status
 LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
@@ -96,9 +155,9 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  args->execute_device);
+  std::optional<tt::runtime::Device> runtime_device = reshapeMeshIfNeeded();
+  LOG_F(INFO, "LoadedExectuableInstance::reshapeMeshIfNeeded - completed");
+
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
     return tt_pjrt_status::kInternal;
@@ -156,9 +215,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
           *device_complete_event.release();
     }
   }
-
-  tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
 
   return tt_pjrt_status::kSuccess;
 }

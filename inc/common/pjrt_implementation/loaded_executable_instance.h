@@ -33,6 +33,9 @@
 
 namespace tt::pjrt {
 
+// Forward declaration
+class ClientInstance;
+
 // Represents `PJRT_LoadedExecutable` structure and the functionality around it.
 // It is the in-memory loaded executable which is ready for input arguments to
 // execute.
@@ -41,7 +44,8 @@ public:
   // Creates new loaded executable instance from the executable image.
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 std::vector<DeviceInstance *> &&addressable_devices);
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 ClientInstance *client_instance);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -82,9 +86,11 @@ private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices)
+      const std::vector<DeviceInstance *> &addressable_devices,
+      ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
-        m_addressable_devices(addressable_devices), m_deleted(false) {}
+        m_addressable_devices(addressable_devices), m_deleted(false),
+        m_client_instance(client_instance) {}
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
@@ -143,6 +149,8 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
+  tt::runtime::Device reshapeMeshIfNeeded();
+
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;
@@ -155,6 +163,9 @@ private:
 
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
+
+  // Pointer to the client instance that created this loaded executable
+  ClientInstance *m_client_instance;
 };
 
 namespace internal {
