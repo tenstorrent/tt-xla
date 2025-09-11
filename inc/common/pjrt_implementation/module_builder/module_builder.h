@@ -101,6 +101,9 @@ private:
   void collectNumArguments(const mlir::OwningOpRef<mlir::ModuleOp> &module,
                            ExecutableImage *executable);
 
+  void collectArgumentNames(const mlir::OwningOpRef<mlir::ModuleOp> &module,
+                            ExecutableImage *executable);
+
   // Collects the information about the sharding of specific inputs.
   tt_pjrt_status
   collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module,

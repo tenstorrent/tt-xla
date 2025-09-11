@@ -121,6 +121,10 @@ public:
   const std::string &getFingerprint() const { return m_fingerprint; }
 
   const CompileOptions &getCompileOptions() const { return m_compile_options; }
+  
+  const std::vector<std::string> getInputArgumentNames() const {
+    return m_input_argument_names;
+  }
 
   // Creates a LoadedExecutableInstance from this executable image.
   virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
@@ -202,7 +206,8 @@ protected:
   // Generates the fingerprint for this executable based on compilation inputs.
   virtual std::string generateFingerprint() const;
 
-private:
+  // For every input, holds the argument name.
+  std::vector<std::string> m_input_argument_names;
 };
 
 // Derived class for executables backed by flatbuffer binaries

@@ -12,6 +12,7 @@
 #include "common/status.h"
 
 // c++ standard library includes
+#include <filesystem>
 #include <numeric>
 
 // tt-mlir includes
@@ -20,6 +21,9 @@
 #include "tt/runtime/workarounds.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
+
+// llvm mlir includes
+#include "mlir/Support/LogicalResult.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
@@ -434,6 +438,24 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
   m_deleted = true;
 }
 
+void FlatbufferLoadedExecutableInstance::dumpInputs(
+    std::vector<tt::runtime::Tensor> &input_tensors) {
+  DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
+
+  auto &argument_names = m_executable_image->getInputArgumentNames();
+
+  auto dump_dir = std::filesystem::path(
+                      m_executable_image->getCompileOptions().export_path) /
+                  "inputs";
+  std::filesystem::create_directories(dump_dir);
+  for (int i = 0; i < input_tensors.size(); ++i) {
+    std::string filename =
+        "input_" + std::to_string(i) + "_" + argument_names[i] + ".tensorbin";
+    auto filepath = dump_dir / filename;
+    tt::runtime::dumpTensor(input_tensors[i], filepath.string());
+  }
+}
+
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
@@ -473,6 +495,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
+  }
+
+  if (m_executable_image->getCompileOptions().dump_inputs.value_or(false)) {
+    dumpInputs(input_tensors);
   }
 
   FlatbufferExecutableImage *executable_image =

@@ -207,6 +207,9 @@ ModuleBuilder::buildCommon(const std::string_view &mlir_code,
 
   collectInputArgumentRoles(mlir_module, executable);
   collectNumArguments(mlir_module, executable);
+  // Arg names are not always needed, but it is much easier to
+  // always collect them, then to reparse TTIR text in LoadedExecutableInstance
+  collectArgumentNames(mlir_module, executable);
   collectOutputTypes(mlir_module, executable);
 
   status = runCompilerStableHLOPipeline(mlir_module);
@@ -578,6 +581,26 @@ void ModuleBuilder::collectNumArguments(
       assert(false && "Expected ranked tensor type for function result");
     }
   }
+}
+
+void ModuleBuilder::collectArgumentNames(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    ExecutableImage *executable) {
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+  assert(publicFuncOps.size() == 1 && "Expected exactly one public function");
+  mlir::func::FuncOp &func_op = publicFuncOps[0];
+
+  std::vector<std::string> arg_locs;
+  for (unsigned i = 0; i < func_op.getNumArguments(); ++i) {
+    mlir::Location loc = func_op.getArgument(i).getLoc();
+    std::string loc_str;
+    llvm::raw_string_ostream stream(loc_str);
+    loc.print(stream);
+    arg_locs.push_back(std::move(loc_str));
+  }
+
+  executable->m_input_argument_names = arg_locs;
 }
 
 std::vector<mlir::func::FuncOp> ModuleBuilder::getPublicFuncOps(
