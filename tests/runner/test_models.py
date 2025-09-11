@@ -27,8 +27,8 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
     "run_mode",
-    [RunMode.INFERENCE],
-    ids=["inference"],
+    [RunMode.INFERENCE, RunMode.TRAINING],
+    ids=["inference", "training"],
 )
 @pytest.mark.parametrize(
     "op_by_op",
