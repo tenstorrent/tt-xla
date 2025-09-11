@@ -11,16 +11,15 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
-
+from third_party.tt_forge_models.llama.causal_lm.jax import ModelVariant
 from ..tester import LLamaTester
 
-MODEL_PATH = "openlm-research/open_llama_3b_v2"
+VARIANT_NAME = ModelVariant._3B_V2
 MODEL_NAME = build_model_name(
     Framework.JAX,
-    "open_llama_v2",
-    "3b",
+    "open_llama",
+    str(VARIANT_NAME),
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
 )
@@ -31,12 +30,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> LLamaTester:
-    return LLamaTester(MODEL_PATH)
+    return LLamaTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> LLamaTester:
-    return LLamaTester(MODEL_PATH, RunMode.TRAINING)
+    return LLamaTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,15 +47,9 @@ def training_tester() -> LLamaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()
 
