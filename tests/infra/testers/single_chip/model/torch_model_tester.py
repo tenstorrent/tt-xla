@@ -8,6 +8,7 @@ from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
+import torch_xla.core.xla_model as xm
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
@@ -118,7 +119,8 @@ class TorchModelTester(ModelTester):
         workload.model.compile(backend=backend)
 
     def _test_training(self):
-        self._compile_for_cpu(self._workload)
+        xm.xla_device()
+        # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
 
@@ -133,9 +135,9 @@ class TorchModelTester(ModelTester):
         cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
         self._workload.model.zero_grad()
 
-        self._compile_for_tt_device(self._workload)
+        # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
-        torch_xla.sync(wait=True)
+        # torch_xla.sync(wait=True)
 
         tt_backward_workload = Workload(
             framework=self._framework,
