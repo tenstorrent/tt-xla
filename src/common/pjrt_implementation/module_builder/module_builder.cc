@@ -1124,9 +1124,9 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
   // or for execution within an existing development environment that already
   // has prerequisites installed(is_local=true).
   bool is_local = false;
-  std::string pipeline_options =
-      ""; // Long term solution is for alchemist to ingest TTNN, that will unify
-          // passing options to alchemist. For now, we ignore it.
+  // Long term solution is for alchemist to ingest TTNN, that will unify passing
+  // options to alchemist. For now, hardcode to load input tensors from disk.
+  std::string pipeline_options = "load-input-tensors-from-disk=true";
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
