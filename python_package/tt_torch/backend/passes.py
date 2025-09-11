@@ -155,20 +155,3 @@ def bypass_dtype_promotion(gm):
                 node.replace_all_uses_with(node.args[0])
 
     return gm
-
-
-def rectify_buffer_inplace_copy(gm):
-    """
-    Transformers static cache uses index_copy_, which produces illegal inplace copy_ nodes
-    Remove these illegal nodes, and replicate the inplace copy semantics using op fusion and
-    buffer semantics in the backend.
-    """
-
-    for node in gm.graph.nodes:
-        if node.op == "call_function" and node.target == torch.ops.aten.copy_.default:
-            # Detect inplace copy with buffer destination
-            destination_node = node.args[0]
-            if destination_node.op != "get_attr":
-                continue
-            gm.graph.erase_node(node)
-    return gm
