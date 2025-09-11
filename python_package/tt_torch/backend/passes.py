@@ -58,7 +58,9 @@ def insert_argument_type_markers(
             )
 
         for user in users:
-            # Replacing the input to an in-place copy_ op with a `tt.mark_argument_attributes` result causes XLA to handle the copying into an input tensor incorrectly. So, we do not replace the destination tensor with the `tt.mark_argument_attributes` result.
+            # Replacing the input to an in-place copy_ op with a `tt.mark_argument_attributes` result
+            # causes XLA to handle the copying into an input tensor incorrectly. So, we do not
+            # replace the destination tensor with the `tt.mark_argument_attributes` result.
             if (
                 user.target == torch.ops.aten.copy_.default
                 and user.args[0] == input_node
