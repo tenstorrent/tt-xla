@@ -21,8 +21,11 @@ target_include_directories(TTPJRTBindings PUBLIC
     ${PROJECT_SOURCE_DIR}/pjrt_implementation/src/
 )
 
-target_link_libraries(TTPJRTBindings PUBLIC
+target_link_libraries(TTPJRTBindings
+PUBLIC
     TTPJRTApi
+PRIVATE
+    coverage_config
 )
 
 # ----- TTPJRTTTDylib -----
@@ -34,9 +37,8 @@ add_library(TTPJRTTTDylib SHARED
 )
 
 target_link_libraries(TTPJRTTTDylib
-PUBLIC
-    TTPJRTBindings
 PRIVATE
+    TTPJRTBindings
     coverage_config
 )
 
