@@ -21,6 +21,10 @@ def insert_argument_type_markers(
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
             type_str = "input"
+        # We do not model these argument types in tt-mlir. To avoid graph transformations that would
+        # impact how these inputs are handled (i.e. consteval), we will mark them as "input".
+        elif in_spec.kind in [InputKind.BUFFER, InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
+            type_str = "input"
         elif in_spec.kind == InputKind.PARAMETER:
             type_str = "parameter"
         # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
@@ -29,7 +33,7 @@ def insert_argument_type_markers(
         elif in_spec.kind == InputKind.CONSTANT_TENSOR:
             type_str = "constant"
         else:
-            type_str = "input"
+            assert False, f"Unexpected input kind: {in_spec.kind}"
 
         if in_spec.target is not None:
             get_attr_target_type_dict[in_spec.target] = type_str
