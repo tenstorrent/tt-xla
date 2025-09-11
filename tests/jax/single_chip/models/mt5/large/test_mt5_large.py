@@ -2,25 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 import pytest
-from infra import RunMode
+from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
     failed_runtime,
 )
-from third_party.tt_forge_models.config import Parallelism
 
-from third_party.tt_forge_models.mt5.nlp_summarization.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 from ..tester import MT5Tester
 
 MODEL_PATH = "google/mt5-large"
-VARIANT_NAME = ModelVariant.BASE
+MODEL_NAME = build_model_name(
+    Framework.JAX, "mt5", "large", ModelTask.NLP_SUMMARIZATION, ModelSource.HUGGING_FACE
+)
 
-MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -41,9 +42,9 @@ def training_tester() -> MT5Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.skip(
@@ -58,9 +59,9 @@ def test_mt5_large_inference(inference_tester: MT5Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mt5_large_training(training_tester: MT5Tester):

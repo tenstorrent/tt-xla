@@ -9,6 +9,8 @@
 
 # This code is based on google-research/vision_transformer
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 from typing import Any, Optional
 
 import einops

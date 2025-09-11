@@ -25,17 +25,12 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester() -> LLamaTester:
-    # Couldn't extract exact model name so extracting it and passing it
-    model_loader = ModelLoader(VARIANT_NAME)
-    model_name = model_loader._model_name
-    return LLamaTester(model_name)
+    return LLamaTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> LLamaTester:
-    model_loader = ModelLoader(VARIANT_NAME)
-    model_name = model_loader._model_name
-    return LLamaTester(model_name, RunMode.TRAINING)
+    return LLamaTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -50,12 +45,12 @@ def training_tester() -> LLamaTester:
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.large
-# @pytest.mark.xfail(
-#     reason=incorrect_result(
-#         "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99. "
-#         "https://github.com/tenstorrent/tt-xla/issues/379"
-#     )
-# )
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "AssertionError: PCC comparison failed. Calculated: pcc=0.9683969616889954. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
+)
 def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()
 

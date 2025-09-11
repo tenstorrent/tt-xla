@@ -7,24 +7,6 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-<<<<<<< HEAD
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-)
-from third_party.tt_forge_models.gpt2.causal_lm.jax import ModelVariant
-from ..tester import GPT2Tester
-
-MODEL_VARIANT = ModelVariant.BASE
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "gpt2",
-    "base",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
-=======
 )
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.gpt2.causal_lm.jax import (
@@ -36,27 +18,18 @@ from ..tester import GPT2Tester
 VARIANT_NAME = ModelVariant.BASE
 
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
->>>>>>> bbae47f6 (refactored models to use modelinfo set-1)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> GPT2Tester:
-<<<<<<< HEAD
-    return GPT2Tester(MODEL_VARIANT)
-=======
     return GPT2Tester(VARIANT_NAME)
->>>>>>> bbae47f6 (refactored models to use modelinfo set-1)
 
 
 @pytest.fixture
 def training_tester() -> GPT2Tester:
-<<<<<<< HEAD
-    return GPT2Tester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
-=======
     return GPT2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
->>>>>>> bbae47f6 (refactored models to use modelinfo set-1)
 
 
 # ----- Tests -----

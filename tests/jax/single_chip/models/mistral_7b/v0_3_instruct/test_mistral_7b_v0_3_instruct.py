@@ -18,27 +18,25 @@ from utils import (
 from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import Mistral7BV02Tester
-
-MODEL_PATH = "unsloth/mistral-7b-instruct-v0.3"
-MODEL_GROUP = ModelGroup.RED
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "mistral-7b",
-    "v0.1",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.mistral.causal_lm.jax import (
+    ModelVariant,
+    ModelLoader,
 )
+
+VARIANT_NAME = ModelVariant.V0_3_INSTRUCT
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH)
+    return Mistral7BV02Tester(VARIANT_NAME)
 
 
 def training_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return Mistral7BV02Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -47,8 +45,7 @@ def training_tester() -> Mistral7BV02Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
     parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
@@ -68,8 +65,7 @@ def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BV02Tester
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
 )

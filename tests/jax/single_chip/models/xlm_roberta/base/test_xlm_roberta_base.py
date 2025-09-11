@@ -16,7 +16,6 @@ from third_party.tt_forge_models.xlm_roberta.causal_lm.jax import (
 )
 from ..tester import XLMRobertaTester
 
-MODEL_PATH = "FacebookAI/xlm-roberta-base"
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 

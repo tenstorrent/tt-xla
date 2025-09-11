@@ -26,18 +26,13 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester() -> GPTJTester:
-    # Couldn't extract exact model name so extracting it and passing it
-    model_loader = ModelLoader(VARIANT_NAME)
-    model_name = model_loader._model_name
-    return GPTJTester(model_name)
+    return GPTJTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> GPTJTester:
-    # Couldn't extract exact model name so extracting it and passing it
-    model_loader = ModelLoader(VARIANT_NAME)
-    model_name = model_loader._model_name
-    return GPTJTester(model_name, run_mode=RunMode.TRAINING)
+    return GPTJTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+
 
 # ----- Tests -----
 

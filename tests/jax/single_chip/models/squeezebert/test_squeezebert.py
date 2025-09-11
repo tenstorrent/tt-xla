@@ -10,24 +10,30 @@ import pytest
 import torch
 from flax import linen as nn
 from huggingface_hub import hf_hub_download
-from infra import JaxModelTester, RunMode
+from infra import Framework, JaxModelTester, RunMode
 from jaxtyping import PyTree
 from transformers import AutoTokenizer
 from utils import (
     BringupStatus,
     Category,
-)
-from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.squeezebert.masked_lm.jax import (
-    ModelVariant,
-    ModelLoader,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    incorrect_result,
 )
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 MODEL_PATH = "squeezebert/squeezebert-uncased"
-VARIANT_NAME = ModelVariant.BASE
-MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "squeezebert",
+    "uncased",
+    ModelTask.NLP_MASKED_LM,
+    ModelSource.CUSTOM,
+)
 
 # ----- Tester -----
 
@@ -94,9 +100,9 @@ def training_tester() -> SqueezeBertTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_squeezebert_inference(inference_tester: SqueezeBertTester):
@@ -106,9 +112,9 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_squeezebert_training(training_tester: SqueezeBertTester):

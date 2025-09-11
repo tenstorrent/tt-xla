@@ -2,24 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 import pytest
-from infra import RunMode
+from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
     failed_runtime,
 )
-from third_party.tt_forge_models.config import Parallelism
 
-from third_party.tt_forge_models.opt.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 from ..tester import OPTTester
 
 MODEL_PATH = "facebook/opt-6.7b"
-VARIANT_NAME = ModelVariant._6_7B
-MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
+MODEL_NAME = build_model_name(
+    Framework.JAX,
+    "opt",
+    "6.7b",
+    ModelTask.NLP_CAUSAL_LM,
+    ModelSource.HUGGING_FACE,
+)
 
 # ----- Fixtures -----
 
@@ -40,13 +45,13 @@ def training_tester() -> OPTTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, "
         "where each bank needs to store 11186176 B "
@@ -60,9 +65,9 @@ def test_opt_6_7b_inference(inference_tester: OPTTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.large
 @pytest.mark.skip(reason="Support for training not implemented")

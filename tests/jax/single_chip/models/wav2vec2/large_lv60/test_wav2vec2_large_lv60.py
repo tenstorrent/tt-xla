@@ -17,6 +17,7 @@ from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import Wav2Vec2Tester
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 MODEL_PATH = "facebook/wav2vec2-large-lv60"
 MODEL_NAME = build_model_name(
     Framework.JAX,

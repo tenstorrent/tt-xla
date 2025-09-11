@@ -82,6 +82,7 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.xfail(
     reason=failed_runtime(
