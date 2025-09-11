@@ -37,6 +37,8 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(false);
+  options.dump_inputs =
+      internal::parseBoolOption(compile_options, "dump_inputs");
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   if (!options.export_path.has_value() &&
