@@ -1664,16 +1664,33 @@ test_config = {
         "markers": ["red_model"],
     },
     "flux/pytorch-schnell-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Out of Memory: Not enough space to allocate 113246208 B DRAM buffer across 12 banks",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
         "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 113246208 B DRAM buffer across 12 banks",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "flux/pytorch-dev-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "running the test CRASHED with signal 9",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
         "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "running the test CRASHED with signal 9",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "gliner/pytorch-urchade/gliner_multi-v2.1-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -1682,10 +1699,20 @@ test_config = {
         "markers": ["red_model"],
     },
     "gemma/pytorch-google/gemma-1.1-7b-it-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Out of Memory: Not enough space to allocate 1572864000 B DRAM buffer across 12 banks",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
         "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 1572864000 B DRAM buffer across 12 banks",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -1700,16 +1727,36 @@ test_config = {
         "markers": ["red_model"],
     },
     "mistral/pixtral/pytorch-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
         "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-8.055820217123255e-06. Required: pcc=0.99",
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "phi4/causal_lm/pytorch-microsoft/phi-4-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Out of Memory: Not enough space to allocate 367001600 B DRAM buffer across 12 banks",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
         "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99",
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 367001600 B DRAM buffer across 12 banks",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "phi3/phi_3_5_vision/pytorch-instruct-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -1728,6 +1775,19 @@ test_config = {
         "reason": "RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got CPUBFloat16Type instead",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
         "markers": ["red_model"],
+    },
+    "glpn_kitti/pytorch-full-inference": {
+        "markers": ["red_model"],
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+            },
+            "n150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "stable_diffusion_1_4/pytorch-base-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
