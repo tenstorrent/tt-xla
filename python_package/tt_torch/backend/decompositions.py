@@ -310,7 +310,8 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
-    return {
+    already_printed = []
+    custom_decompositions = {
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -340,6 +341,40 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.prims.squeeze.default: squeeze,
     }
 
+    def print_wrapper(f, op_name):
+        def wrapper(*args, **kwargs):
+            if op_name not in already_printed:
+                print(f"decomposition_custom: {op_name}")
+                already_printed.append(op_name)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    for op in custom_decompositions:
+        custom_decompositions[op] = print_wrapper(
+            custom_decompositions[op], op.__name__
+        )
+
+    return custom_decompositions
+
 
 CUSTOM_DECOMPOSITION_TABLE = get_decompositions(_get_default_decomposition_ops())
+already_printed2 = []
+
+
+def print_wrapper(f, op_name):
+    def wrapper(*args, **kwargs):
+        if op_name not in already_printed2:
+            print(f"decomposition_default: {op_name}")
+            already_printed2.append(op_name)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+for op in CUSTOM_DECOMPOSITION_TABLE:
+    CUSTOM_DECOMPOSITION_TABLE[op] = print_wrapper(
+        CUSTOM_DECOMPOSITION_TABLE[op], op.__name__
+    )
+
 CUSTOM_DECOMPOSITION_TABLE.update(_get_custom_decompositions())
