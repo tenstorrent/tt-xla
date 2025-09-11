@@ -79,7 +79,7 @@ def update_cache(
     ), "fill_value must be a 4D tensor: [B, num_heads, 1, head_size]."
     assert (
         fill_value.shape[-2] == 1
-    ), "fill_value must have dim -2 equal to 1 as you cannot update a cache with more than one token at a time."
+    ), "fill_value must have dim -2 equal to 1 as the cache cannot be updated with more than one token at a time."
     assert (
         batch_offset is not None or cache.shape[0] == 1
     ), "batch_offset must be provided if the batch size is not 1."
@@ -122,7 +122,7 @@ def fill_cache(
     ), "fill_value must be a 4D tensor: [B, num_heads, seq_len, head_size]."
     assert (
         fill_value.shape[-2] <= cache.shape[-2]
-    ), f"fill_value must have dim -2 less than or equal to cache.shape[-2] This is because you cannot fill a cache with more tokens than the cache can hold. Recieved fill_value.shape = {fill_value.shape}, cache.shape = {cache.shape}."
+    ), f"fill_value must have dim -2 less than or equal to cache.shape[-2] as the cache cannot be filled with more tokens than the cache can hold. Recieved fill_value.shape = {fill_value.shape}, cache.shape = {cache.shape}."
     assert (
         batch_offset is not None or cache.shape[0] == 1
     ), "batch_offset must be provided if the batch size is not 1."
