@@ -62,11 +62,11 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    execution_pass=ExecutionPass.BACKWARD,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason="error: failed to legalize operation 'stablehlo.select_and_scatter'"
+    reason="Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable."
 )
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()
