@@ -495,6 +495,7 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   }
 
   m_ttir_mlir = getMlirCode(mlir_module);
+
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
 }
@@ -616,6 +617,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   m_ttnn_mlir = getMlirCode(mlir_module);
+
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
 }
