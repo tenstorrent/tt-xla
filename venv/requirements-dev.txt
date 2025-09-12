@@ -30,9 +30,9 @@ soundfile
 tabulate
 timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
-torchvision==0.22.0
+torchvision==0.22.1
 torchxrayvision
-transformers==4.53.2
+transformers==4.55.0
 
 # vgg model
 vgg_pytorch
