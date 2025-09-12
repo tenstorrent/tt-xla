@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 def register():
-    return "vllm_tt.platform.TPUPlatform"
+    return "vllm_tt.platform.TTPlatform"
