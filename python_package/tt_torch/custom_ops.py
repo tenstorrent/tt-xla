@@ -64,7 +64,9 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     return tensor.clone()
 
 
-@torch.library.custom_op("tt::update_cache", mutates_args=[], device_types=["xla"])
+@torch.library.custom_op(
+    "tt::update_cache", mutates_args=[], device_types=["xla", "cpu"]
+)
 def update_cache(
     cache: torch.Tensor,
     fill_value: torch.Tensor,
@@ -83,21 +85,28 @@ def update_cache(
     assert (
         batch_offset is not None or cache.shape[0] == 1
     ), "batch_offset must be provided if the batch size is not 1."
+    assert cache_position.shape == (1,), "cache_position must be a 1D tensor."
 
     if batch_offset is None:
         batch_offset = 0
 
-    return stablehlo_custom_call.stablehlo_custom_call(
-        [cache, fill_value, cache_position],
-        "tt.update_cache",
-        [
-            cache.shape,
-        ],
-        [
-            cache.dtype,
-        ],
-        frontend_attributes={"batch_offset": str(batch_offset)},
-    )
+    assert batch_offset == 0, "Only batch_offset == 0 is supported for currently."
+    if cache.device.type == "cpu":
+        cache = cache.clone()
+        cache[:, :, cache_position, :] = fill_value
+        return cache
+    else:
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [cache, fill_value, cache_position],
+            "tt.update_cache",
+            [
+                cache.shape,
+            ],
+            [
+                cache.dtype,
+            ],
+            frontend_attributes={"batch_offset": str(batch_offset)},
+        )
 
 
 @update_cache.register_fake
@@ -110,7 +119,7 @@ def update_cache_fake(
     return torch.zeros_like(cache)
 
 
-@torch.library.custom_op("tt::fill_cache", mutates_args=[], device_types=["xla"])
+@torch.library.custom_op("tt::fill_cache", mutates_args=[], device_types=["xla", "cpu"])
 def fill_cache(
     cache: torch.Tensor, fill_value: torch.Tensor, batch_offset: int = None
 ) -> torch.Tensor:
@@ -130,17 +139,24 @@ def fill_cache(
     if batch_offset is None:
         batch_offset = 0
 
-    return stablehlo_custom_call.stablehlo_custom_call(
-        [cache, fill_value],
-        "tt.fill_cache",
-        [
-            cache.shape,
-        ],
-        [
-            cache.dtype,
-        ],
-        frontend_attributes={"batch_offset": str(batch_offset)},
-    )
+    assert batch_offset == 0, "Only batch_offset == 0 is supported for currently."
+    if cache.device.type == "cpu":
+        cache = cache.clone()
+        cache[:, :, : fill_value.shape[-2], :] = fill_value
+        return cache
+    else:
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [cache, fill_value],
+            "tt.fill_cache",
+            [
+                cache.shape,
+            ],
+            [
+                cache.dtype,
+            ],
+            frontend_attributes={"batch_offset": str(batch_offset)},
+        )
 
 
 @fill_cache.register_fake
