@@ -16,6 +16,8 @@ from third_party.tt_forge_models.config import Parallelism
 
 from .tester import AlexNetTester
 
+VARIANT = ModelVariant.CUSTOM
+
 VARIANT_NAME = ModelVariant.CUSTOM
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
@@ -24,12 +26,12 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester() -> AlexNetTester:
-    return AlexNetTester()
+    return AlexNetTester(VARIANT)
 
 
 @pytest.fixture
 def training_tester() -> AlexNetTester:
-    return AlexNetTester(run_mode=RunMode.TRAINING)
+    return AlexNetTester(VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

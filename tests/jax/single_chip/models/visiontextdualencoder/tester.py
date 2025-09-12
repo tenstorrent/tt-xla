@@ -5,14 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode, random_image
-from transformers import (
-    AutoImageProcessor,
-    AutoTokenizer,
-    FlaxPreTrainedModel,
-    FlaxVisionTextDualEncoderModel,
-    VisionTextDualEncoderProcessor,
-    ViTConfig,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.vision_text_dual_encoder.mm_image_ttt.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
@@ -21,35 +18,20 @@ class VisionTextDualEncoderTester(JaxModelTester):
 
     def __init__(
         self,
-        vision_model_path: str,
-        text_model_path: str,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._vision_model_path = vision_model_path
-        self._text_model_path = text_model_path
+        self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxVisionTextDualEncoderModel.from_vision_text_pretrained(
-            self._vision_model_path, self._text_model_path
-        )
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        model_config = ViTConfig.from_pretrained(self._vision_model_path)
-        image_size = model_config.image_size
-        random_image_gen = random_image(image_size)
-
-        tokenizer = AutoTokenizer.from_pretrained(self._text_model_path)
-        image_processor = AutoImageProcessor.from_pretrained(self._vision_model_path)
-        processor = VisionTextDualEncoderProcessor(image_processor, tokenizer)
-
-        inputs = processor(
-            text="Some random image", images=random_image_gen, return_tensors="jax"
-        )
-        return inputs
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
