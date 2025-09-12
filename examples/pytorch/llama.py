@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from transformers import (
@@ -66,7 +67,6 @@ def llama():
 
     # Connect the device.
     device = xm.xla_device()
-
     mesh = create_device_mesh()
 
     # Instantiate model.
@@ -81,9 +81,6 @@ def llama():
 
     # Put it in inference mode
     model = model.eval()
-
-    # import pdb;pdb.set_trace()
-    # inplace compilation of nn.Module
 
     # Generate inputs.
     inputs = tokenizer.encode_plus(
@@ -104,20 +101,21 @@ def llama():
             dtype=torch.bfloat16,
         )
 
-    # Instantiate static cache on host then transfer it to device to avoid CE creation ops
-    batch_size = 1
-    max_cache_len = 1024
-    static_cache: StaticCache = StaticCache(
-        config=model.config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        # device='xla',  # 'xla' device will create the c.ache on host then we move it to device
-        dtype=torch.bfloat16,
-    )
+        # move static cache to device after host-side initialization. This gets captured in the compile I think,
+        # which breaks stuff up since there's technically a graph break now in the trace, as it looks like these are
+        # new different inputs...
 
-    # move static cache to device after host-side initialization
-    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
-    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+        static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
+        static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+
+        # Experiment - force materialization sync before compilation. FAIL
+        # torch_xla.sync()
+        # torch_xla._XLAC._xla_sync_multi([*static_cache.key_cache, *static_cache.value_cache], device, wait=False)
+
+        # Experiment - remark static addresses - Fail.
+        # for k, v in zip(static_cache.key_cache, static_cache.value_cache):
+        #     torch._dynamo.mark_static_address(k)
+        #     torch._dynamo.mark_static_address(v)
 
     # mark shard specs
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
@@ -156,7 +154,7 @@ def llama():
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
     # Run model (with no gradient calculation since we only need inference).
-    tokens_to_generate = 1
+    tokens_to_generate = 2
 
     output_tokens = []
 
