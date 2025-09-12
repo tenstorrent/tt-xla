@@ -82,6 +82,30 @@ void LoadedExecutableInstance::releaseResources() {
   m_deleted = true;
 }
 
+tt::runtime::Device
+LoadedExecutableInstance::reshapeMeshIfNeeded(tt::runtime::Device parent_mesh) {
+  auto parent_mesh_shape = tt::runtime::getMeshShape(parent_mesh);
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
+
+  bool compatible = true;
+  for (size_t i = 0;
+       i < devices_mesh_shape.size() && i < parent_mesh_shape.size(); i++) {
+    compatible &= devices_mesh_shape[i] <= parent_mesh_shape[i];
+  }
+
+  if (compatible && parent_mesh_shape != devices_mesh_shape) {
+    DLOG_F(LOG_DEBUG, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+                      "creating sub-mesh device");
+    return tt::runtime::createSubMeshDevice(parent_mesh, devices_mesh_shape);
+  }
+
+  DLOG_F(LOG_DEBUG, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+                      "reshaping mesh device");
+  tt::runtime::reshapeMeshDevice(parent_mesh, devices_mesh_shape);
+  return parent_mesh;
+}
+
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status
 LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
@@ -106,23 +130,23 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   bool device_provided = m_parent_mesh.has_value();
   if (device_provided) {
     // Check if submesh is compatible with the parent mesh.
-    std::vector<uint32_t> parent_shape =
-        tt::runtime::getMeshShape(*m_parent_mesh);
-    const std::vector<std::uint32_t> &devices_mesh_shape =
-        m_executable_image->getDevicesMeshShape();
-    assert(
-        parent_shape == devices_mesh_shape &&
-        "The device reuse works only if we are reusing the device of the same "
-        "mesh shape!");
-    if (parent_shape != devices_mesh_shape) {
-      throw std::runtime_error("The device reuse works only if we are reusing "
-                               "the device of the same mesh shape!");
-    }
+    // std::vector<uint32_t> parent_shape =
+    //     tt::runtime::getMeshShape(*m_parent_mesh);
+    // const std::vector<std::uint32_t> &devices_mesh_shape =
+    //     m_executable_image->getDevicesMeshShape();
+    // assert(
+    //     parent_shape == devices_mesh_shape &&
+    //     "The device reuse works only if we are reusing the device of the same "
+    //     "mesh shape!");
+    // if (parent_shape != devices_mesh_shape) {
+    //   throw std::runtime_error("The device reuse works only if we are reusing "
+    //                            "the device of the same mesh shape!");
+    // }
   }
 
   std::optional<tt::runtime::Device> runtime_device =
       m_parent_mesh.has_value()
-          ? m_parent_mesh
+          ? reshapeMeshIfNeeded(*m_parent_mesh)
           : openDevices(args->argument_lists, args->num_args, args->num_devices,
                         args->execute_device);
 

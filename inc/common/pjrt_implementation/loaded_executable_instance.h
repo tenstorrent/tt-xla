@@ -146,6 +146,8 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
+  tt::runtime::Device reshapeMeshIfNeeded(tt::runtime::Device parent_mesh);
+
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;
