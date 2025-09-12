@@ -38,7 +38,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        self._skip_compilation = True if run_mode == RunMode.TRAINING else False
+        self._skip_compilation = False if run_mode == RunMode.TRAINING else False
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
@@ -120,7 +120,7 @@ class TorchModelTester(ModelTester):
 
     def _test_training(self):
         xm.xla_device()
-        # self._compile_for_cpu(self._workload)
+        self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
 
@@ -135,9 +135,9 @@ class TorchModelTester(ModelTester):
         cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
         self._workload.model.zero_grad()
 
-        # self._compile_for_tt_device(self._workload)
+        self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
-        # torch_xla.sync(wait=True)
+        torch_xla.sync(wait=True)
 
         tt_backward_workload = Workload(
             framework=self._framework,
