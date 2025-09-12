@@ -1813,9 +1813,12 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
             },
             "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 113246208 B DRAM buffer across 12 banks",
+                # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                # "reason": "RuntimeError: Out of Memory: Not enough space to allocate 113246208 B DRAM buffer across 12 banks",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
             },
         },
     },
@@ -1873,6 +1876,7 @@ test_config = {
             "n150": {
                 # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
                 "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
                 # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
                 # "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
