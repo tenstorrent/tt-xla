@@ -61,8 +61,8 @@ def test_gpt2_base_inference(inference_tester: GPT2Tester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
     execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(reason="error: failed to legalize operation 'ttir.scatter'")
 def test_gpt2_base_training(training_tester: GPT2Tester):

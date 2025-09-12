@@ -12,7 +12,7 @@ from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
-from infra.utilities import Framework, Model, PyTree
+from infra.utilities import Framework, Model, PyTree, random_tensor
 from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
@@ -242,12 +242,7 @@ class JaxModelTester(ModelTester):
         tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
 
         # Create random gradient with same shape as output
-        with jax.default_device(jax.devices("cpu")[0]):
-            out_tensor = cpu_forward_out
-            key = jax.random.PRNGKey(0)
-            random_grad = jax.random.normal(
-                key, out_tensor.shape, dtype=out_tensor.dtype
-            )
+        random_grad = random_tensor(cpu_forward_out.shape, dtype=cpu_forward_out.dtype, framework=self._framework)
 
         # Run pullback on CPU
         pullback_workload_cpu = Workload(
