@@ -279,7 +279,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python .github/scripts/run_tests.py ${{ env.BASE_PYTEST_CMD }} \
+        python -m pytest ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
