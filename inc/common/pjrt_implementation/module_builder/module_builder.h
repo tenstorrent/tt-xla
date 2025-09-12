@@ -39,7 +39,9 @@
 // Forward declarations
 namespace tt::pjrt {
 class ExecutableImage;
-}
+class FlatbufferExecutableImage;
+class SOExecutableImage;
+} // namespace tt::pjrt
 
 namespace tt::pjrt::module_builder {
 
@@ -58,6 +60,20 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options);
 
 private:
+  // Logic for buildModule that is common to both the flatbuffer and codegen
+  // paths
+  std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
+  buildCommon(const std::string_view &mlir_code, ExecutableImage *executable);
+
+  // Logic for buildModule that is specific to the flatbuffer backend
+  tt_pjrt_status buildFlatbuffer(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                                 const std::string &system_descriptor_path,
+                                 FlatbufferExecutableImage *executable);
+
+  // Logic for buildModule that is specific to the codegen backend
+  tt_pjrt_status buildSO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                         SOExecutableImage *executable);
+
   // Creates VHLO module from the input program code.
   std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
   createVHLOModule(const std::string_view &code);
@@ -127,11 +143,12 @@ private:
   // Creates flatbuffer binary from the built TTNN module.
   tt_pjrt_status
   createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                         ExecutableImage *executable);
+                         FlatbufferExecutableImage *executable);
 
   // Verifies that creates flatbuffer binary satisfies conditions estimated by
   // the compiler from the input graph.
-  tt_pjrt_status verifyCreatedFlatbufferBinary(ExecutableImage *executable);
+  tt_pjrt_status
+  verifyCreatedFlatbufferBinary(FlatbufferExecutableImage *executable);
 
   // Checks if the resulting outputs and their shardings are valid.
   tt_pjrt_status checkOutputShardingShapes(

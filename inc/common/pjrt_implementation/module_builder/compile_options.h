@@ -2,14 +2,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
-#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
+#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_COMPILE_OPTIONS_H_
+#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_COMPILE_OPTIONS_H_
 
 // c++ standard library includes
+#include <optional>
 #include <string>
 #include <unordered_map>
 
-namespace tt::pjrt::module_builder {
+namespace tt::pjrt {
+
+// Enumeration for backend types
+enum class Backend {
+  Default,    // "default" - standard TT hardware targeting
+  CodegenCpp, // "codegen_cpp" - TTNN C++ code generation
+  CodegenPy   // "codegen_py" - TTNN Python code generation
+};
 
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
@@ -26,6 +34,11 @@ struct CompileOptions {
   // and user should provide and get tensors of common dtype.
   bool enable_bfp8_conversion = false;
 
+  // We offer the option to use TTNN code generation as an alternate way to
+  // target the hardware. This is also sometimes reffered to as EmitC/EmitPy.
+  // Valid values: Backend::Default, Backend::CodegenCpp, Backend::CodegenPy
+  Backend backend = Backend::Default;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };
@@ -33,12 +46,21 @@ struct CompileOptions {
 namespace internal {
 
 // Parse out the value of one specific boolean flag from the options map.
-bool parseBoolOption(
+std::optional<bool> parseBoolOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    std::string option_name);
+
+// Parse backend option from string to enum
+std::optional<Backend> parseBackendOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     std::string option_name);
 
 } // namespace internal
 
-} // namespace tt::pjrt::module_builder
+// Utility functions for Backend enum
+const char *backendToString(Backend backend);
+Backend stringToBackend(const std::string &str);
 
-#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_MODULE_BUILDER_COMPILE_OPTIONS_H_
+} // namespace tt::pjrt
+
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_COMPILE_OPTIONS_H_
