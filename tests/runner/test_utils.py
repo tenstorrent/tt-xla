@@ -32,7 +32,7 @@ class ModelTestStatus(Enum):
 
 
 class ModelTestConfig:
-    def __init__(self, data, arch):
+    def __init__(self, data, arch=None):
         self.data = data or {}
         self.arch = arch
 
