@@ -3,6 +3,7 @@ name: On PR
 on:
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   packages: write
@@ -55,15 +56,22 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  test:
+  generate-matrix-test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite_file: pr-main-test-basic.json
+
+  test:
+    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release, generate-matrix-test ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      test_mark: 'push'
+      test_matrix: ${{ needs.generate-matrix-test.outputs.test_matrix }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      use-shared-runners: false # Run PR on VMs
       artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}

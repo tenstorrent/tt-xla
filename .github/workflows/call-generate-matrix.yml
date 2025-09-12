@@ -1,0 +1,41 @@
+name: Generate Matrix (call)
+
+on:
+  workflow_call:
+    inputs:
+      test_suite_file:
+        description: 'Test suite that will be parallelized'
+        required: true
+        type: string
+      # todo(vvukoman): enable custom number of parallel groups per test
+      test_group_cnt:
+        description: 'Test group count for splitting forge models tests'
+        required: false
+        default: '5'
+        type: string
+    outputs:
+      test_matrix:
+        description: 'Generated JSON test matrix'
+        value: ${{ jobs.generate.outputs.test-matrix }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      test-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+      - name: Generate tt-forge-models matrix
+        id: generate-forge-models-matrix
+        shell: bash
+        env:
+          TEST_GROUP_CNT: ${{ inputs.test_group_cnt }}
+        run: |
+            SCRIPT_PATH=".github/scripts/generate_test_matrix.py"
+            TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ inputs.test_suite_file }}"
+
+            python $SCRIPT_PATH $TEST_MATRIX_PATH > modified-matrix.json
+            echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT

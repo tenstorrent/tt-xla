@@ -1,0 +1,9 @@
+[
+  { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test_mark": "push and not large", "parallel_groups": 2 },
+  { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test_mark": "push" },
+  { "runs-on": "p150",               "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test_mark": "push and not large", "parallel_groups": 2 },
+  { "runs-on": "p150",               "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test_mark": "push"  },
+  { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test_mark": "push", "codecov": "true" },
+  { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test_mark": "push", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test_mark": "push", "shared-runners": "true" }
+]
