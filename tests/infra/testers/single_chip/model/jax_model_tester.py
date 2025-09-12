@@ -242,7 +242,11 @@ class JaxModelTester(ModelTester):
         tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
 
         # Create random gradient with same shape as output
-        random_grad = random_tensor(cpu_forward_out.shape, dtype=cpu_forward_out.dtype, framework=self._framework)
+        random_grad = random_tensor(
+            cpu_forward_out.shape,
+            dtype=cpu_forward_out.dtype,
+            framework=self._framework,
+        )
 
         # Run pullback on CPU
         pullback_workload_cpu = Workload(
