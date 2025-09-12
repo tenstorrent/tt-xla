@@ -59,3 +59,4 @@ yolov6detect
 
 # bge-m3 model
 FlagEmbedding
+vllm==0.10.1.1
