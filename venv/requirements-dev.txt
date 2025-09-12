@@ -55,3 +55,5 @@ bi-lstm-crf==0.2.1
 yolov5
 patool
 yolov6detect
+
+vllm==0.10.1.1
