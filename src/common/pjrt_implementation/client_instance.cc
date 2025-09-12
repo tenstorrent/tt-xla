@@ -305,6 +305,30 @@ ClientInstance::extractCustomProtobufFields(
   return result;
 }
 
+// Static cache tensor management methods
+tt::runtime::Tensor *ClientInstance::getCachedStaticTensor(
+    const std::vector<BufferInstance *> &buffer_instances) {
+  auto it = m_static_tensor_cache.find(buffer_instances);
+  if (it != m_static_tensor_cache.end()) {
+    DLOG_F(LOG_DEBUG, "Cache HIT for static tensor with %zu buffer instances",
+           buffer_instances.size());
+    return it->second;
+  }
+  DLOG_F(LOG_DEBUG, "Cache MISS for static tensor with %zu buffer instances",
+         buffer_instances.size());
+  return nullptr; // Return nullptr to indicate cache miss
+}
+
+void ClientInstance::setCachedStaticTensor(
+    const std::vector<BufferInstance *> &buffer_instances,
+    tt::runtime::Tensor *tensor) {
+  m_static_tensor_cache[buffer_instances] = tensor;
+  DLOG_F(LOG_DEBUG,
+         "Cached static tensor pointer for %zu buffer instances (cache size "
+         "now: %zu)",
+         buffer_instances.size(), m_static_tensor_cache.size());
+}
+
 namespace internal {
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
