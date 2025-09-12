@@ -38,7 +38,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        self._skip_compilation = False if run_mode == RunMode.TRAINING else False
+        self._skip_compilation = True if run_mode == RunMode.TRAINING else False
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
