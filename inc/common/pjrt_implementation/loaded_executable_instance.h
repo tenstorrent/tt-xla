@@ -105,12 +105,12 @@ private:
 
   // Gets input runtime tensors from the arguments' buffers and converts them to
   // desired layout determined from the compiled graph.
-  tt_pjrt_status
-  getInputRuntimeTensors(PJRT_Buffer *const *const *argument_lists,
-                         size_t num_args, size_t num_devices,
-                         const tt::runtime::Device &runtime_device,
-                         std::uint32_t program_index,
-                         std::vector<tt::runtime::Tensor> &input_tensors);
+  tt_pjrt_status getInputRuntimeTensors(
+      PJRT_Buffer *const *const *argument_lists, size_t num_args,
+      size_t num_devices, const tt::runtime::Device &runtime_device,
+      std::uint32_t program_index,
+      std::vector<tt::runtime::Tensor> &input_tensors,
+      std::vector<tt::runtime::Tensor> &static_cache_tensors);
 
   // Fills strategy map from sharding configuration.
   // TODO: This function might be better suited living in the tt-mlir

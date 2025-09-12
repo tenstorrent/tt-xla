@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // third-party includes
@@ -25,6 +26,9 @@
 #include "common/platform.h"
 #include "common/status.h"
 
+// tt-mlir includes
+#include "tt/runtime/types.h"
+
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
 
@@ -32,8 +36,9 @@ namespace tt::pjrt {
 
 namespace module_builder {
 class ModuleBuilder;
-class BufferInstance;
 } // namespace module_builder
+
+class BufferInstance;
 
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
@@ -97,6 +102,28 @@ public:
   }
   void setRuntimeDeviceOpened(bool opened) { m_runtime_device_opened = opened; }
 
+  // Static cache tensor management
+  struct BufferVectorHash {
+    std::size_t operator()(const std::vector<BufferInstance *> &vec) const {
+      std::size_t hash = 0;
+      for (const auto *ptr : vec) {
+        hash ^= std::hash<const void *>{}(ptr) + 0x9e3779b9 + (hash << 6) +
+                (hash >> 2);
+      }
+      return hash;
+    }
+  };
+
+  // Get cached tensor pointer for buffer instances vector, returns nullptr if
+  // not found
+  tt::runtime::Tensor *
+  getCachedStaticTensor(const std::vector<BufferInstance *> &buffer_instances);
+
+  // Cache a tensor pointer for buffer instances vector
+  void
+  setCachedStaticTensor(const std::vector<BufferInstance *> &buffer_instances,
+                        tt::runtime::Tensor *tensor);
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
@@ -155,6 +182,11 @@ private:
   // Shared runtime device handle across loaded executable instances
   std::optional<tt::runtime::Device> m_runtime_device;
   bool m_runtime_device_opened = false;
+
+  // Cache for static tensor pointers to avoid redundant tensor creation
+  std::unordered_map<std::vector<BufferInstance *>, tt::runtime::Tensor *,
+                     BufferVectorHash>
+      m_static_tensor_cache;
 };
 
 namespace internal {
