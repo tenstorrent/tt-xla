@@ -146,9 +146,6 @@ PLACEHOLDER_MODELS = {
     "Open VLA": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "mistral-community/pixtral-12b": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
 }
 
 test_config = {
