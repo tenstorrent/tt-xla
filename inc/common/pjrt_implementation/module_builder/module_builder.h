@@ -51,6 +51,7 @@ extern const std::string c_mlir_format_name;
 class ModuleBuilder {
 public:
   ModuleBuilder();
+  ~ModuleBuilder();
 
   // Compiles given mlir module code and produces flatbuffer to execute on a
   // given system.
@@ -70,9 +71,15 @@ private:
                                  const std::string &system_descriptor_path,
                                  FlatbufferExecutableImage *executable);
 
-  // Logic for buildModule that is specific to the codegen backend
-  tt_pjrt_status buildSO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                         SOExecutableImage *executable);
+  // Logic for buildModule that is specific to the codegen backend for C++
+  tt_pjrt_status
+  buildForCodegenCpp(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                     SOExecutableImage *executable);
+
+  // Logic for buildModule that is specific to the codegen backend for Python
+  tt_pjrt_status
+  buildForCodegenPy(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                    SOExecutableImage *executable);
 
   // Creates VHLO module from the input program code.
   std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
@@ -222,8 +229,25 @@ private:
   createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module,
                         ExecutableImage *executable);
 
+  // Finds tt-alchemist library path using environment variables
+  std::string findTTAlchemistLibraryPath();
+
+  // Loads tt-alchemist library and function pointers
+  void loadTTAlchemistFunctions();
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
+
+  // tt-alchemist library handle and function pointers
+  void *m_tt_alchemist_handle;
+  bool m_alchemist_available;
+  void *(*m_tt_alchemist_get_instance)();
+  bool (*m_tt_alchemist_generate_python)(void *instance, const char *input_file,
+                                         const char *output_dir, bool is_local,
+                                         const char *pipeline_options);
+  bool (*m_tt_alchemist_generate_cpp)(void *instance, const char *input_file,
+                                      const char *output_dir, bool is_local,
+                                      const char *pipeline_options);
 };
 
 } // namespace tt::pjrt::module_builder
