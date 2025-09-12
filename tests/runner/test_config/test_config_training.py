@@ -11,4 +11,9 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
+    "autoencoder/pytorch-linear-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+
 }
