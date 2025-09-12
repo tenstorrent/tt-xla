@@ -26,9 +26,11 @@ on:
             { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
             { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
             { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
+            { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
             { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
             { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
             { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
+            { "runs-on": "p150b",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
             { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
             { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
             { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
@@ -66,7 +68,6 @@ on:
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
-  DOCKER_CACHE_ROOT: /mnt/dockercache
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
 
@@ -81,6 +82,9 @@ jobs:
         build: ${{ fromJson(inputs.test_matrix) }}
 
     runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+
+    env:
+      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
