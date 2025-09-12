@@ -62,3 +62,4 @@ FlagEmbedding
 
 # Qwen2.5 VL models
 qwen-vl-utils[decord]==0.0.8
+vllm==0.10.1.1
