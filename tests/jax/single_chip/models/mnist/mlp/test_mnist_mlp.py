@@ -89,8 +89,8 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-    bringup_status=BringupStatus.PASSED,
     execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
     "training_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
