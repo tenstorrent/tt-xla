@@ -134,12 +134,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  bool reuse_device_enabled = std::getenv("TT_REUSE_DEVICE") != nullptr;
-  if (devices_count == 1 || reuse_device_enabled) {
-    // In case of single chip - open the device in advance. This opened device
-    // will be reused during the process lifetime for all executable instances.
-    m_parent_mesh = ::tt::runtime::openMeshDevice();
-  }
+  m_parent_mesh = ::tt::runtime::openMeshDevice();
 
   return tt_pjrt_status::kSuccess;
 }
@@ -224,9 +219,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
-      LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices),
-                                               m_parent_mesh);
+      LoadedExecutableInstance::createInstance(
+          executable_image, std::move(addressable_devices), m_parent_mesh);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
