@@ -35,6 +35,8 @@ TPU_STR_DTYPE_TO_TORCH_DTYPE = {
     "uint8": torch.uint8,
 }
 
+torch._dynamo.config.reorderable_logging_functions.add(print)
+
 
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
@@ -122,13 +124,10 @@ class TTMetadata:
     #                                   |-- query_len ---|
 
     # Used in the TTAttentionBackendImpl
-    slot_mapping: torch.Tensor
-    block_tables: torch.Tensor
     context_lens: torch.Tensor
     query_start_loc: torch.Tensor
     num_seqs: torch.Tensor
-    num_kv_update_slices: torch.Tensor
-    num_slices_per_kv_cache_update_block: int
+    # padding_in_inputs: torch.Tensor
     attn_mask: torch.Tensor
 
 
@@ -174,6 +173,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache_dtype.lower().strip()
             )
 
+    # @torch.compiler.disable
     def forward(
         self,
         layer: AttentionLayer,
@@ -202,17 +202,17 @@ class TTAttentionBackendImpl(AttentionImpl):
             1, query.shape[0], query.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_heads, num_tokens, head_size]
+        )  # [1, num_tokens, num_heads, head_size]
         key = key.reshape(
             1, key.shape[0], key.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_kv_heads, max_seq_len, head_size]
+        )  # [1, num_tokens, num_kv_heads, head_size]
         value = value.reshape(
             1, value.shape[0], value.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_kv_heads, max_seq_len, head_size]
+        )  # [1, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
             cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
@@ -231,10 +231,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             value = v_cache
             kv_cache.copy_(new_kv_cache)
 
-        if query.shape[-2] == 1:
-            query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
-            cur_pos_tensor = attn_metadata.context_lens[:1].to(query.device)
-            out = torch.ops.tt.scaled_dot_product_attention_decode(
+        return (
+            torch.nn.functional.scaled_dot_product_attention(
                 query,
                 key,
                 value,

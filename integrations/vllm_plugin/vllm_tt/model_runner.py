@@ -6,6 +6,7 @@ import bisect
 import gc
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -28,7 +29,7 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.forward_context import set_forward_context
+from vllm.forward_context import set_forward_context, get_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
@@ -264,6 +265,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
+
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
         self.max_num_tokens = self.num_tokens_paddings[-1]
@@ -284,9 +286,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-            model_config
-        )
+        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+        #     model_config)
+        self.supports_mm_inputs = False
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -876,22 +878,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ]  # .to(self.device)
         block_tables = block_tables.to(self.device)
 
-        # Calculate the slot mapping
-        slot_mapping_metadata = self._get_slot_mapping_metadata(
-            num_reqs, num_scheduled_tokens_per_req
-        )
-        num_kv_update_slices = slot_mapping_metadata.shape[0]
-        padded_num_slices = _get_padded_num_kv_cache_update_slices(
-            padded_total_num_scheduled_tokens, self.max_num_reqs, self.block_size
-        )
-        slot_mapping_metadata = np.pad(
-            slot_mapping_metadata,
-            [[0, padded_num_slices - len(slot_mapping_metadata)], [0, 0]],
-            constant_values=0,
-        )
-        slot_mapping_metadata = np.transpose(slot_mapping_metadata)
-        slot_mapping_metadata = torch.tensor(slot_mapping_metadata, device=self.device)
-
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -1030,12 +1016,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
+            mm_positions = req_state.mm_positions
+            mm_hashes = req_state.mm_hashes
             # TODO unroll loop and assume/enforce --disable_chunked_mm_input
             # NOTE (NickLucche) here we diverge from logic in other runners, as
             # we assume to only have whole mm items to process. Hence we avoid
             # the intrinsic dynamism that `gather_mm_placeholders` introduces.
-            for mm_feature in req_state.mm_features:
-                pos_info = mm_feature.mm_position
+            for i, pos_info in enumerate(mm_positions):
                 start_pos = pos_info.offset
                 num_encoder_tokens = pos_info.length
 
@@ -1050,7 +1037,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # The encoder output is already processed and stored
                     # in the decoder's KV cache.
                     continue
-                mm_hash = mm_feature.identifier
+
+                mm_hash = mm_hashes[i]
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
                 assert pos_info.is_embed is None, (
@@ -1083,6 +1071,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_output: "SchedulerOutput",
         intermediate_tensors: Optional[IntermediateTensors] = None,
     ) -> ModelRunnerOutput:
+        torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
         if not scheduler_output.total_num_scheduled_tokens:
@@ -1126,11 +1115,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
+
                 hidden_states = self.model(
                     input_ids=input_ids,
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+                xm.mark_step()
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
@@ -1303,6 +1294,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             setattr(self, config_name, new_config)
 
     def load_model(self) -> None:
+        logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
@@ -1322,6 +1314,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             try:
                 if self.use_spmd:
+                    logger.info("Loading model with TPUModelLoader...")
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1329,7 +1322,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
-                    )
+                    ).eval()
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
@@ -1347,14 +1340,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     f"See the detailed error: {e}"
                 ) from e
         if self.lora_config is not None:
+            logger.info("Loading lora model...")
             model = self.load_lora_model(
                 model,
                 self.model_config,
                 self.scheduler_config,
                 self.lora_config,
                 self.device,
-            )
-            replace_set_lora(model)
+            ).eval()
+            replace_set_lora(model.eval())
 
         # Sync all pending XLA execution during model initialization and weight
         # loading.
@@ -1375,6 +1369,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
@@ -1385,18 +1380,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = None
         actual_num_reqs = min(num_tokens, num_reqs)
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-        padded_num_slices = _get_padded_num_kv_cache_update_slices(
-            num_tokens, self.max_num_reqs, self.block_size
-        )
-        num_kv_update_slices = torch.tensor([padded_num_slices], dtype=torch.int32).to(
-            self.device
-        )
-        slot_mapping = torch.zeros((3, padded_num_slices), dtype=torch.int32).to(
-            self.device
-        )
-        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-            self.device
-        )
         query_lens = [1] * num_reqs
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
@@ -1447,6 +1430,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.mark_step()  # Captures metadata updates
 
     def _precompile_mm_encoder(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         if not self.supports_mm_inputs:
             return
 
@@ -1522,6 +1506,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
     def _precompile_backbone(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
@@ -1541,6 +1526,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("model backbone")
 
     def _precompile_select_hidden_states(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         # Compile hidden state selection function for bucketed
         # n_tokens x max_num_reqs. Graph is really small so this is fine.
         logger.info("Compiling select_hidden_states with different input shapes.")
@@ -1564,6 +1550,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("select_hidden_states")
 
     def _precompile_compute_logits(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling compute_logits with different input shapes.")
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
@@ -1579,6 +1566,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("compute_logits")
 
     def _precompile_structured_decoding(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling structured_decoding with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1608,6 +1596,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("structured_decoding")
 
     def _precompile_sample_from_logits(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling sample_from_logits with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1638,6 +1627,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("sample_from_logits")
 
     def _precompile_gather_logprobs(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1661,6 +1651,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
             self._precompile_backbone()
@@ -1674,6 +1665,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
             if self.model_config.multimodal_config.skip_mm_profiling:
@@ -1735,6 +1727,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.encoder_cache["tmp"] = dict(enumerate(dummy_encoder_outputs))
 
         # Trigger compilation for general shape.
+        torch._dynamo.config.dynamic_shapes = False
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
@@ -1865,7 +1858,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
 
     def reset_dynamo_cache(self):
-
+        return
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
         # since the compiled model object of the language backbone of a
         # multimodal model needs to be extracted via `get_language_model`.
@@ -1882,7 +1875,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        return hidden_states[indices_do_sample]
+        device = hidden_states.device
+        indices_do_sample = indices_do_sample.to("cpu")
+        hidden_states = hidden_states.to("cpu")
+        return hidden_states[indices_do_sample].to(device)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
