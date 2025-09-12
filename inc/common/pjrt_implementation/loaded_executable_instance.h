@@ -33,6 +33,9 @@
 
 namespace tt::pjrt {
 
+// Forward declaration
+class ClientInstance;
+
 // Represents `PJRT_LoadedExecutable` structure and the functionality around it.
 // It is the in-memory loaded executable which is ready for input arguments to
 // execute.
@@ -42,7 +45,7 @@ public:
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
                  std::vector<DeviceInstance *> &&addressable_devices,
-                 std::optional<tt::runtime::Device> parent_mesh);
+                 ClientInstance *client_instance);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -84,10 +87,10 @@ private:
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
       const std::vector<DeviceInstance *> &addressable_devices,
-      std::optional<tt::runtime::Device> parent_mesh)
+      ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
         m_addressable_devices(addressable_devices), m_deleted(false),
-        m_parent_mesh(parent_mesh) {}
+        m_client_instance(client_instance) {}
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
@@ -161,7 +164,8 @@ private:
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
 
-  std::optional<tt::runtime::Device> m_parent_mesh;
+  // Pointer to the client instance that created this loaded executable
+  ClientInstance *m_client_instance;
 };
 
 namespace internal {

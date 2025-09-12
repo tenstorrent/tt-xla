@@ -25,6 +25,7 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
 namespace tt::pjrt {
@@ -33,19 +34,19 @@ std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
     std::vector<DeviceInstance *> &&addressable_devices,
-    std::optional<tt::runtime::Device> parent_mesh) {
+    ClientInstance *client_instance) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
                         std::vector<DeviceInstance *> &&addressable_devices,
-                        std::optional<tt::runtime::Device> parent_mesh)
+                        ClientInstance *client_instance)
         : LoadedExecutableInstance(std::move(executable_image),
                                    std::move(addressable_devices),
-                                   std::move(parent_mesh)) {}
+                                   client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
                                                std::move(addressable_devices),
-                                               std::move(parent_mesh));
+                                               client_instance);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -127,27 +128,12 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  bool device_provided = m_parent_mesh.has_value();
-  if (device_provided) {
-    // Check if submesh is compatible with the parent mesh.
-    // std::vector<uint32_t> parent_shape =
-    //     tt::runtime::getMeshShape(*m_parent_mesh);
-    // const std::vector<std::uint32_t> &devices_mesh_shape =
-    //     m_executable_image->getDevicesMeshShape();
-    // assert(
-    //     parent_shape == devices_mesh_shape &&
-    //     "The device reuse works only if we are reusing the device of the same
-    //     " "mesh shape!");
-    // if (parent_shape != devices_mesh_shape) {
-    //   throw std::runtime_error("The device reuse works only if we are reusing
-    //   "
-    //                            "the device of the same mesh shape!");
-    // }
-  }
+  bool device_provided = m_client_instance->getParentMesh().has_value();
 
   std::optional<tt::runtime::Device> runtime_device =
-      m_parent_mesh.has_value()
-          ? reshapeMeshIfNeeded(*m_parent_mesh)
+      m_client_instance.getParentMesh().has_value()
+          ? reshapeMeshIfNeeded()
+
           : openDevices(args->argument_lists, args->num_args, args->num_devices,
                         args->execute_device);
 
@@ -210,7 +196,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   if (!device_provided) {
-    std::cerr << "Closing mesh device!" << std::endl;
     tt::runtime::closeMeshDevice(*runtime_device);
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
@@ -263,7 +248,6 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
 
-  std::cerr << "Opening mesh device!" << std::endl;
   return tt::runtime::openMeshDevice(mesh_device_options);
 }
 

@@ -11,6 +11,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -73,6 +74,44 @@ public:
 
   const std::vector<MemoryInstance *> &getAddressableMemoriesRaw() const {
     return m_addressable_memories_raw;
+  }
+
+  tt::runtime::Device getParentMesh() const { return *m_parent_mesh; }
+
+  tt::runtime::Device
+  reshapeParentMesh(const std::vector<std::uint32_t> &new_mesh_shape) {
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+    auto options = tt::runtime::MeshDeviceOptions{.meshShape = new_mesh_shape};
+    m_parent_mesh = tt::runtime::openMeshDevice(options);
+    return *m_parent_mesh;
+  }
+
+  // In case we can reuse already opened mesh device, return it.
+  //
+  // When executing on single-chip we always reuse the mesh device.
+  //
+  // When executing on multi-chip system, we reuse the mesh device only when
+  // TT_REUSE_DEVICE environment variable is set. To make this work we'll always
+  // check for that flag:
+  // - if the flag is set:
+  //     - if we don't have a parent mesh, we open it
+  //     - if we have a parent mesh, we return it
+  // - if the flag is not set:
+  //     - if we have a parent mesh, we close it and set it to nullopt
+  //     - if we don't have a parent mesh, we do nothing
+  const std::optional<tt::runtime::Device> &getOrCreateParentMesh() {
+    bool should_have_parent_mesh =
+        m_devices.size() == 1 || std::getenv("TT_REUSE_DEVICE");
+
+    if (should_have_parent_mesh) {
+      if (!m_parent_mesh.has_value()) {
+        m_parent_mesh = tt::runtime::openMeshDevice();
+      }
+    } else {
+      m_parent_mesh = std::nullopt;
+    }
+
+    return m_parent_mesh;
   }
 
   // Compiles given mlir program.
