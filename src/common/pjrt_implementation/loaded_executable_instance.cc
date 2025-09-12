@@ -83,11 +83,17 @@ void LoadedExecutableInstance::releaseResources() {
   m_deleted = true;
 }
 
-tt::runtime::Device
-LoadedExecutableInstance::reshapeMeshIfNeeded(tt::runtime::Device parent_mesh) {
+tt::runtime::Device LoadedExecutableInstance::reshapeMeshIfNeeded() {
+  auto parent_mesh = m_client_instance->getParentMesh();
   auto parent_mesh_shape = tt::runtime::getMeshShape(parent_mesh);
   const std::vector<std::uint32_t> &devices_mesh_shape =
       m_executable_image->getDevicesMeshShape();
+
+  if (parent_mesh_shape == devices_mesh_shape) {
+    LOG_F(INFO, "LoadedExectuableInstance::reshapeMeshIfNeeded - reusing "
+                "already opened mesh device");
+    return parent_mesh;
+  }
 
   bool compatible = true;
   for (size_t i = 0;
@@ -103,8 +109,10 @@ LoadedExecutableInstance::reshapeMeshIfNeeded(tt::runtime::Device parent_mesh) {
 
   LOG_F(INFO, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
               "reshaping mesh device");
-  tt::runtime::reshapeMeshDevice(parent_mesh, devices_mesh_shape);
-  return tt::runtime::createSubMeshDevice(parent_mesh, devices_mesh_shape);
+  // NOTE: Instead of using the reshape API, try closing and reopening the mesh.
+  // tt::runtime::reshapeMeshDevice(parent_mesh, devices_mesh_shape);
+
+  return m_client_instance->reshapeParentMesh(devices_mesh_shape);
 }
 
 // TODO(mrakita): Make this method work in asynchronous fashion.
@@ -128,14 +136,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  bool device_provided = m_client_instance->getParentMesh().has_value();
-
-  std::optional<tt::runtime::Device> runtime_device =
-      m_client_instance.getParentMesh().has_value()
-          ? reshapeMeshIfNeeded()
-
-          : openDevices(args->argument_lists, args->num_args, args->num_devices,
-                        args->execute_device);
+  std::optional<tt::runtime::Device> runtime_device = reshapeMeshIfNeeded();
 
   if (!runtime_device) {
     // Logging is done inside `openDevices`.
@@ -193,11 +194,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       args->device_complete_events[device_num] =
           *device_complete_event.release();
     }
-  }
-
-  if (!device_provided) {
-    tt::runtime::closeMeshDevice(*runtime_device);
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
 
   return tt_pjrt_status::kSuccess;
