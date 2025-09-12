@@ -36,14 +36,11 @@ def torch_pass_pipeline(
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
-    print("Example inputs:", example_inputs)
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     # print("example_inputs", example_inputs)
-    print("gm graph before export for training")
-    gm.graph.print_tabular()
     # print("gm state_dict keys:", list(gm.state_dict().keys()))
     print("[james] override use torch.export.export")
     program = torch.export.export(
@@ -82,7 +79,6 @@ class XLAExecutor:
 
     def __init__(self, module: torch.fx.GraphModule):
         self.module = module
-        module.graph.print_tabular()
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
@@ -93,18 +89,14 @@ class XLAExecutor:
 
     def __call__(self, *args):
 
-        # self.module.graph.print_tabular()
-        # print("args", args)
-        print("readable graph module")
-        self.module.print_readable()
+        # print("readable graph module @ executor call")
+        # self.module.print_readable()
         output = self.module(*args)
+
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
         torch_xla.sync()
         # torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
-
-        print("Args after sync", args)
-
         return output
 
 
