@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Tuple
 import torch
+import logging
 from torch.export import ExportedProgram
 
 
@@ -42,7 +43,7 @@ def torch_pass_pipeline(
 
         def wrapper(*args, **kwargs):
             if op_name not in already_printed3:
-                print(f"decomposition_core_aten: {op_name}")
+                logging.critical(f"decomposition_core_aten: {op_name}")
                 already_printed3.append(op_name)
             return fn(*args, **kwargs)
 
