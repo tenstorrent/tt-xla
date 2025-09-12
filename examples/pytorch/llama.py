@@ -74,16 +74,16 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = 28
+    model.config.num_hidden_layers = 1
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
     # Put it in inference mode
     model = model.eval()
+
     # import pdb;pdb.set_trace()
     # inplace compilation of nn.Module
-    model.compile(backend="tt")
 
     # Generate inputs.
     inputs = tokenizer.encode_plus(
@@ -91,6 +91,18 @@ def llama():
         return_tensors="pt",
         truncation=True,
     )
+    with torch.no_grad():
+        # Instantiate static cache on host then transfer it to device to avoid CE creation ops
+        batch_size = 1
+        max_cache_len = 16
+        static_cache: StaticCache = StaticCache(
+            config=model.config,
+            max_batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            # device='xla',  # 'xla' device will create the cache on host then we move it to device
+            dtype=torch.bfloat16,
+        )
 
     # Instantiate static cache on host then transfer it to device to avoid CE creation ops
     batch_size = 1
@@ -108,12 +120,12 @@ def llama():
     static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
 
     # mark shard specs
-
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
     input_args = {
         "input_ids": inputs.input_ids.to(device),
         "past_key_values": static_cache,
         "cache_position": cache_position.to(device),
+        "use_cache": True,
     }
 
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
@@ -130,7 +142,6 @@ def llama():
         xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     # Move inputs and model to device.
-    # input = {k: v.to(device) for k, v in input_args.items() if hasattr(v, "to")}
     model = model.to(device)
 
     # shard model internals
@@ -145,9 +156,11 @@ def llama():
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
     # Run model (with no gradient calculation since we only need inference).
-    tokens_to_generate = 10
+    tokens_to_generate = 1
 
     output_tokens = []
+
+    model.compile(backend="tt")
 
     with torch.no_grad():
         # Custom generation loop impl
@@ -161,13 +174,11 @@ def llama():
             print("Generated token:", output_text)
 
             # Update inputs for next iteration
-            # cache_position = input_args["cache_position"][-1:] + 1
-
             next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
             input_args["input_ids"] = next_token.to(device)
 
             host_cache_pos = input_args["cache_position"].to("cpu")
-            host_cache_pos = host_cache_pos[-1:] + 1
+            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
     print("output tokens:", output_tokens)
