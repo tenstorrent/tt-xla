@@ -94,16 +94,16 @@ LoadedExecutableInstance::reshapeMeshIfNeeded(tt::runtime::Device parent_mesh) {
     compatible &= devices_mesh_shape[i] <= parent_mesh_shape[i];
   }
 
-  if (compatible && parent_mesh_shape != devices_mesh_shape) {
-    DLOG_F(LOG_DEBUG, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
-                      "creating sub-mesh device");
+  if (compatible) {
+    LOG_F(INFO, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+                "creating sub-mesh device");
     return tt::runtime::createSubMeshDevice(parent_mesh, devices_mesh_shape);
   }
 
-  DLOG_F(LOG_DEBUG, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
-                      "reshaping mesh device");
+  LOG_F(INFO, "LoadedExectuableInstance::reshapeMeshIfNeeded - "
+              "reshaping mesh device");
   tt::runtime::reshapeMeshDevice(parent_mesh, devices_mesh_shape);
-  return parent_mesh;
+  return tt::runtime::createSubMeshDevice(parent_mesh, devices_mesh_shape);
 }
 
 // TODO(mrakita): Make this method work in asynchronous fashion.
@@ -136,10 +136,11 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     //     m_executable_image->getDevicesMeshShape();
     // assert(
     //     parent_shape == devices_mesh_shape &&
-    //     "The device reuse works only if we are reusing the device of the same "
-    //     "mesh shape!");
+    //     "The device reuse works only if we are reusing the device of the same
+    //     " "mesh shape!");
     // if (parent_shape != devices_mesh_shape) {
-    //   throw std::runtime_error("The device reuse works only if we are reusing "
+    //   throw std::runtime_error("The device reuse works only if we are reusing
+    //   "
     //                            "the device of the same mesh shape!");
     // }
   }
