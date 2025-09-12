@@ -66,3 +66,4 @@ qwen-vl-utils[decord]==0.0.8
 
 # whisper and wav2vec2 models
 torchcodec
+vllm==0.10.1.1
