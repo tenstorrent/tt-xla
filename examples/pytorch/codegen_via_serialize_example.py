@@ -2,6 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+### Demonstrates how to hook into serialization to use Codegen(internally also known as EmitC/EmitPy), from Torch
+### You should strongly prefer using codegen via compile options
+### But for completeness we show how to do it via serialization too
+
 import os
 import torch
 import torch.nn as nn
