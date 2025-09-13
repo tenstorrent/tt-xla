@@ -3,12 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-from os import wait
 from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
