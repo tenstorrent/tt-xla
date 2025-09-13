@@ -13,10 +13,10 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
-
+from third_party.tt_forge_models.mt5.nlp_summarization.jax import ModelVariant
 from ..tester import MT5Tester
 
-MODEL_PATH = "google/mt5-xl"
+VARIANT_NAME = ModelVariant.XL
 MODEL_NAME = build_model_name(
     Framework.JAX, "mt5", "xl", ModelTask.NLP_SUMMARIZATION, ModelSource.HUGGING_FACE
 )
@@ -27,12 +27,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MT5Tester:
-    return MT5Tester(MODEL_PATH)
+    return MT5Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> MT5Tester:
-    return MT5Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return MT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -49,7 +49,7 @@ def training_tester() -> MT5Tester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.009299473837018013. Required: pcc=0.99. "
+        "PCC comparison failed. Calculated: pcc=0.9137454032897949. Required: pcc=0.99. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
