@@ -1,8 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -14,6 +13,7 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import ViTTester
 
@@ -25,7 +25,6 @@ MODEL_NAME = build_model_name(
     ModelTask.CV_IMAGE_CLS,
     ModelSource.HUGGING_FACE,
 )
-
 
 # ----- Fixtures -----
 
@@ -49,6 +48,7 @@ def training_tester() -> ViTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
@@ -71,6 +71,7 @@ def test_vit_large_patch32_384_inference(
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_vit_large_patch32_384_training(training_tester: ViTTester):

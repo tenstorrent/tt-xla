@@ -16,6 +16,7 @@ from utils import (
 
 from ..tester import WhisperTester
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 MODEL_PATH = "openai/whisper-base"
 MODEL_NAME = build_model_name(
     Framework.JAX,

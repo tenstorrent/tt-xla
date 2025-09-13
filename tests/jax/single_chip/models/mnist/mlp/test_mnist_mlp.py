@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 
 import pytest
 from infra import Framework, RunMode
@@ -13,6 +14,7 @@ from utils import (
     ModelTask,
     build_model_name,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .tester import MNISTMLPTester
 
@@ -23,7 +25,6 @@ MODEL_NAME = build_model_name(
     ModelTask.CV_IMAGE_CLS,
     ModelSource.CUSTOM,
 )
-
 
 # ----- Fixtures -----
 
@@ -48,6 +49,7 @@ def training_tester(request) -> MNISTMLPTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.parametrize(
     "inference_tester",
@@ -72,6 +74,7 @@ def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
@@ -88,6 +91,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mnist_mlp_training(training_tester: MNISTMLPTester):

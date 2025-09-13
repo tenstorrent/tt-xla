@@ -25,6 +25,7 @@ from utils import (
 
 from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 MODEL_PATH = "squeezebert/squeezebert-uncased"
 MODEL_NAME = build_model_name(
     Framework.JAX,
