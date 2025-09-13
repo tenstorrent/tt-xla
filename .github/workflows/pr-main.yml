@@ -116,5 +116,5 @@ jobs:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test
+        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test, test_forge_models_push
         jobs: ${{ toJSON(needs) }}
