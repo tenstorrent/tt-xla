@@ -320,13 +320,6 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
       }
     }
 
-    // If the function has a user input argument annotation, then for every
-    // argument, if the argument has an argument type attribute, do nothing, and
-    // if it does not have an argument type attribute, set it to constant
-    if (!hasUserInputAnnotation) {
-      return;
-    }
-
     int64_t annotatedConstCount = 0;
     for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
       if (funcOp.getArgAttr(i, mlir::tt::ttcore::ArgumentTypeAttr::name)) {
@@ -336,13 +329,7 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
       funcOp.setArgAttr(
           i, mlir::tt::ttcore::ArgumentTypeAttr::name,
           mlir::tt::ttcore::ArgumentTypeAttr::get(
-              funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Constant));
-      funcOp.setArgAttr(
-          i, c_name_attr_name,
-          mlir::StringAttr::get(funcOp.getContext(),
-                                "auto_annotated_const_" +
-                                    std::to_string(annotatedConstCount)));
-      annotatedConstCount++;
+              funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Input));
     }
   });
 
