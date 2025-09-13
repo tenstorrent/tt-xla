@@ -17,6 +17,8 @@ from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
 
+from torch_xla.debug import metrics as met
+
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
@@ -41,7 +43,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capteesys
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
 ):
 
     loader_path = test_entry.path
@@ -70,7 +72,7 @@ def test_all_models(
                 succeeded = True
 
         except Exception as e:
-            err = capteesys.readouterr().err
+            err = capfd.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
