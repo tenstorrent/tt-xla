@@ -36,6 +36,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        # HACK: Skip compilation for training for now. TODO: ISSUE HERE
         self._skip_compilation = True if run_mode == RunMode.TRAINING else False
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
