@@ -19,6 +19,7 @@ class TorchDeviceConnector(DeviceConnector):
     def __init__(self) -> None:
         super().__init__()
         xr.runtime.set_device_type("TT")
+        # Initialize TT PJRT computation client.
         torch_xla._XLAC._init_computation_client()
 
     # @override

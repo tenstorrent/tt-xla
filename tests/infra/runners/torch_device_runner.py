@@ -23,9 +23,7 @@ class TorchDeviceRunner(DeviceRunner):
 
     # @override
     def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
-        # TODO this context manager disables gradient calculation to save memory. We
-        # will need to enable it for training.
-
+        # Provide a context manager to enable or disable gradient calculation.
         with torch.set_grad_enabled(self.training_mode):
             return workload.execute()
 
