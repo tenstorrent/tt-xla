@@ -144,10 +144,10 @@ class TorchModelTester(ModelTester):
         )
         self._run_on_tt_device(tt_backward_workload)
         torch_xla.sync(wait=True)
-        
+
         tt_grads = {
             name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
-        
+
         self._compare(tt_res, cpu_res)
         self._compare(tt_grads, cpu_grads)
