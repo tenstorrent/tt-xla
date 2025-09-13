@@ -15,5 +15,4 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
-
 }
