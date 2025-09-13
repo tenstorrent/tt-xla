@@ -17,8 +17,6 @@ from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
 
-from torch_xla.debug import metrics as met
-
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
