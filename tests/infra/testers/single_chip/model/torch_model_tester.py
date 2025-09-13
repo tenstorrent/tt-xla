@@ -119,11 +119,9 @@ class TorchModelTester(ModelTester):
         workload.model.compile(backend=backend)
 
     def _test_training(self):
-        xm.xla_device()
         self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
-
         cpu_backward_workload = Workload(
             framework=self._framework,
             executable=cpu_res.backward,
@@ -146,9 +144,11 @@ class TorchModelTester(ModelTester):
             kwargs={"gradient": random_grad},
         )
         self._run_on_tt_device(tt_backward_workload)
+        torch_xla.sync(wait=True)
+        
         tt_grads = {
-            name: p.grad.clone().cpu() for name, p in self._model.named_parameters()
+            name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
-
+        
         self._compare(tt_res, cpu_res)
         self._compare(tt_grads, cpu_grads)
