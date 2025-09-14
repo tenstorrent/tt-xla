@@ -1,0 +1,98 @@
+name: Build tt-xla Wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker-tag:
+        description: 'Docker tag for the manylinux image'
+        required: false
+        type: string
+        default: 'latest'
+  workflow_call:
+    inputs:
+      docker-tag:
+        description: 'Docker tag for the manylinux image'
+        required: false
+        type: string
+        default: 'latest'
+
+jobs:
+  build-ttxla-wheel:
+    name: Build tt-xla Python Wheel
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Build tt-xla Wheel (manylinux)
+        uses: pypa/cibuildwheel@v2.23.2
+        # https://cibuildwheel.pypa.io/en/stable/options/
+        env:
+          CIBW_BEFORE_ALL: |
+            # From Dockerfile.ci container build step
+
+            export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+            mkdir -p $TTMLIR_TOOLCHAIN_DIR
+
+            cmake -B toolchain -DTOOLCHAIN=ON third_party/ 
+            cd third_party/tt-mlir/src/tt-mlir/ 
+            source env/activate 
+            cmake -B env/build env 
+            cmake --build env/build 
+            chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
+          CIBW_BUILD_FRONTEND: build
+          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
+          CIBW_SKIP: "*-musllinux_*"
+          CIBW_BUILD: "cp311-manylinux_x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/tenstorrent/tt-metal/tt-metalium/manylinux-amd64:latest
+        with:
+          output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
+          package-dir: python_package
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ttxla-wheel
+          path: ${{ steps.strings.outputs.wheel-output-dir }}/*.whl
+          if-no-files-found: error
+
+  test-ttxla-wheel-install:
+    needs: build-ttxla-wheel
+    timeout-minutes: 30
+    name: Test ttxla Wheel Installation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git safe dir
+        run: git config --global --add safe.directory $(pwd)
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: ttxla-wheel
+          path: ./dist
+
+      - name: Test wheel installation
+        shell: bash
+        run: |
+          WHEEL_FILE=$(ls ./dist/*.whl)
+          echo "Installing wheel: $WHEEL_FILE"
+          pip install $WHEEL_FILE
+
+          # Test the installation
+          python -c "from ttmlir import ir; print('Imported ttmlir & Created CTX: ', ir.Context())"
