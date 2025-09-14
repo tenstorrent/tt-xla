@@ -6,10 +6,12 @@ from typing import Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, JaxModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, RunMode, Model
 from jaxtyping import PyTree
-
-from .model_implementation import MNISTMLPModel
+from third_party.tt_forge_models.mnist.image_classification.jax import (
+    ModelLoader,
+    ModelArchitecture,
+)
 
 MNIST_MLP_PARAMS_INIT_SEED = 42
 
@@ -31,12 +33,12 @@ class MNISTMLPTester(JaxModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._hidden_sizes = hidden_sizes
+        self._model_loader = ModelLoader(ModelArchitecture.MLP, hidden_sizes)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
-        return MNISTMLPModel(self._hidden_sizes)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_forward_method_name(self) -> str:
@@ -44,8 +46,8 @@ class MNISTMLPTester(JaxModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        return create_mnist_random_input_image()
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_input_parameters(self) -> PyTree:
-        return self._model.init(jax.random.PRNGKey(42), self._input_activations)
+        return self._model_loader.load_parameters()
