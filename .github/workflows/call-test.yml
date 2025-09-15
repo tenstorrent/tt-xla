@@ -63,6 +63,10 @@ on:
         required: false
         default: 120
         type: number
+      test_suite:
+        description: 'File path to the test suite file or string containing test suite json'
+        required: true
+        type: string
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
@@ -71,6 +75,11 @@ env:
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
 
 jobs:
+  generate-matrix-test:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite_file: pr-main-test-basic.json
 
   # Run tests on TT hardware
   run-tests:

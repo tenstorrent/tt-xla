@@ -56,20 +56,13 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  generate-matrix-test:
-    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-generate-matrix.yml
-    secrets: inherit
-    with:
-      test_suite_file: pr-main-test-basic.json
-
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release, generate-matrix-test ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
+      test_suite_file: pr-main-test-basic.json # || ""
       test_matrix: ${{ needs.generate-matrix-test.outputs.test_matrix }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
@@ -93,7 +86,7 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-generate-forge-models-matrix.yml
     secrets: inherit
-    needs: [ build-image ]
+    needs: [ build-image, build-ttxla-release ]
     with:
       test_group_cnt: '1'
 
