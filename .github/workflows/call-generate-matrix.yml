@@ -34,17 +34,18 @@ jobs:
       - name: Create temp file if string test_suite
         shell: bash
         id: file-name-generate
+        env:
+          CUSTOM_JSON: ${{ inputs.test_suite_custom }}
         run: |
           if [[ "${{ inputs.test_suite }}" == "Custom" ]]; then
             TEST_SUITE_FILE=temp.json
-            cat > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE" << 'EOF'
-            ${{ inputs.test_suite_custom }}
-            EOF
+            printf '%s\n' "$CUSTOM_JSON" > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
+            echo "Created temp file with custom JSON:"
             cat ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
           else
             TEST_SUITE_FILE=${{ inputs.test_suite }}
           fi
-          echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT" 
+          echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@v5
       - name: Generate tt-forge-models matrix
