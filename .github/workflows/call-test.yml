@@ -67,6 +67,10 @@ on:
         description: 'File path to the test suite file or string containing test suite json'
         required: true
         type: string
+      test_suite_json:
+        description: 'Test suite matrix in json format'
+        required: false
+        type: string
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
