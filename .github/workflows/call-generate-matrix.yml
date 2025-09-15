@@ -37,12 +37,10 @@ jobs:
         run: |
           if [[ "${{ inputs.test_suite }}" == "Custom" ]]; then
             TEST_SUITE_FILE=temp.json
-            echo "${{ inputs.test_suite_custom }}" > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
-            echo ${{ inputs.test_suite_custom }} > ".github/workflows/test-matrix-presets/temp2.json"
-            echo "first"
+            cat > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE" << 'EOF'
+            ${{ inputs.test_suite_custom }}
+            EOF
             cat ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
-            echo "second"
-            cat ".github/workflows/test-matrix-presets/temp2.json"
           else
             TEST_SUITE_FILE=${{ inputs.test_suite }}
           fi
@@ -59,6 +57,8 @@ jobs:
           TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ steps.file-name-generate.outputs.test-suite-file }}"
 
           python $SCRIPT_PATH $TEST_MATRIX_PATH > modified-matrix.json
+
           echo "Generated test matrix"
           cat modified-matrix.json
+
           echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
