@@ -66,11 +66,11 @@ on:
         default: 120
         type: number
       test_suite:
-        description: 'File path to the test suite file or string containing test suite json'
+        description: 'Test suite preset options or custom'
         required: true
         type: string
-      test_suite_json:
-        description: 'Test suite matrix in json format'
+      test_suite_custom:
+        description: 'Custom test suite json'
         required: false
         type: string
 
@@ -84,7 +84,8 @@ jobs:
     uses: ./.github/workflows/call-generate-matrix.yml
     secrets: inherit
     with:
-      test_suite_file: pr-main-test-basic.json
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
 
   # Run tests on TT hardware
   run-tests:
