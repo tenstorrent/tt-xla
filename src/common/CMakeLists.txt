@@ -70,6 +70,7 @@ target_link_libraries(TTPJRTCommon PUBLIC
     TTPJRTCommonDylibPlatform
     TTMLIRCompiler
     TTMLIRRuntime
+    dl
 )
 
 target_link_directories(TTPJRTCommon PUBLIC
