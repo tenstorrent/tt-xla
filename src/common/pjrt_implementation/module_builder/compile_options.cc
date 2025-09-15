@@ -35,7 +35,7 @@ CompileOptions CompileOptions::parse(
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
             "'default'");
   }
-  options.export_path = maybe_export_path.value();
+  options.export_path = maybe_export_path.value_or("");
   return options;
 }
 
