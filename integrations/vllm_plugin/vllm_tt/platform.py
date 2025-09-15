@@ -34,7 +34,7 @@ class TTPlatform(Platform):
     ray_device_key: str = "TT"
     dist_backend: str = "gloo"
     # device_control_env_var: str = "TPU_VISIBLE_CHIPS"
-    simple_compile_backend: str = "openxla"
+    simple_compile_backend: str = "tt"
 
     supported_quantization: list[str] = [
         # "fp8", "tpu_int8", "compressed-tensors"
