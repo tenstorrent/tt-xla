@@ -94,8 +94,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        build: ${{ needs.generate-test-matrix.outputs.test_matrix }}
         # build: ${{ fromJson(inputs.test_matrix) }}
-        build: ${{ needs.generate_test_matrix.outputs.test_matrix }}
 
     # runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
     runs-on: fromJson(format('["{0}", "in-service"]', matrix.build.runs-on))
