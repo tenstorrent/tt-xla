@@ -100,7 +100,7 @@ tt_pjrt_status ModuleBuilder::buildModule(
 
   m_status = tt_pjrt_status::kSuccess;
 
-  auto compile_options = CompileOptions::parse(compile_options_map);
+  m_parsed_compile_options = CompileOptions::parse(compile_options_map);
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {
@@ -135,7 +135,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
-  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
+  convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                        m_parsed_compile_options);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -591,9 +592,11 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
-  options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
-  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
+  options.optimizerPassEnabled = m_parsed_compile_options.enable_optimizer;
+  options.memoryLayoutAnalysisEnabled =
+      m_parsed_compile_options.enable_optimizer;
+  options.enableBfp8Conversion =
+      m_parsed_compile_options.enable_bfp8_conversion;
   options.systemDescPath = system_descriptor_path.data();
 
   if (m_devices_mesh_shape.size() != 2) {
