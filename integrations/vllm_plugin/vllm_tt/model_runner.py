@@ -251,7 +251,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
-
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
         self.max_num_tokens = self.num_tokens_paddings[-1]
@@ -275,7 +274,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
             model_config
         )
-
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -499,7 +497,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 prompt_token_ids=new_req_data.prompt_token_ids,
                 mm_kwargs=new_req_data.mm_kwargs,
                 mm_positions=new_req_data.mm_positions,
-                # mm_hashes=new_req_data.mm_hashes,
                 sampling_params=sampling_params,
                 pooling_params=None,
                 generator=None,
@@ -1035,7 +1032,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # The encoder output is already processed and stored
                     # in the decoder's KV cache.
                     continue
-
                 mm_hash = mm_feature.identifier
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
@@ -1112,13 +1108,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
-
                 hidden_states = self.model(
                     input_ids=input_ids,
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
-                xm.mark_step()
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
@@ -1371,7 +1365,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = None
         actual_num_reqs = min(num_tokens, num_reqs)
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-
         padded_num_slices = _get_padded_num_kv_cache_update_slices(
             num_tokens, self.max_num_reqs, self.block_size
         )
@@ -1384,7 +1377,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
-
         query_lens = [1] * num_reqs
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
