@@ -7,10 +7,12 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import MNISTCNNTester
@@ -64,7 +66,14 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.bitcast_convert' "
+        "https://github.com/tenstorrent/tt-mlir/issues/979"
+    )
+)
 def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
     training_tester.test()

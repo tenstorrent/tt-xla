@@ -18,6 +18,7 @@ import jax
 import jax.lax
 import jax.nn
 from jax.extend import core
+from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
 
 
@@ -193,6 +194,15 @@ def _setup_mark_weight_primitive():
             )
         return [op.result]
 
+    # As we added new primitive, we need to define the jvp function: https://docs.jax.dev/en/latest/jax-primitives.html#forward-differentiation
+    # TODO: there is also primitive_transposes, for more info check: https://docs.jax.dev/en/latest/jax-primitives.html#transposition
+    def _mark_weight_jvp(primals, tangents):
+        (x,) = primals
+        (tx,) = tangents
+        return mark_weight_p.bind(x), tx
+
+    ad.primitive_jvps[mark_weight_p] = _mark_weight_jvp
+
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
@@ -207,6 +217,27 @@ def _create_gelu_patch_config():
     Returns:
         list[MonkeyPatchConfig]: List containing gelu patch config.
     """
+
+    def patch_gelu(config: MonkeyPatchConfig):
+        def gelu_composite(x, approximate=True):
+            gelu = config.backup
+            composite = jax.lax.composite(
+                lambda x: gelu(x, approximate=approximate),
+                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+            )
+            composite_vjp = jax.custom_vjp(lambda x: composite(x))
+
+            composite_fwd = lambda x: (composite(x), x)
+
+            composite_bwd = jax.lax.composite(
+                lambda x, g: jax.vjp(gelu, x)[1](g),
+                "tenstorrent.gelu_tanh_bwd" if approximate else "tenstorrent.gelu_bwd",
+            )
+            composite_vjp.defvjp(composite_fwd, composite_bwd)
+
+            return composite_vjp(x)
+
+        return gelu_composite
 
     def post_patch_func():
         if _is_module_imported("transformers") and _is_module_imported(
@@ -225,12 +256,7 @@ def _create_gelu_patch_config():
         MonkeyPatchConfig(
             target_module=jax.nn,
             target_function="gelu",
-            replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-                lambda x: config.backup(x, approximate=approximate),
-                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-            )(
-                x
-            ),
+            replacement_factory=patch_gelu,
             post_patch=post_patch_func,
         )
     ]
