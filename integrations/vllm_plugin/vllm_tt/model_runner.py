@@ -1843,6 +1843,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
 
     def reset_dynamo_cache(self):
+
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
         # since the compiled model object of the language backbone of a
         # multimodal model needs to be extracted via `get_language_model`.
@@ -1859,8 +1860,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        indices_do_sample = indices_do_sample
-        hidden_states = hidden_states
         return hidden_states[indices_do_sample]
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1877,7 +1876,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+        # @LPanosTT: sampler functionalitty has issues currently, so we will always use greedy sampling
+        if sampling_metadata.all_greedy or True:
+            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+        else:
+            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
 
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
