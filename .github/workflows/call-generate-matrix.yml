@@ -38,6 +38,7 @@ jobs:
           if [[ "${{ inputs.test_suite }}" == "Custom" ]]; then
             TEST_SUITE_FILE=temp.json
             echo ${{ inputs.test_suite_custom }} > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
+            cat ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
           else
             TEST_SUITE_FILE=${{ inputs.test_suite }}
           fi
