@@ -78,15 +78,13 @@ class ModelTester(BaseTester, ABC):
         else:
             self._configure_model_for_training()
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_inference(model: Model) -> None:
+    def _configure_model_for_inference(self) -> None:
         """Configures `model` for inference."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_training(model: Model) -> None:
+    def _configure_model_for_training(self) -> None:
         """Configures `model` for training."""
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -99,15 +97,6 @@ class ModelTester(BaseTester, ABC):
     def _initialize_workload(self) -> None:
         """Initializes `self._workload`."""
         raise NotImplementedError("Subclasses must implement this method")
-
-    def _get_forward_method_name(self) -> str:
-        """
-        Returns string name of model's forward pass method.
-
-        Returns "__call__" by default which is the most common one. "forward" and
-        "apply" are also common.
-        """
-        return "__call__"
 
     def test(self) -> None:
         """Tests the model depending on test type with which tester was configured."""

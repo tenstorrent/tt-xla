@@ -82,10 +82,6 @@ class MNISTMLPTester(JaxModelTester):
         return MNISTMLPModel(self._hidden_sizes)
 
     # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
         key = jax.random.PRNGKey(37)
         img = jax.random.normal(key, (4, 28, 28, 1))  # B, H, W, C

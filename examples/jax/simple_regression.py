@@ -12,6 +12,7 @@ import os
 import sys
 import jax._src.xla_bridge as xb
 
+
 # Create random inputs (weights) on cpu and move them to tt device if requested.
 def random_input_tensor(shape, key=42, on_device=False):
     def random_input(shape, key):

@@ -6,7 +6,7 @@ import inspect
 from typing import Any, Sequence
 
 import jax
-from flax import linen
+from flax import linen, nnx
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
@@ -51,7 +51,9 @@ class JaxDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        fn_params = list(inspect.signature(workload.executable).parameters.keys())
+        fn_params = list(
+            inspect.signature(workload.executable or workload.model).parameters.keys()
+        )
 
         for i, arg in enumerate(workload.args):
             if fn_params[i] not in workload.static_argnames:
@@ -71,10 +73,18 @@ class JaxDeviceRunner(DeviceRunner):
             else:
                 kwargs_on_device[key] = value
 
+        model = workload.model
+
+        if isinstance(workload.model, nnx.Module):
+            graphdef, state = nnx.split(workload.model)
+            state_on_target = jax.tree.map(lambda x: jax.device_put(x, device), state)
+            model = nnx.merge(graphdef, state_on_target)
+
         return Workload(
             framework=workload.framework,  # Unchanged.
             executable=workload.executable,  # Unchanged.
             compiled_executable=workload.compiled_executable,  # Unchanged.
+            model=model,
             args=args_on_device,
             kwargs=kwargs_on_device,
             static_argnames=workload.static_argnames,
