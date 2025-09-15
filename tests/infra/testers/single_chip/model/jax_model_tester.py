@@ -140,7 +140,7 @@ class JaxModelTester(ModelTester):
                 **self._input_activations,
             }
 
-        # TODO: add support for model-specific kwargs for different models. https://github.com/tenstorrent/tt-xla/issues/1388
+        # TODO: add support for training-specific kwargs for different types of models. https://github.com/tenstorrent/tt-xla/issues/1388
         return {}
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
