@@ -174,7 +174,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
-  // Parse compile options for fingerprint generation
+  // Parse compile options for fingerprint generation.
   module_builder::CompileOptions parsed_compile_options =
       module_builder::CompileOptions::parse(compile_options);
 
