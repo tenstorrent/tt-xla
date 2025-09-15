@@ -398,7 +398,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        self.sample_from_logits_func = self.sample_from_logits
+        if not self.use_spmd:
+            self.sample_from_logits_func = torch.compile(
+                self.sample_from_logits,
+                backend="tt",
+                fullgraph=True,
+                dynamic=False,
+            )
+        else:
+            self.sample_from_logits_func = self.sample_from_logits
 
     def _update_num_xla_graphs(self, case_str):
         check_comp = self.check_recompilation and not self.enforce_eager
@@ -1886,7 +1894,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     # TODO: Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: TPUSupportedSamplingMetadata
     ) -> torch.Tensor:
