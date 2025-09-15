@@ -66,7 +66,10 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason="Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable."
+    reason=failed_fe_compilation(
+        "Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable."
+        "https://github.com/tenstorrent/tt-xla/issues/1388"
+    )
 )
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()

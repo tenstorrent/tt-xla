@@ -12,6 +12,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 from third_party.tt_forge_models.gpt2.causal_lm.jax import ModelVariant
 from ..tester import GPT2Tester
@@ -64,6 +65,11 @@ def test_gpt2_base_inference(inference_tester: GPT2Tester):
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(reason="error: failed to legalize operation 'ttir.scatter'")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_gpt2_base_training(training_tester: GPT2Tester):
     training_tester.test()

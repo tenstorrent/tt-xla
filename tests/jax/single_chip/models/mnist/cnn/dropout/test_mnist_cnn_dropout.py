@@ -12,6 +12,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import MNISTCNNTester
@@ -69,7 +70,10 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason="error: failed to legalize operation 'stablehlo.bitcast_convert'"
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.bitcast_convert' "
+        "https://github.com/tenstorrent/tt-mlir/issues/979"
+    )
 )
 def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
     training_tester.test()
