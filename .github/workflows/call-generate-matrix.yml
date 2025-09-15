@@ -37,7 +37,7 @@ jobs:
         run: |
           if [[ "${{ inputs.test_suite }}" == "Custom" ]]; then
             TEST_SUITE_FILE=temp.json
-            echo ${{ inputs.test_suite_custom }} > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
+            echo "${{ inputs.test_suite_custom }}" > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
             echo ${{ inputs.test_suite_custom }} > ".github/workflows/test-matrix-presets/temp2.json"
             echo "first"
             cat ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
