@@ -1,9 +1,9 @@
-Tenstorrent tt-xla 
+Tenstorrent tt-xla
 Copyright 2025 Tenstorrent AI ULC
 
-The following dependencies are utilized by this project but may not be explicitly distributed as part of the software
-- vLLM (https://github.com/vllm-project/vllm)
-  Copyright contributors to the vLLM project, under Apache 2.0
+Copyright contributors to the vLLM project (https://github.com/vllm-project/vllm), under Apache 2.0.
+
+The following dependencies are utilized by this project but may not be explicitly distributed as part of the software:
 
 - black - MIT License (https://github.com/psf/black/blob/main/LICENSE)
 - datasets - Apache v2.0 License (https://github.com/huggingface/datasets/blob/main/LICENSE)
