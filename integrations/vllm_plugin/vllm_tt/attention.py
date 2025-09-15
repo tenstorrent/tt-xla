@@ -257,6 +257,54 @@ class TTAttentionBackendImpl(AttentionImpl):
         )
 
 
+def write_to_kv_cache(
+    key: torch.Tensor,
+    value: torch.Tensor,
+    kv_cache: torch.Tensor,
+    slot_mapping: torch.Tensor,
+    num_slices_per_kv_cache_update_block: int,
+    num_kv_update_slices: torch.Tensor,
+    kv_cache_quantized_dtype: Optional[torch.dtype] = None,
+    k_scale: float = 1.0,
+    v_scale: float = 1.0,
+) -> None:
+    """Write the key and values to the KV cache.
+    Args:
+        key: shape = [num_tokens, num_kv_heads, head_size]
+        value: shape = [num_tokens, num_kv_heads, head_size]
+        kv_cache: shape = [num_blocks, block_size, num_kv_heads * 2, head_size]
+        num_slices_per_kv_cache_update_block: int
+    """
+    _, page_size, num_combined_kv_heads, head_size = kv_cache.shape
+    head_size = cdiv(head_size, TT_HEAD_SIZE_ALIGNMENT) * TT_HEAD_SIZE_ALIGNMENT
+
+    if kv_cache_quantized_dtype is not None:
+        dtype_info = torch.finfo(kv_cache_quantized_dtype)
+        key = key.to(torch.float32) / k_scale
+        # NOTE: clamp is added here to avoid out of range of quantized dtype
+        key = torch.clamp(key, dtype_info.min, dtype_info.max)
+        key = key.to(kv_cache_quantized_dtype)
+        value = value.to(torch.float32) / v_scale
+        value = torch.clamp(value, dtype_info.min, dtype_info.max)
+        value = value.to(kv_cache_quantized_dtype)
+
+    kv = torch.cat([key, value], axis=-1).reshape(-1, num_combined_kv_heads, head_size)
+
+    torch.ops.xla.dynamo_set_buffer_donor_(kv_cache, True)
+
+    kv_cache = kv_cache.flatten(0, 1)
+    new_kv_cache = torch.ops.xla.kv_cache_update_op(
+        kv,
+        slot_mapping,
+        kv_cache,
+        num_kv_update_slices,
+        page_size,
+        num_slices_per_kv_cache_update_block,
+    )
+    # NOTE: the in-place copy will be optimized away by XLA compiler.
+    kv_cache.copy_(new_kv_cache)
+
+
 # We can move this function to a common utils file if it's also useful for other
 # hardware.
 def dtype_bits(dtype: torch.dtype):
