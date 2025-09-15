@@ -3,14 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import flax.traverse_util
-import fsspec
 import jax
-import ml_collections
-import numpy
 import pytest
 from flax import linen as nn
-from infra import Framework, JaxModelTester, RunMode
+from infra import ComparisonConfig, Framework, JaxModelTester, RunMode, Model
 from jaxtyping import PyTree
 from utils import (
     BringupStatus,
@@ -21,9 +17,12 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.mlp_mixer.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
-from .model_implementation import MlpMixer
-
+VARIANT_NAME = ModelVariant.BASE_16
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mlpmixer",
@@ -32,29 +31,21 @@ MODEL_NAME = build_model_name(
     ModelSource.CUSTOM,
 )
 
-# Hyperparameters for Mixer-B/16
-patch_size = 16
-num_classes = 21843
-num_blocks = 12
-hidden_dim = 768
-token_mlp_dim = 384
-channel_mlp_dim = 3072
-
 
 class MlpMixerTester(JaxModelTester):
     """Tester for MlpMixer model."""
 
+    def __init__(
+        self,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ) -> None:
+        self._model_loader = ModelLoader(VARIANT_NAME)
+        super().__init__(comparison_config, run_mode)
+
     # @override
-    def _get_model(self) -> nn.Module:
-        patch = ml_collections.ConfigDict({"size": (patch_size, patch_size)})
-        return MlpMixer(
-            patches=patch,
-            num_classes=num_classes,
-            num_blocks=num_blocks,
-            hidden_dim=hidden_dim,
-            tokens_mlp_dim=token_mlp_dim,
-            channels_mlp_dim=channel_mlp_dim,
-        )
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_forward_method_name(self) -> str:
@@ -62,18 +53,11 @@ class MlpMixerTester(JaxModelTester):
 
     # @override
     def _get_input_activations(self) -> jax.Array:
-        key = jax.random.PRNGKey(42)
-        random_image = jax.random.normal(key, (1, 224, 224, 3))
-        return random_image
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_input_parameters(self) -> PyTree:
-        # TODO(stefan): Discuss how weights should be handled org wide
-        link = "https://storage.googleapis.com/mixer_models/imagenet21k/Mixer-B_16.npz"
-        with fsspec.open("filecache::" + link, cache_storage="/tmp/files/") as f:
-            weights = numpy.load(f, encoding="bytes")
-            state_dict = {k: v for k, v in weights.items()}
-            return {"params": flax.traverse_util.unflatten_dict(state_dict, sep="/")}
+        return self._model_loader.load_parameters()
 
 
 # ----- Fixtures -----
@@ -86,7 +70,7 @@ def inference_tester() -> MlpMixerTester:
 
 @pytest.fixture
 def training_tester() -> MlpMixerTester:
-    return MlpMixerTester(RunMode.TRAINING)
+    return MlpMixerTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -103,7 +87,7 @@ def training_tester() -> MlpMixerTester:
 )
 @pytest.mark.xfail(
     reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=15.194854736328125. Required: atol=0.16 "
+        "PCC comparison failed. Calculated: pcc=-0.006597555708140135. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )

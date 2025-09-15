@@ -50,7 +50,7 @@ def training_tester() -> OPTTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, "
         "where each bank needs to store 11186176 B "
