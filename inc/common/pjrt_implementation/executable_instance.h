@@ -94,6 +94,9 @@ PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args);
 PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
     PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args);
 
+// Implements PJRT_Executable_Fingerprint API function.
+PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args);
+
 // Implements PJRT_Executable_OutputElementTypes API function.
 PJRT_Error *
 onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args);
@@ -108,9 +111,6 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args);
 
 // Implements PJRT_Executable_Serialize API function.
 PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args);
-
-// Implements PJRT_Executable_Fingerprint API function.
-PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args);
 
 } // namespace internal
 
