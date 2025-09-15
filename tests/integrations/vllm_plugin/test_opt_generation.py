@@ -5,13 +5,6 @@ import vllm
 
 
 def test_opt_generation():
-
-    from multiprocessing import freeze_support
-    import torch_xla.runtime as xr
-
-    xr.set_device_type("TT")
-    freeze_support()
-
     prompts = [
         "Hello, my name is",
     ]
