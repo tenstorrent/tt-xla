@@ -98,7 +98,7 @@ jobs:
     runs-on: Ubuntu-latest
     steps:
       - name: Send Fail Notification
-        # if: ${{ needs.fail-notify.outputs.is-main == 'true' }}
+        if: ${{ needs.fail-notify.outputs.is-main == 'true' }}
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
