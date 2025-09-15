@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""A TPU worker class."""
+# SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
+
+"""A TT worker class."""
 
 import os
 from typing import Any, Optional
