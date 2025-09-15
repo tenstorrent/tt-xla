@@ -227,11 +227,27 @@ class TTPlatform(Platform):
     ) -> bool:
         return True
 
+    @classmethod
+    @torch.compile(backend="tt")
+    def insert_blocks_to_device(
+        cls,
+        src_cache: torch.Tensor,
+        dst_cache: torch.Tensor,
+        src_block_indices: torch.Tensor,
+        dst_block_indices: torch.Tensor,
+    ) -> None:
+        torch.ops.xla.dynamo_set_buffer_donor_(dst_cache, True)
+        dst_cache[dst_block_indices] = src_cache[src_block_indices].to(dst_cache.device)
 
-# try:
-#     from tpu_commons.platforms import TpuPlatform as TpuCommonsPlatform
-#     TpuPlatform = TpuCommonsPlatform  # type: ignore
-#     USE_TPU_COMMONS = True
-# except ImportError:
-#     logger.info("tpu_commons not found, using vLLM's TpuPlatform")
-#     pass
+    @classmethod
+    @torch.compile(backend="tt")
+    def swap_out_blocks_to_host(
+        cls,
+        src_cache: torch.Tensor,
+        dst_cache: torch.Tensor,
+        src_block_indices: torch.Tensor,
+        dst_block_indices: torch.Tensor,
+    ) -> None:
+        """tpu blocks to cpu blocks"""
+        torch.ops.xla.dynamo_set_buffer_donor_(src_cache, True)
+        dst_cache[dst_block_indices] = src_cache[src_block_indices].cpu()
