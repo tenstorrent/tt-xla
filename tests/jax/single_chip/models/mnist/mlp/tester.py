@@ -38,12 +38,10 @@ class MNISTMLPTester(JaxModelTester):
 
     # @override
     def _get_model(self) -> Model:
-        return self._model_loader.load_model()
+        model = self._model_loader.load_model()
+        model.params = self._model_loader.load_parameters()
+        return model
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
         return self._model_loader.load_inputs()
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        return self._model_loader.load_parameters()
