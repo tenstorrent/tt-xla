@@ -11,6 +11,8 @@ import tt_torch.custom_ops
 import tt_torch
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
+# TODO: Record superset properties for these tests.
+
 
 @pytest.mark.parametrize("num_heads", [12, 16])
 @pytest.mark.parametrize("max_seq_len", [64, 128])
