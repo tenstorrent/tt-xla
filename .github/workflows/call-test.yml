@@ -239,20 +239,18 @@ jobs:
           ARCH="--arch ${{ matrix.build.runs-on }}"
         fi
 
-        if [[ -n "${{ matrix.build.extra_test_marks }}" ]]; then
-          MARKS="${{ inputs.test_mark }} and ${{ matrix.build.extra_test_marks }}"
-        else
-          MARKS="${{ inputs.test_mark }}"
-        fi
+        MARKS="${{ matrix.build.test_mark }}"
+
         if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
           echo "Only running previously failed tests"
           PYTEST_SPLITS=""
         else
           echo "Running all tests"
-          PYTEST_SPLITS="--splits ${{ matrix.build.test_group_cnt || 1}} \
-            --group ${{ matrix.build.test_group_id || 1}} \
+          PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+            --group ${{ matrix.build.group-id || 1}} \
             --splitting-algorithm least_duration"
         fi
+
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
           --durations=0 \
           ${{ matrix.build.dir }} \
