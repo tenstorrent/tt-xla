@@ -854,6 +854,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len].to(self.device)
         block_tables = block_tables.to(self.device)
 
+        # Calculate the slot mapping
+        slot_mapping_metadata = self._get_slot_mapping_metadata(
+            num_reqs, num_scheduled_tokens_per_req
+        )
+        num_kv_update_slices = slot_mapping_metadata.shape[0]
+        padded_num_slices = _get_padded_num_kv_cache_update_slices(
+            padded_total_num_scheduled_tokens, self.max_num_reqs, self.block_size
+        )
+        slot_mapping_metadata = np.pad(
+            slot_mapping_metadata,
+            [[0, padded_num_slices - len(slot_mapping_metadata)], [0, 0]],
+            constant_values=0,
+        )
+        slot_mapping_metadata = np.transpose(slot_mapping_metadata)
+        slot_mapping_metadata = torch.tensor(slot_mapping_metadata, device=self.device)
+
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -866,9 +882,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
+            slot_mapping=slot_mapping_metadata,
+            block_tables=block_tables,
             context_lens=seq_lens,
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
+            num_kv_update_slices=torch.tensor(
+                [num_kv_update_slices], dtype=torch.int32, device=self.device
+            ),
             attn_mask=generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
@@ -876,6 +897,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.dtype,
                 self.device,
             ),
+            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1347,6 +1369,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = None
         actual_num_reqs = min(num_tokens, num_reqs)
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
+
+        padded_num_slices = _get_padded_num_kv_cache_update_slices(
+            num_tokens, self.max_num_reqs, self.block_size
+        )
+        num_kv_update_slices = torch.tensor([padded_num_slices], dtype=torch.int32).to(
+            self.device
+        )
+        slot_mapping = torch.zeros((3, padded_num_slices), dtype=torch.int32).to(
+            self.device
+        )
+        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+            self.device
+        )
+
         query_lens = [1] * num_reqs
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
@@ -1354,9 +1390,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         context_lens = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
         num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
         attn_metadata = TTMetadata(
+            slot_mapping=slot_mapping,
+            block_tables=block_tables,
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
+            num_kv_update_slices=torch.tensor(
+                [num_kv_update_slices], dtype=torch.int32, device=self.device
+            ),
             attn_mask=generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
@@ -1364,6 +1405,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.dtype,
                 self.device,
             ),
+            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
