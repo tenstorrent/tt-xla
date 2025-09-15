@@ -90,9 +90,11 @@ def run_shape_prop(gm, example_inputs):
     shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
     if shape_prop.fake_mode is not None:
         fake_args = [
-            shape_prop.fake_mode.from_tensor(act, static_shapes=True)
-            if isinstance(act, torch.Tensor)
-            else act
+            (
+                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
+                if isinstance(act, torch.Tensor)
+                else act
+            )
             for act in example_inputs
         ]
     else:

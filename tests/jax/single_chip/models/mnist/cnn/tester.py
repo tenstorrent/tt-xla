@@ -32,10 +32,6 @@ class MNISTCNNTester(JaxModelTester):
         return self._model_loader.load_model()
 
     # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
         return self._model_loader.load_inputs()
 

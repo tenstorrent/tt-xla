@@ -84,6 +84,9 @@ def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
 
 
 @pytest.mark.push
+@pytest.mark.skip(
+    reason="We want to use pure implementation of nnx, no params returned as args/kwargs"
+)
 def test_example_model_inference(
     inference_tester: ExampleModelMixedArgsAndKwargsTester,
 ):
