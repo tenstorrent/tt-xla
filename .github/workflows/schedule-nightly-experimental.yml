@@ -98,25 +98,14 @@ jobs:
     runs-on: Ubuntu-latest
     steps:
       - name: Send Fail Notification
-        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
+        # if: ${{ needs.fail-notify.outputs.is-main == 'true' }}
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
               "text": "Experimental Nightly Failed: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "result": ${{ needs.fail-notify.outputs.failed == 'true' && "failed" || "succeeded" }
               "channel": "C08GYB57C8M"
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
-
-      - name: Send Success Notification
-        if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": "Experimental Nightly Passed: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_EXPERIMENTAL_NIGHTLY }}
