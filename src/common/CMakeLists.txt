@@ -28,7 +28,6 @@ target_include_directories(TTPJRTCommonDylibPlatform PUBLIC
 # Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTCommonDylibPlatform, loguru, coverage_config
 
 add_library(TTPJRTCommon
-    "util/lockfile.cc"
     "platform.cc"
     "plugin_attributes.cc"
     "pjrt_implementation/api_bindings.cc"
