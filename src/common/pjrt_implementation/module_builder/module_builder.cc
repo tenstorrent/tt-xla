@@ -143,7 +143,7 @@ ModuleBuilder::buildModule(
     return {status, fbexecutable};
   } else if (compile_options.backend == Backend::CodegenCpp) {
     auto soexecutable = SOExecutableImage::createInstance();
-    soexecutable->compile_options = compile_options;
+    soexecutable->m_compile_options = compile_options;
     auto [status, mlir_module] = buildCommon(mlir_code, soexecutable.get());
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
@@ -157,7 +157,7 @@ ModuleBuilder::buildModule(
     return {status, soexecutable};
   } else if (compile_options.backend == Backend::CodegenPy) {
     auto soexecutable = SOExecutableImage::createInstance();
-    soexecutable->compile_options = compile_options;
+    soexecutable->m_compile_options = compile_options;
     auto [status, mlir_module] = buildCommon(mlir_code, soexecutable.get());
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
@@ -244,7 +244,7 @@ ModuleBuilder::buildFlatbuffer(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
 tt_pjrt_status ModuleBuilder::buildForCodegenCpp(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     SOExecutableImage *executable) {
-  std::string folder = executable->compile_options.export_path;
+  std::string folder = executable->m_compile_options.export_path;
   std::filesystem::create_directories(folder);
 
   auto ttir = executable->m_ttir_mlir;
@@ -279,7 +279,7 @@ tt_pjrt_status ModuleBuilder::buildForCodegenCpp(
 tt_pjrt_status
 ModuleBuilder::buildForCodegenPy(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                                  SOExecutableImage *executable) {
-  std::string folder = executable->compile_options.export_path;
+  std::string folder = executable->m_compile_options.export_path;
   std::filesystem::create_directories(folder);
 
   auto ttir = executable->m_ttir_mlir;
