@@ -54,4 +54,6 @@ jobs:
           TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ steps.file-name-generate.outputs.test-suite-file }}"
 
           python $SCRIPT_PATH $TEST_MATRIX_PATH > modified-matrix.json
+          echo "Generated test matrix"
+          cat modified-matrix.json
           echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT

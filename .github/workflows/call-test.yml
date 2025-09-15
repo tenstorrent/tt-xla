@@ -88,13 +88,16 @@ jobs:
 
   # Run tests on TT hardware
   run-tests:
+    needs: generate-matrix-test
     timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
     strategy:
       fail-fast: false
       matrix:
-        build: ${{ fromJson(inputs.test_matrix) }}
+        # build: ${{ fromJson(inputs.test_matrix) }}
+        build: ${{ needs.generate_test_matrix.outputs.test_matrix }}
 
-    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+    # runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+    runs-on: fromJson(format('["{0}", "in-service"]', matrix.build.runs-on))
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
