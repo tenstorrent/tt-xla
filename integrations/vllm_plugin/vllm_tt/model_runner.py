@@ -1835,20 +1835,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             compiled_model.compiled_codes.clear()
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        device = hidden_states.device
-        indices_do_sample = indices_do_sample.to("cpu")
-        hidden_states = hidden_states.to("cpu")
-        return hidden_states[indices_do_sample].to(device)
+        indices_do_sample = indices_do_sample
+        hidden_states = hidden_states
+        return hidden_states[indices_do_sample]
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         return self.model.compute_logits(sample_hidden_states, None)
 
     # TODO: Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: TPUSupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -1856,7 +1855,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        out_tokens = torch.argmax(logits.to("cpu"), dim=-1, keepdim=True).to("xla")
+        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         return out_tokens
 
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1877,20 +1876,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             token_ids=sampled_tokens.to("cpu").squeeze(-1),
         )
 
-        #     robs + 1]
-        # logprob_token_ids: torch.Tensor
-        # # [num_reqs, max_num_logprobs + 1]
-        # logprobs: torch.Tensor
-        # # [num_reqs]
-        # selected_token_ranks: torch.Tensor
-
         return LogprobsTensors(
             logprob_token_ids=logprobTensors.logprob_token_ids.to(device),
             logprobs=logprobTensors.logprobs.to(device),
             selected_token_ranks=logprobTensors.selected_token_ranks.to(device),
         )
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def structured_decode(
         self,
         require_struct_decoding: torch.Tensor,
@@ -1898,11 +1890,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         arange: torch.Tensor,
     ) -> torch.Tensor:
+        device = logits.device
         return torch.where(
-            require_struct_decoding,
-            self.apply_grammar_bitmask(logits, grammar_bitmask, arange),
-            logits,
-        )
+            require_struct_decoding.to("cpu"),
+            self.apply_grammar_bitmask(
+                logits.to("cpu"), grammar_bitmask.to("cpu"), arange.to("cpu")
+            ),
+            logits.to("cpu"),
+        ).to(device)
 
     def apply_grammar_bitmask(
         self, logits: torch.Tensor, grammar_bitmask: torch.Tensor, arange: torch.Tensor
