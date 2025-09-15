@@ -2,14 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence, Type
+from typing import Dict, Sequence
 
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from infra.utilities import Model
+from infra import ComparisonConfig, JaxModelTester, RunMode, Model
 from jaxtyping import PyTree
+from third_party.tt_forge_models.mnist.image_classification.jax import (
+    ModelLoader,
+    ModelArchitecture,
+)
 
 
 class MNISTCNNTester(JaxModelTester):
@@ -17,16 +20,16 @@ class MNISTCNNTester(JaxModelTester):
 
     def __init__(
         self,
-        model_class: Type[Model],
+        variant: ModelArchitecture,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_class = model_class
+        self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> nn.Module:
-        return self._model_class()
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_forward_method_name(self) -> str:
@@ -34,18 +37,11 @@ class MNISTCNNTester(JaxModelTester):
 
     # @override
     def _get_input_activations(self) -> Sequence[jax.Array]:
-        # Channels is 1 as MNIST is in grayscale.
-        return jnp.ones((4, 28, 28, 1))  # B, H, W, C
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_input_parameters(self) -> PyTree:
-        # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set of initial tensors (parameters
-        # and maybe some extra state). Parameters are not stored with the models
-        # themselves, they are provided together with inputs to the forward method.
-        return self._model.init(
-            jax.random.PRNGKey(42), self._input_activations, train=False
-        )
+        return self._model_loader.load_parameters()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:

@@ -90,12 +90,20 @@ jobs:
                 "name": "run_torch"
               },
               {
+                "runs-on": "n150",
+                "name": "run_large_jax_models"
+              },
+              {
                 "runs-on": "p150",
                 "name": "run_jax"
               },
               {
                 "runs-on": "p150",
                 "name": "run_torch"
+              },
+              {
+                "runs-on": "p150b",
+                "name": "run_large_jax_models"
               }
             ]'
             python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
