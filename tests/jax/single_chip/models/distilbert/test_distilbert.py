@@ -10,11 +10,8 @@ from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from third_party.tt_forge_models.distilbert.masked_lm.jax import (
     ModelLoader,
@@ -22,13 +19,8 @@ from third_party.tt_forge_models.distilbert.masked_lm.jax import (
 )
 
 VARIANT_NAME = ModelVariant.BASE_UNCASED
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "distilbert",
-    "base",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Tester -----
 
@@ -73,9 +65,9 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
@@ -85,9 +77,9 @@ def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTe
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_distilbert_training(training_tester: FlaxDistilBertForMaskedLMTester):
