@@ -64,6 +64,110 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     return tensor.clone()
 
 
+@torch.library.custom_op(
+    "tt::update_cache", mutates_args=[], device_types=["xla", "cpu"]
+)
+def update_cache(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    cache_position: torch.Tensor,
+    batch_offset: int = None,
+) -> torch.Tensor:
+    assert (
+        len(cache.shape) == 4
+    ), "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
+    assert (
+        len(fill_value.shape) == 4
+    ), "fill_value must be a 4D tensor: [B, num_heads, 1, head_size]."
+    assert (
+        fill_value.shape[-2] == 1
+    ), "fill_value must have dim -2 equal to 1 as the cache cannot be updated with more than one token at a time."
+    assert (
+        batch_offset is not None or cache.shape[0] == 1
+    ), "batch_offset must be provided if the batch size is not 1."
+    assert cache_position.shape == (1,), "cache_position must be a 1D tensor."
+
+    if batch_offset is None:
+        batch_offset = 0
+
+    assert batch_offset == 0, "Only batch_offset == 0 is supported for currently."
+    if cache.device.type == "cpu":
+        cache = cache.clone()
+        cache[:, :, cache_position, :] = fill_value
+        return cache
+    else:
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [cache, fill_value, cache_position],
+            "tt.update_cache",
+            [
+                cache.shape,
+            ],
+            [
+                cache.dtype,
+            ],
+            frontend_attributes={"batch_offset": str(batch_offset)},
+        )
+
+
+@update_cache.register_fake
+def update_cache_fake(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    cache_position: torch.Tensor,
+    batch_offset: int = None,
+) -> torch.Tensor:
+    return torch.zeros_like(cache)
+
+
+@torch.library.custom_op("tt::fill_cache", mutates_args=[], device_types=["xla", "cpu"])
+def fill_cache(
+    cache: torch.Tensor, fill_value: torch.Tensor, batch_offset: int = None
+) -> torch.Tensor:
+    assert (
+        len(cache.shape) == 4
+    ), "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
+    assert (
+        len(fill_value.shape) == 4
+    ), "fill_value must be a 4D tensor: [B, num_heads, seq_len, head_size]."
+    assert (
+        fill_value.shape[-2] <= cache.shape[-2]
+    ), f"fill_value must have dim -2 less than or equal to cache.shape[-2] as the cache cannot be filled with more tokens than the cache can hold. Recieved fill_value.shape = {fill_value.shape}, cache.shape = {cache.shape}."
+    assert (
+        batch_offset is not None or cache.shape[0] == 1
+    ), "batch_offset must be provided if the batch size is not 1."
+
+    if batch_offset is None:
+        batch_offset = 0
+
+    assert batch_offset == 0, "Only batch_offset == 0 is supported for currently."
+    if cache.device.type == "cpu":
+        cache = cache.clone()
+        cache[:, :, : fill_value.shape[-2], :] = fill_value
+        return cache
+    else:
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [cache, fill_value],
+            "tt.fill_cache",
+            [
+                cache.shape,
+            ],
+            [
+                cache.dtype,
+            ],
+            frontend_attributes={"batch_offset": str(batch_offset)},
+        )
+
+
+@fill_cache.register_fake
+def fill_cache_fake(
+    cache: torch.Tensor, fill_value: torch.Tensor, batch_offset: int = None
+) -> torch.Tensor:
+    return torch.zeros_like(cache)
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 torch._dynamo.allow_in_graph(torch.ops.tt.mark_argument_attributes)
+torch._dynamo.allow_in_graph(torch.ops.tt.update_cache)
+torch._dynamo.allow_in_graph(torch.ops.tt.fill_cache)
