@@ -211,7 +211,13 @@ class TTWorker:
             total_memory_size = device_usage[0].total_memory
             current_mem = device_usage[0].memory_usage
         else:
+            # @LPanosTT: TODO we should find out if/how we can implement the PJRT API function(s) necesarry to exegcute xm.get_memory_info, and implement them.
+            # I believe we must implement PJRT_Device_MemoryStats.
+
             # m = xm.get_memory_info(self.device)
+            # total_memory_size = m["bytes_limit"]
+            # current_mem = m["bytes_used"]
+            # @LPanosTT: For now we will always report that no memory has been used.
             total_memory_size = 12 * 1024**3  # m["bytes_limit"]
             current_mem = 0  # m["bytes_used"]
         # Ideally we would use profiled = m["peak_bytes_used"] to
