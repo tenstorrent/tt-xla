@@ -156,14 +156,14 @@ jobs:
         tar xf artifact.tar
         rm -f artifact.tar
 
-    - name: Check for second attempt
-      id: check-second-attempt
+    - name: Check for re-run attempt
+      id: check-rerun-attempt
       shell: bash
       run: |
         source venv/activate
         rm -f .pytest_tests_to_run
         if [ "${{ github.run_attempt }}" -gt 1 ]; then
-          echo "Second attempt detected"
+          echo "Rerun attempt detected"
           attempt=$((${{ github.run_attempt }} - 1))
           rm -rf old-reports
           mkdir old-reports
@@ -188,7 +188,7 @@ jobs:
             python .github/scripts/find_all_failed_tests.py old-reports
             if [ -f ".pytest_tests_to_run" ]; then
               echo "There are tests to rerun"
-              echo "second_attempt=true" >> "$GITHUB_OUTPUT"
+              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
             else
               echo "All tests will rerun"
             fi
@@ -227,7 +227,7 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
-        if [ "${{ steps.check-second-attempt.outputs.second_attempt }}" == "true" ]; then
+        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
           echo "Only running previously failed tests"
           PYTEST_SPLITS=""
         else
