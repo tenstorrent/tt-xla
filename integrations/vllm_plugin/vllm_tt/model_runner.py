@@ -1285,7 +1285,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             setattr(self, config_name, new_config)
 
     def load_model(self) -> None:
-        logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
@@ -1305,7 +1304,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             try:
                 if self.use_spmd:
-                    logger.info("Loading model with TPUModelLoader...")
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1313,13 +1311,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
-                    ).eval()
+                    )
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
-                    ).eval()
+                    )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1329,15 +1327,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     f"See the detailed error: {e}"
                 ) from e
         if self.lora_config is not None:
-            logger.info("Loading lora model...")
             model = self.load_lora_model(
                 model,
                 self.model_config,
                 self.scheduler_config,
                 self.lora_config,
                 self.device,
-            ).eval()
-            replace_set_lora(model.eval())
+            )
+            replace_set_lora(model)
 
         # Sync all pending XLA execution during model initialization and weight
         # loading.
