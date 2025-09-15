@@ -132,10 +132,13 @@ class TTMetadata:
     #                                   |-- query_len ---|
 
     # Used in the TTAttentionBackendImpl
+    slot_mapping: torch.Tensor
+    block_tables: torch.Tensor
     context_lens: torch.Tensor
     query_start_loc: torch.Tensor
     num_seqs: torch.Tensor
-    # padding_in_inputs: torch.Tensor
+    num_kv_update_slices: torch.Tensor
+    num_slices_per_kv_cache_update_block: int
     attn_mask: torch.Tensor
 
 
