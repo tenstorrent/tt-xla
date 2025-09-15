@@ -184,7 +184,6 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache_dtype.lower().strip()
             )
 
-    # @torch.compiler.disable
     def forward(
         self,
         layer: AttentionLayer,
