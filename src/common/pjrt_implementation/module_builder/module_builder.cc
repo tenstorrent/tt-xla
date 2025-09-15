@@ -101,6 +101,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
   m_status = tt_pjrt_status::kSuccess;
 
   m_parsed_compile_options = CompileOptions::parse(compile_options_map);
+  DLOG_F(LOG_DEBUG, "Compile options: %s",
+         m_parsed_compile_options.toString().c_str());
 
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module = createVHLOModule(mlir_code);
   if (!tt_pjrt_status_is_ok(m_status)) {

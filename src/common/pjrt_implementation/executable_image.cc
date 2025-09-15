@@ -161,10 +161,7 @@ std::string ExecutableImage::generateFingerprint() const {
   data_to_hash << "mlir:" << m_original_mlir_code << "\n";
 
   // 2. Add compile options
-  data_to_hash << "enable_optimizer:" << m_compile_options.enable_optimizer
-               << "\n";
-  data_to_hash << "enable_bfp8_conversion:"
-               << m_compile_options.enable_bfp8_conversion << "\n";
+  data_to_hash << m_compile_options.toString() << "\n";
 
   // 3. Add compiler version
   data_to_hash << "ttmlir_version:" << m_flatbuffer_binary.getVersion() << "\n";
