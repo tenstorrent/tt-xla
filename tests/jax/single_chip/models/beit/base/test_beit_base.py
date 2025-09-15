@@ -3,29 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxBeitForImageClassificationTester
-from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
-
-VARIANT_NAME = ModelVariant.BASE
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "beit",
-    "base",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.beit.image_classification.jax import (
+    ModelVariant,
+    ModelLoader,
 )
 
+VARIANT_NAME = ModelVariant.BASE
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -46,9 +40,9 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -66,9 +60,9 @@ def test_flax_beit_base_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_beit_base_training(training_tester: FlaxBeitForImageClassificationTester):

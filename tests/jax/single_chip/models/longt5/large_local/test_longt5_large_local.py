@@ -3,40 +3,35 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_runtime,
 )
+from third_party.tt_forge_models.config import Parallelism
 
-from third_party.tt_forge_models.longt5.text_classification.jax import ModelVariant
+from third_party.tt_forge_models.longt5.text_classification.jax import (
+    ModelVariant,
+    ModelLoader,
+)
 from ..tester import LongT5Tester
 
-MODEL_VARIANT = ModelVariant.LARGE_LOCAL
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "longt5",
-    "large_local",
-    ModelTask.NLP_TEXT_CLS,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.LARGE_LOCAL
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_VARIANT)
+    return LongT5Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> LongT5Tester:
-    return LongT5Tester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
+    return LongT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,9 +40,9 @@ def training_tester() -> LongT5Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
@@ -63,9 +58,9 @@ def test_longt5_large_local_inference(inference_tester: LongT5Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_longt5_large_local_training(training_tester: LongT5Tester):
