@@ -8,7 +8,7 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
 else
   export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
   export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-  export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
+  export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/python_package:$(pwd)/integrations/vllm_plugin"
   # pytest alias for venv interpreter
   alias pytest='python -m pytest'
 
