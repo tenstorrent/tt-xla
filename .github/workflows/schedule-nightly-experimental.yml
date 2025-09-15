@@ -103,7 +103,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Experimental Nightly has completed: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "result": "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}",
               "channel": "C08GYB57C8M"
             }
