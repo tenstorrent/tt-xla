@@ -28,7 +28,6 @@ class JaxModelTester(ModelTester):
     ```
     _get_model(self) -> Model
     _get_input_activations(self) -> Sequence[Any]
-    _get_forward_method_name(self) -> str # Optional, has default behaviour.
     _get_static_argnames(self) -> Sequence[str] # Optional, has default behaviour.
     _get_input_parameters(self) -> PyTree # Optional, has default behaviour.
     # One of or both:

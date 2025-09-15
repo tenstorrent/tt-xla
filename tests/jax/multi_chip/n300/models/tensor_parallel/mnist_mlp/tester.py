@@ -59,10 +59,6 @@ class MnistMLPMultichipTester(JaxMultichipModelTester):
         )
 
     # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
     def _get_input_activations_partition_spec(self) -> PartitionSpec:
         # No data parallelism utilized in this model.
         return PartitionSpec()

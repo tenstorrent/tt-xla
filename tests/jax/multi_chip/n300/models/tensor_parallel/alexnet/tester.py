@@ -56,10 +56,6 @@ class AlexNetMultichipTester(JaxMultichipModelTester):
         )
 
     # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
     def _get_input_activations_partition_spec(self) -> PartitionSpec:
         # Sharding data on batch axis since data parallelism is utilized for the
         # convolutional layers.

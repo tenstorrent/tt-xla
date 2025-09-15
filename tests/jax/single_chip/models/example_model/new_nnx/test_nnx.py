@@ -31,14 +31,6 @@ class SimpleMlpTester(JaxModelTester):
         act = jax.numpy.ones(act_shape)
         return [act]
 
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        return ()
-
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "__call__"
-
 
 # ----- Fixtures -----
 
