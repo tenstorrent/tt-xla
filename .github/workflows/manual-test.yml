@@ -196,6 +196,7 @@ jobs:
       # test_suite: ${{ inputs.test_suite }} == 'Custom' && ${{ inputs.test_suite_custom }} || ${{ inputs.test_suite }}
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
+      codecov: false
 
   # test_tt_forge_models:
   #   if: always() && !cancelled() && inputs.preset == 'tt_forge_models'
