@@ -121,11 +121,6 @@ public:
     return m_output_memory_kinds_sizes;
   }
 
-  // Returns the compile options used to create this executable.
-  const module_builder::CompileOptions &getCompileOptions() const {
-    return m_compile_options;
-  }
-
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
