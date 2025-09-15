@@ -104,7 +104,7 @@ jobs:
           payload: |
             {
               "text": "Experimental Nightly Failed: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "result": ${{ needs.fail-notify.outputs.failed == 'true' && "failed" || "succeeded" }
+              "result": ${{ needs.fail-notify.outputs.failed == 'true' && "failed" || "succeeded" }}
               "channel": "C08GYB57C8M"
             }
         env:
