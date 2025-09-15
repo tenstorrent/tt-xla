@@ -25,7 +25,7 @@
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
 // tt-xla includes
-#include "common/pjrt_implementation/module_builder/compile_options.h"
+#include "api/module_builder/compile_options.h"
 
 namespace tt::pjrt {
 
