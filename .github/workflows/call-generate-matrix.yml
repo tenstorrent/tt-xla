@@ -41,7 +41,7 @@ jobs:
           else
             TEST_SUITE_FILE=${{ inputs.test_suite }}
           fi
-          echo "test-suite-file=$TEST_SUITE_FUILE" >> "$GITHUB_OUTPUT" 
+          echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT" 
 
       - uses: actions/setup-python@v5
       - name: Generate tt-forge-models matrix
