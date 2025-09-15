@@ -17,7 +17,7 @@ else
   # This will add the source directories to the PYTHONPATH if $CI is not set, or it is set and is not "true".
   # $CI is set to "true" by github actions automatically.
   if [[ -z "${CI+x}" || "${CI:-}" != "true" ]]; then
-    export PYTHONPATH="$PYTHONPATH$(pwd)/python_package:$(pwd)/integrations/vllm_plugin:"
+    export PYTHONPATH="$PYTHONPATH:$(pwd)/python_package:$(pwd)/integrations/vllm_plugin"
   fi
   # pytest alias for venv interpreter
   alias pytest='python -m pytest'
