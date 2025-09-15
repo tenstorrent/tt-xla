@@ -175,7 +175,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::string executable_name = "tt_executable";
 
   // Get parsed compile options from module builder.
-  module_builder::CompileOptions parsed_compile_options =
+  const module_builder::CompileOptions &parsed_compile_options =
       m_module_builder->getParsedCompileOptions();
 
   std::shared_ptr<ExecutableImage> executable_image =
@@ -190,8 +190,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
           m_module_builder->getIsOutputScalar(),
-          m_module_builder->getOutputDataTypes(),
-          std::move(parsed_compile_options));
+          m_module_builder->getOutputDataTypes(), parsed_compile_options);
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`

@@ -31,7 +31,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<bool> &is_output_scalar,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-    module_builder::CompileOptions &&compile_options) {
+    const module_builder::CompileOptions &compile_options) {
   struct make_shared_enabler : public ExecutableImage {
     make_shared_enabler(
         const tt::runtime::Binary &flatbuffer_binary,
@@ -46,7 +46,7 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
             &output_sharding,
         const std::vector<bool> &is_output_scalar,
         const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-        module_builder::CompileOptions &&compile_options)
+        const module_builder::CompileOptions &compile_options)
         : ExecutableImage(flatbuffer_binary, std::move(original_mlir_code),
                           std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
                           std::move(executable_name), num_partitions,
@@ -75,7 +75,7 @@ ExecutableImage::ExecutableImage(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<bool> &is_output_scalar,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-    module_builder::CompileOptions &&compile_options)
+    const module_builder::CompileOptions &compile_options)
     : m_flatbuffer_binary(flatbuffer_binary),
       m_original_mlir_code(std::move(original_mlir_code)),
       m_ttir_mlir(std::move(ttir_mlir_code)),
@@ -86,7 +86,7 @@ ExecutableImage::ExecutableImage(
       m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
       m_output_types(expected_output_data_types),
-      m_compile_options(std::move(compile_options)) {
+      m_compile_options(compile_options) {
 
   // Generate fingerprint after all dependencies are initialized
   m_fingerprint = generateFingerprint();

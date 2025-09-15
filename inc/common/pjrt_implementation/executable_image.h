@@ -47,7 +47,7 @@ public:
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+      const module_builder::CompileOptions &compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -138,7 +138,7 @@ private:
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+      const module_builder::CompileOptions &compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const;
