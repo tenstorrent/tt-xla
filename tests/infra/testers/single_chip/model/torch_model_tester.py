@@ -9,6 +9,8 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 
+from torch._dynamo.backends.common import aot_autograd
+from torch._dynamo.backends.registry import lookup_backend
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
@@ -39,7 +41,6 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
@@ -130,8 +131,9 @@ class TorchModelTester(ModelTester):
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
-        assert workload.is_torch and workload.model is not None
-
+        # assert workload.is_torch and workload.model is not None
+        if self._run_mode == RunMode.TRAINING:
+            backend = aot_autograd(fw_compiler=lookup_backend(backend))
         workload.model.compile(backend=backend)
 
     def _test_training(self):
@@ -150,6 +152,7 @@ class TorchModelTester(ModelTester):
             args=[],
             kwargs={"gradient": random_grad},
         )
+        # self._compile_for_cpu(cpu_backward_workload)
         self._run_on_cpu(cpu_backward_workload)
 
         cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
@@ -169,6 +172,7 @@ class TorchModelTester(ModelTester):
             args=[],
             kwargs={"gradient": random_grad},
         )
+        # self._compile_for_tt_device(tt_backward_workload)
         self._run_on_tt_device(tt_backward_workload)
         torch_xla.sync(wait=True)
 
