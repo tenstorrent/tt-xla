@@ -9,5 +9,6 @@ setup(
     version="0.1",
     packages=["vllm_tt"],
     install_requires=["vllm==0.10.1.1"],
+    python_requires=">=3.11, <3.12",
     entry_points={"vllm.platform_plugins": ["tt = vllm_tt:register"]},
 )
