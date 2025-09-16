@@ -57,8 +57,10 @@ jobs:
             artifact_suffix=""
           fi
           wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
+          wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
           build_artifact_name="build-artifacts${artifact_suffix}"
           echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "build_artifact_name=${build_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "Generated artifact name: $wheel_artifact_name"
 
