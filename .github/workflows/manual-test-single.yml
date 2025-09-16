@@ -78,20 +78,19 @@ jobs:
     steps:
       - id: generate
         run: |
-          # create a json array with 1 object in it, the object should be of this structure and output it to test-config
-          # { "runs-on": "<inputs.runs-on>", "name": "Test", "dir": "<inputs.dir>", "test-mark": "<inputs.mark>", "shared-runners": "<inputs.shared-runners>", "args": "<inputs.args>", "parallel_groups": <inputs.parallel_groups> },
-
           TEST_CONFIG='[
             {
               "runs-on": "${{ inputs.runs_on }}",
               "name": "Test",
               "dir": "${{ inputs.dir }}",
               "test-mark": "${{ inputs.mark }}",
-              "shared-runners": ${{ inputs.shared_runners }},
+              "shared-runners": "${{ inputs.shared_runners }}",
               "args": "${{ inputs.args }}",
-              "parallel_groups": ${{ inputs.parallel_groups }}
+              "parallel-groups": ${{ inputs.parallel_groups }}
             }
           ]'
+
+          echo $TEST_CONFIG
           
           echo "test-config=$(echo '$TEST_CONFIG' | jq -c)" >> $GITHUB_OUTPUT   
 
