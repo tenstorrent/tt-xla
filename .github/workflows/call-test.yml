@@ -278,7 +278,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        echo "Collecting tests for group ${{ matrix.build.group_id || 1}}..."
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
