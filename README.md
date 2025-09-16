@@ -1,5 +1,6 @@
 [![Tests][tests badge]][tests]
 [![Codecov][codecov badge]][codecov]
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tenstorrent/tt-xla)
 
 <div align="center">
 
