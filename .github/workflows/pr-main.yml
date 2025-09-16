@@ -66,7 +66,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   test:
-    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release, build-vllm-tt-release ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
