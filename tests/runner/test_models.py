@@ -41,7 +41,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capteesys
 ):
 
     loader_path = test_entry.path
@@ -70,7 +70,7 @@ def test_all_models(
                 succeeded = True
 
         except Exception as e:
-            err = capfd.readouterr().err
+            err = capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
