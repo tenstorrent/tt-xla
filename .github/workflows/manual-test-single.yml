@@ -1,8 +1,5 @@
 name: Run Test Single
 
-# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
-# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
-
 on:
   workflow_dispatch:
     inputs:
