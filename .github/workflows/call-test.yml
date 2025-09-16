@@ -33,6 +33,10 @@ on:
         description: 'Name of the wheel artifact (codecov)'
         required: false
         type: string
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Name of the wheel artifact (release vllm-tt)'
+        required: false
+        type: string
       build_artifact_name:
         description: 'Name of the build artifact (codecov)'
         required: false
@@ -127,9 +131,11 @@ jobs:
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
         else
           echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
