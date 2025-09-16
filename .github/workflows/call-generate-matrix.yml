@@ -11,12 +11,6 @@ on:
         description: 'Custom test suite json'
         required: false
         type: string
-      # todo(vvukoman): enable custom number of parallel groups per test
-      parallel_groups:
-        description: 'Parallel group execution count'
-        required: false
-        default: '5'
-        type: string
     outputs:
       test_matrix:
         description: 'Generated JSON test matrix'
@@ -51,8 +45,6 @@ jobs:
       - name: Generate tt-forge-models matrix
         id: generate-forge-models-matrix
         shell: bash
-        env:
-          TEST_GROUP_CNT: ${{ inputs.test_group_cnt }}
         run: |
           SCRIPT_PATH=".github/scripts/generate_test_matrix.py"
           TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ steps.file-name-generate.outputs.test-suite-file }}"
