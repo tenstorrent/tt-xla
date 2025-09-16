@@ -3,11 +3,6 @@ name: Test (call)
 on:
   workflow_call:
     inputs:
-      test_mark:
-        description: 'Test mark to run'
-        required: false
-        default: 'push'
-        type: string
       docker_image:
         description: 'Docker image to use for the build'
         required: true
@@ -17,24 +12,6 @@ on:
         required: false
         default: true
         type: boolean
-      test_matrix:
-        description: 'Test job matrix to use'
-        required: false
-        type: string
-        default: |
-          [
-            { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
-            { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
-            { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
-            { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
-            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
-            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
-            { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
-            { "runs-on": "p150b",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
-            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
-          ]
       use-shared-runners:
         description: 'Use shared runners from Civ2'
         required: false
