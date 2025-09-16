@@ -5,11 +5,11 @@ from typing import Tuple
 import torch
 from torch.export import ExportedProgram
 
-
 from .decompositions import (
     CUSTOM_DECOMPOSITION_TABLE,
 )
 import os
+from .decomposition_logger import log_decomposition
 from .passes import (
     bypass_redundant_getitem,
     bypass_dtype_promotion,
@@ -40,7 +40,7 @@ def torch_pass_pipeline(
 
         def wrapper(*args, **kwargs):
             if op_name not in already_printed3:
-                print(f"decomposition_core_aten: {op_name}")
+                log_decomposition("decomposition_core_aten", op_name)
                 already_printed3.append(op_name)
             return fn(*args, **kwargs)
 

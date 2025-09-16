@@ -39,6 +39,32 @@ def test_metadata(request) -> ModelTestConfig:
     return meta
 
 
+@pytest.fixture(autouse=True)
+def setup_model_logging(request):
+    """Set up model name logging for decomposition tracking."""
+    try:
+        # Import here to avoid issues if the module isn't available
+        from tt_torch.backend.decomposition_logger import set_current_model
+
+        # Extract model name from node ID
+        nodeid = request.node.nodeid
+        if "[" in nodeid:
+            model_name = nodeid[nodeid.index("[") + 1 : -1]
+            set_current_model(model_name)
+    except ImportError:
+        pass  # Ignore if module not available
+
+
+def pytest_sessionstart(session):
+    """Clear the decomposition log at the start of the session."""
+    try:
+        from tt_torch.backend.decomposition_logger import clear_log
+
+        clear_log()
+    except ImportError:
+        pass  # Ignore if module not available
+
+
 def pytest_collection_modifyitems(config, items):
     """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config."""
     arch = config.getoption("--arch")
@@ -77,6 +103,26 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_sessionfinish(session, exitstatus):
     """At session end, validate test_config entries and arch_overrides against collected tests."""
+
+    # Print decomposition log if it exists
+    import os
+
+    decomp_log_file = "decomposition_log.txt"
+    if os.path.exists(decomp_log_file):
+        try:
+            with open(decomp_log_file, "r") as f:
+                content = f.read().strip()
+            if content:
+                print("\n" + "=" * 60)
+                print("DECOMPOSITION OPERATIONS LOG")
+                print("=" * 60)
+                print(content)
+                print("=" * 60 + "\n")
+            # Optionally remove the file after printing
+            os.remove(decomp_log_file)
+        except Exception:
+            pass  # Ignore errors reading/removing the file
+
     if not session.config.getoption("--validate-test-config"):
         return  # Skip check unless explicitly requested
 

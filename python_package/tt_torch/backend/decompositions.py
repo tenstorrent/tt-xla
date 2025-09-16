@@ -8,6 +8,7 @@ import threading
 
 import torch
 from torch._decomp import get_decompositions, remove_decompositions
+from .decomposition_logger import log_decomposition
 
 DecompositionTable = Dict[torch._ops.OperatorBase, Callable]
 DecompositionOpsList = Sequence[
@@ -344,7 +345,7 @@ def _get_custom_decompositions() -> DecompositionTable:
     def print_wrapper(f, op_name):
         def wrapper(*args, **kwargs):
             if op_name not in already_printed:
-                print(f"decomposition_custom: {op_name}")
+                log_decomposition("decomposition_custom", op_name)
                 already_printed.append(op_name)
             return f(*args, **kwargs)
 
@@ -365,7 +366,7 @@ already_printed2 = []
 def print_wrapper(f, op_name):
     def wrapper(*args, **kwargs):
         if op_name not in already_printed2:
-            print(f"decomposition_default: {op_name}")
+            log_decomposition("decomposition_default", op_name)
             already_printed2.append(op_name)
         return f(*args, **kwargs)
 
