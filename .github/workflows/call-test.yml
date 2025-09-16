@@ -156,6 +156,47 @@ jobs:
         tar xf artifact.tar
         rm -f artifact.tar
 
+    - name: Check for re-run attempt
+      id: check-rerun-attempt
+      shell: bash
+      run: |
+        source venv/activate
+        rm -f .pytest_tests_to_run
+        if [ "${{ github.run_attempt }}" -gt 1 ]; then
+          echo "Rerun attempt detected"
+          attempt=$((${{ github.run_attempt }} - 1))
+          rm -rf old-reports
+          mkdir old-reports
+          set +e
+          result=1
+          while [ $attempt -ge 1 ]; do
+            echo "Downloading test reports from attempt $attempt"
+            gh run download ${{ github.run_id }} \
+              --repo ${{ github.repository }} \
+              --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
+              -D old-reports
+            result=$?
+            if [ $result -eq 0 ]; then
+              break
+            fi
+            attempt=$((attempt - 1))
+          done
+          if [ $result -ne 0 ]; then
+            echo "No previous test reports found"
+          else
+            echo "Found test reports from attempt $attempt"
+            python .github/scripts/find_all_failed_tests.py old-reports
+            if [ -f ".pytest_tests_to_run" ]; then
+              echo "There are tests to rerun"
+              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "All tests will rerun"
+            fi
+          fi
+        else
+          echo "First attempt"
+        fi
+
     - name: Set pytest command
       shell: bash
       run: |
@@ -186,14 +227,21 @@ jobs:
         else
           MARKS="${{ inputs.test_mark }}"
         fi
+        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
+          echo "Only running previously failed tests"
+          PYTEST_SPLITS=""
+        else
+          echo "Running all tests"
+          PYTEST_SPLITS="--splits ${{ matrix.build.test_group_cnt || 1}} \
+            --group ${{ matrix.build.test_group_id || 1}} \
+            --splitting-algorithm least_duration"
+        fi
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" \
-          --splits ${{ matrix.build.test_group_cnt || 1}} \
-          --group ${{ matrix.build.test_group_id || 1}} \
-          --splitting-algorithm least_duration"
+          $PYTEST_SPLITS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
@@ -213,7 +261,6 @@ jobs:
         python -m pytest -vv tests/runner/test_models.py --validate-test-config
 
     - name: Collect Tests
-      if: success() || failure()
       shell: bash
       run: |
         source venv/activate
@@ -221,7 +268,6 @@ jobs:
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
-      if: success() || failure()
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -253,7 +299,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
+        name: test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report
