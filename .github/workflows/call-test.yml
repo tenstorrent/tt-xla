@@ -95,9 +95,7 @@ jobs:
       fail-fast: false
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
-        # build: ${{ fromJson(inputs.test_matrix) }}
 
-    # runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
     runs-on: ${{ matrix.build.shared-runners && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
@@ -280,7 +278,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
+        echo "Collecting tests for group ${{ matrix.build.group_id || 1}}..."
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
