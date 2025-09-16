@@ -38,7 +38,6 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
-        # HACK: Skip compilation for training for now. TODO: https://github.com/tenstorrent/tt-xla/issues/1391
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
