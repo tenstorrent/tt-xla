@@ -1,0 +1,4 @@
+[
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test_mark": "expected_passing and push", "args": "-k bert" },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test_mark": "expected_passing and push" }
+]

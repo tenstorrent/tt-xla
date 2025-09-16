@@ -95,6 +95,7 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla-release, generate-forge-models-matrix ]
     with:
+      test_suite: pr-main-test-model.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       test_mark: 'expected_passing and push'
       test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}

@@ -256,6 +256,7 @@ jobs:
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" \
+          ${{ matrix.build.args }} \
           $PYTEST_SPLITS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 

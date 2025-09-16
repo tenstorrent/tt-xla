@@ -12,8 +12,8 @@ on:
         required: false
         type: string
       # todo(vvukoman): enable custom number of parallel groups per test
-      test_group_cnt:
-        description: 'Test group count for splitting forge models tests'
+      parallel_groups:
+        description: 'Parallel group execution count'
         required: false
         default: '5'
         type: string

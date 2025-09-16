@@ -61,11 +61,25 @@ on:
         type: choice
         options:
           - 'pr-main-test-basic.json'
+          - 'pr-main-test-model-forge.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
         required: false
         type: string
+      # runs_on:
+      #   description: 'Choose runners for running test'
+      #   required: false
+      #   type: choice
+      #   options:
+      #     - 'n150'
+      #     - 'n300'
+      #     - 'p150'
+      #     - 'n300-llmbox'
+      # extra_mark:
+      #   description: 'Extra mark for pytest'
+      #   required: false
+      #   type: string
 
 permissions:
   packages: write
