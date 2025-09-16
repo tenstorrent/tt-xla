@@ -73,7 +73,7 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on: ${{ matrix.build.shared-runners && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+    runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
       DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
