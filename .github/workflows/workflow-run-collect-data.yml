@@ -9,6 +9,7 @@ on:
       - "Build and Test"
       - "On nightly"
       - "Performance Benchmark"
+      - "On nightly Experimental"
     types:
       - completed
 
