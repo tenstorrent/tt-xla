@@ -44,8 +44,6 @@ TPU_STR_DTYPE_TO_TORCH_DTYPE = {
     "uint8": torch.uint8,
 }
 
-torch._dynamo.config.reorderable_logging_functions.add(print)
-
 
 class TTAttentionBackend(AttentionBackend):
     @staticmethod

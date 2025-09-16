@@ -144,6 +144,20 @@ jobs:
             name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
+      - name: Build vllm plugin wheel
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
+            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
+
+      - name: Upload the vllm plugin wheel
+        id: upload-vllm-tt-wheel
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ needs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
+            path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
+
       - name: Archive Build Directory
         if: inputs.debug_build
         shell: bash

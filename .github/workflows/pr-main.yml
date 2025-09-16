@@ -56,6 +56,15 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
+  build-vllm-tt-release:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    uses: ./.github/workflows/call-build.yml
+    name: "Build vllm-tt plugin release"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -68,6 +77,7 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-vllm-tt-release.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
