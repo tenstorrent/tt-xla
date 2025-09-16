@@ -54,7 +54,7 @@ permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
+run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 
 jobs:
   build-image:
