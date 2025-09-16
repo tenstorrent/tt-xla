@@ -83,6 +83,16 @@ class BringupStatus(Enum):
     FAILED_RUNTIME = "failed_runtime"
     INCORRECT_RESULT = "incorrect_result"
     PASSED = "passed"
+    UNKNOWN = "unknown"
+    NOT_STARTED = "not_started"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ExecutionPass(Enum):
+    FORWARD = "forward"
+    BACKWARD = "backward"
 
     def __str__(self) -> str:
         return self.name

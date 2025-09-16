@@ -26,6 +26,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -36,17 +37,12 @@
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
+#include "shardy/dialect/sdy/ir/constants.h"
 #include "shardy/dialect/sdy/ir/dialect.h"
 #include "shardy/dialect/sdy/ir/register.h"
-#include "shardy/dialect/sdy/transforms/export/passes.h"
-#include "shardy/dialect/sdy/transforms/propagation/basic_propagation.h"
-#include "shardy/round_trip_import/constants.h"
-#include "shardy/round_trip_import/pipelines.h"
-#include "shardy/round_trip_import/utils.h"
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
-#include "ttmlir/Conversion/StableHLOToTTIR/StableHLOToTTIR.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
@@ -174,25 +170,12 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
+  enableVerboseIRPrinting(vhlo_to_shlo_pm);
+
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
     m_status = tt_pjrt_status::kInternal;
     return;
-  }
-
-  // TODO(wooseoklee) : This is a temporary solution for the "roundtrip" mlir
-  // from openXLA. Once openXLA natively supports Shardy, we can remove
-  // following import passes. https://github.com/tenstorrent/tt-xla/issues/284
-  // Detect Shardy by looking at the meshes attribute in module.
-  if (isUsingShardy(mlir_module)) {
-    mlir::PassManager shardy_pm(mlir_module.get()->getName());
-    mlir::sdy::addSdyRoundTripImportPipeline(shardy_pm);
-    if (mlir::failed(shardy_pm.run(mlir_module.get()))) {
-      DLOG_F(ERROR,
-             "Failed to convert from Shardy roundtrip import pass module");
-      m_status = tt_pjrt_status::kInternal;
-      return;
-    }
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
@@ -201,10 +184,20 @@ void ModuleBuilder::convertFromVHLOToSHLO(
 
 void ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  frontend_passes::propagateInputRoleAttributes(mlir_module);
+
+  m_status = frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
+}
+
+std::string
+ModuleBuilder::getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  std::string mlir_code;
+  llvm::raw_string_ostream os(mlir_code);
+  mlir_module->print(os, mlir::OpPrintingFlags().enableDebugInfo());
+  os.flush();
+  return mlir_code;
 }
 
 void ModuleBuilder::collectInputShardings(
@@ -222,7 +215,7 @@ void ModuleBuilder::collectInputShardingsGSPMD(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getArgAttr(i, mlir::sdy::kXlaShardingAttr)));
+          func_op.getArgAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
     }
   }
 
@@ -278,7 +271,7 @@ void ModuleBuilder::collectOutputShardingsGSPMD(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
       gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getResultAttr(i, mlir::sdy::kXlaShardingAttr)));
+          func_op.getResultAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
     }
   }
 
@@ -327,9 +320,9 @@ void ModuleBuilder::collectInputArgumentRoles(
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
     for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
          ++arg_index) {
-      // Check for tt.input_role attribute
+      // Check for ttcore.argument_type attribute
       mlir::StringAttr role_attr = func_op.getArgAttrOfType<mlir::StringAttr>(
-          arg_index, frontend_passes::c_input_role_attr_name);
+          arg_index, mlir::tt::ttcore::ArgumentTypeAttr::name);
 
       if (role_attr && role_attr.getValue() == "weight") {
         m_input_argument_roles.push_back(InputArgumentRole::kWeight);
@@ -338,10 +331,10 @@ void ModuleBuilder::collectInputArgumentRoles(
         m_input_argument_roles.push_back(InputArgumentRole::kInput);
       }
 
-      // Remove the tt.input_role attribute after collecting it
+      // Remove the ttcore.argument_type attribute after collecting it
       if (role_attr) {
         func_op.removeArgAttr(arg_index,
-                              frontend_passes::c_input_role_attr_name);
+                              mlir::tt::ttcore::ArgumentTypeAttr::name);
       }
     }
   }
@@ -468,6 +461,9 @@ void ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
+
+  enableVerboseIRPrinting(stablehlo_pipeline_pm);
+
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     m_status = tt_pjrt_status::kInternal;
@@ -490,11 +486,15 @@ void ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
+  enableVerboseIRPrinting(shlo_to_ttir_pm);
+
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
+
+  m_ttir_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
@@ -593,31 +593,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizerPassEnabled = compile_options.enable_optimizer;
   options.memoryLayoutAnalysisEnabled = compile_options.enable_optimizer;
-
+  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.systemDescPath = system_descriptor_path.data();
-
-  // TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/856
-  //    - determine a more rigorous approach to retrieving the argument
-  //      types
-  // The argument type map is used in tt-mlir so that consteval
-  // can determine which graph inputs are allowed to be used as
-  // consteval graph inputs. Also, so EIO may know which paths
-  // of the graph will end up in a consteval graph as some of its
-  // commute conditions depend on whether this is the case for
-  // a given op.
-  if (const char *arg_map = std::getenv("ARG_TYPE_MAP_OVERRIDE")) {
-    auto parser =
-        mlir::tt::ttcore::ArgumentTypeMapParser(options.argumentTypeMap);
-    llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-        argEnumMap;
-
-    parser.parse(options.argumentTypeMap, "argument-types", arg_map,
-                 argEnumMap);
-    options.argumentTypeMap = argEnumMap;
-  } else {
-    // Set argument types based on collected input argument roles
-    options.argumentTypeMap = createArgumentTypeMap(mlir_module);
-  }
 
   if (m_devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
@@ -630,12 +607,16 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  enableVerboseIRPrinting(ttir_to_ttnn_pm);
+
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
     m_status = tt_pjrt_status::kInternal;
     return;
   }
+
+  m_ttnn_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
@@ -739,22 +720,22 @@ void ModuleBuilder::printModule(
     return;
   }
 
-  mlir_module->dump();
+  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+}
+
+void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
+  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
+    return;
+  }
+
+  // Multithreading must be disabled when printing at module scope
+  // to avoid interleaved output.
+  pm.getContext()->disableMultithreading();
+  pm.enableIRPrinting();
 }
 
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  // If the module is using the Shardy dielect, it should have the
-  // xla.sdy.meshes attribute denoting the shape of its meshes as a module
-  // attribute. Note: this is only true for the Shardy dialect gotten directly
-  // from xla, after passing trough SdyRoundTripImportPipeline, it will no
-  // longer have this attribute.
-  if (mlir::sdy::tryGetFrontendAttr<mlir::DictionaryAttr>(
-          module.get(), mlir::sdy::kMeshesRoundTripAttr)
-          .has_value()) {
-    return true;
-  }
-
   // After running through the SdyRoundTripImportPipeline, the module which uses
   // shardy dialect will have the sdy.mesh op.
   std::optional<mlir::sdy::MeshOp> mesh_op = getFirstShardyMeshOp(module);

@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
 from infra.comparators import ComparisonConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, Tensor
 from infra.workloads import Workload
 
@@ -31,8 +32,12 @@ class ModelTester(BaseTester, ABC):
         comparison_config: ComparisonConfig,
         run_mode: RunMode,
         framework: Framework,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        self._compiler_config = compiler_config
         self._run_mode = run_mode
 
         self._model: Model = None
@@ -116,27 +121,17 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        compiled_cpu_workload = self._compile_for_cpu(self._workload)
-        cpu_res = self._run_on_cpu(compiled_cpu_workload)
+        self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
 
-        compiled_device_workload = self._compile_for_tt_device(self._workload)
-        tt_res = self._run_on_tt_device(compiled_device_workload)
+        self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(self._workload)
 
         self._compare(tt_res, cpu_res)
-
-    @abstractmethod
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
-        """Compiles `workload` for CPU."""
-        raise NotImplementedError("Subclasses must implement this method.")
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
         return self._device_runner.run_on_cpu(compiled_workload)
-
-    @abstractmethod
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
-        """Compiles `workload` for TT device."""
-        raise NotImplementedError("Subclasses must implement this method.")
 
     def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
@@ -147,5 +142,8 @@ class ModelTester(BaseTester, ABC):
         self._comparator.compare(device_out, golden_out)
 
     def _test_training(self):
-        """TODO"""
-        raise NotImplementedError("Support for training not implemented")
+        """
+        Tests the model by running training on TT device and on CPU and comparing the
+        forward results and gradients. Implementation is framework-specific.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

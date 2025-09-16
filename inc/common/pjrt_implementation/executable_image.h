@@ -24,6 +24,9 @@
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
+// tt-xla includes
+#include "common/pjrt_implementation/module_builder/compile_options.h"
+
 namespace tt::pjrt {
 
 // Represents compiled image containing all the required information for its
@@ -35,14 +38,16 @@ public:
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&executable_name,
+      std::string original_mlir_code, std::string ttir_mlir_code,
+      std::string ttnn_mlir_code, std::string executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      module_builder::CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -53,6 +58,10 @@ public:
   const std::string &getOriginalMlirCode() const {
     return m_original_mlir_code;
   }
+
+  const std::string &getTTIRMlirCode() const { return m_ttir_mlir; }
+
+  const std::string &getTTNNMlirCode() const { return m_ttnn_mlir; }
 
   // Returns a name that identifies the executable.
   const std::string &getExecutableName() const { return m_executable_name; }
@@ -112,19 +121,32 @@ public:
     return m_output_memory_kinds_sizes;
   }
 
+  // Returns the compile options used to create this executable.
+  const module_builder::CompileOptions &getCompileOptions() const {
+    return m_compile_options;
+  }
+
+  // Returns the fingerprint for this executable.
+  const std::string &getFingerprint() const { return m_fingerprint; }
+
 private:
   // Constructs executable image instance from the information given by the
   // compiler.
   ExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
       size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      module_builder::CompileOptions &&compile_options);
+
+  // Generates the fingerprint for this executable based on compilation inputs.
+  std::string generateFingerprint() const;
 
   // Flatbuffer binary produced by the compiler.
   tt::runtime::Binary m_flatbuffer_binary;
@@ -132,6 +154,12 @@ private:
   // Original mlir code produced by the compiler, stored for debugging
   // purposes.
   std::string m_original_mlir_code;
+
+  // TTIR MLIR code produced by the compiler, stored for debugging purposes.
+  std::string m_ttir_mlir;
+
+  // TTNN MLIR code produced by the compiler, stored for debugging purposes.
+  std::string m_ttnn_mlir;
 
   // A name that identifies the executable.
   std::string m_executable_name;
@@ -182,6 +210,12 @@ private:
   // Holds the information about the individual sizes of the memory kind strings
   // of the outputs.
   std::vector<size_t> m_output_memory_kinds_sizes;
+
+  // Compile options used to create this executable.
+  const module_builder::CompileOptions m_compile_options;
+
+  // Cached fingerprint for this executable.
+  std::string m_fingerprint;
 };
 
 } // namespace tt::pjrt

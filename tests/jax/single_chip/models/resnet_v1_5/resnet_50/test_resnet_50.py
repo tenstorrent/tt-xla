@@ -14,9 +14,10 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import ResNetTester, ResNetVariant
+from ..tester import ResNetTester
+from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
-MODEL_VARIANT = ResNetVariant.RESNET_50
+VARIANT_NAME = ModelVariant.RESNET_50
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "resnet_v1.5",
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT)
+    return ResNetTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(MODEL_VARIANT, RunMode.TRAINING)
+    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -55,7 +56,7 @@ def training_tester() -> ResNetTester:
 @pytest.mark.xfail(
     reason=incorrect_result(
         "AssertionError: PCC comparison failed. "
-        "Calculated: pcc=-0.06640016287565231. Required: pcc=0.99. "
+        "Calculated: pcc=-0.03391769528388977. Required: pcc=0.99. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )

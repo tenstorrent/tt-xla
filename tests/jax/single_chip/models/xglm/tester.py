@@ -5,8 +5,11 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel, FlaxXGLMForCausalLM, XGLMTokenizer
+from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from third_party.tt_forge_models.xglm.causal_lm.jax.loader import (
+    ModelVariant,
+    ModelLoader,
+)
 
 
 class XGLMTester(JaxModelTester):
@@ -14,21 +17,17 @@ class XGLMTester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        model = FlaxXGLMForCausalLM.from_pretrained(self._model_path)
-        model.params = model.to_bf16(model.params)
-        return model
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = XGLMTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()

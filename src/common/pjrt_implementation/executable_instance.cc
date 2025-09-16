@@ -43,6 +43,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Executable_NumOutputs = internal::onExecutableNumOutputs;
   api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
       internal::onExecutableSizeOfGeneratedCodeInBytes;
+  api->PJRT_Executable_Fingerprint = internal::onExecutableFingerprint;
   api->PJRT_Executable_OutputElementTypes =
       internal::onExecutableOutputElementTypes;
   api->PJRT_Executable_OutputDimensions =
@@ -160,6 +161,21 @@ PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
   return nullptr;
 }
 
+PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
+  DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Fingerprint");
+
+  const ExecutableInstance *executable_instance =
+      ExecutableInstance::unwrap(args->executable);
+
+  const std::string &fingerprint =
+      executable_instance->getExecutableImage()->getFingerprint();
+
+  args->executable_fingerprint = fingerprint.data();
+  args->executable_fingerprint_size = fingerprint.size();
+
+  return nullptr;
+}
+
 PJRT_Error *
 onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputElementTypes");
@@ -226,9 +242,9 @@ PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
       SerializedExecutableInstance::createInstance(executable_image);
 
   args->serialized_bytes = reinterpret_cast<const char *>(
-      serialized_executable->getSerializedFlatbuffer().data());
+      serialized_executable->getSerializedPayload().data());
   args->serialized_bytes_size =
-      serialized_executable->getSerializedFlatbuffer().size();
+      serialized_executable->getSerializedPayload().size();
   args->serialized_executable_deleter = [](PJRT_SerializedExecutable *exec) {
     delete SerializedExecutableInstance::unwrap(exec);
   };

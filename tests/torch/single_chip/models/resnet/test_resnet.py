@@ -11,12 +11,13 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from .tester import ResnetTester
+from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 
-VARIANT_NAME = "microsoft/resnet-50"
+VARIANT_NAME = ModelVariant.RESNET_50_HF
 
 
 MODEL_NAME = build_model_name(
@@ -50,12 +51,12 @@ def training_tester() -> ResnetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/1384"
     )
 )
 def test_torch_resnet_inference(inference_tester: ResnetTester):
