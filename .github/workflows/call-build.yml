@@ -23,6 +23,9 @@ on:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
             value: ${{ jobs.check-existing-artifact.outputs.wheel_artifact_name }}
+        wheel_release_vllm_tt_artifact_name:
+            description: 'Name of the vllm-tt plugin wheel artifact'
+            value: ${{ jobs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
         build_artifact_name:
             description: 'Name of the build artifact'
             value: ${{ jobs.check-existing-artifact.outputs.build_artifact_name }}
@@ -37,6 +40,7 @@ jobs:
     outputs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
       - uses: actions/checkout@v4
