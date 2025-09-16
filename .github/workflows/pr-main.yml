@@ -3,6 +3,7 @@ name: On PR
 on:
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   packages: write
