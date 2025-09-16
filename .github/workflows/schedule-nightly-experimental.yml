@@ -1,21 +1,8 @@
 name: On nightly Experimental
 
 on:
+  # todo(vvukoman): remove before merge
   workflow_dispatch:
-    inputs:
-      test_group_cnt:
-        description: 'Test group count'
-        required: false
-        default: "3"
-        type: choice
-        options:
-          - "1"
-          - "2"
-          - "3"
-          - "4"
-          - "5"
-          - "8"
-          - "10"
   schedule:
     - cron: '0 4 * * *'
 
@@ -24,19 +11,6 @@ permissions:
   checks: write
 
 jobs:
-  set-inputs:
-    runs-on: ubuntu-latest
-    outputs:
-      test_group_cnt: ${{ steps.set-inputs.outputs.test_group_cnt }}
-    steps:
-      - name: Set Inputs
-        id: set-inputs
-        run: |
-          default_test_group_cnt=3
-
-          tgc=$(if [ -z "${{ inputs.test_group_cnt }}" ]; then echo $default_test_group_cnt; else echo ${{ inputs.test_group_cnt }}; fi)
-          echo "test_group_cnt=$tgc" >> $GITHUB_OUTPUT
-
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
@@ -49,18 +23,11 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  generate-forge-models-matrix:
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ set-inputs ]
-    with:
-      test_group_cnt: ${{ needs.set-inputs.outputs.test_group_cnt }}
-
   # This is a single test job that runs all experimental/unknown status tt-forge-models tests.
   test_forge_models_experimental:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-forge-models-matrix ]
+    needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
       timeout_minutes: 180
