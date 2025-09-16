@@ -1,111 +1,73 @@
-name: On PR
+name: Performance Benchmark
 
 on:
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      same_branch:
+        description: 'Run on the branch with same name in tt-forge as the current workflow'
+        required: false
+        type: boolean
+      tt_forge_branch:
+        description: 'Branch of tt-forge to run the benchmarks on (empty=main)'
+        required: false
+        type: string
+      test_filter:
+        description: "Only run tests with name that contains"
+        required: false
+        type: string
+      sh-runner:
+        description: "Run on shared runner"
+        required: false
+        type: boolean
 
 permissions:
   packages: write
   checks: write
-  pull-requests: write
+  contents: write
   id-token: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  pre-commit:
-    uses: ./.github/workflows/call-pre-commit.yml
-    secrets: inherit
-
-  inspect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
-      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
-      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/inspect-changes
-        id: inspect
-
-  build-image:
-    needs: [ pre-commit, inspect-changes ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+  docker-build:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
-
-  build-ttxla-codecov:
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+  build:
+    needs: docker-build
     uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla with code coverage"
-    secrets: inherit
-    needs: [ inspect-changes, build-image ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: true
-
-  build-ttxla-release:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla release"
-    secrets: inherit
-    needs: [ inspect-changes, build-image ]
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-
-  test:
-    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      test_suite: basic-test.json
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
-      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
-
+      mlir_override: ${{ inputs.mlir_override }}
+      docker_image: ${{ needs.docker-build.outputs.docker-image }}
+  set-inputs:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.set-inputs.outputs.ref }}
+    steps:
+      - id: set-inputs
+        run: |
+          if [ "${{ inputs.same_branch }}" == 'true' ]; then
+            echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            if [ -z "${{ inputs.tt_forge_branch }}" ]; then
+              echo "ref=main" >> $GITHUB_OUTPUT
+            else
+              echo "ref=${{ inputs.tt_forge_branch }}" >> $GITHUB_OUTPUT
+            fi
+          fi
   perf-benchmark:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ set-inputs, build ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
-      project: tt-xla
-      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-
-  test_forge_models_push:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (success() || failure())
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
-    with:
-      test_suite: model-test-push.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false
-      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-
-  check-all-green:
-    if: always()
-    needs:
-      - pre-commit
-      - build-image
-      - build-ttxla-codecov
-      - build-ttxla-release
-      - test
-      - test_forge_models_push
-    runs-on: Ubuntu-latest
-    steps:
-    - name: Check if the needed jobs succeeded or failed
-      uses: re-actors/alls-green@release/v1
-      with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test
-        jobs: ${{ toJSON(needs) }}
+        project: tt-xla
+        run_id: ${{ needs.build.outputs.artifacts_run_id }}
+        run_id_source: tt-xla
+        ref: ${{ needs.set-inputs.outputs.ref }}
+        test-filter: ${{ inputs.test_filter }}
+        sh-runner: ${{ inputs.sh-runner }}
