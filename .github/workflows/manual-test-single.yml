@@ -1,4 +1,4 @@
-name: Run Test
+name: Run Test Single
 
 # This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
 # It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
@@ -6,18 +6,44 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      test_suite:
-        description: 'Test suite preset options or custom'
+      dir:
+        description: 'Path passed to pytest'
+        required: true
+        type: string
+      mark:
+        description: 'Mark passed to pytest'
+        required: false
+        type: string
+      args:
+        description: 'Additional arguments passed to pytest'
+        required: false
+        type: string
+      runs_on:
+        description: 'Choose runners for running test'
         required: true
         type: choice
         options:
-          - 'pr-main-test-basic.json'
-          - 'pr-main-test-model-forge.json'
-          - 'Custom'
-      test_suite_custom:
-        description: 'Custom test suite json'
+          - 'n150'
+          - 'n300'
+          - 'p150'
+          - 'n300-llmbox'
+      shared_runner:
+        description: 'Run test on the CIv2 runner'
         required: false
-        type: string
+        default: false
+        type: boolean
+      parallel_groups:
+        description: 'Number of parallel runners for test execution'
+        required: true
+        type: choice
+        options:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 8
+          - 10
       mlir_override:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
@@ -27,7 +53,7 @@ permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
+run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
 
 jobs:
   build-image:
@@ -43,6 +69,20 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+  
+  generate-test-config:
+    needs: build-ttxla
+    runs-on: ubuntu-latest
+    outputs: 
+      test-config: ${{ steps.generate.outputs.test-config }}
+    steps:
+      - id: generate
+        run: |
+          # create a json array with 1 object in it, the object should be of this structure
+          # { "runs-on": "<inputs.runs-on>", "name": "Test",     "dir": "<inputs.dir>", "test-mark": "<inputs.mark>", "shared-runners": "<inputs.shared-runners>", "args": "<inputs.args>" },
+
+          
+
 
   test:
     if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
@@ -55,7 +95,6 @@ jobs:
       test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      # test_suite: ${{ inputs.test_suite }} == 'Custom' && ${{ inputs.test_suite_custom }} || ${{ inputs.test_suite }}
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
       codecov: false

@@ -34,18 +34,18 @@ def map_shared_runner(entry):
 
 def expand_parallel_entry(entry, expanded_matrix):
     """
-    Expand entry with parallel_groups into multiple entries with group_id.
+    Expand entry with parallel-groups into multiple entries with group_id.
 
     Args:
         entry: Dictionary representing a test matrix entry
         expanded_matrix: List to append the expanded entries to
     """
-    if "parallel_groups" in entry:
-        parallel_groups = entry["parallel_groups"]
+    if "parallel-groups" in entry:
+        parallel_groups = entry["parallel-groups"]
 
         for group_id in range(1, parallel_groups + 1):
             new_entry = entry.copy()
-            new_entry["group_id"] = group_id
+            new_entry["group-id"] = group_id
             expanded_matrix.append(new_entry)
     else:
         expanded_matrix.append(entry)
@@ -55,8 +55,8 @@ def process_test_matrix(matrix_file_path):
     """
     Process test matrix by expanding parallel groups and mapping shared runners.
 
-    For each entry with 'parallel_groups': n, creates n total entries
-    (including the original) where each has a 'group_id' starting from 1.
+    For each entry with 'parallel-groups': n, creates n total entries
+    (including the original) where each has a 'group-id' starting from 1.
 
     Also handles 'shared-runners': true by mapping runs-on values to their
     corresponding shared runner equivalents.
