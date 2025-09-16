@@ -16,7 +16,7 @@ from utils import (
 
 from ..tester import Mistral7BTester
 
-MODEL_PATH = "ksmcg/Mistral-7B-v0.1"
+MODEL_PATH = "mistralai/Mistral-7B-v0.1"
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -41,6 +41,7 @@ def training_tester() -> Mistral7BTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -61,6 +62,7 @@ def test_mistral_7b_v0_1_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

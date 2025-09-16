@@ -16,7 +16,7 @@ from utils import (
 
 from ..tester import Mistral7BV02Tester
 
-MODEL_PATH = "unsloth/mistral-7b-instruct-v0.3"
+MODEL_PATH = "mistralai/mistral-7b-instruct-v0.3"
 MODEL_GROUP = ModelGroup.RED
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -42,6 +42,7 @@ def training_tester() -> Mistral7BV02Tester:
 # ----- Tests -----
 
 
+@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
@@ -62,6 +63,7 @@ def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BV02Tester
     inference_tester.test()
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
