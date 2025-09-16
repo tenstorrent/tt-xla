@@ -93,7 +93,7 @@ jobs:
 
           echo $TEST_CONFIG
           
-          echo "test-config=$(echo '$TEST_CONFIG' | jq -c)" >> $GITHUB_OUTPUT   
+          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT   
 
   test:
     if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
