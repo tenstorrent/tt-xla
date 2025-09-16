@@ -11,8 +11,13 @@ on:
         required: true
         type: choice
         options:
-          - 'pr-main-test-basic.json'
-          - 'pr-main-test-model-forge.json'
+          - 'basic-test.json'
+          - 'basic-test-nightly.json'
+          - 'model-test-push.json'
+          - 'model-test-full.json'
+          - 'model-test-passing.json'
+          - 'model-test-xfail.json'
+          - 'model-test-experimental.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'

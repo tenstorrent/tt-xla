@@ -61,7 +61,7 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      test_suite: pr-main-test-basic.json
+      test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
