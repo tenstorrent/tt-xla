@@ -24,9 +24,9 @@ on:
         required: false
         type: string
       mlir_override:
-          description: 'Git SHA of commit in tenstorrent/tt-mlir'
-          required: false
-          type: string
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
 
 permissions:
   packages: write
