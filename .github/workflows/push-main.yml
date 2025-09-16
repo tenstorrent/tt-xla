@@ -60,7 +60,7 @@ jobs:
     needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
-      test_suite: pr-main-test-model.json
+      test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
