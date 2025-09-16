@@ -1,8 +1,6 @@
 name: On nightly Experimental
 
 on:
-  # todo(vvukoman): remove before merge
-  workflow_dispatch:
   schedule:
     - cron: '0 4 * * *'
 
