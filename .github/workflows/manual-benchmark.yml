@@ -35,15 +35,16 @@ on:
       parallel_groups:
         description: 'Number of parallel runners for test execution'
         required: true
+        default: '1'
         type: choice
         options:
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-          - 8
-          - 10
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '8'
+          - '10'
       mlir_override:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
@@ -86,7 +87,7 @@ jobs:
               "test-mark": "${{ inputs.mark }}",
               "shared-runners": "${{ inputs.shared_runners }}",
               "args": "${{ inputs.args }}",
-              "parallel-groups": ${{ inputs.parallel_groups }}
+              "parallel-groups": ${{ fromJSON(inputs.parallel_groups) }}
             }
           ]'
 
