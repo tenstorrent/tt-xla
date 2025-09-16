@@ -70,11 +70,11 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
-  
+
   generate-test-config:
     needs: build-ttxla
     runs-on: ubuntu-latest
-    outputs: 
+    outputs:
       test-config: ${{ steps.generate.outputs.test-config }}
     steps:
       - id: generate
@@ -92,8 +92,8 @@ jobs:
           ]'
 
           echo $TEST_CONFIG
-          
-          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT   
+
+          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
 
   test:
     if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
