@@ -87,7 +87,7 @@ jobs:
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     with:
-      test_suite: pr-main-test-model.json
+      test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
