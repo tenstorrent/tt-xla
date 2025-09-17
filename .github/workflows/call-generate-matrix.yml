@@ -20,7 +20,7 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     outputs:
-      test-matrix: ${{ steps.generate-forge-models-matrix.outputs.test-matrix }}
+      test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,8 +42,8 @@ jobs:
           echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@v5
-      - name: Generate tt-forge-models matrix
-        id: generate-forge-models-matrix
+      - name: Generate test matrix
+        id: generate-test-matrix
         shell: bash
         run: |
           SCRIPT_PATH=".github/scripts/generate_test_matrix.py"
