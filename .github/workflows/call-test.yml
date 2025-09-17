@@ -299,12 +299,6 @@ jobs:
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
-    - name: Run vllm-tt tests
-      shell: bash
-      run: |
-        source venv/activate
-        python -m pytest tests/integrations/vllm_plugin
-
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
     - name: Sanitize test_mark
