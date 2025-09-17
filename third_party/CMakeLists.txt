@@ -5,7 +5,10 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "274a5d02bf74aafe8b71247a1da05d75e24bbbde")
+# base tt-mlir version 9d2d589165162a9117cb74cc5520fe13fefae2b6
+# revert revert of analyzemeshpass delta fe2f3609021951d24677e48adc49a9c49b01b295
+# tt-mlir with 3 patches 4e7b914c00cfa6045552bda0b71e936c48fd53fc
+    set(TT_MLIR_VERSION "1dc8e6917a57073561c7adce1a5e5fdd217228da") 
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
