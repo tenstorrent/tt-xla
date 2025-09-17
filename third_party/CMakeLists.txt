@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "dda165acede0b07e582f01e41fc634618d9f69c2") # prev 5b771a431
+    set(TT_MLIR_VERSION "4e7b914c0") # prev 5b771a431
     # for jona testing dda165acede0b07e582f01e41fc634618d9f69c2
     # original working f4ef50c0b1c4c7fc2158e7829306c5111b3d0555
 endif()
@@ -76,7 +76,7 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
