@@ -1,5 +1,6 @@
 [![Tests][tests badge]][tests]
 [![Codecov][codecov badge]][codecov]
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tenstorrent/tt-xla)
 
 <div align="center">
 
@@ -56,3 +57,5 @@ This repo is a part of Tenstorrent’s bounty program. If you are interested in 
 [tests]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml?query=branch%3Amain
 [codecov badge]: https://codecov.io/gh/tenstorrent/tt-xla/graph/badge.svg?token=XQJ3JVKIRI
 [tests badge]: https://github.com/tenstorrent/tt-xla/actions/workflows/on-push.yml/badge.svg?query=branch%3Amain
+[deepwiki]: https://deepwiki.com/tenstorrent/tt-xla
+[deepwiki badge]: https://deepwiki.com/badge.svg
