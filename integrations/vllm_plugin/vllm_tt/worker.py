@@ -213,7 +213,7 @@ class TTWorker:
             total_memory_size = device_usage[0].total_memory
             current_mem = device_usage[0].memory_usage
         else:
-            # TODO https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
+            # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
             # can implement the PJRT API function(s) necesarry to exegcute xm.get_memory_info,
             # and implement them. I believe we must implement PJRT_Device_MemoryStats.
 
