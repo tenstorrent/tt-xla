@@ -873,17 +873,6 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   pm.enableIRPrinting();
 }
 
-void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
-  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
-    return;
-  }
-
-  // Multithreading must be disabled when printing at module scope
-  // to avoid interleaved output.
-  pm.getContext()->disableMultithreading();
-  pm.enableIRPrinting();
-}
-
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // After running through the SdyRoundTripImportPipeline, the module which uses
