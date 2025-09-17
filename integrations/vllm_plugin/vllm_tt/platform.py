@@ -34,7 +34,7 @@ class TTPlatform(Platform):
     dispatch_key: str = "XLA"
     ray_device_key: str = "TT"
     dist_backend: str = "gloo"
-    # device_control_env_var: str = "TPU_VISIBLE_CHIPS"
+    device_control_env_var: str = "TT_VISIBLE_DEVICES"
     simple_compile_backend: str = "tt"
 
     supported_quantization: list[str] = [
