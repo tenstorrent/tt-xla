@@ -1,21 +1,6 @@
 name: On nightly
 
 on:
-  workflow_dispatch:
-    inputs:
-      test_group_cnt:
-        description: 'Test group count'
-        required: false
-        default: "5"
-        type: choice
-        options:
-          - "1"
-          - "2"
-          - "3"
-          - "4"
-          - "5"
-          - "8"
-          - "10"
   schedule:
     - cron: '0 0 * * *'
 
@@ -24,19 +9,6 @@ permissions:
   checks: write
 
 jobs:
-  set-inputs:
-    runs-on: ubuntu-latest
-    outputs:
-      test_group_cnt: ${{ steps.set-inputs.outputs.test_group_cnt }}
-    steps:
-      - name: Set Inputs
-        id: set-inputs
-        run: |
-          default_test_group_cnt=3
-
-          tgc=$(if [ -z "${{ inputs.test_group_cnt }}" ]; then echo $default_test_group_cnt; else echo ${{ inputs.test_group_cnt }}; fi)
-          echo "test_group_cnt=$tgc" >> $GITHUB_OUTPUT
-
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
@@ -54,85 +26,22 @@ jobs:
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
+      test_suite: basic-test-nightly.json
       codecov: false
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      test_mark: 'nightly'
       use-shared-runners: false # Run nightly tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-  generate-matrix:
-    runs-on: ubuntu-latest
-    needs: [ set-inputs ]
-    outputs:
-      test-full-model-matrix: ${{ steps.generate-matrix.outputs.test-full-model-matrix}}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-
-      - name: Generate matrix
-        id: generate-matrix
-        shell: bash
-        env:
-          TEST_GROUP_CNT: ${{ needs.set-inputs.outputs.test_group_cnt }}
-        run: |
-            SCRIPT_PATH=".github/scripts/generate_test_model_matrix.py"
-            TEST_MATRIX_PATH=".github/workflows/test-full-model-matrix.json"
-            TESTS_TO_PARALLELIZE='[
-              {
-                "runs-on": "n150",
-                "name": "run_jax"
-              },
-              {
-                "runs-on": "n150",
-                "name": "run_torch"
-              },
-              {
-                "runs-on": "n150",
-                "name": "run_large_jax_models"
-              },
-              {
-                "runs-on": "p150",
-                "name": "run_jax"
-              },
-              {
-                "runs-on": "p150",
-                "name": "run_torch"
-              },
-              {
-                "runs-on": "p150b",
-                "name": "run_large_jax_models"
-              }
-            ]'
-            python $SCRIPT_PATH $TEST_MATRIX_PATH "$TESTS_TO_PARALLELIZE" $TEST_GROUP_CNT  > modified-matrix.json
-            echo "test-full-model-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
-
-  generate-forge-models-matrix:
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ set-inputs ]
-    with:
-      test_group_cnt: '10' # Hardcode, lots of models in nightly.
-
-  generate-forge-models-matrix-xfail:
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ set-inputs ]
-    with:
-      test_group_cnt: '3'
-
   test_full_model:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-matrix ]
+    needs: [ build-image, build-ttxla ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
+      test_suite: model-test-full.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      test_mark: 'model_test'
-      test_matrix: ${{ needs.generate-matrix.outputs.test-full-model-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -141,14 +50,13 @@ jobs:
   test_forge_models_passing:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-forge-models-matrix ]
+    needs: [ build-image, build-ttxla ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
       timeout_minutes: 180
+      test_suite: model-test-passing.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: 'expected_passing'
-      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -157,14 +65,13 @@ jobs:
   test_forge_models_xfail:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-forge-models-matrix-xfail ]
+    needs: [ build-image, build-ttxla ]
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
       timeout_minutes: 180
+      test_suite: model-test-xfail.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: 'known_failure_xfail or not_supported_skip or placeholder'
-      test_matrix: ${{ needs.generate-forge-models-matrix-xfail.outputs.test-forge-models-matrix }}
       use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
