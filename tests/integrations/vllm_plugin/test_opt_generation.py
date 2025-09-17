@@ -3,7 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import vllm
 
+import pytest
 
+
+@pytest.mark.push
 def test_opt_generation():
     prompts = [
         "Hello, my name is",
