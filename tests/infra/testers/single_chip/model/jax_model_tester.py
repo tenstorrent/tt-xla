@@ -11,8 +11,9 @@ import shutil
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Model, PyTree
-from infra.workloads import JaxWorkload, Workload, WorkloadFactory
+from tests.infra.testers.compiler_config import CompilerConfig
+from infra.utilities import Framework, Model, PyTree, random_tensor
+from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
@@ -40,14 +41,13 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
-        use_optimizer: bool = False,
+        compiler_config: CompilerConfig = None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
-        self._use_optimizer = use_optimizer
 
-        super().__init__(comparison_config, run_mode, Framework.JAX)
+        super().__init__(comparison_config, run_mode, Framework.JAX, compiler_config)
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -107,10 +107,9 @@ class JaxModelTester(ModelTester):
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
-        self._workload = WorkloadFactory.create_workload(
-            self._framework,
+        self._workload = Workload(
+            framework=self._framework,
             executable=forward_pass_method,
-            model=self._model,
             args=args,
             kwargs=kwargs,
             static_argnames=forward_static_args,
@@ -141,6 +140,7 @@ class JaxModelTester(ModelTester):
                 **self._input_activations,
             }
 
+        # TODO: add support for training-specific kwargs for different types of models. https://github.com/tenstorrent/tt-xla/issues/1388
         return {}
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
@@ -156,37 +156,115 @@ class JaxModelTester(ModelTester):
         """
         return []
 
-    def __del__(self):
-        if hasattr(self, "_model_path"):
-            try:
-                cache_dir = snapshot_download(self._model_path, local_files_only=True)
-                if cache_dir and os.path.exists(cache_dir):
-                    print(f"Deleting HF cache at: {cache_dir}")
-                    shutil.rmtree(cache_dir)
-            except NameError as e:
-                logger.warning(
-                    f"NameError in __del__ during snapshot_download (likely path not defined during shutdown): {e}"
-                )
-            except Exception as e:
-                logger.warning(f"Error during cache cleanup in __del__: {e}")
-
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> Workload:
+    def _compile_for_tt_device(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+        compiler_options = self._compiler_config.to_jax_compiler_options()
+
+        workload.compiled_executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
-            compiler_options={"optimize": str(self._use_optimizer)},
+            compiler_options=compiler_options,
         )
-        return workload
 
     # @override
-    def _compile_for_cpu(self, workload: Workload) -> Workload:
+    def _compile_for_cpu(self, workload: Workload) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
-        assert isinstance(workload, JaxWorkload)
-        workload.executable = jax.jit(
+        assert workload.is_jax, "Workload must be JAX workload to compile"
+
+        workload.compiled_executable = jax.jit(
             workload.executable,
             static_argnames=workload.static_argnames,
         )
-        return workload
+
+    # @override
+    def _test_training(self):
+        """
+        Steps:
+        1. Create partial with static args
+        2. Compile workloads for CPU and TT device
+        3. Create partial with vjp of model
+        4. Run forward on CPU and TT device
+        5. Create random gradient with same shape as output
+        6. Run pullback on CPU and TT device
+        7. Compare forward results and gradients
+        """
+
+        # Wrapper to convert kwargs to args and return logits if model is HF
+        is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
+
+        def wrapper_model(f):
+            def model(args, kwargs):
+                out = f(*args, **kwargs)
+                if is_hf_model:
+                    out = out.logits
+                return out
+
+            return model
+
+        # Create partial with static args
+        partial_executable = jax.tree_util.Partial(
+            self._workload.executable,
+            **{k: self._workload.kwargs[k] for k in self._workload.static_argnames},
+        )
+        training_workload = Workload(
+            framework=self._framework,
+            executable=partial_executable,
+            args=self._workload.args,
+            kwargs={
+                k: self._workload.kwargs[k]
+                for k in self._workload.kwargs
+                if k not in self._workload.static_argnames
+            },
+            static_argnames=[],
+        )
+
+        # Compile workloads for CPU with vjp of model
+        self._compile_for_cpu(training_workload)
+        train_fwd_cpu = Workload(
+            framework=self._framework,
+            executable=jax.tree_util.Partial(
+                jax.vjp, wrapper_model(training_workload.executable)
+            ),
+            args=[training_workload.args, training_workload.kwargs],
+        )
+        cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
+
+        # Compile workloads for TT device with vjp of model
+        self._compile_for_tt_device(training_workload)
+        train_fwd_tt = Workload(
+            framework=self._framework,
+            executable=jax.tree_util.Partial(
+                jax.vjp, wrapper_model(training_workload.executable)
+            ),
+            args=[training_workload.args, training_workload.kwargs],
+        )
+        tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
+
+        # Create random gradient with same shape as output
+        random_grad = random_tensor(
+            cpu_forward_out.shape,
+            dtype=cpu_forward_out.dtype,
+            framework=self._framework,
+        )
+
+        # Run pullback on CPU
+        pullback_workload_cpu = Workload(
+            framework=self._framework,
+            executable=cpu_pullback,
+            args=[random_grad],
+        )
+        grads_cpu = self._run_on_cpu(pullback_workload_cpu)
+
+        # Run pullback on TT device
+        pullback_workload_tt = Workload(
+            framework=self._framework,
+            executable=tt_pullback,
+            args=[random_grad],
+        )
+        grads_tt = self._run_on_tt_device(pullback_workload_tt)
+
+        # Compare forward results and gradients
+        self._compare(tt_forward_out, cpu_forward_out)
+        self._compare(grads_tt, grads_cpu)

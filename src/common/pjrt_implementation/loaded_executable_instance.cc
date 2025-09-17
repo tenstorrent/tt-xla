@@ -158,6 +158,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   tt::runtime::closeMeshDevice(*runtime_device);
+  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -200,6 +201,12 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
 
   tt::runtime::MeshDeviceOptions mesh_device_options;
   mesh_device_options.meshShape = devices_mesh_shape;
+
+  if (mesh_shape_num_devices > 1) {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+  } else {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  }
 
   return tt::runtime::openMeshDevice(mesh_device_options);
 }

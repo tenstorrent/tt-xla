@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -15,7 +16,7 @@ from utils import (
 )
 
 from ..tester import MNISTCNNTester
-from .model_implementation import MNISTCNNNoDropoutModel
+from third_party.tt_forge_models.mnist.image_classification.jax import ModelArchitecture
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(MNISTCNNNoDropoutModel)
+    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM)
 
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(MNISTCNNNoDropoutModel, run_mode=RunMode.TRAINING)
+    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -62,7 +63,14 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_fe_compilation(
+        "Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable."
+        "https://github.com/tenstorrent/tt-xla/issues/1388"
+    )
+)
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):
     training_tester.test()

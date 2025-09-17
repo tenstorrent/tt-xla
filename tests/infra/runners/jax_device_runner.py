@@ -7,9 +7,9 @@ from typing import Any, Sequence
 
 import jax
 from flax import linen
-from infra.connectors import DeviceConnector, DeviceType
+from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
-from infra.workloads import JaxMultichipWorkload, JaxWorkload, Workload
+from infra.workloads import JaxMultichipWorkload, Workload
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from jaxtyping import PyTree
 
@@ -46,7 +46,7 @@ class JaxDeviceRunner(DeviceRunner):
         To avoid that, we try to `jax.device_put` arg or kwarg, and if it doesn't
         succeed, we leave it as is.
         """
-        assert isinstance(workload, JaxWorkload)
+        assert workload.is_jax, "Workload must be JAX workload to put on device"
 
         args_on_device = []
         kwargs_on_device = {}
@@ -71,11 +71,13 @@ class JaxDeviceRunner(DeviceRunner):
             else:
                 kwargs_on_device[key] = value
 
-        return JaxWorkload(
-            workload.executable,  # Unchanged.
-            args_on_device,
-            kwargs_on_device,
-            workload.static_argnames,  # Unchanged.
+        return Workload(
+            framework=workload.framework,  # Unchanged.
+            executable=workload.executable,  # Unchanged.
+            compiled_executable=workload.compiled_executable,  # Unchanged.
+            args=args_on_device,
+            kwargs=kwargs_on_device,
+            static_argnames=workload.static_argnames,
         )
 
     def run_on_multichip_device(
@@ -127,6 +129,7 @@ class JaxDeviceRunner(DeviceRunner):
 
         return JaxMultichipWorkload(
             multichip_workload.executable,
+            multichip_workload.compiled_executable,
             args_on_device,
             kwargs_on_device,
             device_mesh=multichip_workload.device_mesh,

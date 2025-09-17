@@ -17,6 +17,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Pass/PassManager.h"
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -59,6 +60,12 @@ public:
   const tt::runtime::Binary &getFlatbufferBinary() const {
     return m_flatbuffer_binary;
   }
+
+  // Returns TTIR MLIR code.
+  const std::string &getTTIRMlirCode() const { return m_ttir_mlir; }
+
+  // Returns TTNN MLIR code.
+  const std::string &getTTNNMlirCode() const { return m_ttnn_mlir; }
 
   // Returns vector of boolean values determining if each output is scalar.
   const std::vector<bool> &getIsOutputScalar() const {
@@ -169,8 +176,14 @@ private:
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // Enables IR printing between passes with VERBOSE or higher logger level.
+  static void enableVerboseIRPrinting(mlir::PassManager &pm);
+
   // Checks if a particular type is scalar.
   bool isScalarType(mlir::Type type);
+
+  // Converts a MLIR module into it's textual representation
+  std::string getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collect input sharding if we are using GSPMD.
   void
@@ -227,6 +240,12 @@ private:
 
   // Compiled flatbuffer binary.
   tt::runtime::Binary m_flatbuffer_binary;
+
+  // TTIR MLIR code.
+  std::string m_ttir_mlir;
+
+  // TTNN MLIR code.
+  std::string m_ttnn_mlir;
 
   // Holds status of the last builder action.
   tt_pjrt_status m_status;

@@ -6,55 +6,18 @@ import os
 
 import torch
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from infra.utilities import Device
-from torch_xla.experimental import plugins
 
 from .device_connector import DeviceConnector, DeviceType
-
-
-class TTPjrtPlugin(plugins.DevicePlugin):
-    """Class necessary to register PJRT plugin with torch."""
-
-    # -------------------- Public methods --------------------
-
-    def __init__(self, plugin_path: str) -> None:
-        self._plugin_path = plugin_path
-        super().__init__()
-
-    def library_path(self):
-        return self._plugin_path
 
 
 class TorchDeviceConnector(DeviceConnector):
     """Device connector used with torch."""
 
-    # @override
-    def _register_plugin(self, wheel_plugin_path: str, build_plugin_path: str) -> None:
-        """
-        Registers TT plugin which will make TTDevice available in PyTorch/XLA.
-
-        For wheel installs, registers the plugin installed from wheel. If wheel plugin
-        is not available, registers the plugin from build directory.
-        """
-        try:
-            os.environ["PJRT_DEVICE"] = DeviceType.TT.value
-            os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-
-            if wheel_plugin_path is None:
-                plugin_path = build_plugin_path
-            else:
-                plugin_path = wheel_plugin_path
-                # Export path to metal so it is accessible by the plugin.
-                tt_metal_path = os.path.join(
-                    os.path.dirname(wheel_plugin_path), "tt-mlir/install/tt-metal"
-                )
-                os.environ["TT_METAL_HOME"] = str(tt_metal_path)
-
-            plugins.register_plugin(DeviceType.TT.value, TTPjrtPlugin(plugin_path))
-        except Exception as e:
-            raise RuntimeError(
-                "Failed to initialize TT PJRT plugin for PyTorch from wheel or local build."
-            ) from e
+    def __init__(self) -> None:
+        super().__init__()
+        xr.runtime.set_device_type("TT")
 
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:

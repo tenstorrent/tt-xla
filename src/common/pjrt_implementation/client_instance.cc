@@ -170,21 +170,19 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
     return compile_status;
   }
 
-  // TODO(mrakita): Decide which module to pass here. If this is going to be
-  // used only for debugging then we might want TTIR or TTNN module, but if it
-  // is going to be used for the `PJRT_Executable_DeserializeAndLoad` to
-  // recompile the flatbuffer then we need either original program code or
-  // VHLO/SHLO module. Passing original program code for now.
-  std::string original_mlir_code(mlir_code);
-
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
+  // Parse compile options for fingerprint generation
+  module_builder::CompileOptions parsed_compile_options =
+      module_builder::CompileOptions::parse(compile_options);
+
   std::shared_ptr<ExecutableImage> executable_image =
       ExecutableImage::createInstance(
-          m_module_builder->getFlatbufferBinary(),
-          std::move(original_mlir_code), std::move(executable_name),
+          m_module_builder->getFlatbufferBinary(), std::string(mlir_code),
+          m_module_builder->getTTIRMlirCode(),
+          m_module_builder->getTTNNMlirCode(), std::move(executable_name),
           m_module_builder->getNumPartitions(),
           m_module_builder->getNumReplicas(),
           m_module_builder->getNumDevicesToUtilize(),
@@ -192,7 +190,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getInputShardings(),
           m_module_builder->getOutputShardings(),
           m_module_builder->getIsOutputScalar(),
-          m_module_builder->getOutputDataTypes());
+          m_module_builder->getOutputDataTypes(),
+          std::move(parsed_compile_options));
 
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`

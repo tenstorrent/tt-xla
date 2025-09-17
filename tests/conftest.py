@@ -5,18 +5,20 @@
 import ctypes
 from contextlib import contextmanager
 import gc
+import os
+import shutil
 import sys
 import threading
 import time
 
+import torch
 import psutil
 import pytest
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 from pathlib import Path
+from third_party.tt_forge_models.config import ModelInfo
 from typing import Any
-
-from python_package.monkeypatch import apply_patches, get_monkeypatches
 
 
 def pytest_configure(config: pytest.Config):
@@ -34,7 +36,9 @@ def pytest_configure(config: pytest.Config):
         - Model tests:
             - `model_name`: name of the model under test
             - 'model_group': utils.ModelGroup
+            - `model_info`: third_party.tt_forge_models.config.ModelInfo
             - `run_mode`: infra.RunMode
+            - `parallelism`: third_party.tt_forge_models.config.Parallelism
             - `bringup_status`: utils.BringupStatus
             - `pcc`: float
             - `atol`: float
@@ -48,21 +52,34 @@ def pytest_configure(config: pytest.Config):
         "record_test_properties(key_value_pairs): Record custom properties for the test",
     )
 
+    """
+    Register a marker to disable auto user_properties injection at collection time, when they
+    would otherwise be populated at runtime.
+    """
+    config.addinivalue_line(
+        "markers",
+        "no_auto_properties: disable auto user_properties injection at collection",
+    )
+
 
 def pytest_collection_modifyitems(items):
     """
     Pytest hook to process the custom marker and attach recorder properties to the test.
+    Also filters tests based on .pytest_tests_to_run file if it exists.
     """
 
-    def validate_keys(keys: dict, is_model_test: bool):
+    def validate_keys(keys: dict, tagged_as_model_test: bool):
         valid_keys = [
             "category",
             "jax_op_name",
             "shlo_op_name",
             "model_name",
             "model_group",
+            "model_info",
             "run_mode",
+            "parallelism",
             "bringup_status",
+            "execution_pass",
             "pcc",
             "atol",
         ]
@@ -75,23 +92,47 @@ def pytest_collection_modifyitems(items):
             )
 
         # If model test, check all necessary properties are provided.
-        if is_model_test:
-            mandatory_model_properties = [
+        if tagged_as_model_test:
+            # Check if using new property set
+            new_mandatory_properties = [
+                "model_info",
+                "run_mode",
+                "bringup_status",
+            ]
+
+            # Check if using old property set
+            old_mandatory_properties = [
                 "model_name",
                 "model_group",
                 "run_mode",
                 "bringup_status",
             ]
 
-            if not all(
-                model_property in keys for model_property in mandatory_model_properties
-            ):
+            has_new_properties = all(prop in keys for prop in new_mandatory_properties)
+            has_old_properties = all(prop in keys for prop in old_mandatory_properties)
+
+            # Ensure exactly one property set is used (XOR condition)
+            if has_new_properties == has_old_properties:
                 raise KeyError(
-                    f"Model tests must have following properties: "
-                    f"{mandatory_model_properties}."
+                    f"Model tests must have either new properties: {new_mandatory_properties} "
+                    f"or old properties: {old_mandatory_properties}."
                 )
 
+    # Filter tests based on .pytest_tests_to_run file if it exists
+    tests_to_run_file = Path(".pytest_tests_to_run")
+    if tests_to_run_file.exists():
+        with open(tests_to_run_file, "r") as f:
+            allowed_tests = set(line.strip() for line in f if line.strip())
+
+        # Remove tests not in the allowed list
+        items[:] = [item for item in items if item.nodeid in allowed_tests]
+
     for item in items:
+
+        # Skip collection-time user_properies for this test, populate at runtime.
+        if item.get_closest_marker("no_auto_properties"):
+            continue
+
         # Add some test metadata in a 'tags' dictionary.
         tags = {"test_name": item.originalname, "specific_test_case": item.name}
 
@@ -99,7 +140,7 @@ def pytest_collection_modifyitems(items):
         properties_marker = item.get_closest_marker(name="record_test_properties")
 
         # Utils flags helping handling model tests properly.
-        is_model_test = False
+        tagged_as_model_test = False
         model_group = None
 
         if properties_marker:
@@ -107,27 +148,28 @@ def pytest_collection_modifyitems(items):
             properties: dict = properties_marker.kwargs
 
             # Check if the test is marked using the "model_test" marker.
-            is_model_test = item.get_closest_marker(name="model_test") is not None
+            tagged_as_model_test = (
+                item.get_closest_marker(name="model_test") is not None
+            )
 
             # Validate that only allowed keys are used.
-            validate_keys(properties.keys(), is_model_test)
+            validate_keys(properties.keys(), tagged_as_model_test)
 
-            # Turn all properties to strings.
-            for k, v in properties.items():
-                properties[k] = str(v)
-
-            if is_model_test:
-                model_group = properties.get("model_group")
-
-            # Tag them.
+            # Put all properties in tags.
             for key, value in properties.items():
-                # Skip model_group, we don't need it in tags, we will insert it separately.
-                if key != "model_group":
-                    tags[key] = value
+                if key == "model_info":
+                    model_info: ModelInfo = value
+                    tags["model_name"] = model_info.name
+                    tags["model_info"] = model_info.to_report_dict()
+                    model_group = str(model_info.group)
+                elif key == "model_group":
+                    model_group = str(value)
+                else:
+                    tags[key] = str(value)
 
-        # Attach metadata and tags dictionary as a single property.
+        # Attach tags dictionary as a single property. Also set owner.
         item.user_properties.extend([("tags", tags), ("owner", "tt-xla")])
-        if is_model_test:
+        if tagged_as_model_test:
             # Add model group independently of tags dict.
             item.user_properties.append(("group", model_group))
 
@@ -144,6 +186,16 @@ def pytest_addoption(parser):
         default=False,
         help="Enable memory usage tracking for tests",
     )
+
+
+# DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
+# TODO: Consider using a more explicit way to differentiate CIv2-specific environment
+# Issue: https://github.com/tenstorrent/github-ci-infra/issues/772
+def _is_on_CIv2() -> bool:
+    """
+    Check if we are on CIv2.
+    """
+    return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
 
 
 @contextmanager
@@ -250,10 +302,35 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-# Monkeypatch libraries to use our versions of functions, which will wrap operations in a StableHLO CompositeOp
 @pytest.fixture(autouse=True)
-def monkeypatch_import(request):
-    monkeypatches = get_monkeypatches()
-    apply_patches(monkeypatches)
-
+def cleanup_cache():
+    """
+    Pytest fixture that cleans up cache directories after each test.
+    Only runs if we are running on CIv2.
+    """
     yield
+    if not _is_on_CIv2():
+        return
+
+    cache_dirs = [
+        Path.home().joinpath(".cache", "lfcache"),
+        Path.home().joinpath(".cache", "url_cache"),
+        Path("/mnt/dockercache/huggingface"),
+    ]
+
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+
+
+# TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
+# do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    torch.manual_seed(0)
+    yield
+    torch._dynamo.reset()
