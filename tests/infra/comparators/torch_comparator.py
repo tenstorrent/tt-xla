@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
+import numpy as np
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
@@ -14,10 +15,28 @@ from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, Pcc
 class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
 
+    @staticmethod
+    def _convert_to_torch(obj):
+        """Convert numpy arrays and scalars to PyTorch tensors."""
+        if isinstance(obj, np.ndarray):
+            return torch.from_numpy(obj)
+        elif isinstance(obj, (np.floating, np.integer, np.complexfloating)):
+            return torch.tensor(obj.item())
+        elif isinstance(obj, torch.Tensor):
+            return obj
+        else:
+            return obj
+
+    @staticmethod
+    def _convert_outputs_to_torch(tensors: PyTree) -> PyTree:
+        """Convert any numpy arrays and scalars in the PyTree to PyTorch tensors."""
+        return tree_map(TorchComparator._convert_to_torch, tensors)
+
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _match_data_types(tensors: PyTree) -> PyTree:
+        tensors = TorchComparator._convert_outputs_to_torch(tensors)
         return tree_map(
             lambda tensor: (
                 tensor.to(torch.float32)
@@ -31,6 +50,8 @@ class TorchComparator(Comparator):
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
+        device_output = TorchComparator._convert_outputs_to_torch(device_output)
+        golden_output = TorchComparator._convert_outputs_to_torch(golden_output)
         passed = tree_map(lambda x, y: torch.equal(x, y), device_output, golden_output)
         flat_passed, _ = tree_flatten(passed)
         assert all(flat_passed), "Equal comparison failed."
@@ -41,6 +62,8 @@ class TorchComparator(Comparator):
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> None:
+        device_output = TorchComparator._convert_outputs_to_torch(device_output)
+        golden_output = TorchComparator._convert_outputs_to_torch(golden_output)
         leaf_atols = tree_map(
             lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
         )
@@ -57,6 +80,9 @@ class TorchComparator(Comparator):
     def _compare_pcc(
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> None:
+        device_output = TorchComparator._convert_outputs_to_torch(device_output)
+        golden_output = TorchComparator._convert_outputs_to_torch(golden_output)
+
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
@@ -87,6 +113,8 @@ class TorchComparator(Comparator):
         golden_output: PyTree,
         allclose_config: AllcloseConfig,
     ) -> None:
+        device_output = TorchComparator._convert_outputs_to_torch(device_output)
+        golden_output = TorchComparator._convert_outputs_to_torch(golden_output)
         all_close = tree_map(
             lambda x, y: torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
