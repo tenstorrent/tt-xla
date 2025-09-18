@@ -2,9 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import subprocess
+import sys
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from FlagEmbedding import BGEM3FlagModel
+
+# Install FlagEmbedding if not available
+try:
+    from FlagEmbedding import BGEM3FlagModel
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "FlagEmbedding"])
+    from FlagEmbedding import BGEM3FlagModel
 
 
 class BGE_M3Tester(TorchModelTester):
