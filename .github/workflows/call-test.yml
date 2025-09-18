@@ -138,15 +138,20 @@ jobs:
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Download and install wheel
+    - name: Download and install wheels
       shell: bash
       run: |
-        echo "=== Downloading wheel ==="
+        echo "=== Downloading wheels ==="
         echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
         gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
         echo "Downloaded wheel files:"
         ls -la wheels
 
