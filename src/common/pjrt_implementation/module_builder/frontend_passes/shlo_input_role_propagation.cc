@@ -302,25 +302,9 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     return tt_pjrt_status::kInternal;
   }
 
-  // In the event that some of the arguments have not been annotated, IF at
-  // least one argument has been annotated as a user input, we can annotate the
-  // rest of the arguments as constants
+  // In the event that some of the arguments have not been annotated,
+  // we annotate them to default, which is Input.
   mlir_module->walk([&](mlir::func::FuncOp funcOp) {
-    // If the function has even one user input argument, that means we can
-    // annotate the rest of the arguments as constants
-    bool hasUserInputAnnotation = false;
-    for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
-      if (mlir::tt::ttcore::ArgumentTypeAttr argumentTypeAttr =
-              mlir::dyn_cast_or_null<mlir::tt::ttcore::ArgumentTypeAttr>(
-                  funcOp.getArgAttr(i,
-                                    mlir::tt::ttcore::ArgumentTypeAttr::name));
-          argumentTypeAttr) {
-        hasUserInputAnnotation = true;
-        break;
-      }
-    }
-
-    int64_t annotatedConstCount = 0;
     for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
       if (funcOp.getArgAttr(i, mlir::tt::ttcore::ArgumentTypeAttr::name)) {
         continue;

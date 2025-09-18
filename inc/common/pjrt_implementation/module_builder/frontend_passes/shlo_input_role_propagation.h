@@ -27,8 +27,7 @@ annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
 namespace internal {
 
-// Annotates the attributes of the function arguments if the annotations are
-// provided by a custom call.
+// Annotates the attributes of the function arguments.
 tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
