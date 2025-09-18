@@ -24,19 +24,6 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
-// Helper function to print tensor shape
-std::string tensorShapeToString(const tt::runtime::Tensor &tensor) {
-  std::vector<std::uint32_t> shape = tt::runtime::getTensorShape(tensor);
-  std::string result = "[";
-  for (size_t i = 0; i < shape.size(); ++i) {
-    if (i > 0)
-      result += ", ";
-    result += std::to_string(shape[i]);
-  }
-  result += "]";
-  return result;
-}
-
 namespace tt::pjrt {
 
 std::unique_ptr<LoadedExecutableInstance>
@@ -152,13 +139,9 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
-
-  // locally cache static cache tensors
-  std::vector<tt::runtime::Tensor> static_cache_tensors = {};
-
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
-      program_index, input_tensors, static_cache_tensors);
+      program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
@@ -174,9 +157,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
            output_tensors.size(), m_executable_image->getNumOutputs());
     return tt_pjrt_status::kInternal;
   }
-
-  // After execution, pull back static cache tensors that were inplace updated
-  // at runtime
 
   std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
   untilized_output_tensors.reserve(output_tensors.size());
@@ -289,41 +269,16 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
-    std::vector<tt::runtime::Tensor> &input_tensors,
-    std::vector<tt::runtime::Tensor> &static_cache_tensors) {
-
+    std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
-    // buffer instance handles for this arg.
-    std::vector<BufferInstance *> arg_static_cache_buffer_instances;
-    arg_static_cache_buffer_instances.reserve(num_devices);
-
     std::vector<tt::runtime::Tensor> arg_tensors;
     arg_tensors.reserve(num_devices);
 
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
-      tt::runtime::Tensor bufferRuntimeTensor = buffer->getRuntimeTensor();
-      arg_tensors.push_back(bufferRuntimeTensor);
-
-      std::vector<uint32_t> bufferRuntimeTensorShape =
-          tt::runtime::getTensorShape(bufferRuntimeTensor);
-      // Check if tensor is a static cache
-      bool is_static_cache_tensor = false;
-      if (bufferRuntimeTensorShape.size() == 4 &&
-          bufferRuntimeTensorShape[0] == 1 &&
-          bufferRuntimeTensorShape[3] == 128) {
-        is_static_cache_tensor = true;
-        static_cache_tensors.push_back(bufferRuntimeTensor);
-        arg_static_cache_buffer_instances.push_back(buffer);
-      }
-      DLOG_F(LOG_DEBUG,
-             "Pushing back %stensor with shape %s from device %zu, with "
-             "bufferInstance ptr %p",
-             is_static_cache_tensor ? "static cache " : "",
-             tensorShapeToString(bufferRuntimeTensor).c_str(), device_index,
-             buffer);
-    } // end device loop
+      arg_tensors.push_back(buffer->getRuntimeTensor());
+    }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         LoadedExecutableInstance::fillStrategyMapFromSharding(
@@ -333,42 +288,19 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       return tt_pjrt_status::kInternal;
     }
 
-    // Check cache first if this is a static cache tensor
-    tt::runtime::Tensor *cached_tensor_ptr = nullptr;
-    if (!arg_static_cache_buffer_instances.empty()) {
-      cached_tensor_ptr = m_client_instance->getCachedStaticTensor(
-          arg_static_cache_buffer_instances);
-    }
+    tt::runtime::Tensor input_tensor =
+        getTensorFromStrategy(arg_tensors, *strategy);
 
-    tt::runtime::Tensor laid_out_tensor(nullptr, nullptr,
-                                        tt::runtime::DeviceRuntime::TTNN);
+    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
+        input_tensor, program_index, arg_index, runtime_device);
 
-    if (cached_tensor_ptr) {
-      // Cache hit - use cached tensor
-      laid_out_tensor = *cached_tensor_ptr;
-    } else {
-      // Cache miss or not a static cache tensor - compute normally
-      tt::runtime::Tensor input_tensor =
-          getTensorFromStrategy(arg_tensors, *strategy);
-      laid_out_tensor = convertTensorLayout(input_tensor, program_index,
-                                            arg_index, runtime_device);
-
-      // In case when new tensor was created, we want it to be automatically
-      // deallocated during runtime.
-      if (laid_out_tensor.data != input_tensor.data) {
-        tt::runtime::setTensorRetain(
-            laid_out_tensor, /*retain=*/true); // [JAMES] set retain=true here
-      }
+    // In case when new tensor was created, we want it to be automatically
+    // deallocated during runtime.
+    if (laid_out_tensor.data != input_tensor.data) {
+      tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
     }
 
     input_tensors.push_back(laid_out_tensor);
-
-    // Cache the result if this is a static cache tensor and we didn't hit the
-    // cache
-    if (!cached_tensor_ptr && !arg_static_cache_buffer_instances.empty()) {
-      m_client_instance->setCachedStaticTensor(
-          arg_static_cache_buffer_instances, &input_tensors.back());
-    }
   }
 
   return tt_pjrt_status::kSuccess;
