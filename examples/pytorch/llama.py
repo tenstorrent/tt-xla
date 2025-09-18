@@ -74,7 +74,7 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = 1
+    model.config.num_hidden_layers = 22
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
@@ -154,7 +154,7 @@ def llama():
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
     # Run model (with no gradient calculation since we only need inference).
-    tokens_to_generate = 2
+    tokens_to_generate = 5
 
     output_tokens = []
 
@@ -178,6 +178,17 @@ def llama():
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
+            
+            
+            # reapply shardings for static cache (io inplace mutated tensors since they lose sharding annotations)
+            for i, (key, value) in enumerate(
+                zip(
+                    input_args["past_key_values"].key_cache,
+                    input_args["past_key_values"].value_cache,
+                )
+            ):
+                xs.mark_sharding(key, mesh, (None, "model", None, None))
+                xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     print("output tokens:", output_tokens)
 
