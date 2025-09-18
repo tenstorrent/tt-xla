@@ -237,9 +237,6 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
         )
 
         # Replicate tensors for batch size
@@ -257,8 +254,9 @@ class ModelLoader(ForgeModel):
                     inputs[key] = inputs[key].to(dtype_override)
 
         # Pad input_ids and attention_mask
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], 512)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], 512)
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
         self.seq_len = seq_len
 
         inputs["input_ids"] = padded_input_ids
