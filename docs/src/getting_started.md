@@ -69,6 +69,7 @@ pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.co
 
 >**NOTE:** You can pull pre-releases (these may not be stable, so proceed with caution) by adding the `--pre` flag
 > directly after `pip install`.
+> You can also choose a wheel from the [nightly release page](https://github.com/tenstorrent/tt-xla/releases).
 
 3. You are now ready to try running a model. Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla).
 
