@@ -167,24 +167,6 @@ bool isTTMarkFunction(const std::string &function_name) {
   return function_name.rfind(c_tt_mark_function_prefix, 0) == 0;
 }
 
-// Traces a value to its root block arguments.
-mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value) {
-  mlir::SmallVector<mlir::BlockArgument> blockArgs;
-  auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
-  if (blockArg) {
-    blockArgs.push_back(blockArg);
-  } else {
-    auto definingOp = value.getDefiningOp();
-    assert(definingOp && "This value does not have a defining operation, nor "
-                         "is it a block argument.");
-    for (mlir::Value operand : definingOp->getOperands()) {
-      blockArgs.append(getBlockArguments(operand));
-    }
-  }
-
-  return blockArgs;
-}
-
 // This pattern is used to populate function argument attributes. It looks for
 // calls to `tt.mark_argument` and populates the argument attributes using the
 // attributes of the `tt.mark_argument` call. It then erases the
@@ -288,6 +270,26 @@ struct PopulateArgumentAttrsFromTTMark final
 
     return mlir::success();
   }
+
+private:
+  // Traces a value to its root block arguments.
+  mlir::SmallVector<mlir::BlockArgument>
+  getBlockArguments(mlir::Value value) const {
+    mlir::SmallVector<mlir::BlockArgument> blockArgs;
+    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
+    if (blockArg) {
+      blockArgs.push_back(blockArg);
+    } else {
+      auto definingOp = value.getDefiningOp();
+      assert(definingOp && "This value does not have a defining operation, nor "
+                           "is it a block argument.");
+      for (mlir::Value operand : definingOp->getOperands()) {
+        blockArgs.append(getBlockArguments(operand));
+      }
+    }
+
+    return blockArgs;
+  }
 };
 
 tt_pjrt_status annotateArgumentAttributesFromCustomCall(
@@ -302,6 +304,13 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     return tt_pjrt_status::kInternal;
   }
 
+  setDefaultRoleForUnannotatedArguments(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
+}
+
+void setDefaultRoleForUnannotatedArguments(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // In the event that some of the arguments have not been annotated,
   // we annotate them to default, which is Input.
   mlir_module->walk([&](mlir::func::FuncOp funcOp) {
@@ -316,8 +325,6 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
               funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Input));
     }
   });
-
-  return tt_pjrt_status::kSuccess;
 }
 
 } // namespace internal
