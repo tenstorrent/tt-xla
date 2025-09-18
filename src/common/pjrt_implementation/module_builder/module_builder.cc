@@ -711,11 +711,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
-  options.memoryLayoutAnalysisEnabled =
-      compile_options.enable_memory_layout_analysis;
-  options.l1InterleavedFallbackAnalysisEnabled =
-      compile_options.enable_l1_interleaved;
+  options.optimizerPassEnabled = true;;
+  options.memoryLayoutAnalysisEnabled = false;
+  options.l1InterleavedFallbackAnalysisEnabled = false;
+
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.enable_fusing_conv2d_with_multiply_pattern;
