@@ -203,17 +203,17 @@ class TTAttentionBackendImpl(AttentionImpl):
             1, query.shape[0], query.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_heads, head_size]
+        )  # [1, num_heads, num_tokens, head_size]
         key = key.reshape(
             1, key.shape[0], key.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
+        )  # [1, num_kv_heads, max_seq_len, head_size]
         value = value.reshape(
             1, value.shape[0], value.shape[1] // self.head_size, self.head_size
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
+        )  # [1, num_kv_heads, max_seq_len, head_size]
 
         if kv_cache.numel() > 1:
             cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
