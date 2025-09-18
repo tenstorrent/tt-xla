@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Callable
 
 import torch
 from infra.comparators import ComparisonConfig
@@ -12,6 +12,17 @@ from infra.utilities import Framework
 from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
+
+
+class FunctionModule(torch.nn.Module):
+    """A wrapper to convert a function into a torch.nn.Module."""
+
+    def __init__(self, func: Callable):
+        super().__init__()
+        self.func = func
+
+    def forward(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
 
 
 class TorchModelTester(ModelTester):
@@ -38,14 +49,24 @@ class TorchModelTester(ModelTester):
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
 
+    def _ensure_model_is_module(self) -> None:
+        """Ensures that self._model is a torch.nn.Module, wrapping it if necessary."""
+
+        assert isinstance(self._model, torch.nn.Module) or callable(
+            self._model
+        ), f"Model must be either a torch.nn.Module or a callable, got {type(self._model)}"
+
+        if not isinstance(self._model, torch.nn.Module):
+            self._model = FunctionModule(self._model)
+
     # @override
     def _configure_model_for_inference(self) -> None:
-        assert isinstance(self._model, torch.nn.Module)
+        self._ensure_model_is_module()
         self._model.eval()
 
     # @override
     def _configure_model_for_training(self) -> None:
-        assert isinstance(self._model, torch.nn.Module)
+        self._ensure_model_is_module()
         self._model.train()
 
     # @override
