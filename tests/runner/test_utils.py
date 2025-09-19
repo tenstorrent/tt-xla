@@ -146,6 +146,8 @@ def update_test_metadata_for_exception(
             status = BringupStatus.FAILED_TTMLIR_COMPILATION
         elif "bad statusor access" in msg or "internal: error code: 13" in msg:
             status = BringupStatus.FAILED_RUNTIME
+        elif "out of memory: not enough space to allocate" in msg:
+            status = BringupStatus.DEVICE_OUT_OF_MEMORY
         else:
             status = BringupStatus.FAILED_RUNTIME
     else:
@@ -304,9 +306,13 @@ def create_test_entries(loader_paths):
     """Create test entries combining loader paths and variants."""
     test_entries = []
 
+    red_only = os.environ.get("TT_XLA_RED_ONLY", "0") == "1"
     # Store variant tuple along with the ModelLoader
     for loader_path, variant_tuples in loader_paths.items():
         for variant_info in variant_tuples:
+            model_info = variant_info[1].get_model_info(variant_info[0])
+            if red_only and model_info.group.value != "red":
+                continue
             test_entries.append(
                 ModelTestEntry(path=loader_path, variant_info=variant_info)
             )
@@ -401,11 +407,15 @@ def record_model_test_properties(
         record_property("group", str(model_info.group))
 
     # Control flow for skipped and xfailed tests is handled by pytest.
-    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+
+    dont_skip = os.environ.get("TT_XLA_DONT_SKIP", "0")
+    dont_xfail = os.environ.get("TT_XLA_DONT_XFAIL", "0")
+
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP and dont_skip == "0":
         import pytest
 
         pytest.skip(reason)
-    elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
+    elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL and dont_xfail == "0":
         import pytest
 
         pytest.xfail(reason)

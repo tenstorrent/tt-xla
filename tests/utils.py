@@ -81,6 +81,7 @@ class BringupStatus(Enum):
     FAILED_FE_COMPILATION = "failed_fe_compilation"
     FAILED_TTMLIR_COMPILATION = "failed_ttmlir_compilation"
     FAILED_RUNTIME = "failed_runtime"
+    DEVICE_OUT_OF_MEMORY = "device_out_of_memory"
     INCORRECT_RESULT = "incorrect_result"
     PASSED = "passed"
     UNKNOWN = "unknown"
