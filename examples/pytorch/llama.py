@@ -171,6 +171,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -261,12 +262,9 @@ def transfer_to_device(
     Returns:
         Tuple of (model, input_args) on device
     """
-    input_args["past_key_values"].key_cache = [
-        k.to(device) for k in input_args["past_key_values"].key_cache
-    ]
-    input_args["past_key_values"].value_cache = [
-        v.to(device) for v in input_args["past_key_values"].value_cache
-    ]
+    for layer in input_args["past_key_values"].layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
@@ -290,14 +288,9 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
-        )
-    ):
-        xs.mark_sharding(key, mesh, (None, "model", None, None))
-        xs.mark_sharding(value, mesh, (None, "model", None, None))
+    for layer in input_args["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Shard model internals
     for layer in model.model.layers:
@@ -368,14 +361,9 @@ def run_generate(
             # Reapply shardings for static cache if SPMD is enabled
             # See https://github.com/tenstorrent/tt-xla/issues/1641
             if is_spmd:
-                for i, (key, value) in enumerate(
-                    zip(
-                        input_args["past_key_values"].key_cache,
-                        input_args["past_key_values"].value_cache,
-                    )
-                ):
-                    xs.mark_sharding(key, mesh, (None, "model", None, None))
-                    xs.mark_sharding(value, mesh, (None, "model", None, None))
+                for layer in input_args["past_key_values"].layers:
+                    xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+                    xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
     print()
     if not is_interactive:
         for i in range(num_users):

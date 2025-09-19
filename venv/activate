@@ -24,6 +24,12 @@ else
   pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
   pip install -r python_package/requirements.txt
+  WHEEL_URL="https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgitf15eb54-torch2.9.0-cp311-cp311-linux_x86_64.whl"
+  BASE_NAME="torch_xla-2.9.0+gitf15eb54.torch_2.9.0-cp311-cp311-linux_x86_64.whl"
+  curl -o "$BASE_NAME" "$WHEEL_URL"
+  pip install "$BASE_NAME"
+  rm "$BASE_NAME"
+
   # Install dev/test requirements
   pip install -r venv/requirements-dev.txt
 fi
