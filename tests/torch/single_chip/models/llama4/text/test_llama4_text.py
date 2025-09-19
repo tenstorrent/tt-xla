@@ -14,14 +14,14 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from .tester import Llama4VisionTester
+from .tester import Llama4TextTester
 
-VARIANT_NAME = "llama4-vision"
+VARIANT_NAME = "scout-l4-7b"
 
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,
-    "llama4-vision",
+    "llama4-text",
     "model",
     ModelTask.NLP_CAUSAL_LM,
     ModelSource.HUGGING_FACE,
@@ -32,13 +32,13 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> Llama4VisionTester:
-    return Llama4VisionTester(VARIANT_NAME)
+def inference_tester() -> Llama4TextTester:
+    return Llama4TextTester(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> Llama4VisionTester:
-    return Llama4VisionTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+def training_tester() -> Llama4TextTester:
+    return Llama4TextTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -52,7 +52,7 @@ def training_tester() -> Llama4VisionTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-def test_torch_llama4_vision_inference(inference_tester: Llama4VisionTester):
+def test_torch_llama4_text_inference(inference_tester: Llama4TextTester):
     inference_tester.test()
 
 
@@ -64,5 +64,5 @@ def test_torch_llama4_vision_inference(inference_tester: Llama4VisionTester):
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_torch_llama4_vision_training(training_tester: Llama4VisionTester):
+def test_torch_llama4_text_training(training_tester: Llama4TextTester):
     training_tester.test()
