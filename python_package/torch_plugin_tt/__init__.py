@@ -7,6 +7,7 @@ import os
 
 from torch_xla.experimental.plugins import DevicePlugin
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+import torch_xla.runtime as xr
 
 import torch
 import tt_torch  # registers "tt" backend for torch.compile
@@ -36,6 +37,8 @@ class TTPlugin(DevicePlugin):
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
+        os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+        xr.use_spmd()
 
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
