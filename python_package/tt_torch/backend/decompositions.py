@@ -256,6 +256,18 @@ def squeeze(input, dims):
     return input.reshape(newshape)
 
 
+def boolean_bitwise_and(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_and(input, other)
+    return NotImplemented
+
+
+def boolean_bitwaise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_or(input, other)
+    return NotImplemented
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -313,6 +325,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
+        torch.ops.aten.bitwise_or.Tensor: boolean_bitwaise_or,
     }
 
 

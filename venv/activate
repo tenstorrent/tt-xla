@@ -29,6 +29,18 @@ fi
 
 export VLLM_TARGET_DEVICE="empty"
 
+if [ -n "$DOCKER_CACHE_ROOT" ]; then
+  mkdir -p $(pwd)/dist
+  cp "$DOCKER_CACHE_ROOT"/models/tt-ci-models-private/wheels/torch_xla-2.9.0+gitc5d647d-*.whl $(pwd)/dist/
+else
+  echo "DOCKER_CACHE_ROOT not set, assuming wheel is already present in dist/"
+fi
+
+echo "Uninstalling existing torch-xla package if any and installing from local wheel"
+pip uninstall -y torch-xla
+pip install $(pwd)/dist/torch_xla-2.9.0+gitc5d647d-*.whl
+echo "Install complete."
+
 export TTXLA_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"

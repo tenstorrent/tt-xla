@@ -20,6 +20,9 @@ on:
             default: release
             type: string
             required: false
+        wheel_artifact:  # Add this input
+          required: false
+          type: string
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -103,7 +106,7 @@ jobs:
     needs: check-existing-artifact
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: wormhole_b0
     name: "Build tt-xla"
     container:
       image: ${{ inputs.docker_image }}
@@ -135,12 +138,20 @@ jobs:
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
             echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
+            mkdir $(pwd)/dist
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
+
+      - name: Download wheel artifact
+        if: ${{ inputs.wheel_artifact }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.wheel_artifact }}
+          path: ${{ steps.strings.outputs.work-dir }}/dist
 
       - name: Build the wheel
         shell: bash

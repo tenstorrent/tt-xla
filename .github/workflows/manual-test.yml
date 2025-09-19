@@ -45,13 +45,26 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
 
-  build-ttxla:
+  fetch-wheel:
+    runs-on: wormhole_b0
     needs: build-image
+    env:
+      DOCKER_CACHE_ROOT: '/mnt/dockercache'
+    steps:
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-xla-wheel
+          path: /mnt/dockercache/models/tt-ci-models-private/wheels/torch_xla-2.9.0+gitc5d647d-*.whl
+
+  build-ttxla:
+    needs: [build-image, fetch-wheel]
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+      wheel_artifact: torch-xla-wheel
 
   test:
     if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
@@ -66,3 +79,4 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       codecov: false
+      wheel_artifact: torch-xla-wheel
