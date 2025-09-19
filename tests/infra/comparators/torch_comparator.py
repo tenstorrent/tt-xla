@@ -41,11 +41,7 @@ class TorchComparator(Comparator):
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> None:
-        leaf_atols = tree_map(
-            lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
-        )
-        flat_atols, _ = tree_flatten(leaf_atols)
-        atol = max(flat_atols)
+        atol = TorchComparator._compare_atol_with_metrics(device_output, golden_output, atol_config)
         assert atol <= atol_config.required_atol, (
             f"Atol comparison failed. "
             f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
@@ -54,9 +50,34 @@ class TorchComparator(Comparator):
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
+    def _compare_atol_with_metrics(
+        device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
+    ) -> float:
+        leaf_atols = tree_map(
+            lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
+        )
+        flat_atols, _ = tree_flatten(leaf_atols)
+        atol = max(flat_atols)
+        return float(atol)
+
+    # @override
+    @staticmethod
+    @run_on_cpu(Framework.TORCH)
     def _compare_pcc(
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> None:
+        pcc = TorchComparator._compare_pcc_with_metrics(device_output, golden_output, pcc_config)
+        assert pcc >= pcc_config.required_pcc, (
+            f"PCC comparison failed. "
+            f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
+        )
+
+    # @override
+    @staticmethod
+    @run_on_cpu(Framework.TORCH)
+    def _compare_pcc_with_metrics(
+        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+    ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
@@ -70,14 +91,13 @@ class TorchComparator(Comparator):
             TorchComparator._compare_allclose(
                 device_output, golden_output, pcc_config.allclose
             )
+            # If allclose passes, return 1.0 (perfect correlation)
+            return 1.0
         except AssertionError:
             leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
             flat_pccs, _ = tree_flatten(leaf_pccs)
             pcc = min(flat_pccs)
-            assert pcc >= pcc_config.required_pcc, (
-                f"PCC comparison failed. "
-                f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
-            )
+            return float(pcc)
 
     # @override
     @staticmethod

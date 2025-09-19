@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping, Sequence
 
 from infra.comparators import ComparisonConfig
+from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, Tensor
 from infra.workloads import Workload
@@ -116,6 +117,13 @@ class ModelTester(BaseTester, ABC):
         else:
             self._test_training()
 
+    def test_with_metrics(self) -> ComparisonResult:
+        """Tests the model and returns comparison metrics."""
+        if self._run_mode == RunMode.INFERENCE:
+            return self._test_inference_with_metrics()
+        else:
+            raise NotImplementedError("Training mode metrics not yet supported")
+
     def _test_inference(self) -> None:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
@@ -129,6 +137,18 @@ class ModelTester(BaseTester, ABC):
 
         self._compare(tt_res, cpu_res)
 
+    def _test_inference_with_metrics(self) -> ComparisonResult:
+        """
+        Tests the model by running inference and returns comparison metrics.
+        """
+        self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
+
+        self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(self._workload)
+
+        return self._compare_with_metrics(tt_res, cpu_res)
+
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
         return self._device_runner.run_on_cpu(compiled_workload)
@@ -140,6 +160,10 @@ class ModelTester(BaseTester, ABC):
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
         """Compares device with golden output."""
         self._comparator.compare(device_out, golden_out)
+
+    def _compare_with_metrics(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
+        """Compares device with golden output and returns metrics."""
+        return self._comparator.compare_with_metrics(device_out, golden_out)
 
     def _test_training(self):
         """

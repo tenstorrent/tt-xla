@@ -11,6 +11,7 @@ from enum import Enum
 import collections
 from dataclasses import dataclass
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from tests.infra.comparators.comparator import ComparisonResult
 from tests.utils import BringupStatus, Category
 
 
@@ -245,6 +246,10 @@ class DynamicTorchModelTester(TorchModelTester):
             run_mode=run_mode,
         )
 
+    def test_with_metrics(self) -> ComparisonResult:
+        """Run test and return comparison metrics."""
+        return super().test_with_metrics()
+
     # --- TorchModelTester interface implementations ---
 
     def _get_model(self):
@@ -340,6 +345,7 @@ def record_model_test_properties(
     test_metadata,
     run_mode: RunMode = RunMode.INFERENCE,
     test_passed: bool = False,
+    comparison_result: ComparisonResult | None = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -393,6 +399,24 @@ def record_model_test_properties(
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
         record_property("error_message", reason)
+
+    # Record comparison metrics if available
+    if comparison_result:
+        if comparison_result.pcc is not None:
+            record_property("calculated_pcc", float(comparison_result.pcc))
+        if comparison_result.atol is not None:
+            record_property("calculated_atol", float(comparison_result.atol))
+
+        # Record required thresholds from configuration
+        config = test_metadata.to_comparison_config()
+        if config.pcc.enabled:
+            record_property("required_pcc", float(config.pcc.required_pcc))
+        if config.atol.enabled:
+            record_property("required_atol", float(config.atol.required_atol))
+
+        # Record assert configuration
+        record_property("assert_pcc", test_metadata.assert_pcc if test_metadata.assert_pcc is not None else True)
+        record_property("assert_atol", test_metadata.assert_atol)
 
     # Write properties
     record_property("tags", tags)
