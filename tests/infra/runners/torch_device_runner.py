@@ -12,6 +12,8 @@ from infra.workloads import Workload
 
 from .device_runner import DeviceRunner
 
+import torch_xla.distributed.spmd as xs
+
 
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
@@ -47,7 +49,13 @@ class TorchDeviceRunner(DeviceRunner):
         kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
 
         if workload.model is not None:
-            workload.model.to(device)
+            workload.model = workload.model.to(device)
+
+        if workload.shard_spec_function is not None and device.type != "cpu":
+            assert workload.mesh is not None
+            shard_specs = workload.shard_spec_function(workload.model)
+            for tensor, shard_spec in shard_specs.items():
+                xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
         return Workload(
             framework=workload.framework,

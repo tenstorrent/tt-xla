@@ -50,6 +50,9 @@ class Workload:
         # Consider reworking _safely_put_workload_on_device to eliminate the need for static_argnames in Workload.
         self.static_argnames = static_argnames or []
 
+        self.shard_spec_function = None
+        self.mesh = None
+
     @property
     def is_jax(self) -> bool:
         return self.framework == Framework.JAX

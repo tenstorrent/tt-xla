@@ -1849,9 +1849,12 @@ test_config = {
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
             },
             "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 1572864000 B DRAM buffer across 12 banks",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Model is too large for n150",
+            },
+            "t3k": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "required_pcc": 0.97,
             },
         },
     },
