@@ -221,7 +221,7 @@ class JaxModelTester(ModelTester):
         )
 
         # Compile workloads for CPU with vjp of model
-        self._compile_for_cpu(training_workload)
+        # self._compile_for_cpu(training_workload)
         train_fwd_cpu = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(

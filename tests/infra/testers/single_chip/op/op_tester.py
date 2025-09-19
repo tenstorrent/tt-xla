@@ -39,7 +39,7 @@ class OpTester(BaseTester):
         self._compile_for_tt_device(workload)
         tt_res = self._device_runner.run_on_tt_device(workload)
 
-        self._compile_for_cpu(workload)
+        # self._compile_for_cpu(workload)
         cpu_res = self._device_runner.run_on_cpu(workload)
 
         self._comparator.compare(tt_res, cpu_res)

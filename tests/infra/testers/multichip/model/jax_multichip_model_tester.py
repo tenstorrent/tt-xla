@@ -106,7 +106,7 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
         """
-        self._compile_for_cpu(self.cpu_multichip_workload)
+        # self._compile_for_cpu(self.cpu_multichip_workload)
         cpu_res = self._run_on_cpu(self.cpu_multichip_workload)
 
         self._compile_for_tt_device(self.tt_device_multichip_workload)

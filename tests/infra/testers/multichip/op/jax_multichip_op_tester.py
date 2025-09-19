@@ -121,7 +121,7 @@ class JaxMultichipOpTester(BaseTester):
             device_res = self._run_on_multichip_device(device_workload)
 
         with self._cpu_mesh:
-            self._compile_for_cpu(cpu_workload)
+            # self._compile_for_cpu(cpu_workload)
             cpu_res = self._run_on_multichip_device(cpu_workload)
 
         self._comparator.compare(device_res, cpu_res)
