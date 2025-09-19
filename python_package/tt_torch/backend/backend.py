@@ -4,7 +4,8 @@
 from typing import Tuple
 import torch
 from torch.export import ExportedProgram
-
+import torch.export
+import torch.export._trace
 
 from .decompositions import (
     CUSTOM_DECOMPOSITION_TABLE,
@@ -38,9 +39,10 @@ def torch_pass_pipeline(
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
-    program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    program = torch.export._trace._export(
+        gm, tuple(example_inputs), pre_dispatch=False, strict=False
+    )
+    program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
