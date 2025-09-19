@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
+from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -13,7 +13,6 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
-from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -135,7 +134,6 @@ def get_available_variants(model_name):
         }
 
     return available_variants
-
 
 """Llama attention tests"""
 
@@ -386,7 +384,7 @@ def test_llama_attention(variant, variant_config, seq_len, request):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -395,7 +393,7 @@ def test_llama_attention(variant, variant_config, seq_len, request):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -622,7 +620,6 @@ def test_qwen3_attention_decode(variant, variant_config, request):
     loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
-
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh

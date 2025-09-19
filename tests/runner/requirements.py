@@ -106,7 +106,10 @@ class RequirementsManager:
         )
         if os.path.isfile(nodeps_path):
             _dbg(f"[Requirements] __enter__: installing (no-deps) -r {nodeps_path}")
-            self._pip(("install", "--no-input", "--no-deps", "-r", nodeps_path))
+            if "yolox" in nodeps_path:
+                self._pip(("install", "--no-input", "--no-deps", "--no-build-isolation", "-r", nodeps_path))
+            else:
+                self._pip(("install", "--no-input", "--no-deps", "-r", nodeps_path))
 
         # Optional: a sibling file 'requirements.nodeps.nobuildisolation.txt' for packages to install without dependencies and isolated environment
         nodeps_no_build_isolation_path = os.path.join(

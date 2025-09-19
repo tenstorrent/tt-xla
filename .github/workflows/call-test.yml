@@ -44,6 +44,10 @@ on:
         description: 'Custom test suite json'
         required: false
         type: string
+      wheel_artifact:
+        description: 'Name of the wheel artifact to install prior to testing'
+        required: false
+        type: string
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -152,6 +156,13 @@ jobs:
         else
           echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Download wheel artifact
+      if: ${{ inputs.wheel_artifact }}
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.wheel_artifact }}
+        path: ${{ steps.strings.outputs.work-dir }}/dist
 
     - name: Download and install wheels
       shell: bash
