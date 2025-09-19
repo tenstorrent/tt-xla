@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Callable
 
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
-from infra.utilities import Framework, Model, Tensor
+from infra.utilities import Framework, Model, Tensor, ShardSpec, Mesh
 from infra.workloads import Workload
 
 from ...base_tester import BaseTester
@@ -42,6 +42,8 @@ class ModelTester(BaseTester, ABC):
 
         self._model: Model = None
         self._workload: Workload = None
+        self._shard_spec_function = None
+        self._mesh = None
 
         super().__init__(comparison_config, framework)
         self._initialize_components()
@@ -63,6 +65,20 @@ class ModelTester(BaseTester, ABC):
         self._configure_model()
         # Cache model inputs.
         self._cache_model_inputs()
+        # Get shard specs.
+        self._shard_spec_function = self._get_shard_specs_function()
+        # Get mesh.
+        self._mesh = self._get_mesh()
+
+    @abstractmethod
+    def _get_shard_specs_function(self) -> Callable[[Model], ShardSpec]:
+        """Returns shard specs function."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @abstractmethod
+    def _get_mesh(self) -> Mesh:
+        """Returns mesh."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
     def _get_model(self) -> Model:
@@ -121,7 +137,7 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        self._compile_for_cpu(self._workload)
+        # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)

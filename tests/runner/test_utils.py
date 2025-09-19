@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from tests.utils import BringupStatus, Category
 
+import torch_xla.runtime as xr
+from torch_xla.distributed.spmd import Mesh
+import numpy as np
+
 
 @dataclass
 class ModelTestEntry:
@@ -258,6 +262,18 @@ class DynamicTorchModelTester(TorchModelTester):
         if "dtype_override" in sig.parameters:
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         return self.loader.load_inputs()
+
+    def _get_shard_specs_function(self):
+        return self.loader.load_shard_spec
+
+    def _get_mesh(self):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = (
+            Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
+        )
+        return mesh
 
 
 def setup_models_path(project_root):

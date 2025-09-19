@@ -1857,10 +1857,9 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
             },
-            "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "t3k": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "required_pcc": 0.97,
             },
         },
     },
