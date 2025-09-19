@@ -14,6 +14,7 @@ from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, Pcc
 @dataclass
 class ComparisonResult:
     """Holds the results of comparison metrics."""
+
     pcc: Optional[float] = None
     atol: Optional[float] = None
     passed: bool = True
@@ -40,7 +41,9 @@ class Comparator(ABC):
         if not result.passed:
             raise AssertionError(result.error_message)
 
-    def compare_with_metrics(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
+    def compare_with_metrics(
+        self, device_out: Tensor, golden_out: Tensor
+    ) -> ComparisonResult:
         """
         Compares device output with golden output and returns detailed metrics.
         """
@@ -52,11 +55,11 @@ class Comparator(ABC):
         try:
             if self._comparison_config.equal.enabled:
                 self._compare_equal(device_output, golden_output)
-            if self._comparison_config.atol.enabled:
+            if True or self._comparison_config.atol.enabled:
                 result.atol = self._compare_atol_with_metrics(
                     device_output, golden_output, self._comparison_config.atol
                 )
-            if self._comparison_config.pcc.enabled:
+            if True or self._comparison_config.pcc.enabled:
                 result.pcc = self._compare_pcc_with_metrics(
                     device_output, golden_output, self._comparison_config.pcc
                 )
