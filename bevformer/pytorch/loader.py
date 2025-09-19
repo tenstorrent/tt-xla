@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Detr3d model loader implementation
+BEVFormer model loader implementation
 """
 import torch
 import numpy as np
