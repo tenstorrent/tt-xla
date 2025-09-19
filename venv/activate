@@ -24,6 +24,7 @@ else
   pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
   pip install -r python_package/requirements.txt
+
   # Install dev/test requirements
   pip install -r venv/requirements-dev.txt
 fi
