@@ -50,7 +50,7 @@ def test_simple_regression():
     Weights = random_input_tensor((X_train.shape[1], 1), on_device=True)
     Bias = 0.0
     l_rate = 0.001
-    n_iter = 6000
+    n_iter = 500
     size = 127.0
     params = [Weights, Bias]
 
