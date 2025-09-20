@@ -1,7 +1,7 @@
 Tenstorrent tt-xla
 Copyright 2025 Tenstorrent AI ULC
 
-Copyright contributors to the vLLM project (https://github.com/vllm-project/vllm), under Apache 2.0.
+Some original source files in integrations/vllm_plugin/vllm_tt were copied from (https://github.com/vllm-project/vllm), under "Copyright contributors to the vLLM project", licensed under Apache 2.0.
 
 The following dependencies are utilized by this project but may not be explicitly distributed as part of the software:
 
