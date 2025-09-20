@@ -1,0 +1,6 @@
+sphinx
+nbsphinx
+sphinxcontrib.email
+sphinx_sitemap
+myst_parser
+sphinx_rtd_theme
