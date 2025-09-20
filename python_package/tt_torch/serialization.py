@@ -9,7 +9,7 @@ Serialization tools specific to PyTorch.
 import os
 import io
 
-from ttxla_tools import parse_executable
+from pjrt_plugin_tt._src import parse_executable
 
 
 def parse_compiled_artifacts_from_cache(cache_path: str):

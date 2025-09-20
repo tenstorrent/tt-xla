@@ -13,4 +13,4 @@ def add(x, y):
     return x + y
 
 
-serialize_compiled_artifacts_to_disk("output/add", add, a, b)
+serialize_compiled_artifacts_to_disk(add, a, b, output_prefix="output/add")
