@@ -47,7 +47,7 @@ public:
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+      const module_builder::CompileOptions &compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -121,11 +121,6 @@ public:
     return m_output_memory_kinds_sizes;
   }
 
-  // Returns the compile options used to create this executable.
-  const module_builder::CompileOptions &getCompileOptions() const {
-    return m_compile_options;
-  }
-
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
@@ -143,7 +138,7 @@ private:
           &output_sharding,
       const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+      const module_builder::CompileOptions &compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const;

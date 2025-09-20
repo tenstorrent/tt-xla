@@ -28,6 +28,9 @@ struct CompileOptions {
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
+
+  // Returns string representation of compile options.
+  std::string toString() const;
 };
 
 namespace internal {

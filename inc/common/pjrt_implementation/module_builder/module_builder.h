@@ -111,6 +111,11 @@ public:
     return m_input_argument_roles;
   }
 
+  // Returns parsed compile options.
+  const CompileOptions &getParsedCompileOptions() const {
+    return m_parsed_compile_options;
+  }
+
 private:
   // Creates VHLO module from the input program code.
   mlir::OwningOpRef<mlir::ModuleOp>
@@ -278,6 +283,9 @@ private:
 
   // For every input, holds the argument role (weight vs input).
   std::vector<InputArgumentRole> m_input_argument_roles;
+
+  // Parsed compile options.
+  CompileOptions m_parsed_compile_options;
 };
 
 } // namespace tt::pjrt::module_builder
