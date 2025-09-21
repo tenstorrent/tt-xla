@@ -232,20 +232,32 @@ class TTAttentionBackendImpl(AttentionImpl):
             value = v_cache
             kv_cache.copy_(new_kv_cache)
 
-        return (
-            torch.nn.functional.scaled_dot_product_attention(
+        if query.shape[-2] == 1:
+            query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
+            cur_pos_tensor = attn_metadata.context_lens[:1]
+            out = torch.ops.tt.scaled_dot_product_attention_decode(
                 query,
                 key,
                 value,
-                dropout_p=0.0,
+                cur_pos_tensor,
                 is_causal=False,
                 attn_mask=attn_metadata.attn_mask,
-                scale=output_scale,
-                enable_gqa=True,
             )
-            .transpose(-3, -2)
-            .reshape(num_tokens, hidden_size)
-        )
+            out = out.transpose(-3, -2)
+            out = out.reshape(num_tokens, hidden_size)
+            return out
+        else:
+            return (
+                torch.ops.tt.scaled_dot_product_attention(
+                    query,
+                    key,
+                    value,
+                    is_causal=False,
+                    attn_mask=attn_metadata.attn_mask,
+                )
+                .transpose(-3, -2)
+                .reshape(num_tokens, hidden_size)
+            )
 
 
 def write_to_kv_cache(
