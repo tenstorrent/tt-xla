@@ -65,6 +65,147 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
 
 
 @torch.library.custom_op(
+    "tt::scaled_dot_product_attention", mutates_args=[], device_types=["xla"]
+)
+def scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+
+    assert (
+        len(query.shape) == 4
+    ), "query must be a 4D tensor: [1, B, num_heads, head_size]."
+    assert (
+        len(key.shape) == 4
+    ), "key must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    assert (
+        len(value.shape) == 4
+    ), "value must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+
+    assert key.shape == value.shape, "key and value must have the same shape."
+    assert (
+        key.shape[-1] == query.shape[-1]
+    ), "key and query must have the same head size."
+
+    assert (
+        query.shape[1] % key.shape[1] == 0
+    ), "num_heads must be divisible by num_kv_heads."
+
+    assert query.shape[0] == 1, "query must have dim 0 equal to 1."
+    assert (
+        query.shape[0] == key.shape[0]
+    ), "query and key must have the same batch size."
+
+    inputs = [query, key, value]
+    if attn_mask is not None:
+        inputs.append(attn_mask)
+
+    frontend_attributes = {"is_causal": str(is_causal)}
+    if scale is not None:
+        frontend_attributes["scale"] = str(scale)
+
+    return stablehlo_custom_call.stablehlo_custom_call(
+        inputs,
+        "tt.scaled_dot_product_attention",
+        [query.shape],
+        [query.dtype],
+        frontend_attributes=frontend_attributes,
+    )
+
+
+@scaled_dot_product_attention.register_fake
+def scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
+
+
+@torch.library.custom_op(
+    "tt::scaled_dot_product_attention_decode", mutates_args=[], device_types=["xla"]
+)
+def scaled_dot_product_attention_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    cur_pos_tensor: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+
+    assert (
+        len(query.shape) == 4
+    ), "query must be a 4D tensor: [1, B, num_heads, head_size]."
+    assert (
+        len(key.shape) == 4
+    ), "key must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    assert (
+        len(value.shape) == 4
+    ), "value must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    assert len(cur_pos_tensor.shape) == 1, "cur_pos_tensor must be a 1D tensor: [B]."
+
+    assert key.shape == value.shape, "key and value must have the same shape."
+    assert (
+        key.shape[-1] == query.shape[-1]
+    ), "key and query must have the same head size."
+
+    assert (
+        query.shape[2] % key.shape[1] == 0
+    ), f"num_heads must be divisible by num_kv_heads. Query shape: {query.shape}, key shape: {key.shape}."
+
+    assert query.shape[0] == 1, "query must have dim 0 equal to 1."
+    assert (
+        query.shape[1] == key.shape[0]
+    ), "query and key must have the same batch size."
+
+    inputs = [query, key, value, cur_pos_tensor]
+    if attn_mask is not None:
+        inputs.append(attn_mask)
+    if attention_sink is not None:
+        inputs.append(attention_sink)
+
+    frontend_attributes = {
+        "is_causal": str(is_causal),
+        "has_attention_mask": str(attn_mask is not None),
+        "has_attention_sink": str(attention_sink is not None),
+    }
+    if scale is not None:
+        frontend_attributes["scale"] = str(scale)
+
+    return stablehlo_custom_call.stablehlo_custom_call(
+        inputs,
+        "tt.scaled_dot_product_attention_decode",
+        [query.shape],
+        [query.dtype],
+        frontend_attributes=frontend_attributes,
+    )
+
+
+@scaled_dot_product_attention_decode.register_fake
+def scaled_dot_product_attention_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
+
+
+@torch.library.custom_op(
     "tt::update_cache", mutates_args=[], device_types=["xla", "cpu"]
 )
 def update_cache(
@@ -171,3 +312,4 @@ def fill_cache_fake(
 torch._dynamo.allow_in_graph(torch.ops.tt.mark_argument_attributes)
 torch._dynamo.allow_in_graph(torch.ops.tt.update_cache)
 torch._dynamo.allow_in_graph(torch.ops.tt.fill_cache)
+torch._dynamo.allow_in_graph(torch.ops.tt.scaled_dot_product_attention_decode)
