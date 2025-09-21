@@ -33,6 +33,8 @@ from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.tpu import TPUModelLoader
+from vllm.model_executor.model_loader.utils import initialize_model
+from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import supports_transcription
 from vllm.model_executor.models.interfaces_base import (
     is_pooling_model,
@@ -126,7 +128,12 @@ MIN_NUM_SEQS = 1
 
 
 def generate_attn_mask(
-    context_lens: torch.Tensor, num_query_tokens: int, max_model_len: int, dtype, device
+    context_lens: torch.Tensor,
+    num_query_tokens: int,
+    num_query_heads: int,
+    max_model_len: int,
+    dtype,
+    device,
 ) -> torch.Tensor:
     L, S = num_query_tokens, max_model_len
     attn_mask = torch.zeros(L, S, dtype=dtype)
@@ -139,6 +146,10 @@ def generate_attn_mask(
         )
 
     attn_mask[:, length:] = float("-inf")
+    attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+    if L == 1:
+        attn_mask = attn_mask.repeat(1, 1, num_query_heads, 1)
+
     return attn_mask.detach().to(device)
 
 
@@ -189,6 +200,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.cache_config = vllm_config.cache_config
         self.lora_config = vllm_config.lora_config
         self.load_config = vllm_config.load_config
+        self.load_config.device = "cpu"
         self.parallel_config = vllm_config.parallel_config
         self.original_parallel_config = original_parallel_config
         self.scheduler_config = vllm_config.scheduler_config
@@ -899,6 +911,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
+                self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
@@ -1102,6 +1115,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
+            print(f"INPUT IDS: {input_ids}")
+            print(f"INPUT EMBEDS: {inputs_embeds}")
             xm.mark_step()
             # Run the decoder
             with set_forward_context(
@@ -1319,6 +1334,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
                     )
+
+                model = model.to("xla")
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1396,6 +1413,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
+                self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
@@ -2058,7 +2076,10 @@ def _get_token_paddings(
             paddings.append(num)
             if num >= max_token_size:
                 break
-            num *= 2
+            if num == 1:
+                num = 32
+            else:
+                num *= 2
     else:
         logger.info("Using incremental token paddings:")
         while num <= padding_gap:
