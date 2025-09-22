@@ -454,6 +454,10 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index]);
 
+      // LOGGING: Track new output BufferInstance creation
+      DLOG_F(INFO, "EXEC_TRACE: Output device_index=%d output_index=%zu NEW BufferInstance=%p m_runtime_tensor.data=%p tensor.handle=%p",
+             device_index, output_index, output_buffer.get(), output_buffer->getRuntimeTensor().data, output_buffer->getRuntimeTensor().handle);
+
       output_buffer->markAsDataReady();
 
       // Releasing the ownership to the PJRT API caller since the caller is
