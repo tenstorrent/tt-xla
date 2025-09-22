@@ -115,9 +115,6 @@ PLACEHOLDER_MODELS = {
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "uniad": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "vadv2": {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
         "reason": "PR exists to add model, hits DRAM Out of memory",
@@ -2192,6 +2189,11 @@ test_config = {
     "d_fine/pytorch-xlarge-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "d_fine xlarge hangs forever, removing all of them.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "uniad/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
