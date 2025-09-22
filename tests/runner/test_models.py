@@ -72,9 +72,9 @@ def test_all_models(
                 succeeded = True
 
         except Exception as e:
-            err = capfd.readouterr().err
+            # err = capfd.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            update_test_metadata_for_exception(test_metadata, e, stderr="aa")
             raise
         finally:
             # If we mark tests with xfail at collection time, then this isn't hit.
