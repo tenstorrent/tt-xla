@@ -19,9 +19,10 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
-from .src.maptr import build_model, bevformer_cfg
+from .src.maptr import build_model, model_cfg, gkt_cfg
 from mmcv import ConfigDict
 import numpy as np
+import copy
 
 
 class ModelVariant(StrEnum):
@@ -29,6 +30,10 @@ class ModelVariant(StrEnum):
 
     TINY_R50_24E_BEVFORMER = "tiny_r50_24e_bevformer"
     TINY_R50_24E_BEVFORMER_T4 = "tiny_r50_24e_bevformer_t4"
+    TINY_R50_24E = "tiny_r50_24e"
+    TINY_R50_110E = "tiny_r50_110e"
+    TINY_R50_24E_T4 = "tiny_r50_24e_t4"
+    NANO_R18_110E = "nano_r18_110e"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +46,18 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TINY_R50_24E_BEVFORMER_T4: ModelConfig(
             pretrained_model_name="tiny_r50_24e_bevformer_t4",
+        ),
+        ModelVariant.TINY_R50_24E: ModelConfig(
+            pretrained_model_name="tiny_r50_24e",
+        ),
+        ModelVariant.TINY_R50_110E: ModelConfig(
+            pretrained_model_name="tiny_r50_110e",
+        ),
+        ModelVariant.TINY_R50_24E_T4: ModelConfig(
+            pretrained_model_name="tiny_r50_24e_t4",
+        ),
+        ModelVariant.NANO_R18_110E: ModelConfig(
+            pretrained_model_name="nano_r18_110e",
         ),
     }
 
@@ -90,12 +107,49 @@ class ModelLoader(ForgeModel):
         # Get pretrained weights
         model_path = str(get_file(f"test_files/pytorch/maptr/maptr_{variant_name}.pth"))
 
-        if variant_name == "tiny_r50_24e_bevformer_t4":
-            # Update model config
-            bevformer_cfg["pts_bbox_head"]["transformer"]["len_can_bus"] = 6
+        # Create deep copy to prevent global state contamination
+        local_model_cfg = copy.deepcopy(model_cfg)
+
+        # Update config
+        if variant_name in ["tiny_r50_24e_bevformer_t4", "tiny_r50_24e_t4"]:
+            local_model_cfg["pts_bbox_head"]["transformer"]["len_can_bus"] = 6
+
+        if variant_name in [
+            "tiny_r50_24e",
+            "tiny_r50_110e",
+            "tiny_r50_24e_t4",
+            "nano_r18_110e",
+        ]:
+            local_model_cfg["pts_bbox_head"]["transformer"]["encoder"][
+                "transformerlayers"
+            ]["attn_cfgs"][1] = gkt_cfg
+
+        if variant_name == "nano_r18_110e":
+
+            # Define nano BEV dimensions
+            nano_bev_h = 80
+            nano_bev_w = 40
+
+            local_model_cfg["img_backbone"]["depth"] = 18
+            local_model_cfg["img_neck"]["in_channels"] = [512]
+            local_model_cfg["pts_bbox_head"]["num_vec"] = 100
+            local_model_cfg["pts_bbox_head"]["transformer"]["decoder"]["num_layers"] = 2
+            local_model_cfg["pts_bbox_head"]["transformer"]["decoder"][
+                "transformerlayers"
+            ]["attn_cfgs"][0]["num_heads"] = 4
+
+            # Update BEV dimensions
+            local_model_cfg["pts_bbox_head"]["bev_h"] = nano_bev_h
+            local_model_cfg["pts_bbox_head"]["bev_w"] = nano_bev_w
+            local_model_cfg["pts_bbox_head"]["positional_encoding"][
+                "row_num_embed"
+            ] = nano_bev_h
+            local_model_cfg["pts_bbox_head"]["positional_encoding"][
+                "col_num_embed"
+            ] = nano_bev_w
 
         # wrap the model config
-        self.cfg = ConfigDict(bevformer_cfg)
+        self.cfg = ConfigDict(local_model_cfg)
 
         # Build model
         model = build_model(self.cfg)

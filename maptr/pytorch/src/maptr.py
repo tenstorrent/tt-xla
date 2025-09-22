@@ -131,7 +131,21 @@ bev_h_ = 200
 bev_w_ = 100
 queue_length = 1
 
-bevformer_cfg = dict(
+gkt_cfg = dict(
+    type="GeometrySptialCrossAttention",
+    pc_range=point_cloud_range,
+    attention=dict(
+        type="GeometryKernelAttention",
+        embed_dims=_dim_,
+        num_heads=4,
+        dilation=1,
+        kernel_size=(3, 5),
+        num_levels=_num_levels_,
+    ),
+    embed_dims=_dim_,
+)
+
+model_cfg = dict(
     type="MapTR",
     use_grid_mask=True,
     video_test_mode=False,
@@ -373,6 +387,330 @@ class MapTRNMSFreeCoder(BaseBBoxCoder):
 # ============================================================================
 # ATTENTION
 # ============================================================================
+
+
+"""
+CPU Implementation of Geometric Kernel Attention
+"""
+
+
+def geometry_kernel_attention_cpu(
+    value,
+    spatial_shapes,
+    level_start_index,
+    sampling_locations,
+    attention_weights,
+    im2col_step=64,
+):
+    """
+    Args:
+        value: Input feature values (batch, spatial_size, num_heads, channels)
+        spatial_shapes: Spatial shapes of feature levels (num_levels, 2)
+        level_start_index: Start indices for each level (num_levels,)
+        sampling_locations: Sampling coordinates (batch, num_query, num_heads, num_levels, num_points, 2)
+        attention_weights: Attention weights (batch, num_query, num_heads, num_levels, num_points)
+        im2col_step: Batch processing step
+
+    Returns:
+        output: Attended features (batch, num_query, num_heads * channels)
+    """
+    batch_size, spatial_size, num_heads, channels = value.shape
+    _, num_query, _, num_levels, num_points, _ = sampling_locations.shape
+
+    # Initialize output
+    output = torch.zeros(
+        batch_size,
+        num_query,
+        num_heads,
+        channels,
+        dtype=value.dtype,
+        device=value.device,
+    )
+
+    # Process each level
+    for level in range(num_levels):
+        level_start_idx = level_start_index[level].item()
+        level_height, level_width = spatial_shapes[level]
+        level_height, level_width = level_height.item(), level_width.item()
+
+        # Get sampling locations for this level
+        level_locs = sampling_locations[:, :, :, level, :, :]  # (B, Q, H, P, 2)
+
+        # Clip coordinates
+        level_locs_x = torch.clamp(level_locs[:, :, :, :, 0], 0, level_width - 1)
+        level_locs_y = torch.clamp(level_locs[:, :, :, :, 1], 0, level_height - 1)
+
+        # Convert to integer coordinates
+        if torch.is_floating_point(level_locs_x):
+            level_locs_x = torch.round(level_locs_x).long()
+        if torch.is_floating_point(level_locs_y):
+            level_locs_y = torch.round(level_locs_y).long()
+
+        # Calculate spatial indices
+        spatial_indices = level_start_idx + level_locs_y * level_width + level_locs_x
+
+        # Get attention weights for this level
+        level_weights = attention_weights[:, :, :, level, :]  # (B, Q, H, P)
+
+        # Sample values using advanced indexing
+        # handle the batch dimension
+        for b in range(batch_size):
+            for h in range(num_heads):
+                # Get indices for this batch and head
+                batch_spatial_indices = spatial_indices[b, :, h, :]  # (Q, P)
+                batch_weights = level_weights[b, :, h, :]  # (Q, P)
+
+                # Sample values
+                sampled_values = value[b, batch_spatial_indices, h, :]  # (Q, P, C)
+
+                # Apply attention weights and sum over points
+                weighted_values = sampled_values * batch_weights.unsqueeze(
+                    -1
+                )  # (Q, P, C)
+                output[b, :, h, :] += weighted_values.sum(dim=1)  # (Q, C)
+
+    # Reshape output
+    output = output.view(batch_size, num_query, num_heads * channels)
+
+    return output
+
+
+@ATTENTION.register_module()
+class GeometrySptialCrossAttention(BaseModule):
+    def __init__(
+        self,
+        embed_dims=256,
+        num_cams=6,
+        pc_range=None,
+        dropout=0.1,
+        init_cfg=None,
+        batch_first=False,
+        attention=dict(type="MSDeformableAttention3D", embed_dims=256, num_levels=4),
+        **kwargs,
+    ):
+        super(GeometrySptialCrossAttention, self).__init__(init_cfg)
+
+        self.init_cfg = init_cfg
+        self.dropout = nn.Dropout(dropout)
+        self.pc_range = pc_range
+        self.fp16_enabled = False
+        self.attention = build_attention(attention)
+        self.embed_dims = embed_dims
+        self.num_cams = num_cams
+        self.output_proj = nn.Linear(embed_dims, embed_dims)
+        self.batch_first = batch_first
+        self.init_weight()
+
+    def init_weight(self):
+        xavier_init(self.output_proj, distribution="uniform", bias=0.0)
+
+    def forward(
+        self,
+        query,
+        key,
+        value,
+        residual=None,
+        query_pos=None,
+        key_padding_mask=None,
+        reference_points=None,
+        spatial_shapes=None,
+        reference_points_cam=None,
+        bev_mask=None,
+        level_start_index=None,
+        flag="encoder",
+        **kwargs,
+    ):
+
+        if key is None:
+            key = query
+        if value is None:
+            value = key
+        if residual is None:
+            inp_residual = query
+            slots = torch.zeros_like(query)
+        if query_pos is not None:
+            query = query + query_pos
+
+        bs, num_query, _ = query.size()
+
+        D = reference_points_cam.size(3)
+        indexes = []
+        for i, mask_per_img in enumerate(bev_mask):
+            index_query_per_img = mask_per_img[0].sum(-1).nonzero().squeeze(-1)
+            indexes.append(index_query_per_img)
+        max_len = max([len(each) for each in indexes])
+
+        queries_rebatch = query.new_zeros([bs, self.num_cams, max_len, self.embed_dims])
+        reference_points_rebatch = reference_points_cam.new_zeros(
+            [bs, self.num_cams, max_len, D, 2]
+        )
+
+        for j in range(bs):
+            for i, reference_points_per_img in enumerate(reference_points_cam):
+                index_query_per_img = indexes[i]
+                queries_rebatch[j, i, : len(index_query_per_img)] = query[
+                    j, index_query_per_img
+                ]
+                reference_points_rebatch[
+                    j, i, : len(index_query_per_img)
+                ] = reference_points_per_img[j, index_query_per_img]
+
+        num_cams, l, bs, embed_dims = key.shape
+
+        key = key.permute(2, 0, 1, 3).reshape(bs * self.num_cams, l, self.embed_dims)
+        value = value.permute(2, 0, 1, 3).reshape(
+            bs * self.num_cams, l, self.embed_dims
+        )
+
+        queries = self.attention(
+            query=queries_rebatch.view(bs * self.num_cams, max_len, self.embed_dims),
+            key=key,
+            value=value,
+            reference_points=reference_points_rebatch.view(
+                bs * self.num_cams, max_len, D, 2
+            ),
+            spatial_shapes=spatial_shapes,
+            level_start_index=level_start_index,
+        ).view(bs, self.num_cams, max_len, self.embed_dims)
+        for j in range(bs):
+            for i, index_query_per_img in enumerate(indexes):
+                slots[j, index_query_per_img] += queries[
+                    j, i, : len(index_query_per_img)
+                ]
+
+        count = bev_mask.sum(-1) > 0
+        count = count.permute(1, 2, 0).sum(-1)
+        count = torch.clamp(count, min=1.0)
+        slots = slots / count[..., None]
+        slots = self.output_proj(slots)
+
+        return self.dropout(slots) + inp_residual
+
+
+@ATTENTION.register_module()
+class GeometryKernelAttention(BaseModule):
+    def __init__(
+        self,
+        embed_dims=256,
+        num_heads=8,
+        num_levels=4,
+        num_points=4,
+        kernel_size=(3, 3),
+        dilation=1,
+        im2col_step=64,
+        dropout=0.1,
+        batch_first=True,
+        norm_cfg=None,
+        init_cfg=None,
+    ):
+        super().__init__(init_cfg)
+        self.norm_cfg = norm_cfg
+        self.batch_first = batch_first
+        self.output_proj = None
+        self.fp16_enabled = False
+        self.im2col_step = im2col_step
+        self.embed_dims = embed_dims
+        self.num_levels = num_levels
+        self.num_heads = num_heads
+        self.kernel_size = kernel_size
+        self.num_points = kernel_size[0] * kernel_size[1]
+
+        self.attention_weights = nn.Linear(
+            embed_dims, num_levels * self.num_points * self.num_heads
+        )
+        self.value_proj = nn.Linear(embed_dims, embed_dims)
+
+        grid_h, grid_w = kernel_size
+        y = (torch.arange(grid_h) - grid_h // 2) * dilation
+        x = (torch.arange(grid_w) - grid_w // 2) * dilation
+        offsets = (
+            torch.stack(torch.meshgrid(x, y))
+            .permute(1, 2, 0)
+            .reshape(grid_h * grid_w, 2)
+        )
+        self.register_buffer("grid_offsets", offsets, persistent=False)
+        self.init_weights()
+
+    def init_weights(self):
+        constant_init(self.attention_weights, val=0.0, bias=0.0)
+        xavier_init(self.value_proj, distribution="uniform", bias=0.0)
+        xavier_init(self.output_proj, distribution="uniform", bias=0.0)
+        self._is_init = True
+
+    def forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        identity=None,
+        query_pos=None,
+        key_padding_mask=None,
+        reference_points=None,
+        spatial_shapes=None,
+        level_start_index=None,
+        **kwargs,
+    ):
+
+        if value is None:
+            value = query
+        if identity is None:
+            identity = query
+        if query_pos is not None:
+            query = query + query_pos
+        if not self.batch_first:
+            query = query.permute(1, 0, 2)
+            value = value.permute(1, 0, 2)
+
+        bs, num_query, _ = query.shape
+        bs, num_value, _ = value.shape
+        assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
+
+        value = self.value_proj(value)
+        value = value.view(bs, num_value, self.num_heads, -1)
+        attention_weights = self.attention_weights(query).view(
+            bs, num_query, self.num_heads, self.num_levels * self.num_points
+        )
+
+        attention_weights = attention_weights.softmax(-1)
+
+        attention_weights = attention_weights.view(
+            bs, num_query, self.num_heads, self.num_levels, self.num_points
+        )
+
+        if reference_points.shape[-1] == 2:
+            with torch.no_grad():
+                offset_normalizer = torch.stack(
+                    [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
+                )
+
+                bs, num_query, num_Z_anchors, xy = reference_points.shape
+                offsets = self.grid_offsets[None, None, None, None]
+                reference_points = (
+                    reference_points[:, :, :, None, :] * offset_normalizer
+                )
+                sampling_locations = (
+                    (reference_points[:, :, :, :, None, :] + offsets).round().long()
+                )
+            (
+                bs,
+                num_query,
+                num_heads,
+                num_levels,
+                num_all_points,
+                xy,
+            ) = sampling_locations.shape
+
+        output = geometry_kernel_attention_cpu(
+            value,
+            spatial_shapes,
+            level_start_index,
+            sampling_locations.contiguous(),
+            attention_weights,
+            self.im2col_step,
+        )
+        if not self.batch_first:
+            output = output.permute(1, 0, 2)
+        return output
 
 
 @ATTENTION.register_module()
