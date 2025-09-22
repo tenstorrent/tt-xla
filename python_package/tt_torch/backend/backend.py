@@ -17,6 +17,7 @@ from .passes import (
     bypass_redundant_cast,
     insert_argument_type_markers,
     bypass_assert_tensor_metadata,
+    run_rewrite_patterns,
 )
 
 from torch.export.graph_signature import InputKind
@@ -35,12 +36,23 @@ def torch_pass_pipeline(
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
+    # Apply pattern rewrites before export because if the graph contains dynamic shapes,
+    # we need to ensure that all shapes are properly accounted for. For example, in the
+    # sparse MoE pattern, we have a `torch.where` (converted to torch.nonzero) call that
+    # produces dynamic shapes that breaks the graph.
+    # Decompositions currently support 1-to-many replacements, but true many-to-many replacements
+    # (where multiple patterns map to multiple replacements) are not natively supported yet.
+    run_rewrite_patterns(gm)
+
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False, dynamic_shapes=[], 
+        gm,
+        tuple(example_inputs),
+        strict=False,
+        dynamic_shapes=[],
     ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
@@ -90,7 +102,7 @@ class XLAExecutor:
 def xla_backend(gm, example_inputs, options=None):
     # gm.graph.print_tabular()
     # return gm
-    print('Before passes:')
+    print("Before passes:")
     gm.graph.print_tabular()
     module = torch_pass_pipeline(gm, example_inputs)
     print("After passes:")

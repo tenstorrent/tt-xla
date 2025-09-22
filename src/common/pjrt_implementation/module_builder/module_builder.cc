@@ -591,7 +591,7 @@ void ModuleBuilder::convertFromTTIRToTTNN(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const CompileOptions &compile_options) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
-    // shlo_to_ttir_pm.getContext()->disableMultithreading();
+  // shlo_to_ttir_pm.getContext()->disableMultithreading();
   // shlo_to_ttir_pm.enableIRPrinting();
   ttir_to_ttnn_pm.getContext()->disableMultithreading();
   ttir_to_ttnn_pm.enableIRPrinting();
