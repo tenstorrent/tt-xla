@@ -8,13 +8,15 @@ from tests.utils import BringupStatus
 
 test_config = {
     "mnist/pytorch-full-training": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'stablehlo.rng_bit_generator' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4793",
-        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        # "reason": "error: failed to legalize operation 'stablehlo.rng_bit_generator' "
+        # "https://github.com/tenstorrent/tt-mlir/issues/4793",
+        # "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        # "markers": ["push"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
-    "autoencoder/pytorch-linear-full-inference": {
+    "autoencoder/pytorch-linear-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
