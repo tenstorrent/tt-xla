@@ -738,7 +738,7 @@ test_config = {
         "arch_overrides": {
             "p150": {
                 "status": ModelTestStatus.EXPECTED_PASSING,
-                "reason": "Bad PCC on blackhole - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434",
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
             },
         },
