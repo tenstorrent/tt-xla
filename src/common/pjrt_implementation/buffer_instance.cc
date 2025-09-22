@@ -80,6 +80,9 @@ BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
       m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false) {
+  // LOGGING: Track output buffer construction with existing tensor
+  DLOG_F(INFO, "BUFFER_TRACE: Output BufferInstance=%p constructor with tensor.data=%p tensor.handle=%p",
+         this, tensor.data, tensor.handle);
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
@@ -112,6 +115,16 @@ size_t BufferInstance::getConvertedRuntimeTensorSize() const {
           data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
   return static_cast<size_t>(runtime_tensor_size);
+}
+
+std::string BufferInstance::getShapeString() const {
+  std::string shape_str = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0) shape_str += ",";
+    shape_str += std::to_string(m_dimensions[i]);
+  }
+  shape_str += "]";
+  return shape_str;
 }
 
 bool BufferInstance::isDataDeleted() {
@@ -188,6 +201,10 @@ void BufferInstance::copyFromHost(
     m_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
+    // LOGGING: Track tensor replacement in copyFromHost (owned)
+    DLOG_F(INFO, "BUFFER_TRACE: BufferInstance=%p copyFromHost OWNED shape=%s - NEW tensor.data=%p tensor.handle=%p",
+           this, getShapeString().c_str(), m_runtime_tensor.data, m_runtime_tensor.handle);
+
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
   }
@@ -203,6 +220,10 @@ void BufferInstance::copyFromHost(
     m_runtime_tensor = tt::runtime::createBorrowedHostTensor(
         const_cast<void *>(host_buffer), shape, strides, element_size,
         runtime_data_type);
+
+    // LOGGING: Track tensor replacement in copyFromHost (borrowed)
+    DLOG_F(INFO, "BUFFER_TRACE: BufferInstance=%p copyFromHost BORROWED shape=%s - NEW tensor.data=%p tensor.handle=%p",
+           this, getShapeString().c_str(), m_runtime_tensor.data, m_runtime_tensor.handle);
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.

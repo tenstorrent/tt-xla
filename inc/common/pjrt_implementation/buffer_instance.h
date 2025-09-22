@@ -105,6 +105,9 @@ public:
   // tensor_volume * expected_host_data_type_element_size
   size_t getConvertedRuntimeTensorSize() const;
 
+  // Returns the shape of the buffer as a string in format "[dim1,dim2,...]"
+  std::string getShapeString() const;
+
   // Returns true if the buffer data was deleted, i.e. its underlying tensor was
   // deallocated.
   bool isDataDeleted();
