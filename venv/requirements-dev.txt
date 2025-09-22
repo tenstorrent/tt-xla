@@ -58,3 +58,6 @@ yolov6detect
 
 # bge-m3 model
 FlagEmbedding
+
+# uniad model
+casadi==3.7.2
