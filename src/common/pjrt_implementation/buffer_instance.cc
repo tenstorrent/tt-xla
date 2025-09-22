@@ -116,6 +116,16 @@ size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   return static_cast<size_t>(runtime_tensor_size);
 }
 
+std::string BufferInstance::getShapeString() const {
+  std::string shape_str = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0) shape_str += ",";
+    shape_str += std::to_string(m_dimensions[i]);
+  }
+  shape_str += "]";
+  return shape_str;
+}
+
 bool BufferInstance::isDataDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   return m_data_deleted;
@@ -188,6 +198,10 @@ void BufferInstance::copyFromHost(
     m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
+    // LOGGING: Track tensor replacement in copyFromHost (owned)
+    DLOG_F(INFO, "BUFFER_TRACE: BufferInstance=%p copyFromHost OWNED shape=%s - NEW tensor.data=%p tensor.handle=%p",
+           this, getShapeString().c_str(), m_runtime_tensor.data, m_runtime_tensor.handle);
+
     // Memory is copied, we don't need host buffer anymore.
     done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
   }
@@ -203,6 +217,10 @@ void BufferInstance::copyFromHost(
     m_host_runtime_tensor = tt::runtime::createBorrowedHostTensor(
         const_cast<void *>(host_buffer), shape, strides, element_size,
         runtime_data_type);
+
+    // LOGGING: Track tensor replacement in copyFromHost (borrowed)
+    DLOG_F(INFO, "BUFFER_TRACE: BufferInstance=%p copyFromHost BORROWED shape=%s - NEW tensor.data=%p tensor.handle=%p",
+           this, getShapeString().c_str(), m_runtime_tensor.data, m_runtime_tensor.handle);
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.
