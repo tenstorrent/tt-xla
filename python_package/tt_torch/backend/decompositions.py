@@ -256,14 +256,15 @@ def squeeze(input, dims):
     newshape = [s for i, s in enumerate(shape) if i not in dims]
     return input.reshape(newshape)
 
+
 def nonzero_via_sort(x: torch.Tensor) -> torch.Tensor:
     mask = x if x.dtype == torch.bool else (x != 0)
     flat = mask.reshape(-1)
 
-    keys = (~flat).to(torch.int64)              # [N]
+    keys = (~flat).to(torch.int64)  # [N]
     _, idx_sorted = torch.sort(keys, stable=True)
     n_true = flat.to(torch.int64).sum()
-    sel = idx_sorted[:n_true]                   # [N_true]
+    sel = idx_sorted[:n_true]  # [N_true]
 
     if x.dim() == 1:
         coords = sel.unsqueeze(1)
@@ -281,9 +282,11 @@ def nonzero_via_sort(x: torch.Tensor) -> torch.Tensor:
 
     return coords.contiguous()
 
+
 def detach__to_functional(x):
     # in-place detach_ 를 out-of-place detach 로 치환
     return torch.ops.aten.detach.default(x)
+
 
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:

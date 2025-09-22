@@ -5,6 +5,10 @@ import torch
 import gc
 from torch.fx.experimental import const_fold
 from torch.export.graph_signature import InputKind, OutputKind
+from .graph_patterns import (
+    get_patterns,
+)
+from torch.fx import subgraph_rewriter
 
 
 def insert_argument_type_markers(
@@ -156,5 +160,18 @@ def bypass_dtype_promotion(gm):
                 and node.args[1] == torch.float32
             ):
                 node.replace_all_uses_with(node.args[0])
+
+    return gm
+
+
+def run_rewrite_patterns(gm: torch.fx.GraphModule):
+    """
+    Rewrite subgraphs matching certain patterns with more optimal implementations.
+    Currently, we only support rewriting the MoE pattern.
+    """
+
+    patterns = get_patterns()
+    for name, (pattern, replacement) in patterns.items():
+        matches = subgraph_rewriter.replace_pattern(gm, pattern, replacement)
 
     return gm

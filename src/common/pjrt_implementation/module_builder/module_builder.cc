@@ -696,7 +696,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const CompileOptions &compile_options, ClientInstance *client_instance,
     std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
-    // shlo_to_ttir_pm.getContext()->disableMultithreading();
+  // shlo_to_ttir_pm.getContext()->disableMultithreading();
   // shlo_to_ttir_pm.enableIRPrinting();
   ttir_to_ttnn_pm.getContext()->disableMultithreading();
   ttir_to_ttnn_pm.enableIRPrinting();
