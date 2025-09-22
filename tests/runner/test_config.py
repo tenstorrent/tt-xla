@@ -735,6 +735,13 @@ test_config = {
     "deit/pytorch-base-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "required_pcc": 0.97,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "reason": "Bad PCC on blackhole - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "mlp_mixer/lucidrains/pytorch-base-full-inference": {
         # Exposed by "Remove host-side consteval" change
