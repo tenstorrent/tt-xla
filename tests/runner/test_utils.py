@@ -352,7 +352,7 @@ def discover_loader_paths(models_root):
     # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
     # Surya OCR imports and initializes torch_xla runtime which causes issues
     # https://github.com/tenstorrent/tt-xla/issues/1166
-    excluded_model_dirs = {"suryaocr"}
+    excluded_model_dirs = {"suryaocr", "hippynn"}
 
     for root, dirs, files in os.walk(models_root):
 
