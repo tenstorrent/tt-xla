@@ -1401,6 +1401,7 @@ test_config = {
     },
     "vit/pytorch-vit_h_14-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
         "arch_overrides": {
             "p150": {
                 "required_pcc": 0.98,
@@ -1755,6 +1756,7 @@ test_config = {
     },
     "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
         "required_pcc": 0.98,
