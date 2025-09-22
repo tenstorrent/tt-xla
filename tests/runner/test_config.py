@@ -1758,11 +1758,7 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "gemma/pytorch-google/gemma-2-2b-it-full-inference": {
-        # "required_pcc": 0.97,
-        # Exposed by "Remove host-side consteval" change
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2148032 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/1244",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
         "required_pcc": 0.98,
