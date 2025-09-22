@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import torch
 import pytest
 import math
@@ -6,7 +9,7 @@ from enum import Enum
 
 from typing import Any, Dict, Sequence
 
-# from ..utils.frontend.xla.provider import SweepsTester 
+# from ..utils.frontend.xla.provider import SweepsTester
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
 import torch_xla.core.xla_model as xm
@@ -23,57 +26,70 @@ class SweepsTester(TorchModelTester):
     def __init__(
         self,
         model: torch.nn.Module,
-        inputs: Dict[str, torch.Tensor],
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
         self.model = model
-        self.inputs = inputs
         super().__init__(comparison_config, run_mode)
 
     # @override
     def _get_model(self) -> Model:
         return self.model
 
-    def _get_forward_method_args(self) -> Sequence[Any]:
-        return self.inputs
-
     # @override
     def _get_input_activations(self) -> Dict | Sequence[Any]:
-        inputs = {}
-        return inputs
+        # Use the model's own _get_input_activations method if it exists
+        if hasattr(self.model, "_get_input_activations"):
+            return self.model._get_input_activations()
+        # Fallback to empty inputs
+        return []
 
-    
+
 class ModelFromAnotherOp(torch.nn.Module):
-    def __init__(self, operator):
+    def __init__(self, operator, shape_1, shape_2):
         super().__init__()
         self.testname = "Matmul_operator_test_op_src_from_another_op"
         self.operator = operator
+        self.shape_1 = shape_1
+        self.shape_2 = shape_2
 
     def forward(self, x, y):
         xx = torch.add(x, x)
         yy = torch.add(y, y)
         return self.operator(xx, yy)
-    
+
+    def _get_input_activations(self) -> Sequence[torch.Tensor]:
+        x = torch.rand(*self.shape_1)
+        y = torch.rand(*self.shape_2)
+        return [x, y]
+
 
 class ModelConstEvalPass(torch.nn.Module):
-    def __init__(self, operator, shape_1, shape_2, device):
+    def __init__(self, operator, shape_1, shape_2):
         super().__init__()
         self.testname = "Matmul_operator_test_op_src_const_eval_pass"
         self.operator = operator
+        self.shape_1 = shape_1
+        self.shape_2 = shape_2
 
-        self.c1 = torch.rand(shape_1)  # .to(device) ?
-        self.c2 = torch.rand(shape_2)  # .to(device) ?
+        # Initialize constants on CPU first, then register as buffers so they move with the model
+        c1 = torch.rand(*shape_1)
+        c2 = torch.rand(*shape_2)
 
-        self.register_buffer("constant1", self.c1)
-        self.register_buffer("constant2", self.c2)
+        self.register_buffer("constant1", c1)
+        self.register_buffer("constant2", c2)
 
     def forward(self, x, y):
-        mm1 = self.operator(self.c1, self.c2)
+        mm1 = self.operator(self.constant1, self.constant2)
         mm2 = self.operator(x, y)
         aa = torch.add(mm1, mm2)
         return aa
-    
+
+    def _get_input_activations(self) -> Sequence[torch.Tensor]:
+        x = torch.rand(*self.shape_1)
+        y = torch.rand(*self.shape_2)
+        return [x, y]
+
 
 @pytest.fixture(scope="module")
 def device():
@@ -81,36 +97,22 @@ def device():
 
 
 @pytest.mark.parametrize("shape_1", [(1, 4)])
-def test_matmul_model_from_another_op(device, shape_1):
+def test_matmul_model_from_another_op(shape_1):
 
     shape_2 = shape_1[:-2] + (shape_1[-1], shape_1[-2])
 
-    model = ModelFromAnotherOp(torch.matmul).eval()
-    model.to(device)
+    model = ModelFromAnotherOp(torch.matmul, shape_1, shape_2).eval()
 
-    x = torch.rand(shape_1).to(device)
-    y = torch.rand(shape_2).to(device)
-
-    sweeps_tester = SweepsTester(model, [x, y])
+    sweeps_tester = SweepsTester(model)
     sweeps_tester.test()
-
-    out = model(x, y)
-    print("Final output:", out)
 
 
 @pytest.mark.parametrize("shape_1", [(1, 4)])
-def test_matmul_model_const_eval_pass(device, shape_1):
+def test_matmul_model_const_eval_pass(shape_1):
 
     shape_2 = shape_1[:-2] + (shape_1[-1], shape_1[-2])
 
-    model = ModelConstEvalPass(torch.matmul, shape_1, shape_2, device).eval()
-    model.to(device)
+    model = ModelConstEvalPass(torch.matmul, shape_1, shape_2).eval()
 
-    x = torch.rand(shape_1).to(device)
-    y = torch.rand(shape_2).to(device)
-
-    sweeps_tester = SweepsTester(model, [x, y])
+    sweeps_tester = SweepsTester(model)
     sweeps_tester.test()
-
-    out = model(x, y)
-    print("Final output:", out)
