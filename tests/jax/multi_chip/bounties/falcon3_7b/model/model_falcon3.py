@@ -539,7 +539,6 @@ class FlaxFalcon3ForCausalLM:
         position_ids: Optional[jax.Array] = None,
         init_cache: bool = True,
     ) -> FrozenDict:
-
         """
         Initialize the model weights.
 
