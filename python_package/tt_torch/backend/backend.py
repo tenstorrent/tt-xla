@@ -44,7 +44,7 @@ def torch_pass_pipeline(
     # print("example_inputs", example_inputs)
     # print("gm state_dict keys:", list(gm.state_dict().keys()))
     print("[james] override use torch.export.export")
-    program = torch.export.export(
+    program = torch.export.export_for_training(
         gm, tuple(example_inputs), strict=False
     ).run_decompositions(decompositions)
     print("program.graph_signature:", program.graph_signature)
@@ -96,8 +96,8 @@ class XLAExecutor:
 
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
-        torch_xla.sync()
-        # torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        # torch_xla.sync()
+        torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         return output
 
 
