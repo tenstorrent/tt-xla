@@ -1400,16 +1400,12 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "vit/pytorch-vit_h_14-full-inference": {
-        # "status": ModelTestStatus.EXPECTED_PASSING,
-        # "arch_overrides": {
-        #     "p150": {
-        #         "required_pcc": 0.98,
-        #     },
-        # },
-        # Exposed by "Remove host-side consteval" change
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Out of Memory: Not enough space to allocate 224460800 B DRAM buffer across 12 banks, where each bank needs to store 18706432 B - https://github.com/tenstorrent/tt-xla/issues/1244",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "required_pcc": 0.98,
+            },
+        },
     },
     "vit/pytorch-vit_l_16-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
