@@ -123,6 +123,9 @@ public:
   // [d1,d2,d3,...].
   std::string toShapeStr() const;
 
+  // Returns the shape of the buffer as a string in format "[dim1,dim2,...]"
+  std::string getShapeString() const;
+
   // Returns true if the buffer data was deleted, i.e. its underlying tensor was
   // deallocated.
   bool isDataDeleted();
