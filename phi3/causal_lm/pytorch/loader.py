@@ -86,6 +86,12 @@ class ModelLoader(ForgeModel):
         input_ids = inputs["input_ids"]
         attn_mask = inputs["attention_mask"]
         if dtype_override is not None:
-            input_ids = input_ids.to(dtype_override)
-            attn_mask = attn_mask.to(dtype_override)
+
+            override_is_float = dtype_override.is_floating_point
+
+            if override_is_float == input_ids.is_floating_point():
+                input_ids = input_ids.to(dtype_override)
+            if override_is_float == attn_mask.is_floating_point():
+                attn_mask = attn_mask.to(dtype_override)
+
         return [input_ids, attn_mask]
