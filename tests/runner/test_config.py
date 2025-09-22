@@ -1541,7 +1541,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "stable_diffusion_unet/pytorch-base-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "mlp_mixer/pytorch-mixer_github-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1617,16 +1618,19 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-timm_efficientnet_b4-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
