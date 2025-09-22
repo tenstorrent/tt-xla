@@ -102,9 +102,6 @@ PLACEHOLDER_MODELS = {
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "uniad": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "maptr": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2501,6 +2498,11 @@ test_config = {
     "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "uniad/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
