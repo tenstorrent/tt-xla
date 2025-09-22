@@ -83,15 +83,10 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
         source = cls._VARIANTS[variant].source
 
-        if variant in [ModelVariant.TORCHHUB_BRAIN_UNET]:
-            group = ModelGroup.RED
-        else:
-            group = ModelGroup.GENERALITY
-
         return ModelInfo(
             model="unet",
             variant=variant,
-            group=group,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_SEG,
             source=source,
             framework=Framework.TORCH,
