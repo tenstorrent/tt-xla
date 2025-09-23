@@ -737,7 +737,7 @@ test_config = {
         "required_pcc": 0.97,
         "arch_overrides": {
             "p150": {
-                "status": ModelTestStatus.EXPECTED_PASSING,
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
                 "reason": "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434",
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
             },
@@ -1608,6 +1608,13 @@ test_config = {
     },
     "unet/pytorch-unet_cityscapes-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "unet/pytorch-torchhub_brain_unet-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1770,6 +1777,13 @@ test_config = {
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "vgg/pytorch-bn_vgg19b-full-inference": {
         "required_pcc": 0.96,
