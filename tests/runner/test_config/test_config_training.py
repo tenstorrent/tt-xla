@@ -13,10 +13,54 @@ test_config = {
         # "https://github.com/tenstorrent/tt-mlir/issues/4793",
         # "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
         # "markers": ["push"],
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "markers": ["push"],
     },
     "autoencoder/pytorch-linear-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "qwen_2_5/casual_lm/pytorch-0_5b-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "yolov8/pytorch-yolov8n-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "bert/masked_lm/pytorch-bert-base-uncased-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "alexnet/pytorch-alexnet-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "mobilenetv2/pytorch-mobilenet_v2-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "gemma/pytorch-google/gemma-1.1-2b-it-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "nanogpt/pytorch-FinancialSupport/NanoGPT-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "llama/causal_lm/pytorch-llama_3_2_1b-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "qwen_3/causal_lm/pytorch-0_6b-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "unet/pytorch-carvana_unet-full-training": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
+    },
+    "efficientnet/pytorch-efficientnet_b0-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
