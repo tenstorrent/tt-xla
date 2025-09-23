@@ -1248,14 +1248,17 @@ test_config = {
     },
     "llama/causal_lm/pytorch-llama_3_2_1b-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_2_3b-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference": {
         "required_pcc": 0.97,
@@ -1263,6 +1266,7 @@ test_config = {
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "yolov6/pytorch-yolov6n-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1889,12 +1893,14 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+        "markers": ["push"],
     },
     "phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
         "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+        "markers": ["push"],
     },
     "glpn_kitti/pytorch-full-inference": {
         "arch_overrides": {
