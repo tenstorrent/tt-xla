@@ -161,8 +161,12 @@ ModuleBuilder::buildModule(
 
   std::vector<std::uint32_t> mesh_shape =
       collectMeshShape(mlir_module, input_shardings);
-  auto [num_partitions, num_replicas, num_devices_to_utilize] =
+
+  NumDevicesResult num_devices_result =
       collectNumDevicesToUtilize(mlir_module, mesh_shape);
+  size_t num_partitions = num_devices_result.num_partitions;
+  size_t num_replicas = num_devices_result.num_replicas;
+  size_t num_devices_to_utilize = num_devices_result.num_devices_to_utilize;
 
   std::string ttnn_mlir;
   std::tie(status, ttnn_mlir) = convertFromTTIRToTTNN(
@@ -636,7 +640,7 @@ std::vector<std::uint32_t> ModuleBuilder::estimateMeshShape(
   return {1, 1};
 }
 
-std::tuple<size_t, size_t, size_t> ModuleBuilder::collectNumDevicesToUtilize(
+NumDevicesResult ModuleBuilder::collectNumDevicesToUtilize(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     std::vector<std::uint32_t> devices_mesh_shape) {
   auto num_partitions_attr =
@@ -686,7 +690,9 @@ std::tuple<size_t, size_t, size_t> ModuleBuilder::collectNumDevicesToUtilize(
     num_devices_to_utilize = num_partitions * num_replicas;
   }
 
-  return {num_partitions, num_replicas, num_devices_to_utilize};
+  return {.num_partitions = num_partitions,
+          .num_replicas = num_replicas,
+          .num_devices_to_utilize = num_devices_to_utilize};
 }
 
 std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromTTIRToTTNN(

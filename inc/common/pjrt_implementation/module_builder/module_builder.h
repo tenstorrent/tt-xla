@@ -49,6 +49,12 @@ struct NumArgumentsResult {
   std::vector<std::int64_t> m_output_dimensions_flat;
 };
 
+struct NumDevicesResult {
+  size_t num_partitions;
+  size_t num_replicas;
+  size_t num_devices_to_utilize;
+};
+
 class ModuleBuilder {
 public:
   ModuleBuilder();
@@ -113,7 +119,7 @@ private:
 
   // Gets the number of devices the binary is intended to run on from the VHLO
   // module.
-  std::tuple<size_t, size_t, size_t>
+  NumDevicesResult
   collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                              std::vector<std::uint32_t> devices_mesh_shape);
 
