@@ -54,12 +54,13 @@ def test_all_models(
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+        dont_skip = bool(os.environ.get("TT_XLA_DONT_SKIP", "0"))
 
         succeeded = False
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
-            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP or dont_skip:
                 tester = DynamicTorchModelTester(
                     run_mode,
                     loader=loader,
