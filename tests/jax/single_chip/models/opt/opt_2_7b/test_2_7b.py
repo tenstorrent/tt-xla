@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_runtime,
     incorrect_result,
 )
 
@@ -48,9 +49,14 @@ def training_tester() -> OPTTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
+)
 def test_opt_2_7b_inference(inference_tester: OPTTester):
     inference_tester.test()
 

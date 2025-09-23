@@ -14,6 +14,7 @@ DecompositionOpsList = Sequence[
     Union[torch._ops.OperatorBase, torch._ops.OpOverloadPacket]
 ]
 
+
 # This method is derived from the implementation of jax.image.resize in JAX:
 #     https://github.com/jax-ml/jax/blob/354bd5271077654af983965c8e01ee462ce4ce91/jax/_src/image/scale.py#L52
 #
