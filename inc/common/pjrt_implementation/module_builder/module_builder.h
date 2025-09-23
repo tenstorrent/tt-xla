@@ -63,7 +63,7 @@ public:
 
 private:
   // Creates VHLO module from the input program code.
-  std::optional<mlir::OwningOpRef<mlir::ModuleOp>>
+  std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
   createVHLOModule(const std::string_view &code);
 
   // Converts VHLO module to StableHLO module.
@@ -83,11 +83,13 @@ private:
   collectNumArguments(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collects the information about the sharding of specific inputs.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collects the information about the sharding of specific outputs.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Runs compiler StableHLO pipeline on the MLIR module.
@@ -95,7 +97,7 @@ private:
   runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts StableHLO module to TTIR module.
-  std::optional<std::string>
+  std::tuple<tt_pjrt_status, std::string>
   convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collects the information about the mesh shape the module is intended to run
@@ -116,14 +118,14 @@ private:
                              std::vector<std::uint32_t> devices_mesh_shape);
 
   // Converts TTIR module to TTNN module.
-  std::optional<std::string>
+  std::tuple<tt_pjrt_status, std::string>
   convertFromTTIRToTTNN(const std::string &system_descriptor_path,
                         mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                         const CompileOptions &compile_options,
                         std::vector<std::uint32_t> devices_mesh_shape);
 
   // Creates flatbuffer binary from the built TTNN module.
-  std::optional<tt::runtime::Binary> createFlatbufferBinary(
+  std::tuple<tt_pjrt_status, tt::runtime::Binary> createFlatbufferBinary(
       const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &input_shardings,
@@ -158,19 +160,23 @@ private:
   std::string getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collect input sharding if we are using GSPMD.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectInputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collect output sharding if we are using GSPMD.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectOutputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collect input sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collect output sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
+  std::tuple<tt_pjrt_status,
+             std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Checks if the StableHLO code is using the Shardy mlir dialect.
@@ -204,7 +210,7 @@ private:
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
-  std::optional<mlir::sdy::MeshOp>
+  std::tuple<tt_pjrt_status, mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // MLIR context handle.
