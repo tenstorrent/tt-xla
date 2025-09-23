@@ -64,6 +64,11 @@ class ModelTestConfig:
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
 
+        # Optional list of supported architectures (e.g. ["p150", "n300", "n300-llmbox"]) - normalized to list[str]
+        self.supported_archs = self._normalize_markers(
+            self._resolve("supported_archs", default=[])
+        )
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:

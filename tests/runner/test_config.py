@@ -1841,6 +1841,7 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "gemma/pytorch-google/gemma-1.1-7b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
@@ -1848,11 +1849,7 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
             },
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Model is too large for n150",
-            },
-            "t3k": {
+            "n300-llmbox": {
                 "status": ModelTestStatus.EXPECTED_PASSING,
                 "required_pcc": 0.97,
             },
