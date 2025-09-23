@@ -61,6 +61,7 @@
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/executable_image.h"
+#include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "common/status.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -179,6 +180,10 @@ ModuleBuilder::buildModule(
   }
   tt::runtime::Binary flatbuffer = *maybe_flatbuffer;
 
+  // Collect memory kinds for output buffers
+  auto [output_memory_kinds, output_memory_kinds_sizes] =
+      collectMemoryKinds(num_outputs);
+
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
@@ -190,6 +195,8 @@ ModuleBuilder::buildModule(
               output_dimensions, output_ranks, output_dimensions_flat,
               num_partitions, num_replicas, num_devices_to_utilize, mesh_shape,
               input_shardings, output_shardings, output_types,
+              std::move(output_memory_kinds),
+              std::move(output_memory_kinds_sizes),
               std::move(compile_options))};
 }
 
@@ -853,6 +860,24 @@ bool ModuleBuilder::isUsingShardyManualComputation(
   });
 
   return is_using_shardy_manual_computation;
+}
+
+std::tuple<std::vector<const char *>, std::vector<size_t>>
+ModuleBuilder::collectMemoryKinds(size_t num_outputs) {
+  std::vector<const char *> output_memory_kinds;
+  std::vector<size_t> output_memory_kinds_sizes;
+
+  output_memory_kinds.reserve(num_outputs);
+  output_memory_kinds_sizes.reserve(num_outputs);
+
+  for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
+    output_memory_kinds.emplace_back(
+        MemoryInstance::c_device_memory_kind_name.c_str());
+    output_memory_kinds_sizes.emplace_back(
+        MemoryInstance::c_device_memory_kind_name.size());
+  }
+
+  return {std::move(output_memory_kinds), std::move(output_memory_kinds_sizes)};
 }
 
 std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(

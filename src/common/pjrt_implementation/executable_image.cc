@@ -35,6 +35,8 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+    std::vector<const char *> output_memory_kinds,
+    std::vector<size_t> output_memory_kinds_sizes,
     module_builder::CompileOptions &&compile_options) {
   struct make_shared_enabler : public ExecutableImage {
     make_shared_enabler(
@@ -52,6 +54,8 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
         const std::vector<mlir::tt::sharding_utils::MeshSharding>
             &output_sharding,
         const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+        std::vector<const char *> &&output_memory_kinds,
+        std::vector<size_t> &&output_memory_kinds_sizes,
         module_builder::CompileOptions &&compile_options)
         : ExecutableImage(flatbuffer_binary, std::move(original_mlir_code),
                           std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
@@ -61,6 +65,8 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
                           num_replicas, num_devices_to_utilize,
                           devices_mesh_shape, input_sharding, output_sharding,
                           expected_output_data_types,
+                          std::move(output_memory_kinds),
+                          std::move(output_memory_kinds_sizes),
                           std::move(compile_options)) {}
   };
 
@@ -71,7 +77,9 @@ std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
       std::move(output_dimensions), std::move(output_ranks),
       std::move(output_dimensions_flat), num_partitions, num_replicas,
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
-      output_sharding, expected_output_data_types, std::move(compile_options));
+      output_sharding, expected_output_data_types,
+      std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
+      std::move(compile_options));
 }
 
 ExecutableImage::ExecutableImage(
@@ -87,6 +95,8 @@ ExecutableImage::ExecutableImage(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+    std::vector<const char *> &&output_memory_kinds,
+    std::vector<size_t> &&output_memory_kinds_sizes,
     module_builder::CompileOptions &&compile_options)
     : m_flatbuffer_binary(flatbuffer_binary),
       m_original_mlir_code(std::move(original_mlir_code)),
@@ -102,6 +112,8 @@ ExecutableImage::ExecutableImage(
       m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
       m_output_types(expected_output_data_types),
+      m_output_memory_kinds(std::move(output_memory_kinds)),
+      m_output_memory_kinds_sizes(std::move(output_memory_kinds_sizes)),
       m_compile_options(std::move(compile_options)) {
 
   // Generate fingerprint after all dependencies are initialized
@@ -140,18 +152,6 @@ ExecutableImage::ExecutableImage(
     }
 
     output_dims_so_far += m_output_dimensions[output_index].size();
-  }
-
-  m_output_memory_kinds.reserve(m_num_outputs);
-  m_output_memory_kinds_sizes.reserve(m_num_outputs);
-
-  // Currently we move all output buffers to host memory at the end of
-  // PJRT_LoadedExecutable_Execute.
-  for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
-    m_output_memory_kinds.emplace_back(
-        MemoryInstance::c_device_memory_kind_name.c_str());
-    m_output_memory_kinds_sizes.emplace_back(
-        MemoryInstance::c_device_memory_kind_name.size());
   }
 }
 

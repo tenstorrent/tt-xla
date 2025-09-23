@@ -195,6 +195,10 @@ private:
       const mlir::sdy::MeshAttr &shardy_mesh,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
+  // Collects memory kinds for output buffers.
+  std::tuple<std::vector<const char *>, std::vector<size_t>>
+  collectMemoryKinds(size_t num_outputs);
+
   // Gets all public functions from the module.
   std::vector<mlir::func::FuncOp>
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);

@@ -51,6 +51,8 @@ public:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> output_memory_kinds,
+      std::vector<size_t> output_memory_kinds_sizes,
       module_builder::CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
@@ -150,6 +152,8 @@ private:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
       module_builder::CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
