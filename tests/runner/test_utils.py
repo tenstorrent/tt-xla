@@ -272,7 +272,9 @@ class DynamicTorchModelTester(TorchModelTester):
         num_devices = xr.global_runtime_device_count()
         mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
         device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, mesh_names)
+        mesh = (
+            Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
+        )
         return mesh
 
 
@@ -429,7 +431,10 @@ def record_model_test_properties(
         import pytest
 
         pytest.skip(reason)
-    elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL and dont_xfail == "0":
+    elif (
+        test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL
+        and dont_xfail == "0"
+    ):
         import pytest
 
         pytest.xfail(reason)

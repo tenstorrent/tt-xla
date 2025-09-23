@@ -51,9 +51,13 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model = workload.model.to(device)
 
-        if workload.shard_spec_function is not None and device.type != "cpu":
+        shard_specs = (
+            None
+            if workload.shard_spec_function is None
+            else workload.shard_spec_function(workload.model)
+        )
+        if shard_specs is not None and device.type != "cpu":
             assert workload.mesh is not None
-            shard_specs = workload.shard_spec_function(workload.model)
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 

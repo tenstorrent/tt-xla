@@ -137,7 +137,7 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        self._compile_for_cpu(self._workload)
+        # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)

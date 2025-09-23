@@ -72,11 +72,17 @@ class XLAExecutor:
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
         self.devices = set()
+        self.devices_tracked = False
         for _, tensor in module.state_dict().items():
             self.devices.add(tensor.device.type)
-        self.devices = list(self.devices)
 
     def __call__(self, *args):
+        if not self.devices_tracked:
+            for arg in args:
+                if arg.device.type not in self.devices:
+                    self.devices.add(arg.device.type)
+            self.devices = list(self.devices)
+            self.devices_tracked = True
 
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
