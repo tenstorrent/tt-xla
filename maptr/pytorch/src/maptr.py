@@ -77,6 +77,84 @@ from mmdet.models.utils.transformer import inverse_sigmoid
 # UTILITY FUNCTIONS
 # ============================================================================
 
+"""
+CPU Implementation of Quickcumsum
+"""
+
+
+def Quickcumsum_cpu(feats, coords, ranks, B, D, H, W):
+    """
+    - Processes intervals of points that map to same BEV location
+    - For each interval, sums features and stores at BEV position
+    - Uses indexing: out[b_idx][d_idx][h_idx][w_idx][c_idx]
+    """
+    N, C = feats.shape
+
+    # Convert float dimensions to int
+    B = int(B)
+    D = int(D)
+    H = int(H)
+    W = int(W)
+
+    # Sort by ranks
+    indices = ranks.argsort()
+    feats_sorted = feats[indices]
+    coords_sorted = coords[indices]  # coords are [h_idx, w_idx, d_idx, b_idx]
+    ranks_sorted = ranks[indices]
+
+    # Find interval boundaries
+    kept = torch.ones(N, device=feats.device, dtype=torch.bool)
+    kept[1:] = ranks_sorted[1:] != ranks_sorted[:-1]
+    interval_starts = torch.where(kept)[0].int()
+    interval_lengths = torch.zeros_like(interval_starts)
+    interval_lengths[:-1] = interval_starts[1:] - interval_starts[:-1]
+    interval_lengths[-1] = N - interval_starts[-1]
+
+    n_intervals = interval_lengths.shape[0]
+
+    # Initialize output tensor [B, D, H, W, C]
+    output = torch.zeros((B, D, H, W, C), dtype=feats.dtype, device=feats.device)
+
+    for index in range(n_intervals):
+        interval_start = interval_starts[index].item()
+        interval_length = interval_lengths[index].item()
+
+        # Get geometry features for this interval
+        cur_geom_feats = coords_sorted[interval_start]  # [h_idx, w_idx, d_idx, b_idx]
+
+        # Extract indices
+        h_idx = cur_geom_feats[0].item()  # cur_geom_feats[0]
+        w_idx = cur_geom_feats[1].item()  # cur_geom_feats[1]
+        d_idx = cur_geom_feats[2].item()  # cur_geom_feats[2]
+        b_idx = cur_geom_feats[3].item()  # cur_geom_feats[3]
+
+        # Process each channel
+        for cur_c in range(C):
+            psum = 0.0
+            for i in range(interval_length):
+                point_idx = interval_start + i
+                psum += feats_sorted[point_idx, cur_c].item()
+            output[b_idx, d_idx, h_idx, w_idx, cur_c] = psum
+
+    return output
+
+
+def bev_pool(feats, coords, B, D, H, W):
+    assert feats.shape[0] == coords.shape[0]
+
+    ranks = (
+        coords[:, 0] * (W * D * B)
+        + coords[:, 1] * (D * B)
+        + coords[:, 2] * B
+        + coords[:, 3]
+    )
+    indices = ranks.argsort()
+    feats, coords, ranks = feats[indices], coords[indices], ranks[indices]
+
+    x = Quickcumsum_cpu(feats, coords, ranks, B, D, H, W)
+    x = x.permute(0, 4, 1, 2, 3).contiguous()
+    return x
+
 
 def denormalize_2d_bbox(bboxes, pc_range):
     bboxes = bbox_cxcywh_to_xyxy(bboxes)
@@ -130,6 +208,18 @@ _num_levels_ = 1
 bev_h_ = 200
 bev_w_ = 100
 queue_length = 1
+dbound = [1.0, 35.0, 0.5]
+
+lss_cfg = dict(
+    type="LSSTransform",
+    in_channels=_dim_,
+    out_channels=_dim_,
+    feat_down_sample=32,
+    pc_range=point_cloud_range,
+    voxel_size=voxel_size,
+    dbound=dbound,
+    downsample=2,
+)
 
 gkt_cfg = dict(
     type="GeometrySptialCrossAttention",
@@ -1447,6 +1537,256 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
 # ============================================================================
 
 
+def gen_dx_bx(xbound, ybound, zbound):
+    dx = torch.Tensor([row[2] for row in [xbound, ybound, zbound]])
+    bx = torch.Tensor([row[0] + row[2] / 2.0 for row in [xbound, ybound, zbound]])
+    nx = torch.Tensor(
+        [int((row[1] - row[0]) / row[2]) for row in [xbound, ybound, zbound]]
+    )
+    return dx, bx, nx
+
+
+@TRANSFORMER_LAYER_SEQUENCE.register_module()
+class BaseTransform(BaseModule):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        feat_down_sample,
+        pc_range,
+        voxel_size,
+        dbound,
+    ):
+        super(BaseTransform, self).__init__()
+        self.in_channels = in_channels
+        self.feat_down_sample = feat_down_sample
+        self.xbound = [pc_range[0], pc_range[3], voxel_size[0]]
+        self.ybound = [pc_range[1], pc_range[4], voxel_size[1]]
+        self.zbound = [pc_range[2], pc_range[5], voxel_size[2]]
+        self.dbound = dbound
+
+        dx, bx, nx = gen_dx_bx(self.xbound, self.ybound, self.zbound)
+        self.dx = nn.Parameter(dx, requires_grad=False)
+        self.bx = nn.Parameter(bx, requires_grad=False)
+        self.nx = nn.Parameter(nx, requires_grad=False)
+
+        self.C = out_channels
+        self.frustum = None
+        self.D = int((dbound[1] - dbound[0]) / dbound[2])
+        self.fp16_enabled = False
+
+    def create_frustum(self, fH, fW, img_metas):
+        iH = img_metas[0]["img_shape"][0][0]
+        iW = img_metas[0]["img_shape"][0][1]
+        assert iH // self.feat_down_sample == fH
+        ds = (
+            torch.arange(*self.dbound, dtype=torch.float)
+            .view(-1, 1, 1)
+            .expand(-1, fH, fW)
+        )
+        D, _, _ = ds.shape
+
+        xs = (
+            torch.linspace(0, iW - 1, fW, dtype=torch.float)
+            .view(1, 1, fW)
+            .expand(D, fH, fW)
+        )
+        ys = (
+            torch.linspace(0, iH - 1, fH, dtype=torch.float)
+            .view(1, fH, 1)
+            .expand(D, fH, fW)
+        )
+
+        frustum = torch.stack((xs, ys, ds), -1)
+        return frustum
+
+    def get_geometry_v1(
+        self,
+        fH,
+        fW,
+        rots,
+        trans,
+        intrins,
+        post_rots,
+        post_trans,
+        lidar2ego_rots,
+        lidar2ego_trans,
+        img_metas,
+        **kwargs,
+    ):
+        B, N, _ = trans.shape
+        device = trans.device
+        if self.frustum == None:
+            self.frustum = self.create_frustum(fH, fW, img_metas)
+            self.frustum = self.frustum.to(device)
+
+        points = self.frustum - post_trans.view(B, N, 1, 1, 1, 3)
+        points = (
+            torch.inverse(post_rots)
+            .view(B, N, 1, 1, 1, 3, 3)
+            .matmul(points.unsqueeze(-1))
+        )
+        points = torch.cat(
+            (
+                points[:, :, :, :, :, :2] * points[:, :, :, :, :, 2:3],
+                points[:, :, :, :, :, 2:3],
+            ),
+            5,
+        )
+        combine = rots.matmul(torch.inverse(intrins))
+        points = combine.view(B, N, 1, 1, 1, 3, 3).matmul(points).squeeze(-1)
+        points += trans.view(B, N, 1, 1, 1, 3)
+        points -= lidar2ego_trans.view(B, 1, 1, 1, 1, 3)
+        points = (
+            torch.inverse(lidar2ego_rots)
+            .view(B, 1, 1, 1, 1, 3, 3)
+            .matmul(points.unsqueeze(-1))
+            .squeeze(-1)
+        )
+        return points
+
+    def bev_pool(self, geom_feats, x):
+        B, N, D, H, W, C = x.shape
+        Nprime = B * N * D * H * W
+        x = x.reshape(Nprime, C)
+        geom_feats = ((geom_feats - (self.bx - self.dx / 2.0)) / self.dx).long()
+        geom_feats = geom_feats.view(Nprime, 3)
+        batch_ix = torch.cat(
+            [
+                torch.full([Nprime // B, 1], ix, device=x.device, dtype=torch.long)
+                for ix in range(B)
+            ]
+        )
+        geom_feats = torch.cat((geom_feats, batch_ix), 1)
+        kept = (
+            (geom_feats[:, 0] >= 0)
+            & (geom_feats[:, 0] < self.nx[0])
+            & (geom_feats[:, 1] >= 0)
+            & (geom_feats[:, 1] < self.nx[1])
+            & (geom_feats[:, 2] >= 0)
+            & (geom_feats[:, 2] < self.nx[2])
+        )
+        x = x[kept]
+        geom_feats = geom_feats[kept]
+
+        x = bev_pool(x, geom_feats, B, self.nx[2], self.nx[0], self.nx[1])
+        final = torch.cat(x.unbind(dim=2), 1)
+
+        return final
+
+    def forward(self, images, img_metas):
+        B, N, C, fH, fW = images.shape
+        lidar2img = []
+        camera2ego = []
+        camera_intrinsics = []
+        img_aug_matrix = []
+        lidar2ego = []
+
+        for img_meta in img_metas:
+            lidar2img.append(img_meta["lidar2img"])
+            camera2ego.append(img_meta["camera2ego"])
+            camera_intrinsics.append(img_meta["camera_intrinsics"])
+            img_aug_matrix.append(img_meta["img_aug_matrix"])
+            lidar2ego.append(img_meta["lidar2ego"])
+        lidar2img = np.asarray(lidar2img)
+        lidar2img = images.new_tensor(lidar2img)  # (B, N, 4, 4)
+        camera2ego = np.asarray(camera2ego)
+        camera2ego = images.new_tensor(camera2ego)  # (B, N, 4, 4)
+        camera_intrinsics = np.asarray(camera_intrinsics)
+        camera_intrinsics = images.new_tensor(camera_intrinsics)  # (B, N, 4, 4)
+        img_aug_matrix = np.asarray(img_aug_matrix)
+        img_aug_matrix = images.new_tensor(img_aug_matrix)  # (B, N, 4, 4)
+        lidar2ego = np.asarray(lidar2ego)
+        lidar2ego = images.new_tensor(lidar2ego)  # (B, N, 4, 4)
+
+        rots = camera2ego[..., :3, :3]
+        trans = camera2ego[..., :3, 3]
+        intrins = camera_intrinsics[..., :3, :3]
+        post_rots = img_aug_matrix[..., :3, :3]
+        post_trans = img_aug_matrix[..., :3, 3]
+        lidar2ego_rots = lidar2ego[..., :3, :3]
+        lidar2ego_trans = lidar2ego[..., :3, 3]
+
+        geom = self.get_geometry_v1(
+            fH,
+            fW,
+            rots,
+            trans,
+            intrins,
+            post_rots,
+            post_trans,
+            lidar2ego_rots,
+            lidar2ego_trans,
+            img_metas,
+        )
+        x = self.get_cam_feats(images)
+        x = self.bev_pool(geom, x)
+        x = x.permute(0, 1, 3, 2).contiguous()
+
+        return x
+
+
+@TRANSFORMER_LAYER_SEQUENCE.register_module()
+class LSSTransform(BaseTransform):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        feat_down_sample,
+        pc_range,
+        voxel_size,
+        dbound,
+        downsample=1,
+    ):
+        super(LSSTransform, self).__init__(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            feat_down_sample=feat_down_sample,
+            pc_range=pc_range,
+            voxel_size=voxel_size,
+            dbound=dbound,
+        )
+        self.depthnet = nn.Conv2d(in_channels, int(self.D + self.C), 1)
+        if downsample > 1:
+            assert downsample == 2, downsample
+            self.downsample = nn.Sequential(
+                nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(True),
+                nn.Conv2d(
+                    out_channels,
+                    out_channels,
+                    3,
+                    stride=downsample,
+                    padding=1,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(True),
+                nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=False),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(True),
+            )
+
+    def get_cam_feats(self, x):
+        B, N, C, fH, fW = x.shape
+
+        x = x.view(B * N, C, fH, fW)
+
+        x = self.depthnet(x)
+        depth = x[:, : self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+
+        x = x.view(B, N, self.C, self.D, fH, fW)
+        x = x.permute(0, 1, 3, 4, 5, 2)
+        return x
+
+    def forward(self, images, img_metas):
+        x = super().forward(images, img_metas)
+        x = self.downsample(x)
+        return x
+
+
 @TRANSFORMER_LAYER_SEQUENCE.register_module()
 class MapTRDecoder(TransformerLayerSequence):
     def __init__(self, *args, return_intermediate=False, **kwargs):
@@ -1872,6 +2212,18 @@ class MapTRPerceptionTransformer(BaseModule):
         )
         return bev_embed
 
+    def lss_bev_encode(self, mlvl_feats, prev_bev=None, **kwargs):
+        assert (
+            len(mlvl_feats) == 1
+        ), "Currently we only support single level feat in LSS"
+        images = mlvl_feats[0]
+        img_metas = kwargs["img_metas"]
+        bev_embed = self.encoder(images, img_metas)
+        bs, c, _, _ = bev_embed.shape
+        bev_embed = bev_embed.view(bs, c, -1).permute(0, 2, 1).contiguous()
+
+        return bev_embed
+
     def get_bev_features(
         self,
         mlvl_feats,
@@ -1895,6 +2247,8 @@ class MapTRPerceptionTransformer(BaseModule):
                 prev_bev=prev_bev,
                 **kwargs,
             )
+        else:
+            bev_embed = self.lss_bev_encode(mlvl_feats, prev_bev=prev_bev, **kwargs)
 
         return bev_embed
 
@@ -2052,6 +2406,8 @@ class MapTRHead(DETRHead):
                 self.bev_embedding = nn.Embedding(
                     self.bev_h * self.bev_w, self.embed_dims
                 )
+            else:
+                self.bev_embedding = None
             if self.query_embed_type == "instance_pts":
                 self.query_embedding = None
                 self.instance_embedding = nn.Embedding(
@@ -2084,6 +2440,10 @@ class MapTRHead(DETRHead):
                 (bs, self.bev_h, self.bev_w), device=bev_queries.device
             ).to(dtype)
             bev_pos = self.positional_encoding(bev_mask).to(dtype)
+        else:
+            bev_queries = None
+            bev_mask = None
+            bev_pos = None
 
         outputs = self.transformer(
             mlvl_feats,

@@ -19,7 +19,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
-from .src.maptr import build_model, model_cfg, gkt_cfg
+from .src.maptr import build_model, model_cfg, gkt_cfg, lss_cfg
 from mmcv import ConfigDict
 import numpy as np
 import copy
@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     TINY_R50_110E = "tiny_r50_110e"
     TINY_R50_24E_T4 = "tiny_r50_24e_t4"
     NANO_R18_110E = "nano_r18_110e"
+    TINY_R50_24E_BEVPOOL = "tiny_r50_24e_bevpool"
 
 
 class ModelLoader(ForgeModel):
@@ -58,6 +59,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NANO_R18_110E: ModelConfig(
             pretrained_model_name="nano_r18_110e",
+        ),
+        ModelVariant.TINY_R50_24E_BEVPOOL: ModelConfig(
+            pretrained_model_name="tiny_r50_24e_bevpool",
         ),
     }
 
@@ -148,6 +152,31 @@ class ModelLoader(ForgeModel):
                 "col_num_embed"
             ] = nano_bev_w
 
+        if variant_name == "tiny_r50_24e_bevpool":
+
+            # BevPool specific parameters
+            bevpool_pc_range = [-15.0, -30.0, -10.0, 15.0, 30.0, 10.0]
+            bevpool_voxel_size = [0.15, 0.15, 20.0]
+
+            # Replace encoder with BevPool's LSSTransform
+            local_model_cfg["pts_bbox_head"]["transformer"]["encoder"] = lss_cfg
+
+            # Override parameters in encoder
+            local_model_cfg["pts_bbox_head"]["transformer"]["encoder"][
+                "pc_range"
+            ] = bevpool_pc_range
+            local_model_cfg["pts_bbox_head"]["transformer"]["encoder"][
+                "voxel_size"
+            ] = bevpool_voxel_size
+
+            # Override parameters in bbox_coder
+            local_model_cfg["pts_bbox_head"]["bbox_coder"][
+                "pc_range"
+            ] = bevpool_pc_range
+            local_model_cfg["pts_bbox_head"]["bbox_coder"][
+                "voxel_size"
+            ] = bevpool_voxel_size
+
         # wrap the model config
         self.cfg = ConfigDict(local_model_cfg)
 
@@ -171,11 +200,14 @@ class ModelLoader(ForgeModel):
         - lidar2img: List of 4x4 projection matrices (identity matrices here as placeholders).
         - can_bus: Vehicle state vector (zeros used as dummy values).
         - img: Random image tensor simulating 6 camera views.
+        - (bevpool variant only) camera2ego, camera_intrinsics, img_aug_matrix, lidar2ego:
+          Identity matrices used as placeholders.
 
         Returns:
             dict: Dictionary containing:
                 - ``img_metas`` (list): Metadata with image shapes, projection matrices,
-                CAN bus vector, and a dummy scene token.
+                CAN bus vector, and a dummy scene token (plus bevpool-specific fields when
+                using the tiny_r50_24e_bevpool variant).
                 - ``img`` (list): Randomized image tensor of shape (1, 6, 3, 480, 800).
         """
 
@@ -197,5 +229,15 @@ class ModelLoader(ForgeModel):
             ],
             "img": [img],
         }
+
+        if self._variant_config.pretrained_model_name == "tiny_r50_24e_bevpool":
+            data["img_metas"][0][0].update(
+                dict(
+                    camera2ego=[np.eye(4, dtype=np.float32) for _ in range(6)],
+                    camera_intrinsics=[np.eye(4, dtype=np.float32) for _ in range(6)],
+                    img_aug_matrix=[np.eye(4, dtype=np.float64) for _ in range(6)],
+                    lidar2ego=np.eye(4, dtype=np.float32),
+                )
+            )
 
         return data
