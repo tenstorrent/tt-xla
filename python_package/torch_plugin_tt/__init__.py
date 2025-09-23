@@ -9,7 +9,7 @@ from torch_xla.experimental.plugins import DevicePlugin
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 
 import torch
-import tt_torch  # registers "tt" backend for torch.compile
+import tt_torch_backend  # registers "tt" backend for torch.compile
 
 
 class TTPlugin(DevicePlugin):
