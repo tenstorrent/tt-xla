@@ -91,6 +91,12 @@ private:
         m_addressable_devices(addressable_devices), m_deleted(false),
         m_client_instance(client_instance) {}
 
+  // Gets the appropriate runtime device from the `ClientInstance`.
+  std::optional<tt::runtime::Device>
+  getOrCreateMeshDevice(PJRT_Buffer *const *const *argument_lists,
+                        size_t num_args, size_t num_devices,
+                        PJRT_Device *pjrt_device);
+
   // Collects device ids from the addressable devices.
   std::unordered_set<int>
   getDeviceIds(PJRT_Buffer *const *const *argument_lists, size_t num_args,
