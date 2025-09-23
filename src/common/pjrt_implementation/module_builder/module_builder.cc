@@ -108,7 +108,7 @@ ModuleBuilder::buildModule(
 
   tt_pjrt_status status;
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module;
-  std::tie(status, mlir_module) = createVHLOModule(mlir_code);
+  status = createVHLOModule(mlir_code, mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -126,13 +126,13 @@ ModuleBuilder::buildModule(
   }
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
-  std::tie(status, input_shardings) = collectInputShardings(mlir_module);
+  status = collectInputShardings(mlir_module, input_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  std::tie(status, output_shardings) = collectOutputShardings(mlir_module);
+  status = collectOutputShardings(mlir_module, output_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -154,7 +154,7 @@ ModuleBuilder::buildModule(
   }
 
   std::string ttir_mlir;
-  std::tie(status, ttir_mlir) = convertFromSHLOToTTIR(mlir_module);
+  status = convertFromSHLOToTTIR(mlir_module, ttir_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -169,22 +169,24 @@ ModuleBuilder::buildModule(
   size_t num_devices_to_utilize = num_devices_result.num_devices_to_utilize;
 
   std::string ttnn_mlir;
-  std::tie(status, ttnn_mlir) = convertFromTTIRToTTNN(
-      system_descriptor_path, mlir_module, compile_options, mesh_shape);
+  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                 compile_options, mesh_shape, ttnn_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   tt::runtime::Binary flatbuffer(nullptr);
-  std::tie(status, flatbuffer) =
-      createFlatbufferBinary(mlir_module, input_shardings, output_shardings);
+  status = createFlatbufferBinary(mlir_module, input_shardings,
+                                  output_shardings, flatbuffer);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   // Collect memory kinds for output buffers
-  auto [output_memory_kinds, output_memory_kinds_sizes] =
-      collectMemoryKinds(num_outputs);
+  std::vector<const char *> output_memory_kinds;
+  std::vector<size_t> output_memory_kinds_sizes;
+  collectMemoryKinds(num_outputs, output_memory_kinds,
+                     output_memory_kinds_sizes);
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
@@ -202,22 +204,22 @@ ModuleBuilder::buildModule(
               std::move(compile_options))};
 }
 
-std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
-ModuleBuilder::createVHLOModule(const std::string_view &mlir_code) {
-  mlir::OwningOpRef<mlir::ModuleOp> vhlo_module =
-      mlir::parseSourceString<mlir::ModuleOp>(
-          llvm::StringRef(mlir_code.data(), mlir_code.size()),
-          mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
+tt_pjrt_status ModuleBuilder::createVHLOModule(
+    const std::string_view &mlir_code,
+    mlir::OwningOpRef<mlir::ModuleOp> &vhlo_module) {
+  vhlo_module = mlir::parseSourceString<mlir::ModuleOp>(
+      llvm::StringRef(mlir_code.data(), mlir_code.size()),
+      mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
 
   if (!vhlo_module) {
     DLOG_F(ERROR, "Failed to create VHLO module from the input program code");
-    return {tt_pjrt_status::kInternal, mlir::OwningOpRef<mlir::ModuleOp>()};
+    return tt_pjrt_status::kInternal;
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
   printModule(vhlo_module);
 
-  return {tt_pjrt_status::kSuccess, std::move(vhlo_module)};
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
@@ -260,16 +262,17 @@ ModuleBuilder::getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   return mlir_code;
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectInputShardings(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  return isUsingShardy(module) ? collectInputShardingsShardy(module)
-                               : collectInputShardingsGSPMD(module);
+tt_pjrt_status ModuleBuilder::collectInputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
+  return isUsingShardy(module)
+             ? collectInputShardingsShardy(module, input_shardings)
+             : collectInputShardingsGSPMD(module, input_shardings);
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectInputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectInputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
 
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
@@ -280,28 +283,25 @@ ModuleBuilder::collectInputShardingsGSPMD(
     }
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
-
   mlir::LogicalResult result =
       createShardingsFromGSPMD(gspmd_attributes, input_shardings);
   if (result.failed()) {
     DLOG_F(ERROR, "Failed to create input shardings from GSPMD attributes");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
-  return {tt_pjrt_status::kSuccess, input_shardings};
+  return tt_pjrt_status::kSuccess;
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectInputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  auto [mesh_status, mesh_op] = getFirstShardyMeshOp(module);
+tt_pjrt_status ModuleBuilder::collectInputShardingsShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
+  mlir::sdy::MeshOp mesh_op;
+  tt_pjrt_status mesh_status = getFirstShardyMeshOp(module, mesh_op);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!tt_pjrt_status_is_ok(mesh_status)) {
     DLOG_F(ERROR, "Failed to find mesh op in the module");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
 
   mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
@@ -317,28 +317,26 @@ ModuleBuilder::collectInputShardingsShardy(
     }
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
-
   mlir::LogicalResult result = createShardingsFromShardy(
       shardy_attributes, shardy_mesh, input_shardings);
   if (result.failed()) {
     DLOG_F(ERROR, "Failed to create input shardings from Shardy attributes");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
-  return {tt_pjrt_status::kSuccess, input_shardings};
+  return tt_pjrt_status::kSuccess;
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectOutputShardings(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  return isUsingShardy(module) ? collectOutputShardingsShardy(module)
-                               : collectOutputShardingsGSPMD(module);
+tt_pjrt_status ModuleBuilder::collectOutputShardings(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
+  return isUsingShardy(module)
+             ? collectOutputShardingsShardy(module, output_shardings)
+             : collectOutputShardingsGSPMD(module, output_shardings);
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectOutputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::collectOutputShardingsGSPMD(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::StringAttr> gspmd_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
@@ -348,28 +346,25 @@ ModuleBuilder::collectOutputShardingsGSPMD(
     }
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-
   mlir::LogicalResult result =
       createShardingsFromGSPMD(gspmd_attributes, output_shardings);
   if (result.failed()) {
     DLOG_F(ERROR, "Failed to create output shardings from GSPMD attributes");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
-  return {tt_pjrt_status::kSuccess, output_shardings};
+  return tt_pjrt_status::kSuccess;
 }
 
-std::tuple<tt_pjrt_status, std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectOutputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  auto [mesh_status, mesh_op] = getFirstShardyMeshOp(module);
+tt_pjrt_status ModuleBuilder::collectOutputShardingsShardy(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
+  mlir::sdy::MeshOp mesh_op;
+  tt_pjrt_status mesh_status = getFirstShardyMeshOp(module, mesh_op);
   // Since this function is called only when we are using the shardy dialect,
   // this op should always be present.
   if (!tt_pjrt_status_is_ok(mesh_status)) {
     DLOG_F(ERROR, "Failed to find mesh op in the module");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
 
   mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
@@ -384,16 +379,13 @@ ModuleBuilder::collectOutputShardingsShardy(
     }
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-
   mlir::LogicalResult result = createShardingsFromShardy(
       shardy_attributes, shardy_mesh, output_shardings);
   if (result.failed()) {
     DLOG_F(ERROR, "Failed to create output shardings from Shardy attributes");
-    return {tt_pjrt_status::kInternal,
-            std::vector<mlir::tt::sharding_utils::MeshSharding>()};
+    return tt_pjrt_status::kInternal;
   }
-  return {tt_pjrt_status::kSuccess, output_shardings};
+  return tt_pjrt_status::kSuccess;
 }
 
 std::vector<PJRT_Buffer_Type> ModuleBuilder::collectOutputTypes(
@@ -578,8 +570,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   return tt_pjrt_status::kSuccess;
 }
 
-std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromSHLOToTTIR(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string &ttir_mlir) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
@@ -594,15 +586,15 @@ std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromSHLOToTTIR(
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
-    return {tt_pjrt_status::kInternal, std::string()};
+    return tt_pjrt_status::kInternal;
   }
 
-  auto ttir_mlir = getMlirCode(mlir_module);
+  ttir_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
 
-  return {tt_pjrt_status::kSuccess, ttir_mlir};
+  return tt_pjrt_status::kSuccess;
 }
 
 std::vector<std::uint32_t> ModuleBuilder::collectMeshShape(
@@ -695,11 +687,11 @@ NumDevicesResult ModuleBuilder::collectNumDevicesToUtilize(
           .num_devices_to_utilize = num_devices_to_utilize};
 }
 
-std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromTTIRToTTNN(
+tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const CompileOptions &compile_options,
-    std::vector<std::uint32_t> devices_mesh_shape) {
+    std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
@@ -713,7 +705,7 @@ std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromTTIRToTTNN(
     DLOG_F(ERROR,
            "Invalid mesh shape size: %zu. Shape must have two dimensions!",
            devices_mesh_shape.size());
-    return {tt_pjrt_status::kInternal, std::string()};
+    return tt_pjrt_status::kInternal;
   }
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
@@ -724,31 +716,30 @@ std::tuple<tt_pjrt_status, std::string> ModuleBuilder::convertFromTTIRToTTNN(
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
-    return {tt_pjrt_status::kInternal, std::string()};
+    return tt_pjrt_status::kInternal;
   }
 
-  auto ttnn_mlir = getMlirCode(mlir_module);
+  ttnn_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
 
-  return {tt_pjrt_status::kSuccess, ttnn_mlir};
+  return tt_pjrt_status::kSuccess;
 }
 
-std::tuple<tt_pjrt_status, tt::runtime::Binary>
-ModuleBuilder::createFlatbufferBinary(
+tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding>
-        &output_shardings) {
-  auto flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
+    tt::runtime::Binary &flatbuffer_binary) {
+  flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
   tt_pjrt_status status = verifyCreatedFlatbufferBinary(
       flatbuffer_binary, input_shardings, output_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
-    return {status, flatbuffer_binary};
+    return status;
   }
-  return {tt_pjrt_status::kSuccess, flatbuffer_binary};
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ModuleBuilder::verifyCreatedFlatbufferBinary(
@@ -852,7 +843,8 @@ bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // After running through the SdyRoundTripImportPipeline, the module which uses
   // shardy dialect will have the sdy.mesh op.
-  auto [mesh_status, mesh_op] = getFirstShardyMeshOp(module);
+  mlir::sdy::MeshOp mesh_op;
+  tt_pjrt_status mesh_status = getFirstShardyMeshOp(module, mesh_op);
 
   return tt_pjrt_status_is_ok(mesh_status);
 }
@@ -873,11 +865,9 @@ bool ModuleBuilder::isUsingShardyManualComputation(
   return is_using_shardy_manual_computation;
 }
 
-std::tuple<std::vector<const char *>, std::vector<size_t>>
-ModuleBuilder::collectMemoryKinds(size_t num_outputs) {
-  std::vector<const char *> output_memory_kinds;
-  std::vector<size_t> output_memory_kinds_sizes;
-
+void ModuleBuilder::collectMemoryKinds(
+    size_t num_outputs, std::vector<const char *> &output_memory_kinds,
+    std::vector<size_t> &output_memory_kinds_sizes) {
   output_memory_kinds.reserve(num_outputs);
   output_memory_kinds_sizes.reserve(num_outputs);
 
@@ -887,22 +877,21 @@ ModuleBuilder::collectMemoryKinds(size_t num_outputs) {
     output_memory_kinds_sizes.emplace_back(
         MemoryInstance::c_device_memory_kind_name.size());
   }
-
-  return {std::move(output_memory_kinds), std::move(output_memory_kinds_sizes)};
 }
 
-std::tuple<tt_pjrt_status, mlir::sdy::MeshOp>
-ModuleBuilder::getFirstShardyMeshOp(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+tt_pjrt_status ModuleBuilder::getFirstShardyMeshOp(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module,
+    mlir::sdy::MeshOp &mesh_op) {
   mlir::sdy::MeshOp found_mesh_op = nullptr;
   module.get().walk([&](mlir::sdy::MeshOp op) {
     found_mesh_op = op;
     return mlir::WalkResult::interrupt();
   });
   if (!found_mesh_op) {
-    return {tt_pjrt_status::kInternal, mlir::sdy::MeshOp()};
+    return tt_pjrt_status::kInternal;
   }
-  return {tt_pjrt_status::kSuccess, found_mesh_op};
+  mesh_op = found_mesh_op;
+  return tt_pjrt_status::kSuccess;
 }
 
 } // namespace tt::pjrt::module_builder

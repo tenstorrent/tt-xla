@@ -17,7 +17,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "mlir/IR/Value.h"
 #include "mlir/Pass/PassManager.h"
 
 // PJRT C API includes
@@ -69,8 +68,9 @@ public:
 
 private:
   // Creates VHLO module from the input program code.
-  std::tuple<tt_pjrt_status, mlir::OwningOpRef<mlir::ModuleOp>>
-  createVHLOModule(const std::string_view &code);
+  tt_pjrt_status
+  createVHLOModule(const std::string_view &code,
+                   mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts VHLO module to StableHLO module.
   tt_pjrt_status
@@ -89,22 +89,23 @@ private:
   collectNumArguments(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collects the information about the sharding of specific inputs.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectInputShardings(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
 
   // Collects the information about the sharding of specific outputs.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectOutputShardings(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
   // Runs compiler StableHLO pipeline on the MLIR module.
   tt_pjrt_status
   runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts StableHLO module to TTIR module.
-  std::tuple<tt_pjrt_status, std::string>
-  convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  tt_pjrt_status
+  convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                        std::string &ttir_code);
 
   // Collects the information about the mesh shape the module is intended to run
   // on.
@@ -124,19 +125,21 @@ private:
                              std::vector<std::uint32_t> devices_mesh_shape);
 
   // Converts TTIR module to TTNN module.
-  std::tuple<tt_pjrt_status, std::string>
+  tt_pjrt_status
   convertFromTTIRToTTNN(const std::string &system_descriptor_path,
                         mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                         const CompileOptions &compile_options,
-                        std::vector<std::uint32_t> devices_mesh_shape);
+                        std::vector<std::uint32_t> devices_mesh_shape,
+                        std::string &ttnn_code);
 
   // Creates flatbuffer binary from the built TTNN module.
-  std::tuple<tt_pjrt_status, tt::runtime::Binary> createFlatbufferBinary(
+  tt_pjrt_status createFlatbufferBinary(
       const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &input_shardings,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings);
+          &output_shardings,
+      tt::runtime::Binary &flatbuffer_binary);
 
   // Verifies that creates flatbuffer binary satisfies conditions estimated by
   // the compiler from the input graph.
@@ -166,24 +169,24 @@ private:
   std::string getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collect input sharding if we are using GSPMD.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectInputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectInputShardingsGSPMD(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
 
   // Collect output sharding if we are using GSPMD.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectOutputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectOutputShardingsGSPMD(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
   // Collect input sharding if we are using Shardy.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectInputShardingsShardy(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
 
   // Collect output sharding if we are using Shardy.
-  std::tuple<tt_pjrt_status,
-             std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectOutputShardingsShardy(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
   // Checks if the StableHLO code is using the Shardy mlir dialect.
   bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
@@ -208,16 +211,18 @@ private:
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Collects memory kinds for output buffers.
-  std::tuple<std::vector<const char *>, std::vector<size_t>>
-  collectMemoryKinds(size_t num_outputs);
+  void collectMemoryKinds(size_t num_outputs,
+                          std::vector<const char *> &memory_kinds,
+                          std::vector<size_t> &memory_kind_sizes);
 
   // Gets all public functions from the module.
   std::vector<mlir::func::FuncOp>
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
-  std::tuple<tt_pjrt_status, mlir::sdy::MeshOp>
-  getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status
+  getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module,
+                       mlir::sdy::MeshOp &mesh_op);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
