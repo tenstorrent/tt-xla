@@ -1899,14 +1899,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got CPUBFloat16Type instead",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
     "phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got CPUBFloat16Type instead",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
     "glpn_kitti/pytorch-full-inference": {
         "arch_overrides": {
