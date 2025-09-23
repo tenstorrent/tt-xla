@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Import module so "tt" backend is registered
-import tt_torch.backend.backend
+import tt_torch_core.backend.backend
 
 # Import module so custom operations are registered
-import tt_torch.custom_ops
+import tt_torch_core.custom_ops
 
 from .tools import mark_module_user_inputs
 from .serialization import (
