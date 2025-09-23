@@ -11,8 +11,8 @@
 // tt-mlir includes
 #include "tt/runtime/types.h"
 
-#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_UTILS_H_
-#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_UTILS_H_
+#ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DTYPE_UTILS_H_
+#define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DTYPE_UTILS_H_
 
 namespace tt::pjrt::data_type_utils {
 
@@ -34,4 +34,4 @@ PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type);
 
 } // namespace tt::pjrt::data_type_utils
 
-#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_UTILS_H_
+#endif // TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_DTYPE_UTILS_H_

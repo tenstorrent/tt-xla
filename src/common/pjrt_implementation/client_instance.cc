@@ -138,19 +138,17 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  m_parent_mesh = openMeshDevice();
+  m_parent_mesh =
+      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
 
   return tt_pjrt_status::kSuccess;
 }
 
 tt::runtime::Device
-ClientInstance::openMeshDevice(::tt::runtime::MeshDeviceOptions options) {
-  auto num_devices = m_devices.size();
-  if (options.meshShape.has_value()) {
-    num_devices = static_cast<size_t>(
-        std::accumulate(options.meshShape->begin(), options.meshShape->end(), 1,
-                        std::multiplies<std::uint32_t>{}));
-  }
+ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
+  size_t num_devices =
+      static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
+                                          1, std::multiplies<std::uint32_t>{}));
 
   // NOTES:
   // - this should probably be set automatically by the mlir runtime.
@@ -162,6 +160,10 @@ ClientInstance::openMeshDevice(::tt::runtime::MeshDeviceOptions options) {
   } else {
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
+
+  tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
+      .meshShape = mesh_shape,
+  };
 
   return tt::runtime::openMeshDevice(options);
 }
@@ -393,36 +395,30 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
   return tt_pjrt_status::kSuccess;
 }
 
-template <typename T> std::string to_string(const std::vector<T> vec) {
-  std::stringstream res;
-  res << "[";
-  for (size_t i = 0; i < vec.size(); i++) {
-    res << vec[i] << (i + 1 < vec.size() ? ", " : "");
-  }
-  res << "]";
-  return res.str();
-}
-
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
-  assert(m_parent_mesh.has_value() &&
-         "At this point we should have an opened parent mesh device");
-  auto parent_mesh_shape = tt::runtime::getMeshShape(*m_parent_mesh);
+  if (!m_parent_mesh.has_value()) {
+    m_parent_mesh = openMeshDevice(target_mesh_shape);
+    return *m_parent_mesh;
+  }
+
+  std::vector<uint32_t> parent_mesh_shape =
+      tt::runtime::getMeshShape(*m_parent_mesh);
 
   if (parent_mesh_shape == target_mesh_shape) {
     DLOG_F(LOG_DEBUG,
            "ClientInstance::getOrCreateMeshDevice - reusing "
            "already opened mesh device %s",
-           to_string(parent_mesh_shape).c_str());
+           utils::to_string(parent_mesh_shape).c_str());
     return *m_parent_mesh;
   }
 
   DLOG_F(LOG_DEBUG,
          "ClientInstance::getOrCreateMeshDevice - "
          "reshaping mesh device - %s -> %s",
-         to_string(parent_mesh_shape).c_str(),
-         to_string(target_mesh_shape).c_str());
+         utils::to_string(parent_mesh_shape).c_str(),
+         utils::to_string(target_mesh_shape).c_str());
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
@@ -435,10 +431,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
   tt::runtime::closeMeshDevice(*m_parent_mesh);
-
-  tt::runtime::MeshDeviceOptions options =
-      tt::runtime::MeshDeviceOptions{.meshShape = target_mesh_shape};
-  m_parent_mesh = openMeshDevice(options);
+  m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
 }
