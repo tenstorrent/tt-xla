@@ -1247,36 +1247,22 @@ test_config = {
         },
     },
     "llama/causal_lm/pytorch-llama_3_2_1b-full-inference": {
-        "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_3b-full-inference": {
         "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-inference": {
         "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference": {
         "required_pcc": 0.97,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-full-inference": {
-        "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "yolov6/pytorch-yolov6n-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
