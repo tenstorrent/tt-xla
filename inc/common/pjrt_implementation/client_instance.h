@@ -76,12 +76,13 @@ public:
     return m_addressable_memories_raw;
   }
 
-  tt::runtime::Device getParentMesh() const { return *m_parent_mesh; }
-
   // Returns the mesh device of the provided shape. If there is already opened
   // mesh device within this client instance and its shape matches the provided
   // shape, it is returned. Otherwise, we close any previously opened mesh
   // device and open a new one with the provided shape.
+  //
+  // NOTE: this method is not thread-safe and we will need to revisit this when
+  // adding support for parallel execution.
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
@@ -106,8 +107,7 @@ private:
 
   // Wrapper method around `tt::runtime::openMeshDevice` that also handles
   // setting fabric config when needed.
-  tt::runtime::Device
-  openMeshDevice(::tt::runtime::MeshDeviceOptions options = {});
+  tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
 
   std::unique_ptr<Platform> platform_;
 
