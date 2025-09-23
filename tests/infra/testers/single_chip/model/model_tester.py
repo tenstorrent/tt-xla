@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence, Callable
+from typing import Any, Dict, Mapping, Sequence, Callable, Optional
 
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -42,8 +42,6 @@ class ModelTester(BaseTester, ABC):
 
         self._model: Model = None
         self._workload: Workload = None
-        self._shard_spec_function = None
-        self._mesh = None
 
         super().__init__(comparison_config, framework)
         self._initialize_components()
@@ -65,20 +63,14 @@ class ModelTester(BaseTester, ABC):
         self._configure_model()
         # Cache model inputs.
         self._cache_model_inputs()
-        # Get shard specs.
-        self._shard_spec_function = self._get_shard_specs_function()
-        # Get mesh.
-        self._mesh = self._get_mesh()
 
-    @abstractmethod
-    def _get_shard_specs_function(self) -> Callable[[Model], ShardSpec]:
-        """Returns shard specs function."""
-        raise NotImplementedError("Subclasses must implement this method.")
+    def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
+        """Optional: returns shard specs function if required; otherwise None."""
+        return None
 
-    @abstractmethod
-    def _get_mesh(self) -> Mesh:
-        """Returns mesh."""
-        raise NotImplementedError("Subclasses must implement this method.")
+    def _get_mesh(self) -> Optional[Mesh]:
+        """Optional: returns mesh if required; otherwise None."""
+        return None
 
     @abstractmethod
     def _get_model(self) -> Model:
@@ -137,7 +129,7 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        # self._compile_for_cpu(self._workload)
+        self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)
