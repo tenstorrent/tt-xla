@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_runtime,
 )
 from third_party.tt_forge_models.xlm_roberta.causal_lm.jax import ModelVariant
 from ..tester import XLMRobertaTester
@@ -46,7 +47,12 @@ def training_tester() -> XLMRobertaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
 )
 def test_xlm_roberta_base_inference(inference_tester: XLMRobertaTester):
     inference_tester.test()

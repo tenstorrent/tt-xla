@@ -735,6 +735,13 @@ test_config = {
     "deit/pytorch-base-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "required_pcc": 0.97,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "mlp_mixer/lucidrains/pytorch-base-full-inference": {
         # Exposed by "Remove host-side consteval" change
@@ -1541,7 +1548,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "stable_diffusion_unet/pytorch-base-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "mlp_mixer/pytorch-mixer_github-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1600,6 +1608,13 @@ test_config = {
     },
     "unet/pytorch-unet_cityscapes-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "unet/pytorch-torchhub_brain_unet-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1617,16 +1632,19 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-timm_efficientnet_b4-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
     "efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1759,6 +1777,13 @@ test_config = {
     "wide_resnet/pytorch-wide_resnet50_2.timm-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434",
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+            },
+        },
     },
     "vgg/pytorch-bn_vgg19b-full-inference": {
         "required_pcc": 0.96,
