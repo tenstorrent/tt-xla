@@ -103,35 +103,14 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kInternal;
   }
 
-  std::unordered_set<int> device_ids =
-      getDeviceIds(args->argument_lists, args->num_args, args->num_devices);
+  std::optional<tt::runtime::Device> runtime_device =
+      getOrCreateMeshDevice(args->argument_lists, args->num_args,
+                            args->num_devices, args->execute_device);
 
-  const std::vector<std::uint32_t> &devices_mesh_shape =
-      m_executable_image->getDevicesMeshShape();
-  size_t mesh_shape_num_devices = static_cast<size_t>(
-      std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
-                      std::multiplies<std::uint32_t>{}));
-
-  if (device_ids.size() != mesh_shape_num_devices) {
-    DLOG_F(ERROR,
-           "Input buffers are placed on a different number of devices (%zu) "
-           "than in the mesh shape estimated by the compiler (%zu)",
-           device_ids.size(), mesh_shape_num_devices);
+  if (!runtime_device) {
+    // Logging is done inside `getOrCreateMeshDevice`.
     return tt_pjrt_status::kInternal;
   }
-
-  DeviceInstance *device_instance =
-      DeviceInstance::unwrap(args->execute_device);
-  if (device_instance &&
-      !(device_ids.size() == 1 &&
-        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
-    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
-                  "specified in the execute_device argument");
-    return tt_pjrt_status::kInternal;
-  }
-
-  tt::runtime::Device runtime_device =
-      m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
@@ -139,14 +118,14 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
-      args->argument_lists, args->num_args, args->num_devices, runtime_device,
+      args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
 
   std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
+      *runtime_device, m_executable_image->getFlatbufferBinary(), program_index,
       input_tensors);
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
@@ -187,6 +166,45 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::optional<tt::runtime::Device>
+LoadedExecutableInstance::getOrCreateMeshDevice(
+    PJRT_Buffer *const *const *argument_lists, size_t num_args,
+    size_t num_devices, PJRT_Device *pjrt_device) {
+  std::unordered_set<int> device_ids =
+      getDeviceIds(argument_lists, num_args, num_devices);
+
+  const std::vector<std::uint32_t> &devices_mesh_shape =
+      m_executable_image->getDevicesMeshShape();
+  size_t mesh_shape_num_devices = static_cast<size_t>(
+      std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
+                      std::multiplies<std::uint32_t>{}));
+
+  if (device_ids.size() != mesh_shape_num_devices) {
+    DLOG_F(ERROR,
+           "Input buffers are placed on a different number of devices (%zu) "
+           "than in the mesh shape estimated by the compiler (%zu)",
+           device_ids.size(), mesh_shape_num_devices);
+    return std::nullopt;
+  }
+
+  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+  if (device_instance &&
+      !(device_ids.size() == 1 &&
+        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                  "specified in the execute_device argument");
+    return std::nullopt;
+  }
+
+  // TODO(mrakita): Currently runtime doesn't allow us to open specific devices
+  // subset, we can only open contiguous subset of devices starting from some
+  // offset. We need to keep track of opened devices in Client and map the
+  // buffers devices to these devices.
+  // https://github.com/tenstorrent/tt-xla/issues/502
+
+  return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
