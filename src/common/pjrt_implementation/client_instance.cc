@@ -144,30 +144,6 @@ tt_pjrt_status ClientInstance::populateDevices() {
   return tt_pjrt_status::kSuccess;
 }
 
-tt::runtime::Device
-ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
-  size_t num_devices =
-      static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
-                                          1, std::multiplies<std::uint32_t>{}));
-
-  // NOTES:
-  // - this should probably be set automatically by the mlir runtime.
-  // - it looks like metal context is being reinitialized each time we
-  // open/close the device, so we need to set the fabric config each time
-  // (even if we always set it to the same value).
-  if (num_devices > 1) {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
-  } else {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-  }
-
-  tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
-      .meshShape = mesh_shape,
-  };
-
-  return tt::runtime::openMeshDevice(options);
-}
-
 tt_pjrt_status ClientInstance::populateMemories() {
   m_addressable_host_memory =
       MemoryInstance::createInstance(m_addressable_devices_raw, /*id=*/0,
@@ -434,6 +410,30 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
+}
+
+tt::runtime::Device
+ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
+  size_t num_devices =
+      static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
+                                          1, std::multiplies<std::uint32_t>{}));
+
+  // NOTES:
+  // - this should probably be set automatically by the mlir runtime.
+  // - it looks like metal context is being reinitialized each time we
+  // open/close the device, so we need to set the fabric config each time
+  // (even if we always set it to the same value).
+  if (num_devices > 1) {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+  } else {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  }
+
+  tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
+      .meshShape = mesh_shape,
+  };
+
+  return tt::runtime::openMeshDevice(options);
 }
 
 namespace internal {
