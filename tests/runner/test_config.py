@@ -1732,12 +1732,6 @@ test_config = {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
-    "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
-        # Exposed by "Remove host-side consteval" change
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "OOM lately. Previously error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
     "vovnet/pytorch-vovnet39-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1927,16 +1921,6 @@ test_config = {
         },
     },
     "stable_diffusion_1_4/pytorch-base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "stable_diffusion_3_5/pytorch-large-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "stable_diffusion_3_5/pytorch-medium-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
