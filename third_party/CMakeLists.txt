@@ -60,8 +60,8 @@ else()
     # ----- tt-mlir -----
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
-    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
-    set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
+    set(TTMLIR_BUILD_DIR "$ENV{TT_MLIR_HOME}build")
+    set(TTMLIR_LIB_DIR "$ENV{TT_MLIR_HOME}install")
     set(TT_RUNTIME_DEBUG ON CACHE BOOL "Enable ttmlir runtime debugging")
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
