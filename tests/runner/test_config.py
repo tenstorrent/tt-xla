@@ -1254,36 +1254,22 @@ test_config = {
         },
     },
     "llama/causal_lm/pytorch-llama_3_2_1b-full-inference": {
-        "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_3b-full-inference": {
         "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-inference": {
         "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-full-inference": {
         "required_pcc": 0.97,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-full-inference": {
-        "required_pcc": 0.98,
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC check should consider attention_mask - https://github.com/tenstorrent/tt-torch/issues/1176",
     },
     "yolov6/pytorch-yolov6n-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1750,12 +1736,6 @@ test_config = {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
-    "phi3/phi_3_5_moe/pytorch-instruct-full-inference": {
-        # Exposed by "Remove host-side consteval" change
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "OOM lately. Previously error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
     "vovnet/pytorch-vovnet39-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1930,14 +1910,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got CPUBFloat16Type instead",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
     "phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got CPUBFloat16Type instead",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
     "glpn_kitti/pytorch-full-inference": {
         "arch_overrides": {
@@ -1952,16 +1934,6 @@ test_config = {
         },
     },
     "stable_diffusion_1_4/pytorch-base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "stable_diffusion_3_5/pytorch-large-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-    "stable_diffusion_3_5/pytorch-medium-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Hangs or takes forever to run - not known to be compile clean anyways.",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
