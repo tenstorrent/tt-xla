@@ -54,7 +54,7 @@ def training_tester() -> OPTTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "OOM on device issues - https://github.com/tenstorrent/tt-xla/issues/1447"
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     )
 )
 def test_opt_2_7b_inference(inference_tester: OPTTester):
