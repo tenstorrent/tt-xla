@@ -177,7 +177,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   tt_pjrt_status compile_status = m_module_builder->buildModule(
-      mlir_code, m_cached_system_descriptor_path, compile_options);
+      mlir_code, m_cached_system_descriptor_path, compile_options, this);
 
   if (!tt_pjrt_status_is_ok(compile_status)) {
     return compile_status;
