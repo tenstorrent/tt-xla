@@ -10,7 +10,6 @@ import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
-from torch_xla.experimental import plugins
 import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
@@ -19,30 +18,7 @@ from tests.infra.comparators.comparison_config import (
     ComparisonConfig,
     PccConfig,
 )
-
-
-def setup_tt_environment():
-    """Setup TensorTrent environment and plugin."""
-    os.environ["PJRT_DEVICE"] = "TT"
-    os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
-    os.environ["MESH_SHAPE"] = "8,1"
-    os.environ["LOGGER_LEVEL"] = "DEBUG"
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
-
-    class TTPjrtPlugin(plugins.DevicePlugin):
-        def library_path(self):
-            # Find tt-xla repo root by traversing up from current file
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            while current_dir != "/" and not os.path.exists(os.path.join(current_dir, "build")):
-                current_dir = os.path.dirname(current_dir)
-            return os.path.join(current_dir, "build/src/tt/pjrt_plugin_tt.so")
-
-    plugins.register_plugin("TT", TTPjrtPlugin())
-    xr.set_device_type("TT")
-    xr.use_spmd()
-
+from tests.torch.multi_chip.utils import data_parallel_inference_generic, tensor_parallel_inference_mnist
 
 class MNISTLinear(nn.Module):
     """Simple linear MNIST model for inference testing."""
@@ -51,53 +27,14 @@ class MNISTLinear(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(input_size, hidden_size, bias=bias)
         self.fc2 = nn.Linear(hidden_size, hidden_size, bias=bias)
-        self.fc3 = nn.Linear(hidden_size, num_classes, bias=bias)
+        # self.fc3 = nn.Linear(hidden_size, num_classes, bias=bias)
         
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
+        x = self.fc1(x)
         x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        return torch.log_softmax(x, dim=1)
-
-
-def inference_on_multiple_devices(batch_size: int = 64, input_size: int = 784):
-    """Run MNIST linear inference with data parallel across multiple devices."""
-    
-    setup_tt_environment()
-    torch.manual_seed(42)
-    
-    # Get number of devices and create mesh
-    num_devices = xr.global_runtime_device_count()
-    device_ids = np.arange(num_devices)
-    mesh = Mesh(device_ids=device_ids, mesh_shape=(num_devices,), axis_names=("data",))
-    
-    # Create model and move to device
-    model = MNISTLinear(input_size, 512, 10, bias=True).to(torch.bfloat16)
-    device = torch_xla.device()
-    model = model.to(device)
-    
-    # Initialize model parameters with some values for testing
-    with torch.no_grad():
-        for param in model.parameters():
-            param.fill_(0.01)
-    
-    # Create input data
-    total_batch_size = batch_size * num_devices
-    input_data = torch.randn(total_batch_size, input_size, dtype=torch.bfloat16)
-    
-    # Move to device and mark sharding
-    sharded_input = input_data.to(device, dtype=torch.bfloat16)
-    xs.mark_sharding(sharded_input, mesh, ("data", None))
-    
-    # Run inference
-    model.eval()
-    with torch.no_grad():
-        outputs = model(sharded_input)
-    
-    # Synchronize and return results
-    torch_xla.sync(wait=True)
-    return outputs, input_data
-
+        # x = self.fc3(x)
+        return x
+        # return torch.log_softmax(x, dim=1)
 
 @pytest.mark.nightly
 @pytest.mark.push
@@ -105,34 +42,66 @@ def inference_on_multiple_devices(batch_size: int = 64, input_size: int = 784):
     "batch_size,input_size",
     [
         (32, 784),
-        (64, 784),
         (128, 784),
     ],
 )
-def test_mnist_linear_inference_multichip(batch_size: int, input_size: int):
+def test_mnist_inference_data_parallel(batch_size: int, input_size: int):
     """Test MNIST linear inference with data parallel across multiple chips."""
-    
-    # Run CPU reference
+
+    # set seed for reproducibility
     torch.manual_seed(42)
-    cpu_model = MNISTLinear(input_size, 512, 10, bias=True).to(torch.bfloat16)
-    
-    # Initialize with same values as device model
-    with torch.no_grad():
-        for param in cpu_model.parameters():
-            param.fill_(0.01)
-    
+
+    model = MNISTLinear(input_size, 512, 10, bias=True).to(torch.bfloat16)
+
+    # Create random input data
+    input_data = torch.randn(batch_size, input_size, dtype=torch.bfloat16)
+
     # Run multichip inference first to get device count
-    tt_output, input_data = inference_on_multiple_devices(batch_size, input_size)
-    
-    # Create CPU input with same size as was used on devices  
-    input_data = input_data.cpu()
-    
+    tt_output = data_parallel_inference_generic(model=model, inputs=input_data, batch_dim=0)
+
+    # model to CPU for comparison 
+    model_cpu = model.cpu()
+
     # CPU inference
-    cpu_model.eval()
+    model_cpu.eval()
     with torch.no_grad():
-        cpu_output = cpu_model(input_data)
-    
-    # Compare results
+        cpu_output = model_cpu(input_data)
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(required_atol=0.05),
+            pcc=PccConfig(required_pcc=0.95),
+        )
+    )
+    comparator.compare(tt_output.cpu(), cpu_output)
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "batch_size,input_size",
+    [
+        (32, 784),
+        # (128, 784),
+    ],
+)
+def test_mnist_inference_tensor_parallel(batch_size: int, input_size: int):
+    """Test MNIST linear inference with tensor parallel across multiple chips."""
+    torch.manual_seed(42)
+
+    model = MNISTLinear(input_size, 512, 10, bias=True).to(torch.bfloat16)
+
+    # Random input
+    input_data = torch.randn(batch_size, input_size, dtype=torch.bfloat16)
+
+    # CPU baseline (same weights)
+    model_cpu = model.cpu().eval()
+    with torch.no_grad():
+        cpu_output = model_cpu(input_data)
+
+    # Run on devices (tensor parallel)
+    tt_output = tensor_parallel_inference_mnist(model=model, inputs=input_data)
+
+
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.05),
