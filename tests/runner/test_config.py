@@ -99,10 +99,6 @@ PLACEHOLDER_MODELS = {
     "Qwen/QVQ-72B-Preview": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "detr3d": {
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "PR exists to add model, hits DRAM Out of memory",
-    },
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -117,10 +113,6 @@ PLACEHOLDER_MODELS = {
     },
     "uniad": {
         "bringup_status": BringupStatus.NOT_STARTED,
-    },
-    "vadv2": {
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "PR exists to add model, hits DRAM Out of memory",
     },
     "maptr": {
         "bringup_status": BringupStatus.NOT_STARTED,
@@ -1921,6 +1913,27 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
+    "phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "glpn_kitti/pytorch-full-inference": {
         "arch_overrides": {
             "p150": {
@@ -1943,9 +1956,24 @@ test_config = {
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "gpt_neo/sequence_classification/pytorch-gpt_neo_125M-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "detr3d/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "vadv2/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B - https://github.com/tenstorrent/tt-xla/issues/1458",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "huggyllama/pytorch-llama_7b-full-inference": {
