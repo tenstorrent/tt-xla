@@ -26,6 +26,12 @@ from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import (
     ModelVariant,
 )
 
+try:
+    from FlagEmbedding import BGEM3FlagModel
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "FlagEmbedding"])
+    from FlagEmbedding import BGEM3FlagModel
+
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
