@@ -10,7 +10,31 @@ import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, Tensor
 from jax._src.typing import DTypeLike
+import torch_xla.runtime as xr
+import os
+from torch_xla.experimental import plugins
 
+
+# TODO this shouldn't be here, but a common utility
+def setup_xla_environment():
+    """Setup TensorTrent environment and plugin."""
+    os.environ["PJRT_DEVICE"] = "TT"
+    os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    # os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
+
+    class TTPjrtPlugin(plugins.DevicePlugin):
+        def library_path(self):
+            # Find tt-xla repo root by traversing up from current file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            while current_dir != "/" and not os.path.exists(os.path.join(current_dir, "build")):
+                current_dir = os.path.dirname(current_dir)
+            return os.path.join(current_dir, "build/src/tt/pjrt_plugin_tt.so")
+
+    plugins.register_plugin("TT", TTPjrtPlugin())
+    xr.set_device_type("TT")
+    xr.use_spmd()
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:
     """Create a random input image with the given image size."""
