@@ -46,6 +46,7 @@ class ModelTask(StrEnum):
     NLP_TRANSLATION = "nlp_translation"
     NLP_SUMMARIZATION = "nlp_summarization"
     NLP_MULTI_CHOICE = "nlp_multi_choice"
+    NLP_EMBED_GEN = "nlp_embed_gen"
     AUDIO_CLS = "audio_cls"
     AUDIO_ASR = "audio_asr"
     CV_IMAGE_CLS = "cv_image_cls"

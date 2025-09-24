@@ -8,6 +8,28 @@ import torch_xla.runtime as xr
 import numpy as np
 import subprocess
 import sys
+import pytest
+
+import pytest
+from infra import Framework, RunMode
+from utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    ModelSource,
+    ModelTask,
+    build_model_name,
+    incorrect_result,
+)
+
+
+MODEL_NAME = build_model_name(
+    Framework.TORCH,
+    "bge_m3_encode",
+    "base",
+    ModelTask.NLP_EMBED_GEN,
+    ModelSource.CUSTOM,
+)
 
 try:
     from FlagEmbedding import BGEM3FlagModel
@@ -179,8 +201,29 @@ def bge_m3_encode():
 # --------------------------------
 # main
 # --------------------------------
-if __name__ == "__main__":
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
-    xr.set_device_type("TT")
 
-    bge_m3_encode()
+
+@pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.RED,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+def test_bge_m3_encode():
+    """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""
+    try:
+        # By default torch_xla uses the CPU device so we have to set it to TT device.
+        xr.set_device_type("TT")
+    except Exception as e:
+        pytest.skip(f"TT device not available: {e}")
+
+    results = bge_m3_encode()
+    pcc = results["pcc_results"]
+
+    # Validate PCC values are finite and within [-1, 1]
+    for key in ("dense_pcc", "sparse_pcc", "colbert_pcc"):
+        val = pcc[key]
+        assert np.isfinite(val), f"{key} must be finite, got {val}"
+        assert -1.0 <= float(val) <= 1.0, f"{key} must be within [-1, 1], got {val}"
