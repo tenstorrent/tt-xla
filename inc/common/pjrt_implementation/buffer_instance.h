@@ -89,8 +89,19 @@ public:
   const DeviceInstance *getDevice() const { return m_device; }
 
   // Returns the underlying runtime tensor created for this buffer.
-  const tt::runtime::Tensor &getRuntimeTensor() const {
-    return m_runtime_tensor;
+  const tt::runtime::Tensor &getHostRuntimeTensor() const {
+    return m_host_runtime_tensor;
+  }
+
+  // Returns the prepared runtime tensor created for this buffer on last
+  // execution.
+  const tt::runtime::Tensor &getPreparedTensor() const {
+    return m_prepared_runtime_tensor;
+  }
+
+  // Sets the prepared runtime tensor created for this buffer.
+  void setPreparedTensor(const tt::runtime::Tensor &tensor) {
+    m_prepared_runtime_tensor = tensor;
   }
 
   // Returns the memory instance on which this buffers resides.
@@ -179,8 +190,14 @@ private:
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
   MemoryInstance *m_memory;
 
-  // Underlying runtime tensor created for this buffer.
-  tt::runtime::Tensor m_runtime_tensor;
+  // Underlying host runtime tensor created for this buffer.
+  tt::runtime::Tensor m_host_runtime_tensor;
+
+  // Prepared runtime tensor created for this buffer on last execution. If this
+  // buffer is used in multiple programs, it will be the tensor prepared for the
+  // last program executed. If this buffer instance is a part of a multi-device
+  // tensor, this field contains the full tensor.
+  tt::runtime::Tensor m_prepared_runtime_tensor;
 
   // True if data in the buffer is ready (transferred from host or computed on
   // device).

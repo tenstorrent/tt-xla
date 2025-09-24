@@ -33,6 +33,7 @@
 
 namespace tt::pjrt {
 
+class BufferInstance;
 class ClientInstance;
 
 // Represents `PJRT_LoadedExecutable` structure and the functionality around it.
@@ -122,7 +123,7 @@ private:
   // Either returns single tensor or creates multi-device host tensor from arg
   // tensors, depending on the strategy.
   tt::runtime::Tensor getTensorFromStrategy(
-      const std::vector<tt::runtime::Tensor> &arg_tensors,
+      const std::vector<BufferInstance *> &arg_buffers,
       const std::unordered_map<std::string, std::string> &strategy);
 
   // Converts input tensor to desired layout. This might move it on device.

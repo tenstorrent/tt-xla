@@ -237,15 +237,45 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
-    std::vector<tt::runtime::Tensor> arg_tensors;
-    arg_tensors.reserve(num_devices);
+    std::vector<BufferInstance *> arg_buffers;
+    arg_buffers.reserve(num_devices);
 
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
-      arg_tensors.push_back(buffer->getRuntimeTensor());
+      arg_buffers.push_back(buffer);
     }
 
+    // Assert that all buffer instances have the same prepared tensor.
+    // NOTE: In case of sharded tensor we have multiple buffer instances on the
+    // PJRT side, but on our side (tt-mlir runtime) we prepare a single
+    // multi-device tensor.
+    tt::runtime::Tensor prepared_tensor = arg_buffers[0]->getPreparedTensor();
+    for (size_t i = 1; i < arg_buffers.size(); ++i) {
+      assert(arg_buffers[i]->getPreparedTensor().handle ==
+             prepared_tensor.handle);
+    }
+
+    // Check if we already have a prepared tensor corresponding to the buffer
+    // instance(s); i.e. a tensor with the layout which this executable is
+    // expecting. If so, we can just reuse this tensor.
+    tt::runtime::Layout expected_layout = tt::runtime::getLayout(
+        m_executable_image->getFlatbufferBinary(), program_index, arg_index);
+    if (prepared_tensor.handle != nullptr &&
+        tt::runtime::hasLayout(prepared_tensor, expected_layout)) {
+      DLOG_F(LOG_DEBUG,
+             "Reusing already prepared input tensor for argument index %zu",
+             arg_index);
+      input_tensors.push_back(prepared_tensor);
+      continue;
+    }
+
+    // We don't have an already prepared tensor so we need to prepare it now.
+    // This involves two steps:
+    // 1) Create a multi-device tensor from the input buffer instances
+    //   according to the sharding strategy (if needed).
+    // 2) Convert the layout of the tensor to the layout expected by the
+    //  executable.
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         LoadedExecutableInstance::fillStrategyMapFromSharding(
             m_executable_image->getInputSharding(arg_index), num_devices);
@@ -255,15 +285,16 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     tt::runtime::Tensor input_tensor =
-        getTensorFromStrategy(arg_tensors, *strategy);
+        getTensorFromStrategy(arg_buffers, *strategy);
 
     tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
         input_tensor, program_index, arg_index, runtime_device);
 
-    // In case when new tensor was created, we want it to be automatically
-    // deallocated during runtime.
-    if (laid_out_tensor.data != input_tensor.data) {
-      tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
+    // Save the prepared tensor (properly laid out tensor) inside of the buffer
+    // instance(s), so we can reuse it on subsequent executions of the same
+    // executable.
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      arg_buffers[i]->setPreparedTensor(laid_out_tensor);
     }
 
     input_tensors.push_back(laid_out_tensor);
@@ -311,15 +342,21 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
 // the tt::runtime, instead of a more structured approach with structs and/or
 // enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
-    const std::vector<tt::runtime::Tensor> &arg_tensors,
+    const std::vector<BufferInstance *> &arg_buffers,
     const std::unordered_map<std::string, std::string> &strategy) {
   if (strategy.at("strategy") == "identity") {
-    return arg_tensors.front();
+    return arg_buffers.front()->getHostRuntimeTensor();
+  }
+
+  std::vector<tt::runtime::Tensor> tensors;
+  tensors.reserve(arg_buffers.size());
+  for (const BufferInstance *buffer : arg_buffers) {
+    tensors.push_back(buffer->getHostRuntimeTensor());
   }
 
   tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
-      arg_tensors, strategy, m_executable_image->getDevicesMeshShape());
-  tt::runtime::setTensorRetain(tensor, /*retain=*/false);
+      tensors, strategy, m_executable_image->getDevicesMeshShape());
+  tt::runtime::setTensorRetain(tensor, /*retain=*/true);
 
   return tensor;
 }
