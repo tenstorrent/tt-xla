@@ -59,7 +59,7 @@ class ModelLoader(ForgeModel):
             model="pointpillars",
             variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.OBJECT_DETECTION,
+            task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
