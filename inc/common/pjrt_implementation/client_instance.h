@@ -14,17 +14,22 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // third-party includes
 #include <google/protobuf/unknown_field_set.h>
 
 // tt-xla includes
+#include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/platform.h"
 #include "common/status.h"
+
+// tt-mlir includes
+#include "tt/runtime/types.h"
 
 #ifndef TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_CLIENT_INSTANCE_H_
@@ -97,6 +102,29 @@ public:
       const char *compile_options_data, size_t compile_options_size,
       std::unordered_map<std::string, std::string> &out_compile_options);
 
+  // Tensor cache management for converted tensors
+  struct BufferVectorHash {
+    std::size_t operator()(const std::vector<BufferInstance *> &vec) const {
+      std::size_t hash = 0;
+      for (const auto *ptr : vec) {
+        hash ^= std::hash<const void *>{}(ptr) + 0x9e3779b9 + (hash << 6) +
+                (hash >> 2);
+      }
+      return hash;
+    }
+  };
+
+  // Get cached tensor if it exists, returns nullptr if not found
+  tt::runtime::Tensor *
+  getCachedTensor(const std::vector<BufferInstance *> &buffer_instances);
+
+  // Cache a tensor for the given buffer instances
+  void setCachedTensor(const std::vector<BufferInstance *> &buffer_instances,
+                       const tt::runtime::Tensor &tensor);
+
+  // Clear all cached tensors
+  void clearTensorCache();
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
@@ -152,6 +180,12 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Tensor cache for converted tensors - maps buffer instance vectors to their
+  // converted tensors
+  std::unordered_map<std::vector<BufferInstance *>, tt::runtime::Tensor,
+                     BufferVectorHash>
+      m_tensor_cache;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
