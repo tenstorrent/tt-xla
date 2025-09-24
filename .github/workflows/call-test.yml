@@ -40,7 +40,7 @@ on:
       timeout_minutes:
         description: 'Timeout minutes for the test job'
         required: false
-        default: 120
+        default: 360
         type: number
       test_suite:
         description: 'Test suite preset options or custom'
