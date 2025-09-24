@@ -11,7 +11,6 @@
 #include <numeric>
 
 // loguru includes
-#include "common/pjrt_implementation/module_builder/compile_options.h"
 #include "loguru/loguru.hpp"
 
 // llvm includes
@@ -62,6 +61,7 @@
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/executable_image.h"
 #include "common/pjrt_implementation/memory_instance.h"
+#include "common/pjrt_implementation/module_builder/compile_options.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "common/status.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -186,34 +186,30 @@ ModuleBuilder::buildModule(
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
-  if(compile_options.backend == Backend::Default) {
+  if (compile_options.backend == Backend::Default) {
     tt::runtime::Binary flatbuffer(nullptr);
-  status = createFlatbufferBinary(mlir_module, input_shardings,
-                                  output_shardings, flatbuffer);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
+    status = createFlatbufferBinary(mlir_module, input_shardings,
+                                    output_shardings, flatbuffer);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
 
-  return {tt_pjrt_status::kSuccess,
-          FlatbufferExecutableImage::createInstance(
-              flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
-              std::move(ttnn_mlir), executable_name, num_inputs, num_outputs,
-              output_dimensions, output_ranks, output_dimensions_flat,
-              num_partitions, num_replicas, num_devices_to_utilize, mesh_shape,
-              input_shardings, output_shardings, output_types,
-              std::move(output_memory_kinds),
-              std::move(output_memory_kinds_sizes),
-              std::move(compile_options))};
-  }
-  else if (compile_options.backend == Backend::CodegenCpp) {
-    return {tt_pjrt_status::kUnimplemented,
-            nullptr};
-  }
-  else {
+    return {tt_pjrt_status::kSuccess,
+            FlatbufferExecutableImage::createInstance(
+                flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
+                std::move(ttnn_mlir), executable_name, num_inputs, num_outputs,
+                output_dimensions, output_ranks, output_dimensions_flat,
+                num_partitions, num_replicas, num_devices_to_utilize,
+                mesh_shape, input_shardings, output_shardings, output_types,
+                std::move(output_memory_kinds),
+                std::move(output_memory_kinds_sizes),
+                std::move(compile_options))};
+  } else if (compile_options.backend == Backend::CodegenCpp) {
+    return {tt_pjrt_status::kUnimplemented, nullptr};
+  } else {
     DLOG_F(ERROR, "Unsupported backend option");
     return {tt_pjrt_status::kInvalidArgument, nullptr};
   }
-  
 }
 
 tt_pjrt_status ModuleBuilder::createVHLOModule(

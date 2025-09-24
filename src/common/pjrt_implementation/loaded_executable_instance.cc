@@ -9,7 +9,6 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
-#include "common/status.h"
 
 // c++ standard library includes
 #include <numeric>
@@ -17,7 +16,6 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "tt/runtime/workarounds.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
@@ -25,6 +23,7 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/executable_image.h"
+#include "common/status.h"
 
 namespace tt::pjrt {
 

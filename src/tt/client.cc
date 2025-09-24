@@ -9,6 +9,7 @@
 
 #include "tt/client.h"
 #include "common/status.h"
+#include <iostream>
 
 namespace tt::pjrt::device {
 

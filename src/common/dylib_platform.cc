@@ -10,6 +10,8 @@
 
 #include "common/dylib_platform.h"
 
+#include <array>
+#include <iostream>
 #include <optional>
 #include <string>
 
