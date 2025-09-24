@@ -35,7 +35,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     doxygen \
     protobuf-compiler \
-    libprotobuf-dev
+    libprotobuf-dev \
+    xxd
 
 # Install clang 17
 RUN wget https://apt.llvm.org/llvm.sh && \
