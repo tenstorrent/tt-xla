@@ -1952,9 +1952,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_3/embedding/pytorch-embedding_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "gpt_neo/sequence_classification/pytorch-gpt_neo_125M-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1977,14 +1976,12 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "huggyllama/pytorch-llama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-huggyllama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_1_70b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -1997,14 +1994,12 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/causal_lm/pytorch-llama_3_1_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_1_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_3_70b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2012,19 +2007,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/causal_lm/pytorch-llama_3_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/causal_lm/pytorch-llama_3_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/sequence_classification/pytorch-huggyllama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/sequence_classification/pytorch-llama_3_1_70b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2037,14 +2029,12 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_1_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/sequence_classification/pytorch-llama_3_3_70b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2052,44 +2042,36 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "mistral/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "mistral/pytorch-7b_instruct_v03-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "mistral/pytorch-ministral_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-14b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-14b_instruct_1m-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-32b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2097,24 +2079,20 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_2_5/casual_lm/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-math_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5_coder/pytorch-32b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2122,19 +2100,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_2_5_coder/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5_coder/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_3/causal_lm/pytorch-14b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_3/causal_lm/pytorch-30b_a3b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2147,9 +2122,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_3/causal_lm/pytorch-8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_3/causal_lm/pytorch-qwq_32b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2157,14 +2131,12 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "deepseek/deepseek_math/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "llava/pytorch-1_5_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2172,9 +2144,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2182,9 +2153,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "d_fine/pytorch-nano-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
