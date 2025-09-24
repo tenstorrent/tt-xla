@@ -1921,6 +1921,27 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
     },
+    "phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443",
+    },
+    "phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "glpn_kitti/pytorch-full-inference": {
         "arch_overrides": {
             "p150": {
@@ -1943,10 +1964,15 @@ test_config = {
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "gpt_neo/sequence_classification/pytorch-gpt_neo_125M-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "huggyllama/pytorch-llama_7b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
