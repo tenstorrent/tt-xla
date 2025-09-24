@@ -257,7 +257,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv tests/runner/test_models.py --validate-test-config
+        python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
 
     - name: Collect Tests
       shell: bash
