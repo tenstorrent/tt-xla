@@ -260,6 +260,9 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
         input_tensor, program_index, arg_index, runtime_device);
 
+    DLOG_F(LOG_DEBUG, "Input tensor %p #%zu was laid out @ address %p and has global id %d", &laid_out_tensor, arg_index,
+           laid_out_tensor.data, laid_out_tensor.getGlobalId());
+
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
     if (laid_out_tensor.data != input_tensor.data) {
