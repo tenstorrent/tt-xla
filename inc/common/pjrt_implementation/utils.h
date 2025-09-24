@@ -10,6 +10,7 @@
 
 namespace tt::pjrt::utils {
 
+// Converts a vector to a string representation for printing its content.
 template <typename T> std::string to_string(const std::vector<T> vec) {
   std::stringstream res;
   res << "[";
