@@ -19,7 +19,7 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
-from ....tools.utils import pad_inputs
+from ....tools.utils import pad_inputs, cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -245,13 +245,8 @@ class ModelLoader(ForgeModel):
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            # Only cast when the override dtype category matches the tensor's category
-            override_is_float = dtype_override.is_floating_point
             for key in inputs:
-                if override_is_float and inputs[key].is_floating_point():
-                    inputs[key] = inputs[key].to(dtype_override)
-                elif (not override_is_float) and (not inputs[key].is_floating_point()):
-                    inputs[key] = inputs[key].to(dtype_override)
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
         # Pad input_ids and attention_mask
         target_len = self._variant_config.max_length

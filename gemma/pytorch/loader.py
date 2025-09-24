@@ -19,6 +19,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from .src.model_utils import pad_inputs
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -163,12 +164,8 @@ class ModelLoader(ForgeModel):
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
         if dtype_override is not None:
-            override_is_float = dtype_override.is_floating_point
             for key in inputs:
-                if override_is_float and inputs[key].is_floating_point():
-                    inputs[key] = inputs[key].to(dtype_override)
-                elif (not override_is_float) and (not inputs[key].is_floating_point()):
-                    inputs[key] = inputs[key].to(dtype_override)
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
         padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_new_tokens)
         padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], max_new_tokens)
         self.seq_len = seq_len

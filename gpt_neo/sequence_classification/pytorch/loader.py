@@ -18,6 +18,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -156,7 +157,7 @@ class ModelLoader(ForgeModel):
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             for key in inputs:
-                inputs[key] = inputs[key].to(dtype_override)
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
         return inputs
 

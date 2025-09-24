@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from torch.hub import load_state_dict_from_url
 import yaml
+from typing import Optional
 
 
 def get_file(path):
@@ -241,3 +242,30 @@ def yolo_postprocess(y):
         print(
             f"  Box: [x={x:.1f}, y={y:.1f}, w={w:.1f}, h={h:.1f}], Score: {score:.2f}, Class: {label} ({cls})"
         )
+
+
+def cast_input_to_type(
+    tensor: torch.Tensor, dtype_override: Optional[torch.dtype]
+) -> torch.Tensor:
+    """Cast tensor to dtype_override only if they are same numeric category.
+
+    This applies casting when both tensor and dtype_override are floating-point, or both are non-floating types.
+    If dtype_override is None or categories differ, returns tensor unchanged.
+    """
+    if dtype_override is None:
+        return tensor
+
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError(f"Expected a torch.Tensor, got {type(tensor)}")
+
+    tensor_is_float = tensor.dtype.is_floating_point
+    override_is_float = getattr(dtype_override, "is_floating_point", None)
+    if override_is_float is None:
+        raise TypeError(
+            "dtype_override must be a torch.dtype with is_floating_point attribute"
+        )
+
+    if tensor_is_float == override_is_float:
+        return tensor.to(dtype_override)
+
+    return tensor
