@@ -277,19 +277,34 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "yolov5/pytorch-yolov5s-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
@@ -1847,7 +1862,7 @@ test_config = {
             },
             "n150": {
                 "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 1572864000 B DRAM buffer across 12 banks",
+                "reason": "Too big for single chip",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
@@ -1952,9 +1967,15 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_3/embedding/pytorch-embedding_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "gpt_neo/sequence_classification/pytorch-gpt_neo_125M-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1977,14 +1998,24 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "huggyllama/pytorch-llama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/causal_lm/pytorch-huggyllama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/causal_lm/pytorch-llama_3_1_70b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -1997,14 +2028,24 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/causal_lm/pytorch-llama_3_1_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/causal_lm/pytorch-llama_3_1_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/causal_lm/pytorch-llama_3_3_70b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2012,19 +2053,34 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/causal_lm/pytorch-llama_3_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/causal_lm/pytorch-llama_3_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/sequence_classification/pytorch-huggyllama_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/sequence_classification/pytorch-llama_3_1_70b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2037,14 +2093,24 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_1_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/sequence_classification/pytorch-llama_3_3_70b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2052,44 +2118,119 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "mistral/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "mistral/pytorch-7b_instruct_v03-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4954742193222046. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "mistral/pytorch-ministral_8b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-14b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-14b_instruct_1m-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-32b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2097,24 +2238,64 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_2_5/casual_lm/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-math_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5_coder/pytorch-32b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2122,19 +2303,49 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_2_5_coder/pytorch-7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5_coder/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_3/causal_lm/pytorch-14b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.48546990752220154. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_3/causal_lm/pytorch-30b_a3b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2147,9 +2358,19 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_3/causal_lm/pytorch-8b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7000502943992615. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_3/causal_lm/pytorch-qwq_32b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2157,14 +2378,24 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "deepseek/deepseek_math/pytorch-7b_instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "llava/pytorch-1_5_7b-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2172,9 +2403,14 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2182,9 +2418,19 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475",
+            },
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "d_fine/pytorch-nano-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2210,5 +2456,8 @@ test_config = {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "d_fine xlarge hangs forever, removing all of them.",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
 }
