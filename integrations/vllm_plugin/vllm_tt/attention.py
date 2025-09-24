@@ -18,7 +18,11 @@ from vllm.config import VllmConfig
 from vllm.logger import init_logger
 from vllm.utils import cdiv, next_power_of_2
 
+# init_logger(logging_level=logging.INFO)
 logger = init_logger(__name__)
+# [TT-TORCH] To enable debugging/logging in the compiled models
+torch._dynamo.config.ignore_logger_methods = {"info", "debug", "warning"}
+# torch._dynamo.config.ignore_logging_methods(logger.info)
 
 # TT requires the head size to be a multiple of 32.
 TT_HEAD_SIZE_ALIGNMENT = 32
@@ -198,6 +202,11 @@ class TTAttentionBackendImpl(AttentionImpl):
         Returns:
             shape = [num_tokens, num_heads * head_size]
         """
+        # print(f"attn::attention layer", flush=True)
+        # print(f"attn::metadata: {attn_metadata}", flush=True)
+        # print(f"attn::query.shape0: {query.shape}", flush=True)
+        # print(f"attn::key.shape0: {key.shape}", flush=True)
+        ret_query = query
         num_tokens, hidden_size = query.shape
         query = query.reshape(
             1, query.shape[0], query.shape[1] // self.head_size, self.head_size
@@ -214,6 +223,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         ).transpose(
             -3, -2
         )  # [1, num_kv_heads, max_seq_len, head_size]
+        # print(f"attn::kv_cache.numel(): {kv_cache.numel()}", flush=True)
 
         if kv_cache.numel() > 1:
             cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
@@ -231,8 +241,14 @@ class TTAttentionBackendImpl(AttentionImpl):
             key = k_cache
             value = v_cache
             kv_cache.copy_(new_kv_cache)
+        # return ret_query
+        # print(f"attn::query.shape1: {query.shape}", flush=True)
+        # print(f"attn::key.shape1: {key.shape}", flush=True)
+        # print(f"attn::query.shape[-2]: {query.shape[-2]}", flush=True)
+        # print(f"attn::attn_metadata.attn_mask: {attn_metadata.attn_mask.shape}", flush=True)
 
         if query.shape[-2] == 1:
+            # print(f"attn::decode phase", flush=True)
             query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
             cur_pos_tensor = attn_metadata.context_lens[:1]
             out = torch.ops.tt.scaled_dot_product_attention_decode(
@@ -247,13 +263,14 @@ class TTAttentionBackendImpl(AttentionImpl):
             out = out.reshape(num_tokens, hidden_size)
             return out
         else:
+            # print(f"attn::prefill phase", flush=True)
             return (
                 torch.ops.tt.scaled_dot_product_attention(
                     query,
                     key,
                     value,
                     is_causal=False,
-                    attn_mask=attn_metadata.attn_mask,
+                    attn_mask=None,  # attn_metadata.attn_mask,
                 )
                 .transpose(-3, -2)
                 .reshape(num_tokens, hidden_size)

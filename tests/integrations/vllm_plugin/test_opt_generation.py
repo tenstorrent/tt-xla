@@ -22,4 +22,4 @@ def test_opt_generation():
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     # output = llm.embed(prompts)
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    # print(f"prompt: {prompts[0]}, output: {output_text}")
