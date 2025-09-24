@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <optional>
 #include <sstream>
+#include <unordered_map>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -62,6 +63,7 @@ ClientInstance::~ClientInstance() {
     tt::runtime::closeMeshDevice(*m_parent_mesh);
   }
 
+  clearTensorCache();
   std::remove(m_cached_system_descriptor_path.data());
 }
 
@@ -351,6 +353,34 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+tt::runtime::Tensor *ClientInstance::getCachedTensor(
+    const std::vector<BufferInstance *> &buffer_instances) {
+  auto it = m_tensor_cache.find(buffer_instances);
+  if (it != m_tensor_cache.end()) {
+    DLOG_F(LOG_DEBUG, "Tensor cache HIT for %zu buffer instances",
+           buffer_instances.size());
+    return &(it->second);
+  }
+  DLOG_F(LOG_DEBUG, "Tensor cache MISS for %zu buffer instances",
+         buffer_instances.size());
+  return nullptr;
+}
+
+void ClientInstance::setCachedTensor(
+    const std::vector<BufferInstance *> &buffer_instances,
+    const tt::runtime::Tensor &tensor) {
+  m_tensor_cache[buffer_instances] = tensor;
+  DLOG_F(LOG_DEBUG,
+         "Cached tensor for %zu buffer instances (cache size now: %zu)",
+         buffer_instances.size(), m_tensor_cache.size());
+}
+
+void ClientInstance::clearTensorCache() {
+  DLOG_F(LOG_DEBUG, "Clearing tensor cache with %zu entries",
+         m_tensor_cache.size());
+  m_tensor_cache.clear();
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(

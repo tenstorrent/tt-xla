@@ -237,15 +237,30 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
+    std::vector<BufferInstance *> buffer_instances;
+    buffer_instances.reserve(num_devices);
     std::vector<tt::runtime::Tensor> arg_tensors;
     arg_tensors.reserve(num_devices);
 
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+      buffer_instances.push_back(buffer);
       arg_tensors.push_back(buffer->getRuntimeTensor());
     }
 
+    // Check cache first
+    tt::runtime::Tensor *cached_tensor =
+        m_client_instance->getCachedTensor(buffer_instances);
+
+    if (cached_tensor) {
+      // Cache hit - use cached tensor
+      DLOG_F(LOG_DEBUG, "Using cached tensor for arg %zu", arg_index);
+      input_tensors.push_back(*cached_tensor);
+      continue;
+    }
+
+    // Cache miss - compute tensor layout conversion
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
         LoadedExecutableInstance::fillStrategyMapFromSharding(
             m_executable_image->getInputSharding(arg_index), num_devices);
@@ -260,16 +275,23 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
         input_tensor, program_index, arg_index, runtime_device);
 
-    DLOG_F(LOG_DEBUG, "Input tensor %p #%zu was laid out @ address %p and has global id %d", &laid_out_tensor, arg_index,
-           laid_out_tensor.data, laid_out_tensor.getGlobalId());
+    DLOG_F(
+        LOG_DEBUG,
+        "Input tensor %p #%zu was laid out @ address %p and has global id %d",
+        &laid_out_tensor, arg_index, laid_out_tensor.data,
+        laid_out_tensor.getGlobalId());
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
     if (laid_out_tensor.data != input_tensor.data) {
-      tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
+      tt::runtime::setTensorRetain(
+          laid_out_tensor, /*retain=*/true); // Keep tensor alive for caching
     }
 
     input_tensors.push_back(laid_out_tensor);
+
+    // Cache the result for future use
+    m_client_instance->setCachedTensor(buffer_instances, laid_out_tensor);
   }
 
   return tt_pjrt_status::kSuccess;
