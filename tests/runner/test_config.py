@@ -99,10 +99,6 @@ PLACEHOLDER_MODELS = {
     "Qwen/QVQ-72B-Preview": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "detr3d": {
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "PR exists to add model, hits DRAM Out of memory",
-    },
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -117,10 +113,6 @@ PLACEHOLDER_MODELS = {
     },
     "uniad": {
         "bringup_status": BringupStatus.NOT_STARTED,
-    },
-    "vadv2": {
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-        "reason": "PR exists to add model, hits DRAM Out of memory",
     },
     "maptr": {
         "bringup_status": BringupStatus.NOT_STARTED,
@@ -1973,6 +1965,16 @@ test_config = {
     "gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-full-inference": {
         "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "detr3d/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "vadv2/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B - https://github.com/tenstorrent/tt-xla/issues/1458",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "huggyllama/pytorch-llama_7b-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
