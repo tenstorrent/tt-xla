@@ -4,7 +4,7 @@
 import torch
 import gc
 from torch.fx.experimental import const_fold
-from torch.export.graph_signature import InputKind
+from torch.export.graph_signature import InputKind, OutputKind
 
 
 def insert_argument_type_markers(
@@ -15,23 +15,37 @@ def insert_argument_type_markers(
         op="placeholder"
     )
     input_signature = graph_signature.input_specs
+    output_signature = graph_signature.output_specs
+
+    # Keep track of buffers which are mutated as we do not want these arguments to be hoisted into a consteval graph.
+    mutated_buffer_targets = set()
+    for out_spec in output_signature:
+        if out_spec.kind == OutputKind.BUFFER_MUTATION:
+            mutated_buffer_targets.add(out_spec.target)
+
     get_attr_target_type_dict = {}
     placeholder_target_type_dict = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
             type_str = "input"
-        # We do not model these argument types in tt-mlir. To avoid graph transformations that would
+        # We do not model these argument types in tt-mlir. To avoid graph transformations (consteval) that would
         # impact how these inputs are handled (i.e. consteval), we will mark them as "input".
-        elif in_spec.kind in [InputKind.BUFFER, InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
+        elif in_spec.kind in [InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
             type_str = "input"
         elif in_spec.kind == InputKind.PARAMETER:
             type_str = "parameter"
-        # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
-        # We do not model the concept of a "buffer" tensor in tt-mlir yet, for now we will mark
-        # them both as "constant".
         elif in_spec.kind == InputKind.CONSTANT_TENSOR:
             type_str = "constant"
+        # If a buffer is mutated, we do not want to hoist the argument into a consteval graph.
+        # This is because the argument will be mutated in place, and we do not want to used the cached
+        # version of the input from the first iteration of the graph. If it is not mutated then we can
+        # mark it as a constant.
+        elif in_spec.kind == InputKind.BUFFER:
+            if in_spec.target in mutated_buffer_targets:
+                type_str = "input"
+            else:
+                type_str = "constant"
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
