@@ -57,42 +57,9 @@ set_target_properties(TTPJRTTTDylib PROPERTIES
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-# Install protoc binary from tt-mlir
-# Use CODE block to check at install time rather than configure time
-install(CODE "
-    # Check multiple possible locations for protoc at install time
-    if(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0\")
-        file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0\"
-             DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
-             FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-             RENAME \"protoc\")
-        message(STATUS \"Installed protoc from tt-metal build directory\")
-    elseif(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0\")
-        file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0\"
-             DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
-             FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-             RENAME \"protoc\")
-        message(STATUS \"Installed protoc from protobuf-build directory\")
-    elseif(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\")
-        # Check if it's a valid file (not a broken symlink)
-        execute_process(
-            COMMAND test -f \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\"
-            RESULT_VARIABLE is_valid_file
-            OUTPUT_QUIET
-            ERROR_QUIET
-        )
-        if(is_valid_file EQUAL 0)
-            file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\"
-                 DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
-                 FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-            message(STATUS \"Installed protoc from tt-mlir install directory\")
-        else()
-            message(WARNING \"protoc at ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc is a broken symlink or doesn't exist, skipping\")
-        endif()
-    else()
-        message(WARNING \"protoc binary not found in any expected location, skipping installation\")
-    endif()
-")
+# Note: protoc binary installation has been removed as tt-mlir doesn't provide a working protoc binary
+# The protoc in tt-mlir/install/bin is a broken symlink that points to a non-existent file
+# If protoc is needed in the future, it should be obtained from a proper source
 
 # Install protobuf libraries from tt-mlir
 # Use OPTIONAL flag to avoid errors if files don't exist
