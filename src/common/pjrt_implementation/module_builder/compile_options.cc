@@ -15,8 +15,15 @@ CompileOptions CompileOptions::parse(
 
   options.enable_optimizer =
       internal::parseBoolOption(compile_options, "enable_optimizer");
+  options.enable_sharding =
+      internal::parseBoolOption(compile_options, "enable_sharding");
+  options.enable_l1_interleaved =
+      internal::parseBoolOption(compile_options, "enable_l1_interleaved");
   options.enable_bfp8_conversion =
       internal::parseBoolOption(compile_options, "enable_bfp8_conversion");
+  options.enable_fusing_conv2d_with_multiply_pattern =
+      internal::parseBoolOption(compile_options,
+                                "enable_fusing_conv2d_with_multiply_pattern");
 
   return options;
 }

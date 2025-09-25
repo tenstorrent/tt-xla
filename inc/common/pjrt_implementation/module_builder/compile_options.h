@@ -13,9 +13,18 @@ namespace tt::pjrt::module_builder {
 
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
-  // Enables the ttmlir optimizer, i.e. the optimization passes and memory
-  // layout analysis.
+  // Enable optimizer passes in MLIR. This includes various optimizations
+  // such as improving tensor memory layouts, operation configurations etc.
   bool enable_optimizer = false;
+
+  // Enables memory layout analysis to allow sharded memory layouts in optimizer
+  // passes.
+  bool enable_sharding = false;
+
+  // Enables L1 interleaved fallback analysis in optimizer passes.
+  // This analysis attempts to move tensors from DRAM to L1 memory with
+  // interleaved layout when beneficial for performance.
+  bool enable_l1_interleaved = false;
 
   // Enables automatic MLIR graph conversion into block fp8 format. This is
   // supported only when the graph is in bfloat16 format, to avoid loss in
@@ -25,6 +34,12 @@ struct CompileOptions {
   // bfloat16 wrapping is done because block formats are TT hardware specific,
   // and user should provide and get tensors of common dtype.
   bool enable_bfp8_conversion = false;
+
+  // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+  // TODO(sdjordjevicTT): This is a temporary option and will be removed once
+  // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is
+  // fixed.
+  bool enable_fusing_conv2d_with_multiply_pattern = false;
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
