@@ -14,7 +14,7 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
         "markers": ["push"],
     },
-    "autoencoder/pytorch-linear-full-inference": {
+    "autoencoder/pytorch-linear-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
