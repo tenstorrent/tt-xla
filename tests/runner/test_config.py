@@ -545,11 +545,9 @@ test_config = {
     },
     "mnist/pytorch-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
     },
     "mobilenetv1/pytorch-mobilenet_v1-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
     },
     "mobilenetv2/pytorch-mobilenet_v2-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1575,7 +1573,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gpt2/pytorch-gpt2-full-inference": {
-        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gpt2/pytorch-gpt2_sequence_classification-full-inference": {
@@ -1665,7 +1662,6 @@ test_config = {
     },
     "vgg/pytorch-hf_vgg19-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
     },
     "segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
