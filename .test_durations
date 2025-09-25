@@ -1508,5 +1508,6 @@
     "tests/runner/test_models.py::test_all_models[flux/pytorch-dev-full-inference]": 0.617,
     "tests/runner/test_models.py::test_all_models[phi4/causal_lm/pytorch-microsoft/phi-4-full-inference]": 96.926,
     "tests/runner/test_models.py::test_all_models[oft/pytorch-full-inference]": 47.013,
-    "tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]": 473.0
+    "tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]": 473.0,
+    "tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w48_osmr-full-inference]": 300.0
 }
