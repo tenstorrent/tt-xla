@@ -8,17 +8,15 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import numpy as np
+from torch.utils._pytree import tree_map
 import subprocess
 import sys
 import pytest
-from infra import Framework, RunMode
+from infra import Framework, RunMode, ComparisonConfig
+from infra.comparators.torch_comparator import TorchComparator
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     incorrect_result,
 )
 from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import (
@@ -32,98 +30,19 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "FlagEmbedding"])
     from FlagEmbedding import BGEM3FlagModel
 
+
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
-def calculate_pcc(tensor1, tensor2):
-    """Calculate Pearson Correlation Coefficient between two tensors."""
-    # Convert to numpy if they're torch tensors
-    if hasattr(tensor1, "numpy"):
-        tensor1 = tensor1.numpy()
-    if hasattr(tensor2, "numpy"):
-        tensor2 = tensor2.numpy()
-
-    # Flatten tensors
-    x = tensor1.flatten()
-    y = tensor2.flatten()
-
-    # Calculate means
-    x_mean = np.mean(x)
-    y_mean = np.mean(y)
-
-    # Calculate centered vectors
-    x_centered = x - x_mean
-    y_centered = y - y_mean
-
-    # Calculate norms
-    x_norm = np.linalg.norm(x_centered)
-    y_norm = np.linalg.norm(y_centered)
-
-    # Handle edge case where norm is zero
-    if x_norm == 0 or y_norm == 0:
-        return float("nan")
-
-    # Calculate PCC
-    pcc = np.dot(x_centered, y_centered) / (x_norm * y_norm)
-    return pcc
-
-
-def calculate_sparse_pcc(sparse_dict1, sparse_dict2):
-    """Calculate PCC for sparse token dictionaries."""
-    # Get all unique keys from both dictionaries
-    all_keys = set(sparse_dict1.keys()) | set(sparse_dict2.keys())
-
-    # Create aligned vectors with 0 for missing keys
-    vec1 = []
-    vec2 = []
-
-    for key in sorted(all_keys):
-        val1 = sparse_dict1.get(key, 0.0)
-        val2 = sparse_dict2.get(key, 0.0)
-
-        # Convert numpy scalars to float if needed
-        if hasattr(val1, "item"):
-            val1 = val1.item()
-        if hasattr(val2, "item"):
-            val2 = val2.item()
-
-        vec1.append(val1)
-        vec2.append(val2)
-
-    return calculate_pcc(np.array(vec1), np.array(vec2))
-
-
-def compare_outputs(golden_output, tt_output):
-    """Compare golden and TT outputs, calculating PCC for each component."""
-    # Compare dense vectors
-    dense_pcc = calculate_pcc(golden_output["dense_vecs"], tt_output["dense_vecs"])
-
-    # Compare sparse weights (lexical_weights)
-    sparse_pccs = []
-    for i, (golden_sparse, tt_sparse) in enumerate(
-        zip(golden_output["lexical_weights"], tt_output["lexical_weights"])
-    ):
-        sparse_pcc = calculate_sparse_pcc(golden_sparse, tt_sparse)
-        sparse_pccs.append(sparse_pcc)
-
-    min_sparse_pcc = np.min(sparse_pccs)
-
-    # Compare ColBERT vectors
-    colbert_pccs = []
-    for i, (golden_colbert, tt_colbert) in enumerate(
-        zip(golden_output["colbert_vecs"], tt_output["colbert_vecs"])
-    ):
-        colbert_pcc = calculate_pcc(golden_colbert, tt_colbert)
-        colbert_pccs.append(colbert_pcc)
-
-    min_colbert_pcc = np.min(colbert_pccs)
-
-    return {
-        "dense_pcc": dense_pcc,
-        "sparse_pcc": min_sparse_pcc,
-        "colbert_pcc": min_colbert_pcc,
-    }
+def convert_to_torch(obj):
+    """Convert numpy arrays and scalars to PyTorch tensors."""
+    if isinstance(obj, np.ndarray):
+        return torch.from_numpy(obj)
+    elif isinstance(obj, (np.floating, np.integer, np.complexfloating)):
+        return torch.tensor(obj.item())
+    else:
+        return obj
 
 
 # --------------------------------
@@ -149,17 +68,21 @@ def bge_m3_encode():
     tt_inputs = inputs
     tt_inputs["device"] = "xla"
 
-    # Run model
+    # Run model on tt device.
     output = compiled_model(**tt_inputs)
 
-    # Calculate and display PCC comparison
-    pcc_results = compare_outputs(golden_output, output)
+    # Calculate and display PCC comparison.
+    golden_torch_output = tree_map(convert_to_torch, golden_output)
+    tt_torch_output = tree_map(convert_to_torch, output)
+    comparison_config = ComparisonConfig()
+    comparison_config.pcc.required_pcc = 0.92  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(tt_torch_output, golden_torch_output)
 
-    # Return results for further analysis if needed
+    # Return results for further analysis if needed.
     return {
         "golden_output": golden_output,
         "tt_output": output,
-        "pcc_results": pcc_results,
     }
 
 
@@ -184,11 +107,3 @@ def test_bge_m3_encode():
         pytest.skip(f"TT device not available: {e}")
 
     results = bge_m3_encode()
-    pcc = results["pcc_results"]
-
-    # Validate PCC values are finite and within [-1, 1]
-    for key in ("dense_pcc", "sparse_pcc", "colbert_pcc"):
-        val = pcc[key]
-        assert np.isfinite(val), f"{key} must be finite, got {val}"
-        assert -1.0 <= float(val) <= 1.0, f"{key} must be within [-1, 1], got {val}"
-        assert val >= 0.92, f"{key} must be >= 0.92, got {val}"
