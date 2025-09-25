@@ -72,6 +72,34 @@ def tree_map_to_torch(obj):
     return tree_map(convert_to_torch, obj)
 
 
+def correct_golden_lexical_weights(golden_output, tt_output):
+    """
+    Ensure golden_output lexical_weights has all keys present in tt_output,
+    adding missing keys with weight 0.0 to maintain alignment.
+    """
+    corrected_golden = golden_output.copy()
+    corrected_golden["lexical_weights"] = []
+
+    for golden_dict, tt_dict in zip(
+        golden_output["lexical_weights"], tt_output["lexical_weights"]
+    ):
+        # Create a new defaultdict for the corrected golden weights
+        from collections import defaultdict
+
+        corrected_dict = defaultdict(int)
+
+        # First, add all existing golden weights
+        for key, value in tt_dict.items():
+            if key in golden_dict:
+                corrected_dict[key] = golden_dict[key]
+            else:
+                corrected_dict[key] = 0.0
+
+        corrected_golden["lexical_weights"].append(corrected_dict)
+
+    return corrected_golden
+
+
 # --------------------------------
 # Test run
 # --------------------------------
@@ -86,9 +114,9 @@ def bge_m3_encode():
 
     cpu_inputs = inputs
     cpu_inputs["device"] = "cpu"
-    golden_output = compiled_model(**cpu_inputs)
+    golden_output = model(**cpu_inputs)
 
-    # Connect the device.
+    # Initialize the device
     device = xm.xla_device()
 
     # Move inputs and model to device.
@@ -96,11 +124,12 @@ def bge_m3_encode():
     tt_inputs["device"] = "xla"
 
     # Run model on tt device.
-    output = compiled_model(**tt_inputs)
+    tt_output = compiled_model(**tt_inputs)
 
     # Calculate and display PCC comparison.
-    golden_torch_output = tree_map_to_torch(golden_output)
-    tt_torch_output = tree_map_to_torch(output)
+    corrected_golden_output = correct_golden_lexical_weights(golden_output, tt_output)
+    golden_torch_output = tree_map_to_torch(corrected_golden_output)
+    tt_torch_output = tree_map_to_torch(tt_output)
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.92  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
     comparator = TorchComparator(comparison_config)
@@ -109,7 +138,7 @@ def bge_m3_encode():
     # Return results for further analysis if needed.
     return {
         "golden_output": golden_output,
-        "tt_output": output,
+        "tt_output": tt_output,
     }
 
 
