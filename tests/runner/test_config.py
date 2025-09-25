@@ -2388,14 +2388,9 @@ test_config = {
         },
     },
     "llava/pytorch-1_5_7b-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__masked_scatter'): error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>> - https://github.com/tenstorrent/tt-xla/issues/1477",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
