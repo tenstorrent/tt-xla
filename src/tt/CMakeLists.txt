@@ -57,43 +57,49 @@ set_target_properties(TTPJRTTTDylib PROPERTIES
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-# Install protoc binary from tt-mlir (if it exists)
-# Check multiple possible locations for protoc
-if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0")
-    install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-            RENAME protoc)
-elseif(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0")
-    install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-            RENAME protoc)
-elseif(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc")
-    # Try the original location if it exists and is not a broken symlink
-    execute_process(
-        COMMAND test -e ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
-        RESULT_VARIABLE protoc_exists
-        OUTPUT_QUIET
-        ERROR_QUIET
-    )
-    if(protoc_exists EQUAL 0)
-        install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
-                DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+# Install protoc binary from tt-mlir
+# Use CODE block to check at install time rather than configure time
+install(CODE "
+    # Check multiple possible locations for protoc at install time
+    if(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0\")
+        file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0\"
+             DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
+             FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+             RENAME \"protoc\")
+        message(STATUS \"Installed protoc from tt-metal build directory\")
+    elseif(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0\")
+        file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0\"
+             DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
+             FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+             RENAME \"protoc\")
+        message(STATUS \"Installed protoc from protobuf-build directory\")
+    elseif(EXISTS \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\")
+        # Check if it's a valid file (not a broken symlink)
+        execute_process(
+            COMMAND test -f \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\"
+            RESULT_VARIABLE is_valid_file
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+        if(is_valid_file EQUAL 0)
+            file(INSTALL \"${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc\"
+                 DESTINATION \"${CMAKE_INSTALL_PREFIX}/bin\"
+                 FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+            message(STATUS \"Installed protoc from tt-mlir install directory\")
+        else()
+            message(WARNING \"protoc at ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc is a broken symlink or doesn't exist, skipping\")
+        endif()
     else()
-        message(WARNING "protoc binary not found in expected locations, skipping installation")
+        message(WARNING \"protoc binary not found in any expected location, skipping installation\")
     endif()
-else()
-    message(WARNING "protoc binary not found in any expected location, skipping installation")
-endif()
+")
 
-# Install protobuf libraries from tt-mlir (if they exist)
-if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a")
-    install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
-                  ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-            OPTIONAL)  # Make it optional in case libprotobuf-lite.a doesn't exist
-else()
-    message(WARNING "protobuf libraries not found in expected location, skipping installation")
-endif()
+# Install protobuf libraries from tt-mlir
+# Use OPTIONAL flag to avoid errors if files don't exist
+install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
+              ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+        OPTIONAL)
 
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Setting build type to 'Release' as none was specified.")
