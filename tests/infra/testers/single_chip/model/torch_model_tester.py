@@ -36,6 +36,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
@@ -109,6 +110,7 @@ class TorchModelTester(ModelTester):
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
+
         workload.model.compile(backend=backend)
 
     def _test_training(self):
