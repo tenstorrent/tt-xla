@@ -2414,10 +2414,15 @@ test_config = {
         },
     },
     "llava/pytorch-1_5_7b-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "assert int in str(indices.get_dtype()) - Need to use cast_input_to_type() in tt-forge-models",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "arch_overrides": {
+            "n150": {
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "Too large for single chip",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
     },
     "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
