@@ -45,6 +45,33 @@ def convert_to_torch(obj):
         return obj
 
 
+def tree_map_to_torch(obj):
+    # Convert lexical_weights from list of defaultdicts to tensor
+    if isinstance(obj["lexical_weights"], list) and len(obj["lexical_weights"]) > 0:
+        # Get all unique keys from all dictionaries and sort them for consistent ordering
+        all_keys = set()
+        for d in obj["lexical_weights"]:
+            all_keys.update(d.keys())
+        all_keys = sorted(all_keys)
+
+        # Convert each defaultdict to a list of values aligned by keys
+        tensor_rows = []
+        for d in obj["lexical_weights"]:
+            row = []
+            for key in all_keys:
+                value = d.get(key, 0.0)
+                # Extract scalar value if it's a tensor
+                if hasattr(value, "item"):
+                    value = value.item()
+                row.append(value)
+            tensor_rows.append(row)
+
+        # Replace lexical_weights with the tensor
+        obj["lexical_weights"] = torch.tensor(tensor_rows)
+
+    return tree_map(convert_to_torch, obj)
+
+
 # --------------------------------
 # Test run
 # --------------------------------
@@ -72,8 +99,8 @@ def bge_m3_encode():
     output = compiled_model(**tt_inputs)
 
     # Calculate and display PCC comparison.
-    golden_torch_output = tree_map(convert_to_torch, golden_output)
-    tt_torch_output = tree_map(convert_to_torch, output)
+    golden_torch_output = tree_map_to_torch(golden_output)
+    tt_torch_output = tree_map_to_torch(output)
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.92  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
     comparator = TorchComparator(comparison_config)
