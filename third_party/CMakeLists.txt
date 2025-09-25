@@ -59,9 +59,9 @@ else()
 
     # ----- tt-mlir -----
 
-    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
-    set(TTMLIR_BUILD_DIR "$ENV{TT_MLIR_HOME}build")
-    set(TTMLIR_LIB_DIR "$ENV{TT_MLIR_HOME}install")
+    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
+    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
+    set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
     set(TT_RUNTIME_DEBUG ON CACHE BOOL "Enable ttmlir runtime debugging")
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
@@ -72,7 +72,7 @@ else()
         PATCH_COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        BUILD_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- ttrt && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
+        BUILD_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
         INSTALL_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
