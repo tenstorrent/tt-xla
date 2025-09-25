@@ -60,7 +60,7 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
