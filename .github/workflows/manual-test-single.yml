@@ -8,11 +8,11 @@ on:
         required: true
         type: string
       mark:
-        description: 'Mark passed to pytest'
+        description: 'Mark passed to pytest (-m)'
         required: false
         type: string
       contains:
-        description: 'Execute test that contains the specified string'
+        description: 'Execute test that contains the specified string (-k)'
         required: false
         type: string
       args:
