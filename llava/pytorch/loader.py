@@ -24,6 +24,7 @@ from ...config import (
     StrEnum,
 )
 from ...tools.utils import get_file
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -118,9 +119,9 @@ class ModelLoader(ForgeModel):
         pixel_values = inputs["pixel_values"]
 
         if dtype_override:
-            input_ids = input_ids.to(dtype_override)
-            attention_mask = attention_mask.to(dtype_override)
-            pixel_values = pixel_values.to(dtype_override)
+            input_ids = cast_input_to_type(input_ids, dtype_override)
+            attention_mask = cast_input_to_type(attention_mask, dtype_override)
+            pixel_values = cast_input_to_type(pixel_values, dtype_override)
 
         return {
             "input_ids": input_ids,
