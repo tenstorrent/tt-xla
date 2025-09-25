@@ -49,16 +49,9 @@ def training_tester() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "AssertionError: PCC comparison failed. "
-        "Calculated: pcc=0.0746539905667305. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 def test_resnet_v1_5_152_inference(inference_tester: ResNetTester):
     inference_tester.test()
 

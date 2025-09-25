@@ -82,9 +82,9 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options);
 
   // Gets custom compile options from the given compile options protobuf.
-  static std::unordered_map<std::string, std::string>
-  getCompileOptions(const char *compile_options_data,
-                    size_t compile_options_size);
+  static tt_pjrt_status getCompileOptions(
+      const char *compile_options_data, size_t compile_options_size,
+      std::unordered_map<std::string, std::string> &out_compile_options);
 
 protected:
   std::string cached_platform_name_;
@@ -137,9 +137,9 @@ private:
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
-  static std::unordered_map<std::string, std::string>
-  extractCustomProtobufFields(
-      const google::protobuf::UnknownFieldSet &unknown_fields);
+  static tt_pjrt_status extractCustomProtobufFields(
+      const google::protobuf::UnknownFieldSet &unknown_fields,
+      std::unordered_map<std::string, std::string> &out_compile_options);
 };
 
 namespace internal {

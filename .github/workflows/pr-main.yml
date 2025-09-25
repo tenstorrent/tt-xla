@@ -61,9 +61,8 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      test_mark: 'push'
+      test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      use-shared-runners: false # Run PR on VMs
       artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
@@ -81,23 +80,14 @@ jobs:
       run_id_source: tt-xla
       ref: main
 
-  generate-forge-models-matrix:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ build-image ]
-    with:
-      test_group_cnt: '1'
-
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (success() || failure())
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla-release, generate-forge-models-matrix ]
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
     with:
+      test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: 'expected_passing and push'
-      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
@@ -116,5 +106,5 @@ jobs:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test
+        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test, test_forge_models_push
         jobs: ${{ toJSON(needs) }}

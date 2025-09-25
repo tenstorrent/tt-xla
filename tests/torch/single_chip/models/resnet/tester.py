@@ -5,6 +5,7 @@
 from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from third_party.tt_forge_models.resnet.pytorch import ModelLoader
+from tests.infra.testers.compiler_config import CompilerConfig
 
 
 class ResnetTester(TorchModelTester):
@@ -15,9 +16,10 @@ class ResnetTester(TorchModelTester):
         variant_name: str,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._model_loader = ModelLoader(variant_name)
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     # @override
     def _get_model(self) -> Model:

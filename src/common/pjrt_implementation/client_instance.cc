@@ -216,9 +216,9 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
-std::unordered_map<std::string, std::string>
-ClientInstance::getCompileOptions(const char *compile_options_data,
-                                  size_t compile_options_size) {
+tt_pjrt_status ClientInstance::getCompileOptions(
+    const char *compile_options_data, size_t compile_options_size,
+    std::unordered_map<std::string, std::string> &out_compile_options) {
 
   google::protobuf::io::CodedInputStream cis(
       reinterpret_cast<const uint8_t *>(compile_options_data),
@@ -226,83 +226,137 @@ ClientInstance::getCompileOptions(const char *compile_options_data,
   google::protobuf::UnknownFieldSet unknown_fields;
 
   if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    return {};
+    DLOG_F(ERROR, "Failed to parse the unknown fields set from the compile "
+                  "options protobuf data");
+    return tt_pjrt_status::kInternal;
   }
-  std::unordered_map<std::string, std::string> compile_options_map =
-      ClientInstance::extractCustomProtobufFields(unknown_fields);
 
-  return compile_options_map;
+  return ClientInstance::extractCustomProtobufFields(unknown_fields,
+                                                     out_compile_options);
 }
 
-std::unordered_map<std::string, std::string>
-ClientInstance::extractCustomProtobufFields(
-    const google::protobuf::UnknownFieldSet &unknown_fields) {
-  std::unordered_map<std::string, std::string> result;
+tt_pjrt_status ClientInstance::extractCustomProtobufFields(
+    const google::protobuf::UnknownFieldSet &unknown_fields,
+    std::unordered_map<std::string, std::string> &out_compile_options) {
 
-  // The custom compiler options that are defined in through the jax.jit()
-  // function are stored in the field number 7 in the UnknownFieldSet.
+  // The custom compiler options that are passed in through the `jax.jit()`
+  // or `torch_xla.set_custom_compile_options()` are stored in the field
+  // number 7 in the UnknownFieldSet, which is defined as:
+  // `env_option_overrides (map<string, OptionOverrideProto>)`.
+  // Each map entry is a nested message with key/value inside.
   constexpr int kCustomCompilerOptionsFieldNumber = 7;
+
+  // Field number corresponding to the string key of the compile options map
+  // entry.
+  constexpr int kMapKeyFieldNumber = 1;
+
+  // Field number corresponding to the OptionOverrideProto value of the compile
+  // options map entry.
+  constexpr int kMapValueFieldNumber = 2;
 
   for (int i = 0; i < unknown_fields.field_count(); ++i) {
     const google::protobuf::UnknownField &field = unknown_fields.field(i);
-    // Currently, we only support the custom compiler options field that are in
-    // the form of a dictionary, which is represented as a length_delimited
-    // field.
-    // TODO: See if we can support other types of custom fields in the future.
+
+    // Currently, we only support custom compiler options serialized in the
+    // `kCustomCompilerOptionsFieldNumber` field. In case we encounter
+    // options being serialized into some other field we will need to update
+    // this to support them.
     if (field.number() != kCustomCompilerOptionsFieldNumber ||
         field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
       continue;
     }
 
-    google::protobuf::UnknownFieldSet custom_field_set;
-    google::protobuf::io::CodedInputStream input(
-        reinterpret_cast<const uint8_t *>(field.length_delimited().data()),
-        field.length_delimited().size());
-    custom_field_set.ParseFromCodedStream(&input);
+    const std::string &bytes = field.length_delimited();
+    google::protobuf::io::CodedInputStream cis(
+        reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size());
+
+    google::protobuf::UnknownFieldSet map_entry_fields;
+    if (!map_entry_fields.MergeFromCodedStream(&cis)) {
+      DLOG_F(ERROR, "Failed to parse the map entry fields from the custom "
+                    "compile options protobuf data");
+      return tt_pjrt_status::kInternal;
+    }
 
     std::string key;
     std::string value;
 
-    for (int j = 0; j < custom_field_set.field_count(); ++j) {
-      const google::protobuf::UnknownField &inner_field =
-          custom_field_set.field(j);
+    for (int j = 0; j < map_entry_fields.field_count(); ++j) {
+      const google::protobuf::UnknownField &entry_field =
+          map_entry_fields.field(j);
       // In the inner field set, first field is the key and second field is the
       // value. We expect both to be length-delimited fields (coming from a
       // dictionary).
-      if (inner_field.number() == 1 &&
-          inner_field.type() ==
+      if (entry_field.number() == kMapKeyFieldNumber &&
+          entry_field.type() ==
               google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        key = inner_field.length_delimited();
-      } else if (inner_field.number() == 2 &&
-                 inner_field.type() ==
+        key = entry_field.length_delimited();
+      } else if (entry_field.number() == kMapValueFieldNumber &&
+                 entry_field.type() ==
                      google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        google::protobuf::UnknownFieldSet custom_nested_set;
-        google::protobuf::io::CodedInputStream nested_input(
-            reinterpret_cast<const uint8_t *>(
-                inner_field.length_delimited().data()),
-            inner_field.length_delimited().size());
-        custom_nested_set.ParseFromCodedStream(&nested_input);
-        if (custom_nested_set.field_count() == 0 ||
-            custom_nested_set.field_count() > 1) {
-          // If the nested set has more than one field or is empty, it is not a
-          // simple key-value pair of strings, so we skip it for now.
-          continue;
+        const std::string &override_bytes = entry_field.length_delimited();
+        google::protobuf::io::CodedInputStream override_stream(
+            reinterpret_cast<const uint8_t *>(override_bytes.data()),
+            override_bytes.size());
+
+        google::protobuf::UnknownFieldSet value_fields;
+        if (!value_fields.MergeFromCodedStream(&override_stream)) {
+          DLOG_F(ERROR, "Failed to parse the map entry field value from the "
+                        "custom compile options protobuf data");
+          return tt_pjrt_status::kInternal;
         }
+
+        // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto#L151C1-L158C2
+        // Field numbers and types for OptionOverrideProto
+        // message OptionOverrideProto {
+        //   oneof value {
+        //     string string_field = 1;
+        //     bool bool_field = 2;
+        //     int64 int_field = 3;
+        //     double double_field = 4;
+        //   }
+        // }
+        if (value_fields.field_count() != 1) {
+          DLOG_F(
+              ERROR,
+              "Expected exactly one field in OptionOverrideProto, but got %d",
+              value_fields.field_count());
+          return tt_pjrt_status::kInternal;
+        }
+
         const google::protobuf::UnknownField &value_field =
-            custom_nested_set.field(0);
-        if (value_field.type() ==
-            google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+            value_fields.field(0);
+        switch (value_field.number()) {
+        case 1: {
           value = value_field.length_delimited();
+          break;
+        }
+        case 2: {
+          value = value_field.varint() ? "true" : "false";
+          break;
+        }
+        case 3: {
+          value = std::to_string(value_field.varint());
+          break;
+        }
+        case 4: {
+          value = std::to_string(value_field.fixed64());
+          break;
+        }
+        default: {
+          DLOG_F(ERROR, "Unknown field number in OptionOverrideProto: %d",
+                 value_field.number());
+          return tt_pjrt_status::kInternal;
+        }
         }
       }
     }
 
-    if (!key.empty() && !value.empty()) {
-      result[key] = value;
+    if (!key.empty()) {
+      out_compile_options[key] = value;
     }
   }
 
-  return result;
+  return tt_pjrt_status::kSuccess;
 }
 
 namespace internal {
@@ -425,9 +479,14 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  std::unordered_map<std::string, std::string> compile_options_map =
-      ClientInstance::getCompileOptions(args->compile_options,
-                                        args->compile_options_size);
+  std::unordered_map<std::string, std::string> compile_options_map;
+
+  tt_pjrt_status compile_option_status = ClientInstance::getCompileOptions(
+      args->compile_options, args->compile_options_size, compile_options_map);
+  if (!tt_pjrt_status_is_ok(compile_option_status)) {
+    return *ErrorInstance::makeError(compile_option_status).release();
+  }
+
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {

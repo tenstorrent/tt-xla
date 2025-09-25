@@ -1,7 +1,6 @@
 name: On push
 
 on:
-  workflow_dispatch:
   push:
     branches: [ "main" ]
     paths-ignore:
@@ -46,7 +45,7 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      test_mark: 'push'
+      test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -54,22 +53,14 @@ jobs:
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
 
-  generate-forge-models-matrix:
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ build-image ]
-    with:
-      test_group_cnt: '1'
-
   test_forge_models_push:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ build-image, build-ttxla, generate-forge-models-matrix ]
+    needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
+      test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: 'expected_passing and push'
-      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
       use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}

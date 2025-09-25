@@ -1,0 +1,57 @@
+name: Generate Matrix (call)
+
+on:
+  workflow_call:
+    inputs:
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: string
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
+        type: string
+    outputs:
+      test_matrix:
+        description: 'Generated JSON test matrix'
+        value: ${{ jobs.generate.outputs.test-matrix }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create temp file if string test_suite
+        shell: bash
+        id: file-name-generate
+        env:
+          CUSTOM_JSON: ${{ inputs.test_suite_custom }}
+        run: |
+          if [[ "${{ inputs.test_suite }}" == "Custom" ]]; then
+            TEST_SUITE_FILE=temp.json
+            printf '%s\n' "$CUSTOM_JSON" > ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
+            echo "Created temp file with custom JSON:"
+            cat ".github/workflows/test-matrix-presets/$TEST_SUITE_FILE"
+          else
+            TEST_SUITE_FILE=${{ inputs.test_suite }}
+          fi
+          echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+      - name: Generate test matrix
+        id: generate-test-matrix
+        shell: bash
+        run: |
+          SCRIPT_PATH=".github/scripts/generate_test_matrix.py"
+          TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ steps.file-name-generate.outputs.test-suite-file }}"
+
+          python $SCRIPT_PATH $TEST_MATRIX_PATH > modified-matrix.json
+
+          echo "Generated test matrix"
+          cat modified-matrix.json
+
+          echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
