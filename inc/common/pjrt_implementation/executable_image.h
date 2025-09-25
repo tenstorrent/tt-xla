@@ -74,14 +74,17 @@ public:
   std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
 
   // Returns the vector of output dimensions.
-  std::vector<std::vector<std::uint32_t>> &
-  getOutputDimensions() { return m_output_dimensions; }
+  std::vector<std::vector<std::uint32_t>> &getOutputDimensions() {
+    return m_output_dimensions;
+  }
 
   // Returns the vector of output ranks.
   std::vector<size_t> &getOutputRanks() { return m_output_ranks; }
 
   // Returns the vector of output dimensions concatenated in a flat array.
-  std::vector<std::int64_t> &getOutputDimensionsFlat() { return m_output_dimensions_flat; }
+  std::vector<std::int64_t> &getOutputDimensionsFlat() {
+    return m_output_dimensions_flat;
+  }
 
   // Returns raw pointer to data types for each output buffer.
   PJRT_Buffer_Type *getOutputTypesRaw() { return m_output_types.data(); }
@@ -147,7 +150,7 @@ protected:
   // Generates the fingerprint for this executable based on compilation inputs.
   virtual std::string generateFingerprint() const;
 
-    // Cached fingerprint for this executable.
+  // Cached fingerprint for this executable.
   std::string m_fingerprint;
 
 private:
@@ -307,16 +310,15 @@ private:
   // Constructs executable image instance from the information given by the
   // compiler.
   SOExecutableImage(
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code
-      , std::string &&ttnn_mlir_code, std::string &&executable_name,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
       size_t num_inputs, size_t num_outputs,
       std::vector<std::vector<std::uint32_t>> output_dimensions,
       std::vector<size_t> output_ranks,
-      std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions
-      , size_t num_replicas, size_t num_devices_to_utilize,
+      std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
@@ -327,7 +329,8 @@ private:
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const final;
 
-  // Logically so_path is part of SOExecutableImage, but it is already stored in compile_options.export_path
+  // Logically so_path is part of SOExecutableImage, but it is already stored in
+  // compile_options.export_path
 };
 
 } // namespace tt::pjrt
