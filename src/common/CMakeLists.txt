@@ -54,7 +54,7 @@ add_dependencies(TTPJRTCommon
 )
 
 # Try to use protobuf from TTMLIR if available, otherwise fallback to libprotobuf
-set(PROTOBUF_TARGET "libprotobuf")
+set(PROTOBUF_TARGET "protobuf")
 if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/cmake/TTMLIR/TTMLIRConfig.cmake")
     find_package(TTMLIR QUIET HINTS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/cmake/TTMLIR NO_DEFAULT_PATH)
     if(TARGET TTMLIR::protobuf::libprotobuf)
