@@ -549,9 +549,7 @@ SOLoadedExecutableInstance::createInstance(
     make_unique_enabler(std::shared_ptr<SOExecutableImage> executable_image,
                         std::vector<DeviceInstance *> &&addressable_devices)
         : SOLoadedExecutableInstance(std::move(executable_image),
-                                     std::move(addressable_devices)) {
-      ABORT_F("Not implemented");
-    }
+                                     std::move(addressable_devices)) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
