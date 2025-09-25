@@ -57,6 +57,15 @@ set_target_properties(TTPJRTTTDylib PROPERTIES
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+# Install protoc binary from tt-mlir
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+# Install protobuf libraries from tt-mlir
+install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
+              ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Setting build type to 'Release' as none was specified.")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
