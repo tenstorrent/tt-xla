@@ -73,6 +73,7 @@ class TorchComparator(Comparator):
         except AssertionError:
             leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
             flat_pccs, _ = tree_flatten(leaf_pccs)
+            print(f"\n\n Calculated PCCs: {flat_pccs} \n\n")
             pcc = min(flat_pccs)
             assert pcc >= pcc_config.required_pcc, (
                 f"PCC comparison failed. "
