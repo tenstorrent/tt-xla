@@ -11,6 +11,10 @@ on:
         description: 'Mark passed to pytest'
         required: false
         type: string
+      contains:
+        description: 'Execute test that contains the specified string'
+        required: false
+        type: string
       args:
         description: 'Additional arguments passed to pytest'
         required: false
@@ -82,8 +86,9 @@ jobs:
             --arg mark '${{ inputs.mark }}' \
             --arg shared_runners '${{ inputs.shared_runners }}' \
             --arg args '${{ inputs.args }}' \
+            --arg contains '${{ inputs.contains }}' \
             --argjson parallel_groups '${{ inputs.parallel_groups }}' \
-            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"parallel-groups": $parallel_groups}]')
+            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"parallel-groups": $parallel_groups}]')
 
           echo $TEST_CONFIG
 

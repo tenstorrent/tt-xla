@@ -238,8 +238,8 @@ jobs:
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" \
-          $(printf '%q' '${{ matrix.build.args }}') \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
