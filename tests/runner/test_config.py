@@ -1862,7 +1862,7 @@ test_config = {
             },
             "n150": {
                 "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Too big for single chip",
+                "reason": "Too large for single chip",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
