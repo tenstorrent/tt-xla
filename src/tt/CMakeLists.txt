@@ -57,14 +57,43 @@ set_target_properties(TTPJRTTTDylib PROPERTIES
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-# Install protoc binary from tt-mlir
-install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+# Install protoc binary from tt-mlir (if it exists)
+# Check multiple possible locations for protoc
+if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0")
+    install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/bin/protoc-3.21.12.0
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+            RENAME protoc)
+elseif(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0")
+    install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build/_deps/protobuf-build/protoc-3.21.12.0
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+            RENAME protoc)
+elseif(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc")
+    # Try the original location if it exists and is not a broken symlink
+    execute_process(
+        COMMAND test -e ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
+        RESULT_VARIABLE protoc_exists
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+    if(protoc_exists EQUAL 0)
+        install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
+                DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+    else()
+        message(WARNING "protoc binary not found in expected locations, skipping installation")
+    endif()
+else()
+    message(WARNING "protoc binary not found in any expected location, skipping installation")
+endif()
 
-# Install protobuf libraries from tt-mlir
-install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
-              ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+# Install protobuf libraries from tt-mlir (if they exist)
+if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a")
+    install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
+                  ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+            OPTIONAL)  # Make it optional in case libprotobuf-lite.a doesn't exist
+else()
+    message(WARNING "protobuf libraries not found in expected location, skipping installation")
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "Setting build type to 'Release' as none was specified.")
