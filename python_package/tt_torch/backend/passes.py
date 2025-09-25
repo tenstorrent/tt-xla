@@ -29,7 +29,7 @@ def insert_argument_type_markers(
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
             type_str = "input"
-        # We do not model these argument types in tt-mlir. To avoid graph transformations (consteval) that would
+        # We do not model these argument types in tt-mlir. To avoid graph transformations that would
         # impact how these inputs are handled (i.e. consteval), we will mark them as "input".
         elif in_spec.kind in [InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
             type_str = "input"
