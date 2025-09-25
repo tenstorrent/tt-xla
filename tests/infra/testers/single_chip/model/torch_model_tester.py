@@ -7,8 +7,6 @@ from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
-from torch._dynamo.backends.common import aot_autograd
-from torch._dynamo.backends.registry import lookup_backend
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
@@ -110,38 +108,44 @@ class TorchModelTester(ModelTester):
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
-        # assert workload.is_torch and workload.model is not None
-        if self._run_mode == RunMode.TRAINING:
-            backend = aot_autograd(fw_compiler=lookup_backend(backend))
+        assert workload.is_torch and workload.model is not None
         workload.model.compile(backend=backend)
 
     def _test_training(self):
-        self._compile_for_cpu(self._workload)
+        # Run forward on CPU
+        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        
+        # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
+        
+        # Create and run backward on CPU
         cpu_backward_workload = Workload(
             framework=self._framework,
             executable=cpu_res.backward,
             args=[],
             kwargs={"gradient": random_grad},
         )
-        # self._compile_for_cpu(cpu_backward_workload)
         self._run_on_cpu(cpu_backward_workload)
 
+        # Run backward on CPU
         cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
         self._workload.model.zero_grad()
 
-        self._compile_for_tt_device(self._workload)
+        # Run forward on TT
+        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
-        torch_xla.sync(wait=True)
+        torch_xla.sync(wait=True) # Force graph break so we can differentiate between forward and backward
 
+        # Run backward on TT
         tt_backward_workload = Workload(
             framework=self._framework,
             executable=tt_res.backward,
             args=[],
             kwargs={"gradient": random_grad},
         )
-        # self._compile_for_tt_device(tt_backward_workload)
         self._run_on_tt_device(tt_backward_workload)
         torch_xla.sync(wait=True)
 
@@ -149,5 +153,6 @@ class TorchModelTester(ModelTester):
             name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
 
+        # Compare forward results and gradients
         self._compare(tt_res, cpu_res)
         self._compare(tt_grads, cpu_grads)
