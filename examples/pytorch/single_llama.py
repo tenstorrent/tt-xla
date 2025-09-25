@@ -33,7 +33,7 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = 1
+    model.config.num_hidden_layers = 28
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
@@ -90,7 +90,7 @@ def llama():
     model = model.to(device)
 
     # Run model (with no gradient calculation since we only need inference).
-    tokens_to_generate = 3
+    tokens_to_generate = 6
 
     output_tokens = []
 
