@@ -118,10 +118,10 @@ class TorchModelTester(ModelTester):
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
-        
+
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
-        
+
         # Create and run backward on CPU
         cpu_backward_workload = Workload(
             framework=self._framework,
@@ -139,7 +139,9 @@ class TorchModelTester(ModelTester):
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
-        torch_xla.sync(wait=True) # Force graph break so we can differentiate between forward and backward
+        torch_xla.sync(
+            wait=True
+        )  # Force graph break so we can differentiate between forward and backward
 
         # Run backward on TT
         tt_backward_workload = Workload(
