@@ -31,6 +31,17 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
 ) -> torch.fx.GraphModule:
+    print("\n[DEBUG] torch_pass_pipeline received graph:")
+    print("  Nodes in graph:")
+    for i, node in enumerate(gm.graph.nodes):
+        print(f"    {i}: {node.op} - {node.target}")
+        # Check specifically for GELU
+        if node.op == "call_function":
+            if "gelu" in str(node.target).lower():
+                print(f"      ^^^ GELU FOUND! Not decomposed yet!")
+            elif "mark_tensor" in str(node.target):
+                print(f"      ^^^ mark_tensor from composite builder!")
+
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
@@ -43,9 +54,27 @@ def torch_pass_pipeline(
     ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
-    compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
-    )
+
+    print("\n[DEBUG] After decomposition pass:")
+    print("  Nodes in graph:")
+    for i, node in enumerate(compiled_graph.graph.nodes):
+        # Only show first 10 nodes to keep output manageable
+        if i < 10:
+            print(f"    {i}: {node.op} - {node.target}")
+            if node.op == "call_function":
+                if "gelu" in str(node.target).lower():
+                    print(f"      ^^^ GELU STILL HERE! NOT decomposed by PyTorch!")
+                elif "mark_tensor" in str(node.target):
+                    print(f"      ^^^ mark_tensor still present!")
+    if len(list(compiled_graph.graph.nodes)) > 10:
+        print(f"    ... and {len(list(compiled_graph.graph.nodes)) - 10} more nodes")
+
+    # Note: Temporarily commenting out insert_argument_type_markers when using CPU PJRT
+    # The mark_argument custom ops cause errors with CPU PJRT backend
+    # TODO: Re-enable when running on actual TT hardware
+    # compiled_graph = insert_argument_type_markers(
+    #     compiled_graph, program.graph_signature
+    # )
     compiled_graph = bypass_dtype_promotion(compiled_graph)
     compiled_graph = bypass_redundant_cast(compiled_graph)
     compiled_graph = bypass_redundant_getitem(compiled_graph)

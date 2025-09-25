@@ -47,6 +47,7 @@ def mark_argument_attributes(
         [tensor.shape],
         [tensor.dtype],
         frontend_attributes=frontend_attributes,
+        api_version=4,  # Use API version 4 for XLA compatibility
     )
     if len(original_shape) < 3:
         result = result.reshape(original_shape)
@@ -106,6 +107,7 @@ def update_cache(
                 cache.dtype,
             ],
             frontend_attributes={"batch_offset": str(batch_offset)},
+            api_version=4,  # Use API version 4 for XLA compatibility
         )
 
 
@@ -156,6 +158,7 @@ def fill_cache(
                 cache.dtype,
             ],
             frontend_attributes={"batch_offset": str(batch_offset)},
+            api_version=4,  # Use API version 4 for XLA compatibility
         )
 
 

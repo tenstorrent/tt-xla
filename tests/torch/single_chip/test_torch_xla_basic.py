@@ -8,6 +8,9 @@ from tests.infra.comparators.comparison_config import (
 )
 import torch
 import torch_xla.core.xla_model as xm
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 
 import pytest
 
@@ -31,6 +34,41 @@ def test_simple_mm(bias):
     input_x = torch.randn(32, 32, dtype=torch.bfloat16)
 
     model = MM()
+    golden = model(input_x)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
+
+    output = model(input_x.to(device))
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(required_atol=0.02),
+        )
+    )
+
+    comparator.compare(output, golden)
+
+
+def test_compoite_ops():
+    class CompositeGELU(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            # Wrap GELU with StableHLOCompositeBuilder
+            builder = StableHLOCompositeBuilder(
+                name="tenstorrent.gelu_tanh", attr={"approximate": "tanh"}
+            )
+
+            x = builder.mark_inputs(x)
+            x = F.gelu(x, approximate="tanh")
+            x = builder.mark_outputs(x)
+
+            return x
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+
+    model = CompositeGELU()
     golden = model(input_x)
 
     device = xm.xla_device()
