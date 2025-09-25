@@ -57,12 +57,13 @@ set_target_properties(TTPJRTTTDylib PROPERTIES
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-# Note: protoc binary installation has been removed as tt-mlir doesn't provide a working protoc binary
-# The protoc in tt-mlir/install/bin is a broken symlink that points to a non-existent file
-# If protoc is needed in the future, it should be obtained from a proper source
+# Install protoc binary from tt-mlir (if it exists)
+# Note: tt-mlir should properly install protoc when building tt-metal
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/bin/protoc
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+        OPTIONAL)
 
 # Install protobuf libraries from tt-mlir
-# Use OPTIONAL flag to avoid errors if files don't exist
 install(FILES ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf.a
               ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/libprotobuf-lite.a
         DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
