@@ -1,4 +1,4 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "expected_passing and push" },
-  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "expected_passing and push" }
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "expected_passing and push_new" },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "expected_passing and push_new" }
 ]

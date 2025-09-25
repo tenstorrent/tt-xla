@@ -277,19 +277,16 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "markers": ["push_new"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "markers": ["push_new"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "markers": ["push_new"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "yolov5/pytorch-yolov5s-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
@@ -1843,7 +1840,7 @@ test_config = {
             },
             "n150": {
                 "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "RuntimeError: Out of Memory: Not enough space to allocate 1572864000 B DRAM buffer across 12 banks",
+                "reason": "Too big for single chip",
                 "bringup_status": BringupStatus.FAILED_RUNTIME,
             },
         },
