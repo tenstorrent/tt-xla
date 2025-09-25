@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This test does not use the TorchModelTester infrastructure as it requires sentence inputs (not tensors) that cannot be moved onto device using `.to(device)`.
+# TODO: add support for such inputs and model types in TorchModelTester: https://github.com/tenstorrent/tt-xla/pull/1421
 
 import torch
 import torch_xla.core.xla_model as xm
@@ -23,12 +24,6 @@ from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import (
     ModelLoader,
     ModelVariant,
 )
-
-try:
-    from FlagEmbedding import BGEM3FlagModel
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "FlagEmbedding"])
-    from FlagEmbedding import BGEM3FlagModel
 
 
 VARIANT_NAME = ModelVariant.BASE
