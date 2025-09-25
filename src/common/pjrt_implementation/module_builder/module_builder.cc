@@ -203,7 +203,7 @@ ModuleBuilder::buildModule(
   if (compile_options.backend == Backend::Default) {
     std::string ttnn_mlir;
     status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                  compile_options, mesh_shape, ttnn_mlir);
+                                   compile_options, mesh_shape, ttnn_mlir);
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
     }
@@ -234,11 +234,11 @@ ModuleBuilder::buildModule(
     return {tt_pjrt_status::kSuccess,
             SOExecutableImage::createInstance(
                 std::move(original_mlir_code), std::move(ttir_mlir),
-                /*hack:std::move(ttnn_mlir)*/"", executable_name, num_inputs, num_outputs,
-                output_dimensions, output_ranks, output_dimensions_flat,
-                num_partitions, num_replicas, num_devices_to_utilize,
-                mesh_shape, input_shardings, output_shardings, output_types,
-                std::move(output_memory_kinds),
+                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
+                num_outputs, output_dimensions, output_ranks,
+                output_dimensions_flat, num_partitions, num_replicas,
+                num_devices_to_utilize, mesh_shape, input_shardings,
+                output_shardings, output_types, std::move(output_memory_kinds),
                 std::move(output_memory_kinds_sizes),
                 std::move(compile_options))};
   } else if (compile_options.backend == Backend::CodegenPy) {
@@ -249,22 +249,22 @@ ModuleBuilder::buildModule(
     return {tt_pjrt_status::kSuccess,
             SOExecutableImage::createInstance(
                 std::move(original_mlir_code), std::move(ttir_mlir),
-                /*hack:std::move(ttnn_mlir)*/"", executable_name, num_inputs, num_outputs,
-                output_dimensions, output_ranks, output_dimensions_flat,
-                num_partitions, num_replicas, num_devices_to_utilize,
-                mesh_shape, input_shardings, output_shardings, output_types,
-                std::move(output_memory_kinds),
+                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
+                num_outputs, output_dimensions, output_ranks,
+                output_dimensions_flat, num_partitions, num_replicas,
+                num_devices_to_utilize, mesh_shape, input_shardings,
+                output_shardings, output_types, std::move(output_memory_kinds),
                 std::move(output_memory_kinds_sizes),
                 std::move(compile_options))};
-  } 
+  }
 
-    DLOG_F(ERROR, "Unsupported backend option");
-    return {tt_pjrt_status::kInvalidArgument, nullptr};
+  DLOG_F(ERROR, "Unsupported backend option");
+  return {tt_pjrt_status::kInvalidArgument, nullptr};
 }
 
-tt_pjrt_status ModuleBuilder::buildForCodegenCpp(
-   std::string_view ttir_mlir,
-    const CompileOptions &compile_options) {
+tt_pjrt_status
+ModuleBuilder::buildForCodegenCpp(std::string_view ttir_mlir,
+                                  const CompileOptions &compile_options) {
   std::string folder = compile_options.export_path;
   std::filesystem::create_directories(folder);
 

@@ -74,13 +74,12 @@ private:
   buildCommon(const std::string_view &mlir_code, ExecutableImage *executable);
 
   // Logic for buildModule that is specific to the codegen backend for C++
-  tt_pjrt_status buildForCodegenCpp(
-      std::string_view ttir_mlir, const CompileOptions &compile_options);
+  tt_pjrt_status buildForCodegenCpp(std::string_view ttir_mlir,
+                                    const CompileOptions &compile_options);
 
   // Logic for buildModule that is specific to the codegen backend for Python
-  tt_pjrt_status
-  buildForCodegenPy(
-      std::string_view ttir_mlir, const CompileOptions &compile_options);
+  tt_pjrt_status buildForCodegenPy(std::string_view ttir_mlir,
+                                   const CompileOptions &compile_options);
 
   // Creates VHLO module from the input program code.
   tt_pjrt_status
