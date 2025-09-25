@@ -86,7 +86,6 @@ class FuyuModelWrapper(nn.Module):
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=False,
         )
 
         return outputs
@@ -156,7 +155,6 @@ class ModelLoader(ForgeModel):
         # Configure the model with reduced layers for testing
         config = FuyuConfig.from_pretrained(pretrained_model_name)
         config_dict = config.to_dict()
-        config_dict["return_dict"] = False
         config_dict["use_cache"] = False
         config_dict["text_config"]["num_hidden_layers"] = 1
         config = FuyuConfig(**config_dict)

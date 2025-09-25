@@ -94,9 +94,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = BertForMaskedLM.from_pretrained(
-            self.model_name, return_dict=False, **model_kwargs
-        )
+        model = BertForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
         model.eval()
         return model
 

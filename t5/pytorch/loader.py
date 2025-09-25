@@ -147,7 +147,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = T5ForConditionalGeneration.from_pretrained(
-            pretrained_model_name, return_dict=False, use_cache=False, **model_kwargs
+            pretrained_model_name, use_cache=False, **model_kwargs
         )
         model.eval()
         # Cache model for use in load_inputs (to avoid reloading)

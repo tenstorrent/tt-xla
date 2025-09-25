@@ -106,7 +106,7 @@ class ModelLoader(ForgeModel):
         model_class = self._MODEL_CLASSES[self._variant]
 
         # Load the model using the appropriate class
-        model = model_class.from_pretrained(pretrained_model_name, return_dict=False)
+        model = model_class.from_pretrained(pretrained_model_name)
         model.eval()
 
         # Initialize image processor for this variant

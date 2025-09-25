@@ -81,7 +81,6 @@ class ModelLoader(ForgeModel):
             pretrained_model_name,
             ignore_mismatched_sizes=True,
             use_cache=False,
-            return_dict=False,
         )
         model.eval()
 

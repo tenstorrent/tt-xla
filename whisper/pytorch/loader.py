@@ -122,19 +122,14 @@ class ModelLoader(ForgeModel):
             self.feature_extractor = AutoFeatureExtractor.from_pretrained(
                 pretrained_model_name
             )
-            model = WhisperModel.from_pretrained(
-                pretrained_model_name, return_dict=False, **model_kwargs
-            )
+            model = WhisperModel.from_pretrained(pretrained_model_name, **model_kwargs)
         else:
             processor_kwargs = {}
             if dtype_override is not None:
                 processor_kwargs["torch_dtype"] = dtype_override
 
             self.processor = WhisperProcessor.from_pretrained(
-                pretrained_model_name,
-                use_cache=False,
-                return_dict=False,
-                **processor_kwargs
+                pretrained_model_name, use_cache=False, **processor_kwargs
             )
             model = WhisperForConditionalGeneration.from_pretrained(
                 pretrained_model_name, use_cache=False, **model_kwargs

@@ -101,10 +101,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = MambaForCausalLM.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            use_cache=False,
-            return_dict=False,
-            **model_kwargs
+            self._variant_config.pretrained_model_name, use_cache=False, **model_kwargs
         )
         model.eval()
         return model

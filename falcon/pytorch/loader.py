@@ -119,7 +119,7 @@ class ModelLoader(ForgeModel):
         )
 
         # Load pre-trained model from HuggingFace
-        model_kwargs = {"return_dict": False, "use_cache": False}
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model = AutoModelForCausalLM.from_pretrained(

@@ -116,7 +116,6 @@ class ModelLoader(ForgeModel):
         # Load configuration
         config = SegformerConfig.from_pretrained(model_name)
         config_dict = config.to_dict()
-        config_dict["return_dict"] = False
         config = SegformerConfig(**config_dict)
 
         # Load model from HuggingFace

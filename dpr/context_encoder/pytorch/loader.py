@@ -98,9 +98,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = DPRContextEncoder.from_pretrained(
-            self.model_name, return_dict=False, **model_kwargs
-        )
+        model = DPRContextEncoder.from_pretrained(self.model_name, **model_kwargs)
         model.eval()
         return model
 

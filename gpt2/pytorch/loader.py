@@ -91,7 +91,6 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.GPT2_BASE:
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
-            config_dict["return_dict"] = False
             config_dict["use_cache"] = False
             if dtype_override is not None:
                 config_dict["torch_dtype"] = dtype_override
@@ -101,7 +100,6 @@ class ModelLoader(ForgeModel):
             model_kwargs = {
                 "trust_remote_code": True,
                 "use_cache": False,
-                "return_dict": False,
             }
             if dtype_override is not None:
                 model_kwargs["torch_dtype"] = dtype_override

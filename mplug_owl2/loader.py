@@ -119,7 +119,6 @@ class ModelLoader(ForgeModel):
         """
 
         model_kwargs: Dict[str, Any] = {
-            "return_dict": False,
             "use_cache": False,
             "dtype": dtype_override if dtype_override is not None else torch.float32,
         }

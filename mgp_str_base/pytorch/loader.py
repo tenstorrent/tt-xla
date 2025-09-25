@@ -57,9 +57,7 @@ class ModelLoader(ForgeModel):
     def load_model(self, dtype_override=None):
         """Load pretrained MGP-STR model."""
 
-        model = MgpstrForSceneTextRecognition.from_pretrained(
-            self.model_name, return_dict=False
-        )
+        model = MgpstrForSceneTextRecognition.from_pretrained(self.model_name)
         model.eval()
 
         # Only convert dtype if explicitly requested

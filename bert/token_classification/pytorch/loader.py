@@ -98,7 +98,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = BertForTokenClassification.from_pretrained(
-            self.model_name, return_dict=False, **model_kwargs
+            self.model_name, **model_kwargs
         )
         self.model = model
         model.eval()

@@ -86,7 +86,6 @@ class ModelLoader(ForgeModel):
         model_dtype = dtype_override if dtype_override is not None else torch.bfloat16
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name,
-            return_dict=False,
             use_cache=False,
             torch_dtype=model_dtype,
         )

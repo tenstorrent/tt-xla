@@ -102,9 +102,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = DPRReader.from_pretrained(
-            self.model_name, return_dict=False, **model_kwargs
-        )
+        model = DPRReader.from_pretrained(self.model_name, **model_kwargs)
         return model
 
     def load_inputs(self, dtype_override=None):

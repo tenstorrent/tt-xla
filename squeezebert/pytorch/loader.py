@@ -118,7 +118,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         model = AutoModelForSequenceClassification.from_pretrained(
-            pretrained_model_name, return_dict=False, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         self.model = model
         model.eval()
