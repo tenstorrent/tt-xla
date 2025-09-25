@@ -77,12 +77,12 @@ jobs:
       - id: generate
         run: |
           TEST_CONFIG=$(jq -n \
-            --arg runs_on "${{ inputs.runs_on }}" \
-            --arg dir "${{ inputs.dir }}" \
-            --arg mark "${{ inputs.mark }}" \
-            --arg shared_runners "${{ inputs.shared_runners }}" \
-            --arg args "${{ inputs.args }}" \
-            --argjson parallel_groups "${{ inputs.parallel_groups }}" \
+            --arg runs_on '${{ inputs.runs_on }}' \
+            --arg dir '${{ inputs.dir }}' \
+            --arg mark '${{ inputs.mark }}' \
+            --arg shared_runners '${{ inputs.shared_runners }}' \
+            --arg args '${{ inputs.args }}' \
+            --argjson parallel_groups '${{ inputs.parallel_groups }}' \
             '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"parallel-groups": $parallel_groups}]')
 
           echo $TEST_CONFIG
