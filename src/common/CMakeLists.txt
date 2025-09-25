@@ -53,6 +53,20 @@ add_dependencies(TTPJRTCommon
     loguru
 )
 
+# Try to use protobuf from TTMLIR if available, otherwise fallback to libprotobuf
+set(PROTOBUF_TARGET "libprotobuf")
+if(EXISTS "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/cmake/TTMLIR/TTMLIRConfig.cmake")
+    find_package(TTMLIR QUIET HINTS ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib/cmake/TTMLIR NO_DEFAULT_PATH)
+    if(TARGET TTMLIR::protobuf::libprotobuf)
+        set(PROTOBUF_TARGET "TTMLIR::protobuf::libprotobuf")
+        message(STATUS "Using protobuf from TTMLIR: ${PROTOBUF_TARGET}")
+    else()
+        message(STATUS "TTMLIR protobuf target not found, using fallback: ${PROTOBUF_TARGET}")
+    endif()
+else()
+    message(STATUS "TTMLIR config not found, using fallback protobuf: ${PROTOBUF_TARGET}")
+endif()
+
 target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/inc
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
@@ -64,7 +78,7 @@ target_include_directories(TTPJRTCommon PUBLIC
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
-    libprotobuf
+    ${PROTOBUF_TARGET}
     loguru
     coverage_config
     TTPJRTCommonDylibPlatform
