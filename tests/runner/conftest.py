@@ -57,6 +57,11 @@ def pytest_collection_modifyitems(config, items):
         # Uncomment this to print info for each test collected.
         # print(f"DEBUG nodeid: {nodeid} meta.status: {meta.status}")
 
+        # Skip auto-marking if test already has the placeholder marker. This simplifies the running
+        # on -m unspecified tests in experimental nightly, don't need to exclude placeholder
+        if item.get_closest_marker("placeholder") is not None:
+            continue
+
         if meta.status == ModelTestStatus.EXPECTED_PASSING:
             item.add_marker(pytest.mark.expected_passing)
         elif meta.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
