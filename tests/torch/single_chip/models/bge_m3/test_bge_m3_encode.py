@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This test does not use the TorchModelTester infrastructure as it requires sentence inputs (not tensors) that cannot be moved onto device using `.to(device)`.
-# TODO: add support for such inputs and model types in TorchModelTester: https://github.com/tenstorrent/tt-xla/pull/1421
+# TODO: add support for such inputs and model types in TorchModelTester: https://github.com/tenstorrent/tt-xla/issues/1471
 
 import torch
 import torch_xla.core.xla_model as xm
