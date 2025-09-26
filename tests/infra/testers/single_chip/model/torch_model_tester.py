@@ -13,6 +13,7 @@ from infra.utilities import Framework
 from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
+import torch_xla.distributed.spmd as xs
 
 
 class TorchModelTester(ModelTester):
@@ -75,7 +76,6 @@ class TorchModelTester(ModelTester):
             framework=self._framework, model=self._model, args=args, kwargs=kwargs
         )
         self._workload.shard_spec_function = self._get_shard_specs_function()
-        self._workload.mesh = self._get_mesh()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:

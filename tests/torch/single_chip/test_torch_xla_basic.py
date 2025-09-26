@@ -8,8 +8,12 @@ from tests.infra.comparators.comparison_config import (
 )
 import torch
 import torch_xla.core.xla_model as xm
-
+import torch_xla.runtime as xr
+import numpy as np
 import pytest
+import torch_xla.distributed.spmd as xs
+from torch_xla.distributed.spmd import Mesh
+
 
 from infra.comparators.torch_comparator import TorchComparator
 

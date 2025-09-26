@@ -255,6 +255,7 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _get_model(self):
         sig = inspect.signature(self.loader.load_model)
+        self._set_global_mesh()
         if "dtype_override" in sig.parameters:
             return self.loader.load_model(dtype_override=torch.bfloat16)
         return self.loader.load_model()
@@ -268,14 +269,14 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_shard_specs_function(self):
         return self.loader.load_shard_spec
 
-    def _get_mesh(self):
+    def _set_global_mesh(self):
         num_devices = xr.global_runtime_device_count()
         mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
         device_ids = np.array(range(num_devices))
         mesh = (
             Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
         )
-        return mesh
+        xs.set_global_mesh(mesh)
 
 
 def setup_models_path(project_root):
