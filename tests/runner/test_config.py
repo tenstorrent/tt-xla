@@ -75,9 +75,6 @@ PLACEHOLDER_MODELS = {
     "mistralai/Mixtral-8x7B-Instruct-v0.1": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "BAAI/bge-m3": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "openai/gpt-oss-20b": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
