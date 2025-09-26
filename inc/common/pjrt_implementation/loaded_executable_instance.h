@@ -33,6 +33,8 @@
 
 namespace tt::pjrt {
 
+class ClientInstance;
+
 // Represents `PJRT_LoadedExecutable` structure and the functionality around it.
 // It is the in-memory loaded executable which is ready for input arguments to
 // execute.
@@ -41,7 +43,8 @@ public:
   // Creates new loaded executable instance from the executable image.
   static std::unique_ptr<LoadedExecutableInstance>
   createInstance(std::shared_ptr<ExecutableImage> executable_image,
-                 std::vector<DeviceInstance *> &&addressable_devices);
+                 std::vector<DeviceInstance *> &&addressable_devices,
+                 ClientInstance *client_instance);
 
   // Binds PJRT API functions implementation related to PJRT_LoadedExecutable
   // structure.
@@ -82,16 +85,17 @@ private:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
       std::shared_ptr<ExecutableImage> executable_image,
-      const std::vector<DeviceInstance *> &addressable_devices)
+      const std::vector<DeviceInstance *> &addressable_devices,
+      ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
-        m_addressable_devices(addressable_devices), m_deleted(false) {}
+        m_addressable_devices(addressable_devices), m_deleted(false),
+        m_client_instance(client_instance) {}
 
-  // Opens devices on which input arguments are placed, which we assume are the
-  // the devices where computation will run, if their count is equal to the
-  // corresponding devices count in the mesh shape estimated by the compiler.
+  // Gets the appropriate runtime device from the `ClientInstance`.
   std::optional<tt::runtime::Device>
-  openDevices(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-              size_t num_devices, PJRT_Device *pjrt_device);
+  getOrCreateMeshDevice(PJRT_Buffer *const *const *argument_lists,
+                        size_t num_args, size_t num_devices,
+                        PJRT_Device *pjrt_device);
 
   // Collects device ids from the addressable devices.
   std::unordered_set<int>
@@ -155,6 +159,9 @@ private:
 
   // Mutex guarding loaded executable deletion.
   std::mutex m_deleted_mutex;
+
+  // Client instance that created this loaded executable.
+  ClientInstance *m_client_instance;
 };
 
 namespace internal {

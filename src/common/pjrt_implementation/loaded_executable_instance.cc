@@ -9,8 +9,10 @@
 // https://llvm.org/LICENSE.txt
 
 #include "common/pjrt_implementation/loaded_executable_instance.h"
+#include "common/status.h"
 
 // c++ standard library includes
+#include <cassert>
 #include <numeric>
 
 // tt-mlir includes
@@ -22,6 +24,7 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 
 namespace tt::pjrt {
@@ -29,16 +32,20 @@ namespace tt::pjrt {
 std::unique_ptr<LoadedExecutableInstance>
 LoadedExecutableInstance::createInstance(
     std::shared_ptr<ExecutableImage> executable_image,
-    std::vector<DeviceInstance *> &&addressable_devices) {
+    std::vector<DeviceInstance *> &&addressable_devices,
+    ClientInstance *client_instance) {
   struct make_unique_enabler : public LoadedExecutableInstance {
     make_unique_enabler(std::shared_ptr<ExecutableImage> executable_image,
-                        std::vector<DeviceInstance *> &&addressable_devices)
+                        std::vector<DeviceInstance *> &&addressable_devices,
+                        ClientInstance *client_instance)
         : LoadedExecutableInstance(std::move(executable_image),
-                                   std::move(addressable_devices)) {}
+                                   std::move(addressable_devices),
+                                   client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices));
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
@@ -97,10 +104,11 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   std::optional<tt::runtime::Device> runtime_device =
-      openDevices(args->argument_lists, args->num_args, args->num_devices,
-                  args->execute_device);
+      getOrCreateMeshDevice(args->argument_lists, args->num_args,
+                            args->num_devices, args->execute_device);
+
   if (!runtime_device) {
-    // Logging is done inside `openDevices`.
+    // Logging is done inside `getOrCreateMeshDevice`.
     return tt_pjrt_status::kInternal;
   }
 
@@ -157,16 +165,13 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
-  tt::runtime::closeMeshDevice(*runtime_device);
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-
   return tt_pjrt_status::kSuccess;
 }
 
 std::optional<tt::runtime::Device>
-LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
-                                      size_t num_args, size_t num_devices,
-                                      PJRT_Device *pjrt_device) {
+LoadedExecutableInstance::getOrCreateMeshDevice(
+    PJRT_Buffer *const *const *argument_lists, size_t num_args,
+    size_t num_devices, PJRT_Device *pjrt_device) {
   std::unordered_set<int> device_ids =
       getDeviceIds(argument_lists, num_args, num_devices);
 
@@ -199,16 +204,7 @@ LoadedExecutableInstance::openDevices(PJRT_Buffer *const *const *argument_lists,
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  tt::runtime::MeshDeviceOptions mesh_device_options;
-  mesh_device_options.meshShape = devices_mesh_shape;
-
-  if (mesh_shape_num_devices > 1) {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
-  } else {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-  }
-
-  return tt::runtime::openMeshDevice(mesh_device_options);
+  return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(

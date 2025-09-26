@@ -13,9 +13,12 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <optional>
+#include <sstream>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
+#include "tt/runtime/types.h"
 
 // third-party includes
 #include <google/protobuf/io/coded_stream.h>
@@ -29,12 +32,14 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
+#include "common/pjrt_implementation/utils.h"
 
 namespace tt::pjrt {
 
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
-      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()) {
+      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
+      m_parent_mesh(std::nullopt) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
   // TODO(mrakita): Add support for multi-process environment. Process index is
@@ -51,6 +56,10 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
+
+  if (m_parent_mesh.has_value()) {
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+  }
 
   std::remove(m_cached_system_descriptor_path.data());
 }
@@ -130,6 +139,9 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
+  m_parent_mesh =
+      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -165,7 +177,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   tt_pjrt_status compile_status = m_module_builder->buildModule(
-      mlir_code, m_cached_system_descriptor_path, compile_options);
+      mlir_code, m_cached_system_descriptor_path, compile_options, this);
+
   if (!tt_pjrt_status_is_ok(compile_status)) {
     return compile_status;
   }
@@ -206,8 +219,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           m_module_builder->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
-      LoadedExecutableInstance::createInstance(executable_image,
-                                               std::move(addressable_devices));
+      LoadedExecutableInstance::createInstance(
+          executable_image, std::move(addressable_devices), this);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
@@ -357,6 +370,71 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
+    const std::vector<uint32_t> &target_mesh_shape) {
+
+  if (!m_parent_mesh.has_value()) {
+    m_parent_mesh = openMeshDevice(target_mesh_shape);
+    return *m_parent_mesh;
+  }
+
+  std::vector<uint32_t> parent_mesh_shape =
+      tt::runtime::getMeshShape(*m_parent_mesh);
+
+  if (parent_mesh_shape == target_mesh_shape) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateMeshDevice - reusing "
+           "already opened mesh device %s",
+           utils::to_string(parent_mesh_shape).c_str());
+    return *m_parent_mesh;
+  }
+
+  DLOG_F(LOG_DEBUG,
+         "ClientInstance::getOrCreateMeshDevice - "
+         "reshaping mesh device - %s -> %s",
+         utils::to_string(parent_mesh_shape).c_str(),
+         utils::to_string(target_mesh_shape).c_str());
+
+  // NOTE: Due to some issues hit when testing, instead of using the reshape
+  // mesh API, we are closing and re-opening the device with the wanted mesh
+  // shape. This should be revisited in the future (#1436).
+  //
+  // Additionally, we are supposed to utilize sub-meshes if the target mesh
+  // shape is contained within the already opened parent mesh. Also, in case
+  // we are running multiple models on different parts of the mesh (pipeline
+  // parallel). However, similar as to the case with reshape API, there were
+  // some issues when testing sub-meshes, so for now we are always closing and
+  // re-opening the whole mesh.
+  tt::runtime::closeMeshDevice(*m_parent_mesh);
+  m_parent_mesh = openMeshDevice(target_mesh_shape);
+
+  return *m_parent_mesh;
+}
+
+tt::runtime::Device
+ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
+  size_t num_devices =
+      static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
+                                          1, std::multiplies<std::uint32_t>{}));
+
+  // NOTES:
+  // - this should probably be set automatically by the mlir runtime.
+  // - it looks like metal context is being reinitialized each time we
+  // open/close the device, so we need to set the fabric config each time
+  // (even if we always set it to the same value).
+  if (num_devices > 1) {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+  } else {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+  }
+
+  tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
+      .meshShape = mesh_shape,
+  };
+
+  return tt::runtime::openMeshDevice(options);
 }
 
 namespace internal {
