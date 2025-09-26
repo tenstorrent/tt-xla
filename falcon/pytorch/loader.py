@@ -125,6 +125,7 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        self.config = model.config
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -170,3 +171,64 @@ class ModelLoader(ForgeModel):
         response_tokens = inputs.input_ids[0, response_start:response_end]
 
         return self.tokenizer.decode(response_tokens)
+
+    def get_mesh_config(self, num_devices: int):
+        if self.config.num_attention_heads % num_devices == 0:
+            mesh_shape = (1, num_devices)
+        else:
+            assert num_devices % 2 == 0, "Attention heads cannot be evenly distributed"
+            mesh_shape = (2, num_devices // 2)
+        shard_attention = self._variant in [
+            ModelVariant.FALCON_7B,
+            ModelVariant.FALCON_10B,
+        ]
+        if shard_attention:
+            assert (
+                self.config.num_attention_heads % mesh_shape[1] == 0
+            ), "Attention heads must be divisible by the model axis size"
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        if self._variant in [ModelVariant.FALCON_1B, ModelVariant.FALCON_3B]:
+            return None
+
+        shard_specs = {}
+
+        base = (
+            getattr(model, "model", None)
+            or getattr(model, "backbone", None)
+            or getattr(model, "transformer", None)
+        )
+        if base is None:
+            raise AttributeError(f"Unsupported model type: {type(model).__name__}")
+
+        layers_container = getattr(base, "layers", None) or getattr(base, "h", None)
+        if layers_container is None:
+            raise AttributeError(
+                f"Unsupported base container for {type(base).__name__}; expected `layers` or `h`."
+            )
+
+        if self._variant in [ModelVariant.FALCON_7B, ModelVariant.FALCON_10B]:
+            for layer in layers_container:
+                shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        elif self._variant == ModelVariant.FALCON_7B_INSTRUCT:
+            for layer in layers_container:
+                shard_specs[layer.mlp.dense_h_to_4h.weight] = ("model", None)
+                shard_specs[layer.mlp.dense_4h_to_h.weight] = (None, "model")
+        elif self._variant == ModelVariant.FALCON_MAMBA_7B:
+            for layer in layers_container:
+                shard_specs[layer.mixer.in_proj.weight] = ("model", None)
+                shard_specs[layer.mixer.x_proj.weight] = ("model", None)
+                shard_specs[layer.mixer.dt_proj.weight] = ("model", None)
+                shard_specs[layer.mixer.out_proj.weight] = (None, "model")
+        else:
+            return None
+
+        return shard_specs
