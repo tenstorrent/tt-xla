@@ -6,6 +6,7 @@
 
 // c++ standard library includes
 #include <algorithm>
+#include <sstream>
 
 namespace tt::pjrt::module_builder {
 
@@ -19,6 +20,14 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options, "enable_bfp8_conversion");
 
   return options;
+}
+
+std::string CompileOptions::toString() const {
+  std::ostringstream oss;
+  oss << "enable_optimizer: " << (enable_optimizer ? "true" : "false")
+      << ", enable_bfp8_conversion: "
+      << (enable_bfp8_conversion ? "true" : "false");
+  return oss.str();
 }
 
 namespace internal {
