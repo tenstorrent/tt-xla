@@ -358,13 +358,23 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
 tt::runtime::Tensor *ClientInstance::getCachedTensor(
     const std::vector<BufferInstance *> &buffer_instances) {
   auto it = m_tensor_cache.find(buffer_instances);
+
+  std::ostringstream oss;
+  oss << "(";
+  for (BufferInstance *keyfrag : buffer_instances) {
+    oss << keyfrag << ", ";
+  }
+  oss << ")";
+
+  std::string keys = oss.str();
+
   if (it != m_tensor_cache.end()) {
-    DLOG_F(LOG_DEBUG, "Tensor cache HIT for %zu buffer instances",
-           buffer_instances.size());
+    DLOG_F(LOG_DEBUG, "Tensor cache HIT for %zu buffer instances %s",
+           buffer_instances.size(), keys.c_str());
     return &(it->second);
   }
-  DLOG_F(LOG_DEBUG, "Tensor cache MISS for %zu buffer instances",
-         buffer_instances.size());
+  DLOG_F(LOG_DEBUG, "Tensor cache MISS for %zu buffer instances %s",
+         buffer_instances.size(), keys.c_str());
   return nullptr;
 }
 
