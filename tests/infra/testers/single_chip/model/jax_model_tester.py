@@ -81,7 +81,8 @@ class JaxModelTester(ModelTester):
         Returns input parameters (nnx models run without passing params as args/kwargs).
         """
         if isinstance(self._model, nnx.Module):
-            return None
+            _, state = nnx.split(self._model)
+            return state
 
         elif isinstance(self._model, (FlaxPreTrainedModel, linen.Module)):
             # Check if params are already attached to model (custom initialization)
@@ -108,39 +109,33 @@ class JaxModelTester(ModelTester):
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
 
-        if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
-            self._workload = Workload(
-                framework=self._framework,
-                model=self._model,
-                args=args,
-                kwargs=kwargs,
-                static_argnames=forward_static_args,
-            )
+        if isinstance(self._model, nnx.Module):
+            graphdef, _ = nnx.split(self._model)
+
+            def forward_pass_method(state, inputs):
+                model = nnx.merge(graphdef, state)
+                return model(inputs)
+
+        elif isinstance(self._model, FlaxPreTrainedModel):
+            forward_pass_method = getattr(self._model, "__call__")
 
         elif isinstance(self._model, linen.Module):
             forward_pass_method = getattr(self._model, "apply")
-            self._workload = Workload(
-                framework=self._framework,
-                executable=forward_pass_method,
-                args=args,
-                kwargs=kwargs,
-                static_argnames=forward_static_args,
-            )
 
-        else:
-            raise NotImplementedError(
-                "Not supported model type. Supported are nnx.Module, linen.Module and FlaxPreTrainedModel."
-            )
+        self._workload = Workload(
+            framework=self._framework,
+            executable=forward_pass_method,
+            args=args,
+            kwargs=kwargs,
+            static_argnames=forward_static_args,
+        )
 
     def _get_forward_method_args(self) -> Sequence[Any]:
         """
         Returns positional arguments for model's forward pass.
         """
-        if isinstance(self._model, linen.Module):
+        if isinstance(self._model, (linen.Module, nnx.Module)):
             return [self._input_parameters, self._input_activations]
-
-        elif isinstance(self._model, nnx.Module):
-            return [self._input_activations]
 
         return []
 
@@ -182,17 +177,8 @@ class JaxModelTester(ModelTester):
         self._jit_compile_workload(workload)
 
     def _jit_compile_workload(self, workload: Workload, **jit_options) -> None:
-        """For Linen models, the executable function is JIT-compiled,
-        whereas for nnx and FlaxPreTrainedModel, the model itself is JIT-compiled."""
-
         assert workload.is_jax, "Workload must be JAX workload to compile"
 
-        target = workload.executable if workload.executable else workload.model
-        compiled_target = jax.jit(
-            target, static_argnames=workload.static_argnames, **jit_options
+        workload.compiled_executable = jax.jit(
+            workload.executable, static_argnames=workload.static_argnames, **jit_options
         )
-
-        if workload.executable:
-            workload.compiled_executable = compiled_target
-        else:
-            workload.model = compiled_target
