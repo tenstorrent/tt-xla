@@ -4,8 +4,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence, Union
 from infra.utilities import Framework, Model
+from tt_jax import serialize_compiled_artifacts_to_disk
 
 
 class Workload:
@@ -69,4 +70,22 @@ class Workload:
         else:
             raise ValueError(
                 "No model, compiled_executable, or executable provided in Workload."
+            )
+
+    def serialize(self, output_prefix: str) -> None:
+        """Serialize the workload compilation artifacts to disk.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files.
+        """
+        if self.is_jax:
+
+            # Get the executable to serialize
+            executable = self.model if self.model else self.executable
+            if executable is None:
+                raise ValueError("No executable or model to serialize")
+
+            # Serialize with the workload's args and kwargs
+            serialize_compiled_artifacts_to_disk(
+                executable, *self.args, output_prefix=output_prefix, **self.kwargs
             )
