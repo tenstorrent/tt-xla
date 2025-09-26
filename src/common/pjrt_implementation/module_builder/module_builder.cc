@@ -8,7 +8,6 @@
 // c++ standard library includes
 #include <cassert>
 #include <cstdlib>
-#include <memory>
 #include <numeric>
 #include <optional>
 

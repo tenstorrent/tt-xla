@@ -50,7 +50,7 @@ def training_tester() -> RoFormerTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 def test_roformer_chinese_base_inference(inference_tester: RoFormerTester):
     inference_tester.test()
