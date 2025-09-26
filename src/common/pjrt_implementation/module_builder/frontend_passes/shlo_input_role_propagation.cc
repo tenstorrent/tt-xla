@@ -167,24 +167,6 @@ bool isTTMarkFunction(const std::string &function_name) {
   return function_name.rfind(c_tt_mark_function_prefix, 0) == 0;
 }
 
-// Traces a value to its root block arguments.
-mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value) {
-  mlir::SmallVector<mlir::BlockArgument> blockArgs;
-  auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
-  if (blockArg) {
-    blockArgs.push_back(blockArg);
-  } else {
-    auto definingOp = value.getDefiningOp();
-    assert(definingOp && "This value does not have a defining operation, nor "
-                         "is it a block argument.");
-    for (mlir::Value operand : definingOp->getOperands()) {
-      blockArgs.append(getBlockArguments(operand));
-    }
-  }
-
-  return blockArgs;
-}
-
 // This pattern is used to populate function argument attributes. It looks for
 // calls to `tt.mark_argument` and populates the argument attributes using the
 // attributes of the `tt.mark_argument` call. It then erases the
@@ -288,6 +270,26 @@ struct PopulateArgumentAttrsFromTTMark final
 
     return mlir::success();
   }
+
+private:
+  // Traces a value to its root block arguments.
+  mlir::SmallVector<mlir::BlockArgument>
+  getBlockArguments(mlir::Value value) const {
+    mlir::SmallVector<mlir::BlockArgument> blockArgs;
+    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
+    if (blockArg) {
+      blockArgs.push_back(blockArg);
+    } else {
+      auto definingOp = value.getDefiningOp();
+      assert(definingOp && "This value does not have a defining operation, nor "
+                           "is it a block argument.");
+      for (mlir::Value operand : definingOp->getOperands()) {
+        blockArgs.append(getBlockArguments(operand));
+      }
+    }
+
+    return blockArgs;
+  }
 };
 
 tt_pjrt_status annotateArgumentAttributesFromCustomCall(
@@ -302,32 +304,16 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     return tt_pjrt_status::kInternal;
   }
 
-  // In the event that some of the arguments have not been annotated, IF at
-  // least one argument has been annotated as a user input, we can annotate the
-  // rest of the arguments as constants
+  setDefaultRoleForUnannotatedArguments(mlir_module);
+
+  return tt_pjrt_status::kSuccess;
+}
+
+void setDefaultRoleForUnannotatedArguments(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  // In the event that some of the arguments have not been annotated,
+  // we annotate them to default, which is Input.
   mlir_module->walk([&](mlir::func::FuncOp funcOp) {
-    // If the function has even one user input argument, that means we can
-    // annotate the rest of the arguments as constants
-    bool hasUserInputAnnotation = false;
-    for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
-      if (mlir::tt::ttcore::ArgumentTypeAttr argumentTypeAttr =
-              mlir::dyn_cast_or_null<mlir::tt::ttcore::ArgumentTypeAttr>(
-                  funcOp.getArgAttr(i,
-                                    mlir::tt::ttcore::ArgumentTypeAttr::name));
-          argumentTypeAttr) {
-        hasUserInputAnnotation = true;
-        break;
-      }
-    }
-
-    // If the function has a user input argument annotation, then for every
-    // argument, if the argument has an argument type attribute, do nothing, and
-    // if it does not have an argument type attribute, set it to constant
-    if (!hasUserInputAnnotation) {
-      return;
-    }
-
-    int64_t annotatedConstCount = 0;
     for (int64_t i = 0; i < funcOp.getNumArguments(); i++) {
       if (funcOp.getArgAttr(i, mlir::tt::ttcore::ArgumentTypeAttr::name)) {
         continue;
@@ -336,17 +322,9 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
       funcOp.setArgAttr(
           i, mlir::tt::ttcore::ArgumentTypeAttr::name,
           mlir::tt::ttcore::ArgumentTypeAttr::get(
-              funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Constant));
-      funcOp.setArgAttr(
-          i, c_name_attr_name,
-          mlir::StringAttr::get(funcOp.getContext(),
-                                "auto_annotated_const_" +
-                                    std::to_string(annotatedConstCount)));
-      annotatedConstCount++;
+              funcOp.getContext(), mlir::tt::ttcore::ArgumentType::Input));
     }
   });
-
-  return tt_pjrt_status::kSuccess;
 }
 
 } // namespace internal

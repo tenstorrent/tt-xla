@@ -56,6 +56,7 @@
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
 // tt-xla includes
+#include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
@@ -95,7 +96,8 @@ ModuleBuilder::ModuleBuilder()
 tt_pjrt_status ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
-    const std::unordered_map<std::string, std::string> &compile_options_map) {
+    const std::unordered_map<std::string, std::string> &compile_options_map,
+    ClientInstance *client_instance) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   m_status = tt_pjrt_status::kSuccess;
@@ -135,7 +137,8 @@ tt_pjrt_status ModuleBuilder::buildModule(
   collectMeshShape(mlir_module);
   collectNumDevicesToUtilize(mlir_module);
 
-  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options);
+  convertFromTTIRToTTNN(system_descriptor_path, mlir_module, compile_options,
+                        client_instance);
   if (!tt_pjrt_status_is_ok(m_status)) {
     return m_status;
   }
@@ -586,7 +589,7 @@ void ModuleBuilder::collectNumDevicesToUtilize(
 void ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const CompileOptions &compile_options) {
+    const CompileOptions &compile_options, ClientInstance *client_instance) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
@@ -605,6 +608,14 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.meshShape = {m_devices_mesh_shape[0], m_devices_mesh_shape[1]};
+
+  // Use the `options.devicePtr` to pass the device pointer to the optimizer in
+  // order to avoid closing and reopening the device afterwards.
+  tt::runtime::Device runtime_device =
+      client_instance->getOrCreateMeshDevice(m_devices_mesh_shape);
+  options.devicePtr =
+      std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
+          runtime_device.handle);
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
@@ -767,39 +778,6 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
     return mlir::WalkResult::interrupt();
   });
   return mesh_op;
-}
-
-llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-ModuleBuilder::createArgumentTypeMap(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-      argTypesMap;
-
-  if (m_input_argument_roles.empty()) {
-    return argTypesMap;
-  }
-
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  size_t arg_offset = 0;
-
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    llvm::SmallVector<mlir::tt::ttcore::ArgumentType> argTypes;
-    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
-      assert(arg_offset + i < m_input_argument_roles.size() &&
-             "TTIR module should have the same number of input arguments as "
-             "the SHLO module");
-      if (m_input_argument_roles[arg_offset + i] ==
-          InputArgumentRole::kWeight) {
-        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Constant);
-      } else {
-        argTypes.push_back(mlir::tt::ttcore::ArgumentType::Input);
-      }
-    }
-    argTypesMap[func_op.getName().str()] = argTypes;
-    arg_offset += func_op.getNumArguments();
-  }
-
-  return argTypesMap;
 }
 
 } // namespace tt::pjrt::module_builder

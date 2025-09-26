@@ -8,6 +8,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -82,13 +83,17 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.parametrize(
+    "training_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
+)
 def test_mnist_mlp_training(training_tester: MNISTMLPTester):
     training_tester.test()

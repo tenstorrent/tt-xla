@@ -34,6 +34,10 @@
 #include "common/status.h"
 #include "compile_options.h"
 
+namespace tt::pjrt {
+class ClientInstance;
+}
+
 namespace tt::pjrt::module_builder {
 
 // MLIR program format name. This would ideally be defined in PJRT API header.
@@ -54,7 +58,8 @@ public:
   tt_pjrt_status buildModule(
       const std::string_view &mlir_code,
       const std::string &system_descriptor_path,
-      const std::unordered_map<std::string, std::string> &compile_options);
+      const std::unordered_map<std::string, std::string> &compile_options,
+      tt::pjrt::ClientInstance *client_instance);
 
   // Returns compiled flatbuffer binary.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -159,7 +164,8 @@ private:
   // Converts TTIR module to TTNN module.
   void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
                              mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                             const CompileOptions &compile_options);
+                             const CompileOptions &compile_options,
+                             tt::pjrt::ClientInstance *client_instance);
 
   // Creates flatbuffer binary from the built TTNN module.
   void
@@ -230,10 +236,6 @@ private:
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
   std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Creates argument type map based on collected input argument roles.
-  llvm::StringMap<llvm::SmallVector<mlir::tt::ttcore::ArgumentType>>
-  createArgumentTypeMap(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;

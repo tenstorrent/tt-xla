@@ -43,3 +43,15 @@ class CompilerConfig:
             options["enable_bfp8_conversion"] = "true"
 
         return options
+
+    def to_torch_compile_options(self) -> Dict[str, str]:
+        """
+        Convert CompilerConfig to Torch compile options dictionary format.
+
+        Returns:
+            Dictionary of compiler options in the format expected by torch_xla.set_custom_compile_options()
+        """
+
+        # Currently, the options are the same as JAX. But keeping separate method
+        # in case of future differences.
+        return self.to_jax_compiler_options()

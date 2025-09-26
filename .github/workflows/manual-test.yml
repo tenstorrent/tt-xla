@@ -6,61 +6,33 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      preset:
-        description: 'Preset to use for the tests'
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
         type: choice
-        default: 'nightly'
         options:
-          - 'push'
-          - 'nightly'
-          - 'model_test'
-          - 'tt_forge_models'
-          - 'custom'
-      test_mark:
-        description: 'Test mark to run (if preset is custom or tt_forge_models)'
-        type: string
-      run_on:
-        description: 'Run on specific hardware'
-        type: choice
-        default: 'All'
-        options:
-          - 'n150'
-          - 'n300'
-          - 'llmbox'
-          - 'multichip'
-          - 'All'
-      dir:
-        description: |
-          Directory to run tests. Defaults:
-            - n150: 'jax/single_chip torch/single_chip'
-            - n300: 'jax/multi_chip/n300'
-            - llmbox: 'jax/multi_chip/llmbox'
-            - multichip: 'jax/multi_chip'
-            - All: run on n150 all singlechip, on llmbox all multichip
+          - 'basic-test.json'
+          - 'basic-test-nightly.json'
+          - 'model-test-push.json'
+          - 'model-test-full.json'
+          - 'model-test-passing.json'
+          - 'model-test-xfail.json'
+          - 'model-test-experimental.json'
+          - 'Custom'
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
         type: string
       mlir_override:
-          description: 'Git SHA of commit in tenstorrent/tt-mlir'
-          required: false
-          type: string
-      test_group_cnt:
-        description: 'Parallel groups for forge models preset'
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
-        default: '5'
-        type: choice
-        options:
-          - '1'
-          - '2'
-          - '3'
-          - '4'
-          - '5'
-          - '8'
-          - '10'
+        type: string
 
 permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Preset: ${{ inputs.preset }} - Mark: ${{ inputs.test_mark }} - Run-on: "${{ inputs.run_on }}" - Dir: "${{ inputs.dir }}")'
+run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
@@ -77,122 +49,15 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
 
-  # Generate matrix for forge models preset (mirrors schedule-nightly)
-  generate-forge-models-matrix:
-    if: inputs.preset == 'tt_forge_models'
-    uses: ./.github/workflows/call-generate-forge-models-matrix.yml
-    secrets: inherit
-    needs: [ build-image ]
-    with:
-      test_group_cnt: ${{ inputs.test_group_cnt }}
-
-  test-setup:
-    runs-on: ubuntu-latest
-    needs: build-ttxla
-    if: always() && !cancelled()
-    outputs:
-      run_id: ${{ steps.set_inputs.outputs.run_id }}
-      test_mark: ${{ steps.set_inputs.outputs.test_mark }}
-      test_matrix: ${{ steps.set_inputs.outputs.test_matrix }}
-    steps:
-      - id: set_inputs
-        run: |
-          if [[ '${{ inputs.preset }}' == 'custom' || '${{ inputs.preset }}' == 'tt_forge_models' ]]; then
-            echo "test_mark=${{ inputs.test_mark }}" >> $GITHUB_OUTPUT
-          else
-            echo "test_mark=${{ inputs.preset }}" >> $GITHUB_OUTPUT
-          fi
-
-          make_json_array() {
-            local result=""
-            local counter=1
-            for arg in "$@"; do
-              # Set use-shared-runners to true if we want to run on llmbox
-              local shr=$(if [ "$runson" == "n300-llmbox" ]; then echo ", \"use-shared-runners\": \"true\""; fi)
-              result+="{ \"runs-on\": \"$runson\", \"name\": \"${name}-${counter}\", \"dir\": \"$arg\"$shr },"
-              ((counter++))
-            done
-            echo "${result%,}"
-          }
-
-          if [ '${{ inputs.run_on }}' == 'n150' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
-            runson='n150'
-            name='run_single_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
-          elif [ '${{ inputs.run_on }}' == 'n300' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300'
-            name='run_2chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
-          elif [ '${{ inputs.run_on }}' == 'llmbox' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300-llmbox'
-            name='run_4_8_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
-          elif [ '${{ inputs.run_on }}' == 'multichip' ]; then
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300 ./tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300-llmbox'
-            name='run_multi_chip'
-            echo "test_matrix=[$(make_json_array $dir)]" >> $GITHUB_OUTPUT
-          else
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
-            runson='n150'
-            name='run_single_chip_n150'
-            n150_matrix=$(make_json_array $dir)
-
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/single_chip ./tests/torch/single_chip'; else echo '${{ inputs.dir }}'; fi)
-            runson='p150'
-            name='run_single_chip'
-            p150_matrix=$(make_json_array $dir)
-
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/n300'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300'
-            name='run_multi_chip_n300'
-            n300_matrix=$(make_json_array $dir)
-
-            dir=$(if [ -z '${{ inputs.dir }}' ]; then echo './tests/jax/multi_chip/llmbox/4_devices ./tests/jax/multi_chip/llmbox/8_devices'; else echo '${{ inputs.dir }}'; fi)
-            runson='n300-llmbox'
-            name='run_multi_chip_llmbox'
-            llmbox_matrix=$(make_json_array $dir)
-
-            echo "test_matrix=[$n150_matrix,$p150_matrix,$n300_matrix,$llmbox_matrix]" >> $GITHUB_OUTPUT
-          fi
-      - name: Create job summary
-        run: |
-          echo "## Input Parameters" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Preset: ${{ inputs.preset }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Test Mark: ${{ inputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Run On: ${{ inputs.run_on }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Directory: ${{ inputs.dir }}" >> $GITHUB_STEP_SUMMARY
-          echo "### Evaluated run parameters" >> $GITHUB_STEP_SUMMARY
-          echo "- Run ID: ${{ steps.set_inputs.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Test Mark: ${{ steps.set_inputs.outputs.test_mark }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Test Matrix: ${{ steps.set_inputs.outputs.test_matrix }}" >> $GITHUB_STEP_SUMMARY
-
   test:
     if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    needs: [build-image,test-setup,build-ttxla]
+    needs: [ build-image, build-ttxla]
     secrets: inherit
     with:
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      test_mark: ${{ needs.test-setup.outputs.test_mark }}
-      test_matrix: ${{ needs.test-setup.outputs.test_matrix }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-
-  test_tt_forge_models:
-    if: always() && !cancelled() && inputs.preset == 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
-    needs: [ build-image,test-setup,build-ttxla,generate-forge-models-matrix ]
-    secrets: inherit
-    with:
-      timeout_minutes: 180
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      test_mark: ${{ needs.test-setup.outputs.test_mark }}
-      test_matrix: ${{ needs.generate-forge-models-matrix.outputs.test-forge-models-matrix }}
-      use-shared-runners: false
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      codecov: false

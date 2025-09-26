@@ -3,11 +3,6 @@ name: Test (call)
 on:
   workflow_call:
     inputs:
-      test_mark:
-        description: 'Test mark to run'
-        required: false
-        default: 'push'
-        type: string
       docker_image:
         description: 'Docker image to use for the build'
         required: true
@@ -17,24 +12,6 @@ on:
         required: false
         default: true
         type: boolean
-      test_matrix:
-        description: 'Test job matrix to use'
-        required: false
-        type: string
-        default: |
-          [
-            { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
-            { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
-            { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip"},
-            { "runs-on": "n150",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
-            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 1 },
-            { "runs-on": "p150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",   "extra_test_marks": "not large", "test_group_cnt": 2, "test_group_id": 2 },
-            { "runs-on": "p150",        "name": "run_torch",             "dir": "./tests/torch/single_chip" },
-            { "runs-on": "p150b",        "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",   "extra_test_marks": "large", "use-shared-runners": "true" },
-            { "runs-on": "n300",        "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300", "codecov": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "use-shared-runners": "true" },
-            { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "use-shared-runners": "true" }
-          ]
       use-shared-runners:
         description: 'Use shared runners from Civ2'
         required: false
@@ -65,6 +42,14 @@ on:
         required: false
         default: 120
         type: number
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: string
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
+        type: string
 
 env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
@@ -72,22 +57,29 @@ env:
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
 
 jobs:
+  generate-matrix-test:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
 
   # Run tests on TT hardware
   run-tests:
+    needs: generate-matrix-test
     timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
     strategy:
       fail-fast: false
       matrix:
-        build: ${{ fromJson(inputs.test_matrix) }}
+        build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
+    runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
       DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+    name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
       image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -115,7 +107,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "test ${{ inputs.test_mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     - name: Set reusable strings
       id: strings
@@ -164,6 +156,47 @@ jobs:
         tar xf artifact.tar
         rm -f artifact.tar
 
+    - name: Check for re-run attempt
+      id: check-rerun-attempt
+      shell: bash
+      run: |
+        source venv/activate
+        rm -f .pytest_tests_to_run
+        if [ "${{ github.run_attempt }}" -gt 1 ]; then
+          echo "Rerun attempt detected"
+          attempt=$((${{ github.run_attempt }} - 1))
+          rm -rf old-reports
+          mkdir old-reports
+          set +e
+          result=1
+          while [ $attempt -ge 1 ]; do
+            echo "Downloading test reports from attempt $attempt"
+            gh run download ${{ github.run_id }} \
+              --repo ${{ github.repository }} \
+              --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
+              -D old-reports
+            result=$?
+            if [ $result -eq 0 ]; then
+              break
+            fi
+            attempt=$((attempt - 1))
+          done
+          if [ $result -ne 0 ]; then
+            echo "No previous test reports found"
+          else
+            echo "Found test reports from attempt $attempt"
+            python .github/scripts/find_all_failed_tests.py old-reports
+            if [ -f ".pytest_tests_to_run" ]; then
+              echo "There are tests to rerun"
+              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "All tests will rerun"
+            fi
+          fi
+        else
+          echo "First attempt"
+        fi
+
     - name: Set pytest command
       shell: bash
       run: |
@@ -189,19 +222,25 @@ jobs:
           ARCH="--arch ${{ matrix.build.runs-on }}"
         fi
 
-        if [[ -n "${{ matrix.build.extra_test_marks }}" ]]; then
-          MARKS="${{ inputs.test_mark }} and ${{ matrix.build.extra_test_marks }}"
+        MARKS="${{ matrix.build.test-mark }}"
+
+        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
+          echo "Only running previously failed tests"
+          PYTEST_SPLITS=""
         else
-          MARKS="${{ inputs.test_mark }}"
+          echo "Running all tests"
+          PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+            --group ${{ matrix.build.group-id || 1}} \
+            --splitting-algorithm least_duration"
         fi
+
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" \
-          --splits ${{ matrix.build.test_group_cnt || 1}} \
-          --group ${{ matrix.build.test_group_id || 1}} \
-          --splitting-algorithm least_duration"
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $PYTEST_SPLITS"
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
@@ -218,18 +257,16 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv tests/runner/test_models.py --validate-test-config
+        python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
 
     - name: Collect Tests
-      if: success() || failure()
       shell: bash
       run: |
         source venv/activate
-        echo "Collecting tests for group ${{ matrix.build.test_group_id || 1}}..."
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
         python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
 
     - name: Run tests
-      if: success() || failure()
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -248,7 +285,7 @@ jobs:
       shell: bash
       run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
       env:
-        TEST_MARK: ${{ inputs.test_mark }}
+        TEST_MARK: ${{ matrix.build.test-mark }}
 
     - name: Upload Test Log
       uses: actions/upload-artifact@v4
@@ -261,7 +298,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report

@@ -39,7 +39,10 @@ class MNISTCNNTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        return {"train": False}
+        kwargs = {"train": (False if self._run_mode == RunMode.INFERENCE else True)}
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["rngs"] = {"dropout": jax.random.key(1)}
+        return kwargs
 
     # @override
     def _get_static_argnames(self):

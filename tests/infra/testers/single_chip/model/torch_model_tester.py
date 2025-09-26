@@ -6,6 +6,7 @@ import collections
 from typing import Any, Dict, Mapping, Sequence
 
 import torch
+import torch_xla
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
@@ -37,6 +38,12 @@ class TorchModelTester(ModelTester):
         self._input_activations: Dict | Sequence[Any] = None
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
+        # Set custom compile options if provided.
+        # Use explicit API for passing compiler options.
+        if compiler_config is not None:
+            torch_xla.set_custom_compile_options(
+                compiler_config.to_torch_compile_options()
+            )
 
     # @override
     def _configure_model_for_inference(self) -> None:

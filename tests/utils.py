@@ -90,6 +90,14 @@ class BringupStatus(Enum):
         return self.name
 
 
+class ExecutionPass(Enum):
+    FORWARD = "forward"
+    BACKWARD = "backward"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 def failed_fe_compilation(reason: str) -> str:
     return f"{BringupStatus.FAILED_FE_COMPILATION}: {reason}"
 

@@ -131,5 +131,8 @@ class ModelTester(BaseTester, ABC):
         self._comparator.compare(device_out, golden_out)
 
     def _test_training(self):
-        """TODO"""
-        raise NotImplementedError("Support for training not implemented")
+        """
+        Tests the model by running training on TT device and on CPU and comparing the
+        forward results and gradients. Implementation is framework-specific.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")

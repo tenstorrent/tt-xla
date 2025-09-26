@@ -49,6 +49,9 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
+        if workload.compiled_executable is not None:
+            workload.compiled_executable.to(device)
+
         return Workload(
             framework=workload.framework,
             model=workload.model,  # Moved to device if not None.
