@@ -9,9 +9,6 @@ from typing import Callable, Sequence
 import jax
 import torch
 from infra.comparators import ComparisonConfig
-from infra.connectors import DeviceType
-from infra.runners import DeviceRunnerFactory
-from tests.infra.runners.utils import run_on_tt_device
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Tensor, random_tensor
 from infra.workloads import Workload
@@ -124,6 +121,24 @@ class OpTester(BaseTester):
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
+    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
+        """
+        Serializes a workload on TT device with proper compiler configuration.
+
+        Args:
+            workload: The workload to serialize
+            output_prefix: Base path and filename prefix for output files
+        """
+        # Get compiler options from the tester's compiler config
+        compiler_options = (
+            self._compiler_config.to_jax_compiler_options()
+            if self._framework == Framework.JAX
+            else None
+        )
+        self._device_runner.serialize_on_device(
+            workload, output_prefix, compiler_options=compiler_options
+        )
+
 
 def run_op_test(
     op: Callable,
@@ -167,11 +182,8 @@ def serialize_op(
 
     workload = Workload(framework=framework, executable=op, args=inputs)
 
-    # Put workload on TT device before serializing
-    device = tester._device_runner.connector.connect_device(DeviceType.TT, 0)
-    workload = tester._device_runner._put_on_device(workload, device=device)
-
-    workload.serialize(output_prefix)
+    # Serialize workload on TT device using OpTester's method
+    tester.serialize_on_device(workload, output_prefix)
 
 
 def serialize_op_with_random_inputs(
