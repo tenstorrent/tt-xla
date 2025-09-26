@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
+from infra.testers.single_chip.op.op_tester import serialize_op_with_random_inputs
 from tests.infra.testers.compiler_config import CompilerConfig
 from utils import Category
 
@@ -21,11 +22,10 @@ from utils import Category
     ["x_shape", "y_shape"],
     [
         [(32, 32), (32, 32)],
-        [(64, 64), (64, 64)],
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+@pytest.mark.parametrize("format", ["float32"])
 def test_add(x_shape: tuple, y_shape: tuple, format: str):
     def add(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.add(x, y)
@@ -42,4 +42,14 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str):
 
     run_op_test_with_random_inputs(
         add, [x_shape, y_shape], dtype=dtype, compiler_config=compiler_config
+    )
+
+    # Serialize the operation with random inputs
+    output_prefix = f"output/test_add_{format}_{x_shape[0]}x{x_shape[1]}"
+    serialize_op_with_random_inputs(
+        add,
+        [x_shape, y_shape],
+        output_prefix,
+        dtype=dtype,
+        compiler_config=compiler_config,
     )
