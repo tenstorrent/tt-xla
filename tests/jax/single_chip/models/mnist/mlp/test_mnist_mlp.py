@@ -78,8 +78,13 @@ def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
 @pytest.mark.parametrize(
     "inference_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
 )
-def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
+def test_mnist_mlp_inference(inference_tester: MNISTMLPTester, request):
     inference_tester.test()
+
+    if request.config.getoption("--serialize-ops", default=False):
+        config_str = inference_tester.model_config_str()
+        output_prefix = f"output/mnist_mlp_{config_str}_inference"
+        inference_tester.serialize_on_device(output_prefix)
 
 
 @pytest.mark.push

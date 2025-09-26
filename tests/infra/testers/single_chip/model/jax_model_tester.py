@@ -178,6 +178,25 @@ class JaxModelTester(ModelTester):
             static_argnames=workload.static_argnames,
         )
 
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
+        # Ensure workload is initialized
+        if self._workload is None:
+            self._initialize_workload()
+
+        # Get compiler options from the tester's compiler config
+        compiler_options = self._compiler_config.to_jax_compiler_options()
+
+        # Serialize workload on TT device using device runner's method
+        self._device_runner.serialize_on_device(
+            self._workload, output_prefix, compiler_options=compiler_options
+        )
+
     # @override
     def _test_training(self):
         """
