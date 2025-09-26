@@ -9,6 +9,9 @@ from typing import Callable, Sequence
 import jax
 import torch
 from infra.comparators import ComparisonConfig
+from infra.connectors import DeviceType
+from infra.runners import DeviceRunnerFactory
+from tests.infra.runners.utils import run_on_tt_device
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Tensor, random_tensor
 from infra.workloads import Workload
@@ -138,6 +141,73 @@ def run_op_test(
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
     workload = Workload(framework, executable=op, args=inputs)
     tester.test(workload)
+
+
+def serialize_op(
+    op: Callable,
+    inputs: Sequence[Tensor],
+    output_prefix: str,
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes an op with given inputs to disk.
+
+    Args:
+        op: The operation/function to serialize
+        inputs: Input tensors for the operation
+        output_prefix: Base path and filename prefix for output files
+        framework: The framework to use (default: JAX)
+        compiler_config: Compiler configuration options
+    """
+    # Create an OpTester instance to get access to its device runner
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(framework=framework, compiler_config=compiler_config)
+
+    workload = Workload(framework=framework, executable=op, args=inputs)
+
+    # Put workload on TT device before serializing
+    device = tester._device_runner.connector.connect_device(DeviceType.TT, 0)
+    workload = tester._device_runner._put_on_device(workload, device=device)
+
+    workload.serialize(output_prefix)
+
+
+def serialize_op_with_random_inputs(
+    op: Callable,
+    input_shapes: Sequence[tuple],
+    output_prefix: str,
+    minval: float = 0.0,
+    maxval: float = 1.0,
+    dtype: str | DTypeLike | torch.dtype = "float32",
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes an op with random inputs to disk.
+
+    Args:
+        op: The operation/function to serialize
+        input_shapes: Shapes for random input generation
+        output_prefix: Base path and filename prefix for output files
+        minval: Minimum value for random inputs (default: 0.0)
+        maxval: Maximum value for random inputs (default: 1.0)
+        dtype: Data type for inputs
+        framework: The framework to use (default: JAX)
+        compiler_config: Compiler configuration options
+    """
+    inputs = [
+        random_tensor(
+            shape,
+            minval=minval,
+            maxval=maxval,
+            dtype=dtype,
+            framework=framework,
+        )
+        for shape in input_shapes
+    ]
+    serialize_op(op, inputs, output_prefix, framework, compiler_config)
 
 
 def run_op_test_with_random_inputs(
