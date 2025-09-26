@@ -147,6 +147,11 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
+  // Helper function to get expected layout for a specific program and argument
+  // index.
+  tt::runtime::Layout getExpectedLayout(std::uint32_t program_index,
+                                        size_t arg_index);
+
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;

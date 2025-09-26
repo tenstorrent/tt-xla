@@ -58,8 +58,13 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
                          data_type) {}
   };
 
-  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device, memory, data_type);
+  auto buffer = std::make_unique<make_unique_enabler>(
+      tensor, std::move(dimensions), device, memory, data_type);
+
+  DLOG_F(LOG_DEBUG, "Created output BufferInstance at %p with shape %s",
+         buffer.get(), buffer->toShapeString().c_str());
+
+  return buffer;
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,

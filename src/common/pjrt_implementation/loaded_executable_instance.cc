@@ -249,9 +249,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       arg_tensors.push_back(buffer->getRuntimeTensor());
     }
 
+    // Get expected layout for this argument
+    tt::runtime::Layout expected_layout =
+        getExpectedLayout(program_index, arg_index);
+
     // Check cache first
     tt::runtime::Tensor *cached_tensor =
-        m_client_instance->getCachedTensor(buffer_instances);
+        m_client_instance->getCachedTensor(buffer_instances, expected_layout);
 
     if (cached_tensor) {
       // Cache hit - use cached tensor
@@ -291,7 +295,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     input_tensors.push_back(laid_out_tensor);
 
     // Cache the result for future use
-    m_client_instance->setCachedTensor(buffer_instances, laid_out_tensor);
+    m_client_instance->setCachedTensor(buffer_instances, laid_out_tensor,
+                                       expected_layout);
   }
 
   return tt_pjrt_status::kSuccess;
@@ -352,8 +357,7 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
 tt::runtime::Tensor LoadedExecutableInstance::convertTensorLayout(
     tt::runtime::Tensor input_tensor, std::uint32_t program_index,
     size_t arg_index, const tt::runtime::Device &runtime_device) {
-  tt::runtime::Layout layout = tt::runtime::getLayout(
-      m_executable_image->getFlatbufferBinary(), program_index, arg_index);
+  tt::runtime::Layout layout = getExpectedLayout(program_index, arg_index);
 
   return tt::runtime::toLayout(input_tensor, runtime_device, layout,
                                tt::runtime::getTensorRetain(input_tensor));
@@ -446,6 +450,14 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) {
 
   return outputShape;
 }
+
+tt::runtime::Layout
+LoadedExecutableInstance::getExpectedLayout(std::uint32_t program_index,
+                                            size_t arg_index) {
+  return tt::runtime::getLayout(m_executable_image->getFlatbufferBinary(),
+                                program_index, arg_index);
+}
+
 namespace internal {
 
 PJRT_Error *
