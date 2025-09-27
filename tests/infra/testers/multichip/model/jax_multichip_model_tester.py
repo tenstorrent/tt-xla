@@ -32,7 +32,6 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
     _get_input_activations(self) -> Sequence[Any]
     _get_input_parameters_partition_spec -> PyTree
     _get_input_parameters(self) -> PyTree # Optional, has default behaviour.
-    _get_forward_method_name(self) -> str # Optional, has default behaviour.
     _get_forward_method_arg_specs(self) -> tuple[PartitionSpec | PyTree] # Optional, has default behaviour.
     # One of or both:
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.

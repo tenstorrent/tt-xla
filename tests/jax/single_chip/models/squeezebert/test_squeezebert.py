@@ -46,10 +46,6 @@ class SqueezeBertTester(JaxModelTester):
         return SqueezeBertForMaskedLM(config)
 
     # @override
-    def _get_forward_method_name(self):
-        return "apply"
-
-    # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
         inputs = tokenizer("The [MASK] barked at me", return_tensors="jax")
