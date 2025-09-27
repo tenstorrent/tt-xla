@@ -4,26 +4,20 @@
 
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
 )
-
+from third_party.tt_forge_models.vit.image_classification.jax import (
+    ModelVariant,
+    ModelLoader,
+)
+from third_party.tt_forge_models.config import Parallelism
 from ..tester import ViTTester
 
-MODEL_PATH = "google/vit-huge-patch14-224-in21k"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "vit",
-    "huge_patch14_224_in21k",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.HUGE_PATCH14_224_IN_21K
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -31,12 +25,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,8 +39,8 @@ def training_tester() -> ViTTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -59,8 +53,8 @@ def test_vit_huge_patch14_224_in21k_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
