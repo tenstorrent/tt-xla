@@ -40,12 +40,19 @@ class TorchModelTester(ModelTester):
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
         parallelism=None,
+        dtype_override=None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._parallelism = parallelism
 
-        super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
+        super().__init__(
+            comparison_config,
+            run_mode,
+            Framework.TORCH,
+            compiler_config,
+            dtype_override,
+        )
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
         if compiler_config is not None:
@@ -190,3 +197,36 @@ class TorchModelTester(ModelTester):
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result
+
+    # @override
+    def _apply_model_dtype(self) -> None:
+        """Applies dtype_override to the model."""
+        if hasattr(self._model, "to"):
+            self._model = self._model.to(self._dtype_override)
+        else:
+            raise TypeError("Model does not have 'to' method to apply dtype.")
+
+    # @override
+    def _apply_inputs_dtype(self) -> None:
+        """Applies dtype_override to inputs, only casting float tensors."""
+        self._input_activations = self._cast_tensors_to_dtype(
+            self._input_activations, self._dtype_override
+        )
+
+    def _cast_tensors_to_dtype(self, obj, dtype):
+        """Recursively cast float tensors in a nested structure to the given dtype."""
+        if isinstance(obj, torch.Tensor):
+            # Only cast floating point tensors, leave integer tensors unchanged
+            if obj.dtype.is_floating_point:
+                return obj.to(dtype)
+            return obj
+        elif isinstance(obj, (list, tuple)):
+            cast_items = [self._cast_tensors_to_dtype(item, dtype) for item in obj]
+            return type(obj)(cast_items)
+        elif isinstance(obj, dict):
+            return {
+                key: self._cast_tensors_to_dtype(value, dtype)
+                for key, value in obj.items()
+            }
+        else:
+            return obj

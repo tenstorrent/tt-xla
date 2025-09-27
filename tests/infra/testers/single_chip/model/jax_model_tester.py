@@ -7,6 +7,7 @@ import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 import jax
+import jax.numpy as jnp
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
@@ -43,13 +44,16 @@ class JaxModelTester(ModelTester):
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
         has_batch_norm: bool = False,
+        dtype_override=None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
         self._has_batch_norm = has_batch_norm
 
-        super().__init__(comparison_config, run_mode, Framework.JAX, compiler_config)
+        super().__init__(
+            comparison_config, run_mode, Framework.JAX, compiler_config, dtype_override
+        )
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -280,3 +284,47 @@ class JaxModelTester(ModelTester):
         # Compare forward results and gradients
         self._compare(tt_forward_out, cpu_forward_out)
         self._compare(grads_tt, grads_cpu)
+
+    # @override
+    def _apply_model_dtype(self) -> None:
+        """Applies dtype_override to the model parameters."""
+        # assert that dtype is a floating point dtype
+        assert jnp.issubdtype(
+            self._dtype_override, jnp.floating
+        ), "Dtype override must be floating point"
+        # For JAX models, we typically cast the parameters rather than the model itself
+        if hasattr(self._model, "params"):
+            self._model.params = self._cast_pytree_to_dtype(
+                self._model.params, self._dtype_override
+            )
+        elif isinstance(self._model, nnx.Module):
+            # For NNX modules, cast the state
+            state = nnx.state(self._model)
+            casted_state = self._cast_pytree_to_dtype(state, self._dtype_override)
+            nnx.update(self._model, casted_state)
+
+    # @override
+    def _apply_inputs_dtype(self) -> None:
+        """Applies dtype_override to inputs, only casting float tensors."""
+        # assert that dtype is a floating point dtype
+        assert jnp.issubdtype(
+            self._dtype_override, jnp.floating
+        ), "Dtype override must be floating point"
+        self._input_activations = self._cast_pytree_to_dtype(
+            self._input_activations, self._dtype_override
+        )
+        if self._input_parameters is not None:
+            self._input_parameters = self._cast_pytree_to_dtype(
+                self._input_parameters, self._dtype_override
+            )
+
+    def _cast_pytree_to_dtype(self, pytree, dtype):
+        """Recursively cast floating-point array leaves in a JAX pytree to `dtype`."""
+
+        def cast_leaf(x):
+            # Works for jax.Array, numpy.ndarray, and other array-likes with dtype
+            if hasattr(x, "dtype") and jnp.issubdtype(x.dtype, jnp.floating):
+                return x.astype(dtype)
+            return x
+
+        return jax.tree_util.tree_map(cast_leaf, pytree)
