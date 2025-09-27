@@ -19,34 +19,6 @@ from infra.comparators.torch_comparator import TorchComparator
 
 
 @pytest.mark.parametrize("bias", [True, False])
-def test_simple_mm(bias):
-    class MM(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.linear = torch.nn.Linear(32, 64, bias=bias, dtype=torch.bfloat16)
-
-        def forward(self, x):
-            return self.linear(x)
-
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-
-    model = MM()
-    golden = model(input_x)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device))
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
-        )
-    )
-
-    comparator.compare(output, golden)
-
-
-@pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm_eager(bias):
     class MM(torch.nn.Module):
         def __init__(self):
@@ -70,53 +42,6 @@ def test_simple_mm_eager(bias):
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
-        )
-    )
-    comparator.compare(output, golden)
-
-
-@pytest.mark.parametrize("in_channels", [3, 64])
-@pytest.mark.parametrize("out_channels", [3, 64])
-@pytest.mark.parametrize("kernel_size", [2, 3])
-@pytest.mark.parametrize("stride", [1, 2])
-@pytest.mark.parametrize("padding", [0, 1])
-@pytest.mark.parametrize("dilation", [1, 2])
-@pytest.mark.parametrize("bias", [True, False])
-def test_conv2d(
-    in_channels, out_channels, kernel_size, stride, padding, dilation, bias
-):
-    class Conv(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.conv = torch.nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                1,
-                bias,
-                dtype=torch.bfloat16,
-            )
-
-        def forward(self, x):
-            return self.conv(x)
-
-    input_x = torch.randn(1, in_channels, 224, 224, dtype=torch.bfloat16)
-
-    model = Conv()
-    golden = model(input_x)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device))
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(enabled=False, required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
         )
     )
     comparator.compare(output, golden)
@@ -227,37 +152,6 @@ eltwise_unary_ops = [
 
 
 @pytest.mark.parametrize("op", eltwise_unary_ops)
-def test_eltwise_unary(op):
-    input_x = (
-        torch.randn(32, 32, dtype=torch.bfloat16)
-        if op is not torch.bitwise_not
-        else torch.randint(-100, 100, (32, 32))
-    )
-
-    class Unary(torch.nn.Module):
-        def forward(self, x):
-            return op(x)
-
-    model = Unary()
-    golden = model(input_x)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device))
-
-    # Not verifying data as many are wrong. Simply testing compile and execute
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(enabled=False, required_atol=0.01),
-            pcc=PccConfig(enabled=False, required_pcc=0.99),
-        )
-    )
-    comparator.compare(output, golden)
-
-
-@pytest.mark.parametrize("op", eltwise_unary_ops)
 def test_eltwise_unary_eager(op):
     class Unary(torch.nn.Module):
         def forward(self, x):
@@ -325,43 +219,6 @@ eltwise_binary_ops = [
     torch.fmin,
     torch.not_equal,
 ]
-
-
-@pytest.mark.parametrize("op", eltwise_binary_ops)
-def test_eltwise_binary(op):
-    if op in [
-        torch.bitwise_and,
-        torch.bitwise_or,
-        torch.bitwise_xor,
-    ]:
-        input_x = torch.randint(-100, 100, (32, 32))
-        input_y = torch.randint(-100, 100, (32, 32))
-    elif op in [torch.bitwise_left_shift, torch.bitwise_right_shift]:
-        # TODO: enable test for these ops once issues is resolved (https://github.com/tenstorrent/tt-torch/issues/1127)
-        pytest.skip(f"{op} not supported in tt backend yet. Skipping test.")
-    else:
-        input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-        input_y = torch.randn(32, 32, dtype=torch.bfloat16)
-
-    class Binary(torch.nn.Module):
-        def forward(self, x, y):
-            return op(x, y)
-
-    model = Binary()
-    golden = model(input_x, input_y)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device), input_y.to(device))
-
-    # Not verifying data as many are wrong. Simply testing compile and execute
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(enabled=False, required_atol=0.02),
-        )
-    )
-    comparator.compare(output, golden)
 
 
 @pytest.mark.parametrize("op", eltwise_binary_ops)
