@@ -16,7 +16,7 @@ from utils import (
 
 from .tester import ResnetTester
 from third_party.tt_forge_models.resnet.pytorch import ModelVariant
-from tests.infra.testers.compiler_config import CompilerConfig
+from tests.infra.utilities.utils import create_torch_inference_tester
 
 VARIANT_NAME = ModelVariant.RESNET_50_HF
 
@@ -33,10 +33,11 @@ MODEL_NAME = build_model_name(
 # ----- Fixtures -----
 
 
-@pytest.fixture
-def inference_tester() -> ResnetTester:
-    compiler_config = CompilerConfig(enable_optimizer=True)
-    return ResnetTester(VARIANT_NAME, compiler_config=compiler_config)
+def create_inference_tester(format: str, enable_optimizer: bool) -> ResnetTester:
+    """Create inference tester with specified format and optimizer settings."""
+    return create_torch_inference_tester(
+        ResnetTester, VARIANT_NAME, format, enable_optimizer
+    )
 
 
 @pytest.fixture
@@ -56,14 +57,19 @@ def training_tester() -> ResnetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
+@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+@pytest.mark.parametrize(
+    "enable_optimizer", [True, False], ids=["optimizer_on", "optimizer_off"]
+)
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/1384"
     )
 )
-def test_torch_resnet_inference(inference_tester: ResnetTester):
-    inference_tester.test()
+def test_torch_resnet_inference(format: str, enable_optimizer: bool):
+    tester = create_inference_tester(format, enable_optimizer)
+    tester.test()
 
 
 @pytest.mark.nightly
