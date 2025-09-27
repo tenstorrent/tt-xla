@@ -49,7 +49,14 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model.to(device)
 
-        if workload.compiled_executable is not None:
+        # In the future, we will deprecate `workload.model` and use only
+        # `workload.compiled_executable` carrying the model.
+        # So we also move it to the device. But we have to check if it's nn.Module.
+        # If we compiled function, compiled_executable will be a callable
+        # which doesn't have `.to()` method (function is not loaded on device).
+        if workload.compiled_executable is not None and isinstance(
+            workload.compiled_executable, torch.nn.Module
+        ):
             workload.compiled_executable.to(device)
 
         return Workload(
