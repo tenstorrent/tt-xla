@@ -11,6 +11,8 @@ from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 import torch
 import tt_torch  # registers "tt" backend for torch.compile
 
+from tt_torch.composite_ops import install_composite_patches
+
 
 class TTPlugin(DevicePlugin):
     """
@@ -36,6 +38,8 @@ class TTPlugin(DevicePlugin):
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
+
+        install_composite_patches()
 
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
