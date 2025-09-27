@@ -67,17 +67,10 @@ class ModelTester(BaseTester, ABC):
         self._cache_model_inputs()
         # Get shard specs.
         self._shard_spec_function = self._get_shard_specs_function()
-        # Get mesh.
-        self._mesh = self._get_mesh()
 
     @abstractmethod
     def _get_shard_specs_function(self) -> Callable[[Model], ShardSpec]:
         """Returns shard specs function."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
-    def _get_mesh(self) -> Mesh:
-        """Returns mesh."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
