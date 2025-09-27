@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -38,15 +39,20 @@ public:
   // compiler.
   static std::shared_ptr<ExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string original_mlir_code, std::string ttir_mlir_code,
-      std::string ttnn_mlir_code, std::string executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> &&output_dimensions,
+      std::vector<size_t> &&output_ranks,
+      std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
       module_builder::CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
@@ -136,13 +142,18 @@ private:
       const tt::runtime::Binary &flatbuffer_binary,
       std::string &&original_mlir_code, std::string &&ttir_mlir_code,
       std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> &&output_dimensions,
+      std::vector<size_t> &&output_ranks,
+      std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
       module_builder::CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
