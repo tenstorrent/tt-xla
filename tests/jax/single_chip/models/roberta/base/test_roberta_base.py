@@ -11,13 +11,11 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
-    incorrect_result,
 )
-
+from third_party.tt_forge_models.roberta.masked_lm.jax import ModelVariant
 from ..tester import FlaxRobertaForMaskedLMTester
 
-MODEL_PATH = "FacebookAI/roberta-base"
+VARIANT_NAME = ModelVariant.BASE
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "roberta",
@@ -31,12 +29,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,13 +46,7 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: atol=131044.359375. Required: atol=0.16 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_flax_roberta_base_inference(inference_tester: FlaxRobertaForMaskedLMTester):
     inference_tester.test()

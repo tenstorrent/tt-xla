@@ -6,11 +6,10 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, JaxModelTester, RunMode
-from transformers import (
-    AutoTokenizer,
-    FlaxPreTrainedModel,
-    FlaxRobertaPreLayerNormForMaskedLM,
+from infra import ComparisonConfig, Framework, JaxModelTester, RunMode, Model
+from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 from utils import (
     BringupStatus,
@@ -21,7 +20,7 @@ from utils import (
     build_model_name,
 )
 
-MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
+VARIANT_NAME = ModelVariant.EFFICIENT_MLM_M0_40
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "roberta_prelayernorm",
@@ -36,28 +35,20 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxRobertaPreLayerNormForMaskedLM.from_pretrained(
-            self._model_path, from_pt=True
-        )
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer("Hello <mask>.", return_tensors="jax")
-        return inputs
-
-    # @ override
-    def _get_static_argnames(self):
-        return ["train"]
+        return self._model_loader.load_inputs()
 
 
 # ----- Fixtures -----
@@ -65,12 +56,12 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(MODEL_PATH)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
