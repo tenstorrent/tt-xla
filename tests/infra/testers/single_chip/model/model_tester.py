@@ -74,11 +74,6 @@ class ModelTester(BaseTester, ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _get_mesh(self) -> Mesh:
-        """Returns mesh."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
     def _get_model(self) -> Model:
         """Returns model instance."""
         raise NotImplementedError("Subclasses must implement this method.")

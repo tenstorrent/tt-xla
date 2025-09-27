@@ -51,7 +51,6 @@ class Workload:
         self.static_argnames = static_argnames or []
 
         self.shard_spec_function = None
-        self.mesh = None
 
     @property
     def is_jax(self) -> bool:

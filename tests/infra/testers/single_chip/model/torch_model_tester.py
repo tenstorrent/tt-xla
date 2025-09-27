@@ -13,7 +13,6 @@ from infra.utilities import Framework
 from infra.workloads import Workload
 
 from .model_tester import ModelTester, RunMode
-import torch_xla.distributed.spmd as xs
 
 
 class TorchModelTester(ModelTester):

@@ -15,6 +15,7 @@ from tests.utils import BringupStatus, Category
 
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
+import torch_xla.distributed.spmd as xs
 import numpy as np
 
 
@@ -255,10 +256,12 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _get_model(self):
         sig = inspect.signature(self.loader.load_model)
-        self._set_global_mesh()
         if "dtype_override" in sig.parameters:
-            return self.loader.load_model(dtype_override=torch.bfloat16)
-        return self.loader.load_model()
+            model = self.loader.load_model(dtype_override=torch.bfloat16)
+        else:
+            model = self.loader.load_model()
+        self._set_global_mesh()
+        return model
 
     def _get_input_activations(self):
         sig = inspect.signature(self.loader.load_inputs)
