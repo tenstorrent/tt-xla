@@ -163,8 +163,15 @@ std::string ExecutableImage::generateFingerprint() const {
   // 2. Add compile options
   data_to_hash << "enable_optimizer:" << m_compile_options.enable_optimizer
                << "\n";
+  data_to_hash << "enable_sharding:" << m_compile_options.enable_sharding
+               << "\n";
+  data_to_hash << "enable_l1_interleaved:"
+               << m_compile_options.enable_l1_interleaved << "\n";
   data_to_hash << "enable_bfp8_conversion:"
                << m_compile_options.enable_bfp8_conversion << "\n";
+  data_to_hash << "enable_fusing_conv2d_with_multiply_pattern:"
+               << m_compile_options.enable_fusing_conv2d_with_multiply_pattern
+               << "\n";
 
   // 3. Add compiler version
   data_to_hash << "ttmlir_version:" << m_flatbuffer_binary.getVersion() << "\n";
