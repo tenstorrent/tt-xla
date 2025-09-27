@@ -13,6 +13,8 @@ from third_party.tt_forge_models.resnet.image_classification.jax import (
 )
 
 from ..tester import ResNetTester
+from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
+from tests.infra.utilities.utils import create_jax_inference_tester
 
 VARIANT_NAME = ModelVariant.RESNET_18
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
@@ -20,9 +22,35 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 # ----- Fixtures -----
 
 
+def create_inference_tester(format: str) -> ResNetTester:
+    """Create inference tester with specified format."""
+    return create_jax_inference_tester(ResNetTester, VARIANT_NAME, format)
+
+
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
+def training_tester() -> ResNetTester:
+    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
+
+
+@pytest.fixture(
+    params=[
+        "float32",
+        "bfloat16",
+        pytest.param(
+            "bfp8",
+            marks=pytest.mark.skip(
+                reason=(
+                    "Skip until mixed-precision is supported in MLIR. https://github.com/tenstorrent/tt-mlir/issues/5252"
+                )
+            ),
+        ),
+    ],
+    ids=str,  # test names will include the dtype string
+)
+def inference_tester(request) -> ResNetTester:
+    tester = create_inference_tester(request.param)
+    request.node.add_marker(pytest.mark.record_test_properties(dtype=request.param))
+    return tester
 
 
 @pytest.fixture

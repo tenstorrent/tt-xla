@@ -15,6 +15,8 @@ from utils import (
     incorrect_result,
 )
 
+from .tester import ResnetTester
+from tests.infra.utilities.utils import create_torch_inference_tester
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 
@@ -35,10 +37,12 @@ MODEL_NAME = build_model_name(
 # ----- Fixtures -----
 
 
-@pytest.fixture
-def inference_tester() -> ResnetTester:
-    compiler_config = CompilerConfig(enable_optimizer=True)
-    return ResnetTester(VARIANT_NAME, compiler_config=compiler_config)
+def create_inference_tester(format: str, enable_optimizer: bool) -> ResnetTester:
+    """Create inference tester with specified format and optimizer settings."""
+    compiler_config = CompilerConfig(enable_optimizer=enable_optimizer)
+    return create_torch_inference_tester(
+        ResnetTester, VARIANT_NAME, format, compiler_config=compiler_config
+    )
 
 
 @pytest.fixture
@@ -67,14 +71,52 @@ def training_tester() -> ResnetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/1384"
-    )
+@pytest.mark.parametrize(
+    "format,enable_optimizer",
+    [
+        pytest.param(
+            "bfp8",
+            True,
+            marks=pytest.mark.skip(
+                reason="bfp8 with optimizer_on hangs in endless loop: https://github.com/tenstorrent/tt-mlir/issues/5259"
+            ),
+        ),
+        pytest.param(
+            "bfp8",
+            False,
+            marks=pytest.mark.xfail(
+                reason="BatchNorm only supports float32/bfloat16, got bfp8 (unsupported dtype): https://github.com/tenstorrent/tt-mlir/issues/5258"
+            ),
+        ),
+        pytest.param(
+            "bfloat16",
+            True,
+            marks=pytest.mark.xfail(
+                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
+            ),
+        ),
+        pytest.param(
+            "bfloat16",
+            False,
+            marks=pytest.mark.xfail(
+                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
+            ),
+        ),
+        pytest.param("float32", True),
+        pytest.param("float32", False),
+    ],
+    ids=[
+        "optimizer_on-bfp8",
+        "optimizer_off-bfp8",
+        "optimizer_on-bfloat16",
+        "optimizer_off-bfloat16",
+        "optimizer_on-float32",
+        "optimizer_off-float32",
+    ],
 )
-def test_torch_resnet_inference(inference_tester: ResnetTester):
-    inference_tester.test()
+def test_torch_resnet_inference(format: str, enable_optimizer: bool):
+    tester = create_inference_tester(format, enable_optimizer)
+    tester.test()
 
 
 @pytest.mark.push
