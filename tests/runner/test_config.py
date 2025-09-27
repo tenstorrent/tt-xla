@@ -2451,5 +2451,10 @@ test_config = {
     },
     "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "required_pcc": 0.985,  # Decreased Sept 26th - https://github.com/tenstorrent/tt-xla/issues/1491
+            },
+        },
     },
 }
