@@ -232,16 +232,16 @@ def scaled_dot_product_attention_decode(
         if attn_mask is not None:
             attn_mask = attn_mask.reshape(batch_size, num_heads, 1, max_seq_len)
         else:
-            # For ttnn.scaled_dot_product_attention_decode, is_causal indicates that we the attention should
-            # disregard tokens to the right of the current position in the kv cache. In PyTorch scaled_dot_product_attention,
-            # is_causal=True will create a triangular mask of shape (query_seq_len, max_seq_len). Since query_seq_len is 1
-            # for scaled_dot_product_attention_decode, it will end up generating a single row for the mask which is all -inf EXCEPT
-            # for the very first element, which is 0. This will result in mismatch in behavior between the ttnn op and the PyTorch op.
-            # So, we will create our own attention mask here which will mimic the behavior of the ttnn op instead.
+            # For ttnn.scaled_dot_product_attention_decode, is_causal indicates that the attention should
+            # disregard tokens to the right of the current position in the KV cache. In PyTorch
+            # scaled_dot_product_attention, is_causal=True creates a triangular mask of shape
+            # (query_seq_len, max_seq_len). Since query_seq_len is 1 for the decode op, this produces a
+            # single mask row that is all -inf except for the first element (0), which mismatches the
+            # ttnn op’s behavior. We therefore construct an additive mask that replicates ttnn semantics.
             attn_mask = torch.zeros(
                 batch_size, num_heads, 1, max_seq_len, dtype=query.dtype
             )
-            # For each batch (a.k.a user), we will mask out all tokens to the right of the current position in the kv cache for that batch.
+            # For each batch (user), we will mask out all tokens to the right of the current position in the kv cache for that batch.
             for batch_idx in range(batch_size):
                 attn_mask[batch_idx, ..., cur_pos_tensor[batch_idx] + 1 :] = float(
                     "-inf"
