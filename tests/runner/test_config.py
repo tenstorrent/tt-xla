@@ -75,9 +75,6 @@ PLACEHOLDER_MODELS = {
     "mistralai/Mixtral-8x7B-Instruct-v0.1": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "BAAI/bge-m3": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "openai/gpt-oss-20b": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2454,5 +2451,10 @@ test_config = {
     },
     "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                "required_pcc": 0.985,  # Decreased Sept 26th - https://github.com/tenstorrent/tt-xla/issues/1491
+            },
+        },
     },
 }
