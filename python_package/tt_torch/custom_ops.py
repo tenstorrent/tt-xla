@@ -222,6 +222,7 @@ def scaled_dot_product_attention_decode(
         )
 
     elif query.device.type == "cpu":
+        # TODO(@LPanosTT): Model the behavior of the op when an attention_sink is provided.
         batch_size = query.shape[1]
         num_heads = query.shape[2]
         head_size = query.shape[3]
@@ -230,9 +231,16 @@ def scaled_dot_product_attention_decode(
         if attn_mask is not None:
             attn_mask = attn_mask.reshape(batch_size, num_heads, 1, max_seq_len)
         else:
+            # For ttnn.scaled_dot_product_attention_decode, is_causal indicates that we the attention should
+            # disregard tokens to the right of the current position in the kv cache. In PyTorch scaled_dot_product_attention,
+            # is_causal=True will create a triangular mask of shape (query_seq_len, max_seq_len). Since query_seq_len is 1
+            # for scaled_dot_product_attention_decode, it will end up generation a single row for the mask which is all -inf EXCEPT
+            # for the very first element, which is 0. This will result in mismatch in behavior between the ttnn op and the PyTorch op.
+            # So, we will create our own attention mask here which will mimic the behavior of the ttnn op instead.
             attn_mask = torch.zeros(
                 batch_size, num_heads, 1, max_seq_len, dtype=query.dtype
             )
+            # For each batch (a.k.a user), we will mask out all tokens to the right of the current position in the kv cache for that batch.
             for batch_idx in range(batch_size):
                 attn_mask[batch_idx, ..., cur_pos_tensor[batch_idx] + 1 :] = float(
                     "-inf"
