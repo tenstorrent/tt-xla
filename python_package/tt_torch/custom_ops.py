@@ -260,8 +260,8 @@ def scaled_dot_product_attention_decode_fake(
     query: torch.Tensor,
     key: torch.Tensor,
     value: torch.Tensor,
+    cur_pos_tensor: torch.Tensor,
     attn_mask: torch.Tensor = None,
-    cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
@@ -373,7 +373,7 @@ def fill_cache_fake(
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
-torch._dynamo.allow_in_graph(torch.ops.tt.mark_argument_attributes)
-torch._dynamo.allow_in_graph(torch.ops.tt.update_cache)
-torch._dynamo.allow_in_graph(torch.ops.tt.fill_cache)
-torch._dynamo.allow_in_graph(torch.ops.tt.scaled_dot_product_attention_decode)
+for op in dir(torch.ops.tt):
+    # Filter out torch.ops.tt module attributes which are not ops.
+    if isinstance(op, torch._ops.OpOverloadPacket):
+        torch._dynamo.allow_in_graph(op)
