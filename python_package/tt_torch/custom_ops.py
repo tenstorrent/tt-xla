@@ -376,4 +376,4 @@ def fill_cache_fake(
 for op in dir(torch.ops.tt):
     # Filter out torch.ops.tt module attributes which are not ops.
     if isinstance(op, torch._ops.OpOverloadPacket):
-        torch._dynamo.allow_in_graph(op)
+        torch.compiler.allow_in_graph(op)
