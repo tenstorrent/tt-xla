@@ -7,6 +7,7 @@ from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
+from transformers.modeling_outputs import CausalLMOutputWithPast, MaskedLMOutput, BaseModelOutputWithPastAndCrossAttentions
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
@@ -113,11 +114,25 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
+    def unwrap_output(self, out):
+        if isinstance(out, CausalLMOutputWithPast):
+            return out.logits
+        if isinstance(out, MaskedLMOutput):
+            return out.logits
+        if isinstance(out, BaseModelOutputWithPastAndCrossAttentions):
+            return out.last_hidden_state
+        if isinstance(out, list):
+            if all([isinstance(x, torch.Tensor) for x in out]):
+                return torch.sum(torch.concat([torch.sum(x) for x in out]))
+            print(out)
+        return out
+
     def _test_training(self):
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        cpu_res = self.unwrap_output(cpu_res)
 
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
@@ -139,6 +154,7 @@ class TorchModelTester(ModelTester):
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
+        tt_res = self.unwrap_output(tt_res)
         torch_xla.sync(
             wait=True
         )  # Force graph break so we can differentiate between forward and backward

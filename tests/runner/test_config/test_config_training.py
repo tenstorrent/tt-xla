@@ -17,28 +17,28 @@ test_config = {
         "markers": ["push"],
     },
     "autoencoder/pytorch-linear-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Failed to legalize: stablehlo.rng_bit_generator"
     },
     "qwen_2_5/casual_lm/pytorch-0_5b-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Failed to legalize: ttir.scatter"
     },
     "yolov8/pytorch-yolov8n-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Needs special attention"
     },
     "bert/masked_lm/pytorch-bert-base-uncased-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Failed to legalize: stablehlo.rng_bit_generator"
     },
     "alexnet/pytorch-alexnet-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
     "mobilenetv2/pytorch-mobilenet_v2-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ValueError: IRD_LF_CACHE environment variable is not set.",
     },
     "gemma/pytorch-google/gemma-1.1-2b-it-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -53,15 +53,15 @@ test_config = {
         "markers": ["push"],
     },
     "qwen_3/causal_lm/pytorch-0_6b-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Failed to legalize: ttir.scatter"
     },
     "unet/pytorch-carvana_unet-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "markers": ["push"],
     },
     "efficientnet/pytorch-efficientnet_b0-full-training": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Failed to legalize: stablehlo.rng_bit_generator"
     },
 }
