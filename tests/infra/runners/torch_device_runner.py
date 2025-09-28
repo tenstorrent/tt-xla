@@ -61,8 +61,8 @@ class TorchDeviceRunner(DeviceRunner):
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
-        # The executable might be a single torch op if the test being called is an op test, in which case
-        # it will not have the "to" method and theres no weights which will need to be moved to the device, only inputs.
+        # The executable may be a single Torch op (for op tests), in which case it won’t have a
+        # "to" method. In that case, there are no weights that need to be moved—only inputs.
         if workload.compiled_executable is not None and hasattr(
             workload.compiled_executable, "to"
         ):
