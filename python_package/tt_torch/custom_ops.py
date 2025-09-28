@@ -78,13 +78,13 @@ def scaled_dot_product_attention(
 
     assert (
         len(query.shape) == 4
-    ), "query must be a 4D tensor: [1, B, num_heads, head_size]."
+    ), "query must be a 4D tensor: [B, num_heads, query_seq_len, head_size]."
     assert (
         len(key.shape) == 4
-    ), "key must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    ), "key must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
     assert (
         len(value.shape) == 4
-    ), "value must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    ), "value must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
 
     assert key.shape == value.shape, "key and value must have the same shape."
     assert (
@@ -95,6 +95,8 @@ def scaled_dot_product_attention(
         query.shape[1] % key.shape[1] == 0
     ), "num_heads must be divisible by num_kv_heads."
 
+    # The CPU implementation of this op will funtion correctly if this invariant is not satisfied.
+    # However, this custom op is intended to exactly replicate the behavior of the ttnn op, so we will enforce this invariant.
     assert query.shape[2] % 32 == 0, "query sequence length must be divisible by 32."
 
     # assert query.shape[0] == 1, "query must have dim 0 equal to 1."
@@ -241,7 +243,7 @@ def scaled_dot_product_attention_decode(
             attn_mask = torch.zeros(
                 batch_size, num_heads, 1, max_seq_len, dtype=query.dtype
             )
-            # For each batch (user), we will mask out all tokens to the right of the current position in the kv cache for that batch.
+            # For each user (batch), mask out tokens to the right of the current position in the KV cache.
             for batch_idx in range(batch_size):
                 attn_mask[batch_idx, ..., cur_pos_tensor[batch_idx] + 1 :] = float(
                     "-inf"
@@ -373,7 +375,8 @@ def fill_cache_fake(
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
-for op in dir(torch.ops.tt):
+for attr in dir(torch.ops.tt):
     # Filter out torch.ops.tt module attributes which are not ops.
-    if isinstance(op, torch._ops.OpOverloadPacket):
+    op = getattr(torch.ops.tt, attr)
+    if isinstance(op, (torch._ops.OpOverloadPacket, torch._ops.OpOverload)):
         torch.compiler.allow_in_graph(op)
