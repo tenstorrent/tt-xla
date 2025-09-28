@@ -128,6 +128,7 @@ def scaled_dot_product_attention(
         )
 
     elif query.device.type == "cpu":
+        # Enable GQA as the ttnn op handles GQA automatically.
         return torch.nn.functional.scaled_dot_product_attention(
             query,
             key,
@@ -234,7 +235,7 @@ def scaled_dot_product_attention_decode(
             # For ttnn.scaled_dot_product_attention_decode, is_causal indicates that we the attention should
             # disregard tokens to the right of the current position in the kv cache. In PyTorch scaled_dot_product_attention,
             # is_causal=True will create a triangular mask of shape (query_seq_len, max_seq_len). Since query_seq_len is 1
-            # for scaled_dot_product_attention_decode, it will end up generation a single row for the mask which is all -inf EXCEPT
+            # for scaled_dot_product_attention_decode, it will end up generating a single row for the mask which is all -inf EXCEPT
             # for the very first element, which is 0. This will result in mismatch in behavior between the ttnn op and the PyTorch op.
             # So, we will create our own attention mask here which will mimic the behavior of the ttnn op instead.
             attn_mask = torch.zeros(
@@ -246,6 +247,7 @@ def scaled_dot_product_attention_decode(
                     "-inf"
                 )
 
+        # Enable GQA as the ttnn op handles GQA automatically.
         return torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask, is_causal=False, scale=scale, enable_gqa=True
         ).reshape(1, batch_size, num_heads, head_size)
