@@ -15,8 +15,8 @@ CompileOptions CompileOptions::parse(
 
   options.enable_optimizer =
       internal::parseBoolOption(compile_options, "enable_optimizer");
-  options.enable_sharding =
-      internal::parseBoolOption(compile_options, "enable_sharding");
+  options.enable_memory_layout_analysis = internal::parseBoolOption(
+      compile_options, "enable_memory_layout_analysis");
   options.enable_l1_interleaved =
       internal::parseBoolOption(compile_options, "enable_l1_interleaved");
   options.enable_bfp8_conversion =

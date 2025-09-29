@@ -29,7 +29,7 @@ def mnist_with_compiler_options():
     # Define compiler options
     options = {
         "enable_optimizer": "true",
-        "enable_sharding": "true",
+        "enable_memory_layout_analysis": "true",
         "enable_l1_interleaved": "true",
         "enable_fusing_conv2d_with_multiply_pattern": "true",
     }

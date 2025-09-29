@@ -163,8 +163,8 @@ std::string ExecutableImage::generateFingerprint() const {
   // 2. Add compile options
   data_to_hash << "enable_optimizer:" << m_compile_options.enable_optimizer
                << "\n";
-  data_to_hash << "enable_sharding:" << m_compile_options.enable_sharding
-               << "\n";
+  data_to_hash << "enable_memory_layout_analysis:"
+               << m_compile_options.enable_memory_layout_analysis << "\n";
   data_to_hash << "enable_l1_interleaved:"
                << m_compile_options.enable_l1_interleaved << "\n";
   data_to_hash << "enable_bfp8_conversion:"

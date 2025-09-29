@@ -13,13 +13,13 @@ namespace tt::pjrt::module_builder {
 
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
-  // Enable optimizer passes in MLIR. This includes various optimizations
+  // Enables optimizer passes in MLIR. This includes various optimizations
   // such as improving tensor memory layouts, operation configurations etc.
   bool enable_optimizer = false;
 
   // Enables memory layout analysis to allow sharded memory layouts in optimizer
   // passes.
-  bool enable_sharding = false;
+  bool enable_memory_layout_analysis = false;
 
   // Enables L1 interleaved fallback analysis in optimizer passes.
   // This analysis attempts to move tensors from DRAM to L1 memory with

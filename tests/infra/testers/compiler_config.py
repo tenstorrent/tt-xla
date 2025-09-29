@@ -15,12 +15,12 @@ class CompilerConfig:
     applied during model compilation for TT device.
     """
 
-    # Enable optimizer passes in MLIR. This includes various optimizations
+    # Enables optimizer passes in MLIR. This includes various optimizations
     # such as improving tensor memory layouts, operation configurations etc.
     enable_optimizer: bool = False
 
     # Enables memory layout analysis to allow sharded memory layouts in optimizer passes.
-    enable_sharding: bool = False
+    enable_memory_layout_analysis: bool = False
 
     # Enables L1 interleaved fallback analysis in optimizer passes.
     # This analysis attempts to move tensors from DRAM to L1 memory with
@@ -53,8 +53,8 @@ class CompilerConfig:
         if self.enable_optimizer:
             options["enable_optimizer"] = "true"
 
-        if self.enable_sharding:
-            options["enable_sharding"] = "true"
+        if self.enable_memory_layout_analysis:
+            options["enable_memory_layout_analysis"] = "true"
 
         if self.enable_l1_interleaved:
             options["enable_l1_interleaved"] = "true"

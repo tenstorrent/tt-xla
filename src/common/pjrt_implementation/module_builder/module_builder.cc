@@ -595,7 +595,8 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
   options.optimizerPassEnabled = compile_options.enable_optimizer;
-  options.memoryLayoutAnalysisEnabled = compile_options.enable_sharding;
+  options.memoryLayoutAnalysisEnabled =
+      compile_options.enable_memory_layout_analysis;
   options.l1InterleavedFallbackAnalysisEnabled =
       compile_options.enable_l1_interleaved;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
