@@ -188,7 +188,7 @@ def serialize_op(
 def serialize_op_with_random_inputs(
     op: Callable,
     input_shapes: Sequence[tuple],
-    output_prefix: str,
+    test_name: str,
     minval: float = 0.0,
     maxval: float = 1.0,
     dtype: str | DTypeLike | torch.dtype = "float32",
@@ -201,13 +201,20 @@ def serialize_op_with_random_inputs(
     Args:
         op: The operation/function to serialize
         input_shapes: Shapes for random input generation
-        output_prefix: Base path and filename prefix for output files
+        test_name: Test name to generate output prefix from
         minval: Minimum value for random inputs (default: 0.0)
         maxval: Maximum value for random inputs (default: 1.0)
         dtype: Data type for inputs
         framework: The framework to use (default: JAX)
         compiler_config: Compiler configuration options
     """
+    import re
+
+    # Keep the test name but replace special chars with underscores
+    clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
+    clean_name = clean_name.rstrip("_")
+    output_prefix = f"output/{clean_name}"
+
     inputs = [
         random_tensor(
             shape,

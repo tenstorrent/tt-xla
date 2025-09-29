@@ -177,14 +177,3 @@ class ModelTester(BaseTester, ABC):
         self._device_runner.serialize_on_device(
             self._workload, output_prefix, compiler_options=compiler_options
         )
-
-    def serialize_model(self) -> None:
-        """Serialize the model with the appropriate output prefix based on model configuration."""
-        if hasattr(self, "model_config_str"):
-            output_prefix = self.model_config_str()
-            print("serialize_model")
-            self.serialize_on_device(output_prefix)
-        else:
-            raise NotImplementedError(
-                "Subclass must implement model_config_str() method"
-            )

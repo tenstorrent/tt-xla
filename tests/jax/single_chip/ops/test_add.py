@@ -47,7 +47,7 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
         serialize_op_with_random_inputs(
             add,
             [x_shape, y_shape],
-            output_prefix=f"output/test_add_{format}_{x_shape[0]}x{x_shape[1]}",
+            test_name=request.node.name,
             dtype=dtype,
             compiler_config=compiler_config,
         )
