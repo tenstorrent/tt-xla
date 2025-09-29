@@ -103,10 +103,9 @@ jobs:
         submodules: recursive
         lfs: true
         sparse-checkout: |
-          tests
-          third-party/tt-forge-models
-          venv
           python_package/requirements.txt
+          tests
+          venv
 
     - name: Fetch job id
       id: fetch-job-id
