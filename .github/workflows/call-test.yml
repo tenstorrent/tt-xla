@@ -106,6 +106,7 @@ jobs:
           test
           third-party/tt-forge-models
           venv
+          python_package
 
     - name: Fetch job id
       id: fetch-job-id
