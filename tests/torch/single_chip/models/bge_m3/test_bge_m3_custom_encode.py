@@ -46,7 +46,9 @@ def encode(
     Union[np.ndarray, List[Dict[str, float]], List[np.ndarray]],
 ]:
     # Tokenize the input sentences and move to device
-    text_input = model.tokenizer(sentences, return_tensors="pt", padding=True, truncation=True)
+    text_input = model.tokenizer(
+        sentences, return_tensors="pt", padding=True, truncation=True
+    )
     text_input.to(device)
     inputs = {
         "text_input": text_input,
@@ -65,7 +67,9 @@ def encode(
         unused_tokens = set()
         for _token in ["cls_token", "eos_token", "pad_token", "unk_token"]:
             if _token in model.tokenizer.special_tokens_map:
-                _token_id = model.tokenizer.convert_tokens_to_ids(model.tokenizer.special_tokens_map[_token])
+                _token_id = model.tokenizer.convert_tokens_to_ids(
+                    model.tokenizer.special_tokens_map[_token]
+                )
                 unused_tokens.add(_token_id)
         for w, idx in zip(token_weights, input_ids):
             if idx not in unused_tokens and w > 0:
@@ -81,7 +85,9 @@ def encode(
     all_dense_embeddings, all_lexical_weights, all_colbert_vecs = [], [], []
 
     batch_size = text_input["input_ids"].shape[0]
-    length_sorted_idx = np.argsort([-len(text_input["input_ids"][i]) for i in range(batch_size)])
+    length_sorted_idx = np.argsort(
+        [-len(text_input["input_ids"][i]) for i in range(batch_size)]
+    )
 
     all_dense_embeddings.append(outputs["dense_vecs"].cpu().detach())
     all_dense_embeddings = np.concatenate(all_dense_embeddings, axis=0)
@@ -97,7 +103,9 @@ def encode(
             )
         )
     )
-    all_lexical_weights = [all_lexical_weights[i] for i in np.argsort(length_sorted_idx)]
+    all_lexical_weights = [
+        all_lexical_weights[i] for i in np.argsort(length_sorted_idx)
+    ]
 
     all_colbert_vecs.extend(
         list(
@@ -167,7 +175,9 @@ def bge_m3_encode():
     tt_output = encode(compiled_model, **tt_inputs)
 
     # Calculate and display PCC comparison of pre-processed outputs.
-    golden_torch_output = tree_map(convert_to_torch, golden_output["pre_processed_outputs"])
+    golden_torch_output = tree_map(
+        convert_to_torch, golden_output["pre_processed_outputs"]
+    )
     tt_torch_output = tree_map(convert_to_torch, tt_output["pre_processed_outputs"])
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.97  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
