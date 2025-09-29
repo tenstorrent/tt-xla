@@ -243,9 +243,6 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
-      // LOGGING: Track BufferInstance pointer and tensor data across executions
-      DLOG_F(INFO, "EXEC_TRACE: Input arg_index=%zu device_index=%zu BufferInstance=%p shape=%s m_runtime_tensor.data=%p tensor.handle=%p",
-             arg_index, device_index, buffer, buffer->getShapeString().c_str(), buffer->getRuntimeTensor().data, buffer->getRuntimeTensor().handle);
       arg_tensors.push_back(buffer->getRuntimeTensor());
     }
 
@@ -388,10 +385,6 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index]);
-
-      // LOGGING: Track new output BufferInstance creation
-      DLOG_F(INFO, "EXEC_TRACE: Output device_index=%d output_index=%zu NEW BufferInstance=%p m_runtime_tensor.data=%p tensor.handle=%p",
-             device_index, output_index, output_buffer.get(), output_buffer->getRuntimeTensor().data, output_buffer->getRuntimeTensor().handle);
 
       output_buffer->markAsDataReady();
 
