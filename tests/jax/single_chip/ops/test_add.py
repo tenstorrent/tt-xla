@@ -22,10 +22,11 @@ from utils import Category
     ["x_shape", "y_shape"],
     [
         [(32, 32), (32, 32)],
+        [(64, 64), (64, 64)],
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.parametrize("format", ["float32"])
+@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
 def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
     def add(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.add(x, y)

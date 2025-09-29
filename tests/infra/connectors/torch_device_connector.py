@@ -17,7 +17,6 @@ class TorchDeviceConnector(DeviceConnector):
     """Device connector used with torch."""
 
     def __init__(self) -> None:
-        print("AAAAAA")
         super().__init__()
         xr.runtime.set_device_type("TT")
         xr.initialize_cache(self.get_cache_dir())
