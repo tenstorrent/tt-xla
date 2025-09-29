@@ -191,14 +191,17 @@ ModuleBuilder::buildModule(
   collectMemoryKinds(num_arguments.num_outputs, output_memory_kinds,
                      output_memory_kinds_sizes);
 
+  std::string ttnn_mlir;
+  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                 compile_options, client_instance, mesh_shape,
+                                 ttnn_mlir);
+
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
   if (compile_options.backend == Backend::Default) {
-    std::string ttnn_mlir;
-    status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                   compile_options, mesh_shape, ttnn_mlir);
+
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
     }
@@ -230,31 +233,39 @@ ModuleBuilder::buildModule(
       return {status, nullptr};
     }
 
-    return {tt_pjrt_status::kSuccess,
-            SOExecutableImage::createInstance(
-                std::move(original_mlir_code), std::move(ttir_mlir),
-                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
-                num_outputs, output_dimensions, output_ranks,
-                output_dimensions_flat, num_partitions, num_replicas,
-                num_devices_to_utilize, mesh_shape, input_shardings,
-                output_shardings, output_types, std::move(output_memory_kinds),
-                std::move(output_memory_kinds_sizes),
-                std::move(compile_options))};
+    return {
+        tt_pjrt_status::kSuccess,
+        SOExecutableImage::createInstance(
+            std::move(original_mlir_code), std::move(ttir_mlir),
+            std::move(ttnn_mlir), std::move(executable_name),
+            num_arguments.num_inputs, num_arguments.num_outputs,
+            std::move(num_arguments.output_dimensions),
+            std::move(num_arguments.output_ranks),
+            std::move(num_arguments.output_dimensions_flat),
+            num_devices_result.num_partitions, num_devices_result.num_replicas,
+            num_devices_result.num_devices_to_utilize, mesh_shape,
+            input_shardings, output_shardings, output_types,
+            std::move(output_memory_kinds),
+            std::move(output_memory_kinds_sizes), std::move(compile_options))};
   } else if (compile_options.backend == Backend::CodegenPy) {
     status = buildForCodegenPy(ttir_mlir, compile_options);
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
     }
-    return {tt_pjrt_status::kSuccess,
-            SOExecutableImage::createInstance(
-                std::move(original_mlir_code), std::move(ttir_mlir),
-                /*hack:std::move(ttnn_mlir)*/ "", executable_name, num_inputs,
-                num_outputs, output_dimensions, output_ranks,
-                output_dimensions_flat, num_partitions, num_replicas,
-                num_devices_to_utilize, mesh_shape, input_shardings,
-                output_shardings, output_types, std::move(output_memory_kinds),
-                std::move(output_memory_kinds_sizes),
-                std::move(compile_options))};
+    return {
+        tt_pjrt_status::kSuccess,
+        SOExecutableImage::createInstance(
+            std::move(original_mlir_code), std::move(ttir_mlir),
+            std::move(ttnn_mlir), std::move(executable_name),
+            num_arguments.num_inputs, num_arguments.num_outputs,
+            std::move(num_arguments.output_dimensions),
+            std::move(num_arguments.output_ranks),
+            std::move(num_arguments.output_dimensions_flat),
+            num_devices_result.num_partitions, num_devices_result.num_replicas,
+            num_devices_result.num_devices_to_utilize, mesh_shape,
+            input_shardings, output_shardings, output_types,
+            std::move(output_memory_kinds),
+            std::move(output_memory_kinds_sizes), std::move(compile_options))};
   }
 
   DLOG_F(ERROR, "Unsupported backend option");
