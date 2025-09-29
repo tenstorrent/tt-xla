@@ -107,29 +107,6 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
-def run_shape_prop(gm, example_inputs):
-    """
-    Propagates shape information for each node through the graph based on
-    The inputs in `example_inputs`. This will also populate the meta data
-    for each node, which is useful for debugging.
-
-    Runs quickly as only metadata is propagated, no compute is performed.
-    """
-    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
-    if shape_prop.fake_mode is not None:
-        fake_args = [
-            (
-                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
-                if isinstance(act, torch.Tensor)
-                else act
-            )
-            for act in example_inputs
-        ]
-    else:
-        fake_args = example_inputs
-    shape_prop.run(*fake_args)
-
-
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
