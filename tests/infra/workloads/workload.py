@@ -99,7 +99,6 @@ class Workload:
                 **self.kwargs,
             )
         elif self.is_torch:
-
             cache_dir = TorchDeviceConnector.get_cache_dir()
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)

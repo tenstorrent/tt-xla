@@ -129,11 +129,13 @@ class OpTester(BaseTester):
             workload: The workload to serialize
             output_prefix: Base path and filename prefix for output files
         """
-        compiler_options = (
-            self._compiler_config.to_jax_compiler_options()
-            if self._framework == Framework.JAX
-            else None
-        )
+        if self._framework == Framework.JAX:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
+        elif self._framework == Framework.TORCH:
+            compiler_options = self._compiler_config.to_torch_compile_options()
+        else:
+            compiler_options = None
+
         self._device_runner.serialize_on_device(
             workload, output_prefix, compiler_options=compiler_options
         )
