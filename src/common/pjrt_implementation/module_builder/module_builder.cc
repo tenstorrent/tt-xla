@@ -613,9 +613,12 @@ void ModuleBuilder::convertFromTTIRToTTNN(
   // order to avoid closing and reopening the device afterwards.
   tt::runtime::Device runtime_device =
       client_instance->getOrCreateMeshDevice(m_devices_mesh_shape);
+
+  tt::runtime::Device submesh_for_optim =
+      tt::runtime::createSubMeshDevice(runtime_device, m_devices_mesh_shape);
   options.devicePtr =
       std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-          runtime_device.handle);
+          submesh_for_optim.handle);
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
