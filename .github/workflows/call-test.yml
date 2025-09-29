@@ -102,6 +102,7 @@ jobs:
       with:
         submodules: recursive
         sparse-checkout: |
+          .gitmodules
           python_package/requirements.txt
           tests
           venv
