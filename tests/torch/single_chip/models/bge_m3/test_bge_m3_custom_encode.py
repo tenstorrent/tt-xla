@@ -170,7 +170,7 @@ def bge_m3_encode():
     golden_torch_output = tree_map(convert_to_torch, golden_output["pre_processed_outputs"])
     tt_torch_output = tree_map(convert_to_torch, tt_output["pre_processed_outputs"])
     comparison_config = ComparisonConfig()
-    comparison_config.pcc.required_pcc = 0.92  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
+    comparison_config.pcc.required_pcc = 0.97  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
     comparator = TorchComparator(comparison_config)
     comparator.compare(tt_torch_output, golden_torch_output)
 
