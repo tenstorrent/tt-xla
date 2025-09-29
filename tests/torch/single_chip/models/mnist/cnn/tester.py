@@ -26,6 +26,18 @@ class MNISTCNNTester(TorchModelTester):
     def _get_model(self) -> Model:
         return self._model_class().to(dtype=torch.bfloat16)
 
+    def model_config_str(self) -> str:
+        """Return a string representation of the model configuration."""
+        # Extract model type from class name (e.g., MNISTCNNDropoutModel -> dropout)
+        model_name = self._model_class.__name__
+        if "Dropout" in model_name:
+            variant = "dropout"
+        elif "NoDropout" in model_name:
+            variant = "nodropout"
+        else:
+            variant = "cnn"
+        return f"output/mnist_cnn_{variant}_inference"
+
     # @override
     def _get_input_activations(self) -> Dict | Sequence[Any]:
         # Channels is 1 as MNIST is in grayscale.
