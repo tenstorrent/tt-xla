@@ -32,6 +32,7 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
+#include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
