@@ -39,7 +39,8 @@ class MNISTMLPTester(JaxModelTester):
     def model_config_str(self) -> str:
         """Return a string representation of the model configuration."""
         hidden_sizes = self._model_loader._hidden_sizes
-        return "_".join(map(str, hidden_sizes))
+        config_str = "_".join(map(str, hidden_sizes))
+        return f"output/mnist_mlp_{config_str}_inference"
 
     # @override
     def _get_model(self) -> Model:

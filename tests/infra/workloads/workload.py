@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Mapping, Optional, Sequence
+from infra.connectors import TorchDeviceConnector
 from infra.utilities import Framework, Model
 from tt_jax import serialize_compiled_artifacts_to_disk
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
 
 class Workload:
@@ -80,10 +82,9 @@ class Workload:
 
         Args:
             output_prefix: Base path and filename prefix for output files.
-            compiler_options: Optional JAX compiler options dict
+            compiler_options: Optional JAX compiler options dict (ignored for Torch)
         """
         if self.is_jax:
-
             # Get the executable to serialize
             executable = self.model if self.model else self.executable
             if executable is None:
@@ -96,4 +97,14 @@ class Workload:
                 output_prefix=output_prefix,
                 compiler_options=compiler_options,
                 **self.kwargs,
+            )
+        elif self.is_torch:
+
+            cache_dir = TorchDeviceConnector.get_cache_dir()
+            self.execute()
+            parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+        else:
+            raise ValueError(
+                f"Unsupported framework for serialization: {self.framework}"
             )

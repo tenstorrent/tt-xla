@@ -17,8 +17,14 @@ class TorchDeviceConnector(DeviceConnector):
     """Device connector used with torch."""
 
     def __init__(self) -> None:
+        print("AAAAAA")
         super().__init__()
         xr.runtime.set_device_type("TT")
+        xr.initialize_cache(self.get_cache_dir())
+
+    @staticmethod
+    def get_cache_dir() -> str:
+        return f"{os.getcwd()}/tmp/"
 
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:

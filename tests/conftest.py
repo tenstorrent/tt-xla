@@ -178,7 +178,7 @@ def pytest_addoption(parser):
     """
     Custom CLI pytest options for tests.
 
-    Use it when calling pytest like `pytest --log-memory ...` or `pytest --serialize-ops ...`.
+    Use it when calling pytest like `pytest --log-memory ...` or `pytest --serialize ...`.
     """
     parser.addoption(
         "--log-memory",
@@ -187,7 +187,7 @@ def pytest_addoption(parser):
         help="Enable memory usage tracking for tests",
     )
     parser.addoption(
-        "--serialize-ops",
+        "--serialize",
         action="store_true",
         default=False,
         help="Enable serialization of ops during tests",

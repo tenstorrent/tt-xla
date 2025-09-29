@@ -43,12 +43,11 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
     run_op_test_with_random_inputs(
         add, [x_shape, y_shape], dtype=dtype, compiler_config=compiler_config
     )
-    if request.config.getoption("--serialize-ops", default=False):
-        output_prefix = f"output/test_add_{format}_{x_shape[0]}x{x_shape[1]}"
+    if request.config.getoption("--serialize", default=False):
         serialize_op_with_random_inputs(
             add,
             [x_shape, y_shape],
-            output_prefix,
+            output_prefix=f"output/test_add_{format}_{x_shape[0]}x{x_shape[1]}",
             dtype=dtype,
             compiler_config=compiler_config,
         )

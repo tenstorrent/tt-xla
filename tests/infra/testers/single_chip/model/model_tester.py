@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence, Callable, Optional
+from typing import Callable, Optional
 
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -155,3 +155,36 @@ class ModelTester(BaseTester, ABC):
         forward results and gradients. Implementation is framework-specific.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
+        if self._workload is None:
+            self._initialize_workload()
+
+        # Get compiler options based on framework
+        if self._framework == Framework.JAX:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
+        elif self._framework == Framework.TORCH:
+            compiler_options = self._compiler_config.to_torch_compile_options()
+        else:
+            raise ValueError(f"Unsupported framework: {self._framework}")
+
+        self._device_runner.serialize_on_device(
+            self._workload, output_prefix, compiler_options=compiler_options
+        )
+
+    def serialize_model(self) -> None:
+        """Serialize the model with the appropriate output prefix based on model configuration."""
+        if hasattr(self, "model_config_str"):
+            output_prefix = self.model_config_str()
+            print("serialize_model")
+            self.serialize_on_device(output_prefix)
+        else:
+            raise NotImplementedError(
+                "Subclass must implement model_config_str() method"
+            )

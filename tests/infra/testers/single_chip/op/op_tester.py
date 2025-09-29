@@ -129,7 +129,6 @@ class OpTester(BaseTester):
             workload: The workload to serialize
             output_prefix: Base path and filename prefix for output files
         """
-        # Get compiler options from the tester's compiler config
         compiler_options = (
             self._compiler_config.to_jax_compiler_options()
             if self._framework == Framework.JAX
