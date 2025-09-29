@@ -34,7 +34,6 @@
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
-#include "stablehlo/dialect/Version.h"
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
@@ -169,7 +168,8 @@ ModuleBuilder::buildModule(
 
   std::string ttnn_mlir;
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                 compile_options, client_instance, mesh_shape, ttnn_mlir);
+                                 compile_options, client_instance, mesh_shape,
+                                 ttnn_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -692,8 +692,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const CompileOptions &compile_options, ClientInstance *client_instance,
-    std::vector<std::uint32_t> devices_mesh_shape,
-    std::string &ttnn_mlir) {
+    std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
