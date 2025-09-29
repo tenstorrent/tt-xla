@@ -83,15 +83,15 @@ def setup_spmd():
     num_devices = xr.global_runtime_device_count()
 
     # Basic XLA configuration
-    os.environ[
-        "ENABLE_AUTO_PARALLEL"
-    ] = "TRUE"  # Enables the auto parallel pass in tt-mlir
-    os.environ[
-        "CONVERT_SHLO_TO_SHARDY"
-    ] = "1"  # Converts the StableHLO emitted by torch-xla to the Shardy dialect
-    os.environ[
-        "MESH_SHAPE"
-    ] = f"1,{num_devices}"  # Sets the mesh shape used by the auto parallel pass
+    os.environ["ENABLE_AUTO_PARALLEL"] = (
+        "TRUE"  # Enables the auto parallel pass in tt-mlir
+    )
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = (
+        "1"  # Converts the StableHLO emitted by torch-xla to the Shardy dialect
+    )
+    os.environ["MESH_SHAPE"] = (
+        f"1,{num_devices}"  # Sets the mesh shape used by the auto parallel pass
+    )
 
     # Initialize SPMD
     xr.use_spmd()
