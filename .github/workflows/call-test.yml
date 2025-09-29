@@ -102,6 +102,9 @@ jobs:
       with:
         submodules: recursive
         lfs: true
+        sparse-checkout: |
+          test
+          third-party/tt-forge-models
 
     - name: Fetch job id
       id: fetch-job-id
