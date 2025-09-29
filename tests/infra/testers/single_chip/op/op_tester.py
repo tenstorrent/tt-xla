@@ -213,7 +213,7 @@ def serialize_op_with_random_inputs(
     # Keep the test name but replace special chars with underscores
     clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
     clean_name = clean_name.rstrip("_")
-    output_prefix = f"output/{clean_name}"
+    output_prefix = f"output_artifact/{clean_name}"
 
     inputs = [
         random_tensor(

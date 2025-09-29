@@ -76,12 +76,6 @@ class BaseTester(ABC):
         # Remove trailing underscores
         clean_name = clean_name.rstrip("_")
 
-        output_prefix = f"output/{clean_name}"
+        output_prefix = f"output_artifact/{clean_name}"
 
-        # Check if subclass has serialize_on_device method
-        if hasattr(self, "serialize_on_device"):
-            self.serialize_on_device(output_prefix)
-        else:
-            raise NotImplementedError(
-                "Subclass must implement serialize_on_device() method"
-            )
+        self.serialize_on_device(output_prefix)
