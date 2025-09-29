@@ -105,7 +105,7 @@ jobs:
         sparse-checkout: |
           tests
           third-party/tt-forge-models
-          venv/activate
+          venv
           python_package/requirements.txt
 
     - name: Fetch job id
