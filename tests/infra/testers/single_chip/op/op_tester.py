@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 import jax
+import re
 import torch
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -210,8 +211,6 @@ def serialize_op_with_random_inputs(
         framework: The framework to use (default: JAX)
         compiler_config: Compiler configuration options
     """
-    import re
-
     # Keep the test name but replace special chars with underscores
     clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
     clean_name = clean_name.rstrip("_")
