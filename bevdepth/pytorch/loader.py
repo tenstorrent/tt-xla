@@ -7,12 +7,18 @@ BEVDepth model loader implementation
 import torch
 from typing import Optional
 from ...base import ForgeModel
-from ...config import ModelGroup, ModelTask, ModelSource, Framework, StrEnum, ModelInfo
+from ...config import (
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+    StrEnum,
+    ModelInfo,
+    ModelConfig,
+)
 from third_party.tt_forge_models.bevdepth.pytorch.src.model import (
-    BaseBEVDepth,
-    backbone_conf,
-    head_conf,
     load_checkpoint,
+    create_bevdepth_model,
 )
 from ...tools.utils import get_file
 
@@ -23,10 +29,34 @@ class ModelVariant(StrEnum):
     BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY = (
         "bev_depth_lss_r50_256x704_128x128_24e_2key"
     )
+    BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY_EMA = (
+        "bev_depth_lss_r50_256x704_128x128_24e_2key_ema"
+    )
+    BEVDEPTH_LSS_R50_256X704_128X128_20E_CBGS_2KEY_DA = (
+        "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da"
+    )
+    BEVDEPTH_LSS_R50_256X704_128X128_20E_CBGS_2KEY_DA_EMA = (
+        "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema"
+    )
 
 
 class ModelLoader(ForgeModel):
     """BEVDepth model loader implementation for autonomous driving tasks."""
+
+    _VARIANTS = {
+        ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY: ModelConfig(
+            pretrained_model_name="bev_depth_lss_r50_256x704_128x128_24e_2key"
+        ),
+        ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY_EMA: ModelConfig(
+            pretrained_model_name="bev_depth_lss_r50_256x704_128x128_24e_2key_ema"
+        ),
+        ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_20E_CBGS_2KEY_DA: ModelConfig(
+            pretrained_model_name="bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da"
+        ),
+        ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_20E_CBGS_2KEY_DA_EMA: ModelConfig(
+            pretrained_model_name="bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema"
+        ),
+    }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY
@@ -49,22 +79,30 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, **kwargs):
-        """Load and return the BEVDepth model instance with default settings.
-        Returns:
-            Torch model: The BEVDepth model instance.
-        """
+    def _get_checkpoint_path(self, variant: str) -> str:
+        """Get the checkpoint path for a specific variant."""
+        # Map variants to their checkpoint files
+        checkpoint_map = {
+            "bev_depth_lss_r50_256x704_128x128_24e_2key": "test_files/pytorch/bevdepth/bev_depth_lss_r50_256x704_128x128_24e_2key.pth",
+            "bev_depth_lss_r50_256x704_128x128_24e_2key_ema": "test_files/pytorch/bevdepth/bev_depth_lss_r50_256x704_128x128_24e_2key_ema.pth",
+            "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da": "test_files/pytorch/bevdepth/bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da.pth",
+            "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema": "test_files/pytorch/bevdepth/bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema.pth",
+        }
 
-        model = BaseBEVDepth(backbone_conf, head_conf, is_train_depth=False)
-        checkpoint_path = str(
-            get_file(
-                "test_files/pytorch/bevdepth/bev_depth_lss_r50_256x704_128x128_24e_2key.pth"
-            )
-        )
-        load_checkpoint(
-            model,
-            checkpoint_path,
-        )
+        checkpoint_file = checkpoint_map[variant]
+        return str(get_file(checkpoint_file))
+
+    def load_model(self, **kwargs):
+        """Load and return the BEVDepth model instance with variant-specific settings.
+        Returns:
+            Torch model: The BEVDepth model instance configured for the specified variant.
+        """
+        variant_str = str(self._variant) if self._variant else str(self.DEFAULT_VARIANT)
+
+        model = create_bevdepth_model(variant_str, is_train_depth=False)
+        # Load checkpoint
+        checkpoint_path = self._get_checkpoint_path(variant_str)
+        load_checkpoint(model, checkpoint_path)
 
         model.eval()
         return model

@@ -44,9 +44,80 @@ from torch.autograd import Function
 from torch.nn.modules.utils import _pair
 import torchvision
 
+# Base configuration parameters
 H = 900
 W = 1600
 final_dim = (256, 704)
+img_conf = dict(
+    img_mean=[123.675, 116.28, 103.53], img_std=[58.395, 57.12, 57.375], to_rgb=True
+)
+
+ida_aug_conf = {
+    "resize_lim": (0.386, 0.55),
+    "final_dim": final_dim,
+    "rot_lim": (-5.4, 5.4),
+    "H": H,
+    "W": W,
+    "rand_flip": True,
+    "bot_pct_lim": (0.0, 0.0),
+    "cams": [
+        "CAM_FRONT_LEFT",
+        "CAM_FRONT",
+        "CAM_FRONT_RIGHT",
+        "CAM_BACK_LEFT",
+        "CAM_BACK",
+        "CAM_BACK_RIGHT",
+    ],
+    "Ncams": 6,
+}
+
+bda_aug_conf = {
+    "rot_lim": (-22.5, 22.5),
+    "scale_lim": (0.95, 1.05),
+    "flip_dx_ratio": 0.5,
+    "flip_dy_ratio": 0.5,
+}
+
+bev_backbone = dict(
+    type="ResNet",
+    in_channels=80,
+    depth=18,
+    num_stages=3,
+    strides=(1, 2, 2),
+    dilations=(1, 1, 1),
+    out_indices=[0, 1, 2],
+    norm_eval=False,
+    base_channels=160,
+)
+
+bev_neck = dict(
+    type="SECONDFPN",
+    in_channels=[80, 160, 320, 640],
+    upsample_strides=[1, 2, 4, 8],
+    out_channels=[64, 64, 64, 64],
+)
+
+CLASSES = [
+    "car",
+    "truck",
+    "construction_vehicle",
+    "bus",
+    "trailer",
+    "barrier",
+    "motorcycle",
+    "bicycle",
+    "pedestrian",
+    "traffic_cone",
+]
+
+TASKS = [
+    dict(num_class=1, class_names=["car"]),
+    dict(num_class=2, class_names=["truck", "construction_vehicle"]),
+    dict(num_class=2, class_names=["bus", "trailer"]),
+    dict(num_class=1, class_names=["barrier"]),
+    dict(num_class=2, class_names=["motorcycle", "bicycle"]),
+    dict(num_class=2, class_names=["pedestrian", "traffic_cone"]),
+]
 
 common_heads = dict(reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2))
 
@@ -59,6 +130,18 @@ bbox_coder = dict(
     voxel_size=[0.2, 0.2, 8],
     pc_range=[-51.2, -51.2, -5, 51.2, 51.2, 3],
     code_size=9,
+)
+
+train_cfg = dict(
+    point_cloud_range=[-51.2, -51.2, -5, 51.2, 51.2, 3],
+    grid_size=[512, 512, 1],
+    voxel_size=[0.2, 0.2, 8],
+    out_size_factor=4,
+    dense_reg=1,
+    gaussian_overlap=0.1,
+    max_objs=500,
+    min_radius=2,
+    code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5],
 )
 
 test_cfg = dict(
@@ -75,12 +158,13 @@ test_cfg = dict(
     nms_thr=0.2,
 )
 
+# Base backbone configuration
 backbone_conf = {
     "x_bound": [-51.2, 51.2, 0.8],
     "y_bound": [-51.2, 51.2, 0.8],
     "z_bound": [-5, 3, 8],
     "d_bound": [2.0, 58.0, 0.5],
-    "final_dim": (256, 704),
+    "final_dim": final_dim,
     "output_channels": 80,
     "downsample_factor": 16,
     "img_backbone_conf": {
@@ -99,68 +183,120 @@ backbone_conf = {
     },
     "depth_net_conf": {"in_channels": 512, "mid_channels": 512},
 }
+
+# # Base head configuration
 head_conf = {
-    "bev_backbone_conf": {
-        "type": "ResNet",
-        "in_channels": 160,
-        "depth": 18,
-        "num_stages": 3,
-        "strides": (1, 2, 2),
-        "dilations": (1, 1, 1),
-        "out_indices": [0, 1, 2],
-        "norm_eval": False,
-        "base_channels": 160,
-    },
-    "bev_neck_conf": {
-        "type": "SECONDFPN",
-        "in_channels": [160, 160, 320, 640],
-        "upsample_strides": [1, 2, 4, 8],
-        "out_channels": [64, 64, 64, 64],
-    },
-    "tasks": [
-        {"num_class": 1, "class_names": ["car"]},
-        {"num_class": 2, "class_names": ["truck", "construction_vehicle"]},
-        {"num_class": 2, "class_names": ["bus", "trailer"]},
-        {"num_class": 1, "class_names": ["barrier"]},
-        {"num_class": 2, "class_names": ["motorcycle", "bicycle"]},
-        {"num_class": 2, "class_names": ["pedestrian", "traffic_cone"]},
-    ],
-    "common_heads": {
-        "reg": (2, 2),
-        "height": (1, 2),
-        "dim": (3, 2),
-        "rot": (2, 2),
-        "vel": (2, 2),
-    },
-    "bbox_coder": {
-        "type": "CenterPointBBoxCoder",
-        "post_center_range": [-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-        "max_num": 500,
-        "score_threshold": 0.1,
-        "out_size_factor": 4,
-        "voxel_size": [0.2, 0.2, 8],
-        "pc_range": [-51.2, -51.2, -5, 51.2, 51.2, 3],
-        "code_size": 9,
-    },
-    "test_cfg": {
-        "post_center_limit_range": [-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-        "max_per_img": 500,
-        "max_pool_nms": False,
-        "min_radius": [4, 12, 10, 1, 0.85, 0.175],
-        "score_threshold": 0.1,
-        "out_size_factor": 4,
-        "voxel_size": [0.2, 0.2, 8],
-        "nms_type": "circle",
-        "pre_max_size": 1000,
-        "post_max_size": 83,
-        "nms_thr": 0.2,
-    },
-    "in_channels": 256,
+    "bev_backbone_conf": bev_backbone,
+    "bev_neck_conf": bev_neck,
+    "tasks": TASKS,
+    "common_heads": common_heads,
+    "bbox_coder": bbox_coder,
+    "train_cfg": train_cfg,
+    "test_cfg": test_cfg,
+    "in_channels": 256,  # Equal to bev_neck output_channels.
     "loss_cls": {"type": "GaussianFocalLoss", "reduction": "mean"},
     "loss_bbox": {"type": "L1Loss", "reduction": "mean", "loss_weight": 0.25},
     "gaussian_overlap": 0.1,
     "min_radius": 2,
 }
+
+
+def get_bevdepth_config(variant: str = "bev_depth_lss_r50_256x704_128x128_24e_2key"):
+    """
+    Get configuration for different BEVDepth variants.
+
+    Args:
+        variant (str): One of the supported BEVDepth variants:
+            - "bev_depth_lss_r50_256x704_128x128_24e_2key" (base)
+            - "bev_depth_lss_r50_256x704_128x128_24e_2key_ema"
+            - "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da"
+            - "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema"
+
+    Returns:
+        dict: Configuration with backbone_conf, head_conf, and other parameters
+    """
+    # Deep copy base configurations to avoid mutation
+    config = {
+        "backbone_conf": copy.deepcopy(backbone_conf),
+        "head_conf": copy.deepcopy(head_conf),
+        "ida_aug_conf": copy.deepcopy(ida_aug_conf),
+        "bda_aug_conf": copy.deepcopy(bda_aug_conf),
+        "img_conf": copy.deepcopy(img_conf),
+        "classes": CLASSES,
+        "use_ema": False,
+        "use_da": False,
+        "use_cbgs": False,
+        "basic_lr_per_img": 2e-4 / 64,
+        "weight_decay": 1e-7,
+        "epochs": 24,
+        "lr_schedule_milestones": [19, 23],
+        "key_idxes": [-1],  # Default for 2key variants
+    }
+
+    # Apply variant-specific overrides
+    if variant == "bev_depth_lss_r50_256x704_128x128_24e_2key":
+        # Base configuration - no changes needed
+        pass
+
+    elif variant == "bev_depth_lss_r50_256x704_128x128_24e_2key_ema":
+        # EMA variant
+        config["use_ema"] = True
+
+    elif variant == "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da":
+        # DA + CBGS variant
+        config["use_da"] = True
+        config["use_cbgs"] = True
+        config["basic_lr_per_img"] = (
+            2e-4 / 64
+        )  # Match upstream depth DA (no LR change from base)
+        config["weight_decay"] = 1e-7  # Different weight decay
+        config["epochs"] = 20
+        config["lr_schedule_milestones"] = [16, 19]
+        config["backbone_conf"]["use_da"] = True
+
+    elif variant == "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema":
+        # DA + CBGS + EMA variant
+        config["use_ema"] = True
+        config["use_da"] = True
+        config["use_cbgs"] = True
+        config["basic_lr_per_img"] = 2e-4 / 32  # Different learning rate
+        config["weight_decay"] = 1e-7  # Different weight decay
+        config["epochs"] = 20
+        config["lr_schedule_milestones"] = [16, 19]
+        config["backbone_conf"]["use_da"] = True
+
+    else:
+        raise ValueError(
+            f"Unsupported variant: {variant}. Supported variants are: "
+            f"bev_depth_lss_r50_256x704_128x128_24e_2key, "
+            f"bev_depth_lss_r50_256x704_128x128_24e_2key_ema, "
+            f"bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da, "
+            f"bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema"
+        )
+
+    # Apply common 2key modifications to head configuration
+    num_key_frames = len(config["key_idxes"]) + 1  # +1 for current frame
+    config["head_conf"]["bev_backbone_conf"]["in_channels"] = 80 * num_key_frames
+    config["head_conf"]["bev_neck_conf"]["in_channels"] = [
+        80 * num_key_frames,
+        160,
+        320,
+        640,
+    ]
+    config["head_conf"]["train_cfg"]["code_weights"] = [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    ]
+
+    return config
 
 
 def load_checkpoint(model: torch.nn.Module, ckpt_path: str):
@@ -997,6 +1133,12 @@ class DepthAggregation(nn.Module):
             ),
         )
 
+    def forward(self, x):
+        x = self.reduce_conv(x)
+        x = self.conv(x) + x
+        x = self.out_conv(x)
+        return x
+
 
 def obsolete_torch_version(torch_version, version_threshold) -> bool:
     return torch_version == "parrots" or torch_version <= version_threshold
@@ -1138,6 +1280,111 @@ class SECONDFPN(BaseModule):
         return [out]
 
 
+class VoxelPoolingTrain(Function):
+    @staticmethod
+    def forward(
+        ctx,
+        geom_xyz: torch.Tensor,
+        input_features: torch.Tensor,
+        voxel_num: torch.Tensor,
+    ) -> torch.Tensor:
+        ctx.mark_non_differentiable(geom_xyz)
+
+        geom_xyz = geom_xyz.reshape(geom_xyz.shape[0], -1, geom_xyz.shape[-1])
+        input_features = input_features.reshape(
+            (geom_xyz.shape[0], -1, input_features.shape[-1])
+        )
+
+        batch_size = input_features.shape[0]
+        num_points = input_features.shape[1]
+        num_channels = input_features.shape[2]
+
+        voxel_num_x = int(voxel_num[0].detach().cpu().item())
+        voxel_num_y = int(voxel_num[1].detach().cpu().item())
+        voxel_num_z = int(voxel_num[2].detach().cpu().item())
+
+        # Output BEV grid (B, Vy, Vx, C)
+        output_features = input_features.new_zeros(
+            batch_size, voxel_num_y, voxel_num_x, num_channels
+        )
+
+        # Save the position in BEV feature map for each input point. Init to -1 (long dtype for indexing)
+        pos_memo = torch.full(
+            (batch_size, num_points, 3), -1, dtype=torch.long, device=geom_xyz.device
+        )
+
+        # Flatten (B, N, ...) to vectorized form
+        geom_flat = geom_xyz.view(-1, 3)
+        feats_flat = input_features.view(-1, num_channels)
+        total = geom_flat.shape[0]
+
+        # Compute batch indices for each flattened point
+        b_idx = (
+            torch.arange(batch_size, device=geom_xyz.device)
+            .unsqueeze(1)
+            .expand(batch_size, num_points)
+            .reshape(-1)
+        )
+
+        sx_all = geom_flat[:, 0]
+        sy_all = geom_flat[:, 1]
+        sz_all = geom_flat[:, 2]
+
+        # Valid mask within voxel bounds
+        valid = (
+            (sx_all >= 0)
+            & (sx_all < voxel_num_x)
+            & (sy_all >= 0)
+            & (sy_all < voxel_num_y)
+            & (sz_all >= 0)
+            & (sz_all < voxel_num_z)
+        )
+
+        if valid.any():
+            sx_v = sx_all[valid].to(torch.long)
+            sy_v = sy_all[valid].to(torch.long)
+            b_v = b_idx[valid].to(torch.long)
+            feats_v = feats_flat[valid]
+
+            # Accumulate into output grid: flatten BEV to [B*Vy*Vx, C]
+            out_flat = output_features.view(
+                batch_size * voxel_num_y * voxel_num_x, num_channels
+            )
+            lin_idx = b_v * (voxel_num_y * voxel_num_x) + sy_v * voxel_num_x + sx_v
+            out_flat.index_add_(0, lin_idx, feats_v)
+
+            # Populate pos_memo for backward (store [b, y, x])
+            pos_view = pos_memo.view(-1, 3)
+            pos_view[valid, 0] = b_v
+            pos_view[valid, 1] = sy_v
+            pos_view[valid, 2] = sx_v
+
+        # Save zero-initialized grad_input_features and pos_memo for backward
+        grad_input_features = torch.zeros_like(input_features)
+        ctx.save_for_backward(grad_input_features, pos_memo)
+        return output_features.permute(0, 3, 1, 2)
+
+    @staticmethod
+    def backward(ctx, grad_output_features):
+        (grad_input_features, pos_memo) = ctx.saved_tensors
+        kept = (pos_memo != -1)[..., 0]
+        grad_input_features_shape = grad_input_features.shape
+        grad_input_features = grad_input_features.reshape(
+            grad_input_features.shape[0], -1, grad_input_features.shape[-1]
+        )
+        grad_input_features[kept] = grad_output_features[
+            pos_memo[kept][..., 0].long(),
+            :,
+            pos_memo[kept][..., 1].long(),
+            pos_memo[kept][..., 2].long(),
+        ]
+        grad_input_features = grad_input_features.reshape(grad_input_features_shape)
+        return None, grad_input_features, None
+
+
+voxel_pooling_train = VoxelPoolingTrain.apply
+
+
 class VoxelPoolingInference(Function):
     @staticmethod
     def forward(
@@ -1265,6 +1512,9 @@ class BaseLSSFPN(nn.Module):
         )
         self.register_buffer("frustum", self.create_frustum())
         self.depth_channels, _, _, _ = self.frustum.shape
+        self.use_da = use_da
+        if self.use_da:
+            self.depth_aggregation_net = self._configure_depth_aggregation_net()
 
         if isinstance(img_backbone_conf, dict):
             cfg = img_backbone_conf.copy()
@@ -1278,6 +1528,27 @@ class BaseLSSFPN(nn.Module):
 
         self.img_neck.init_weights()
         self.img_backbone.init_weights()
+
+    def _configure_depth_aggregation_net(self):
+        return DepthAggregation(
+            self.output_channels, self.output_channels, self.output_channels
+        )
+
+    def _forward_voxel_net(self, img_feat_with_depth):
+        if self.use_da:
+            # BEVConv2D [n, c, d, h, w] -> [n, h, c, w, d]
+            img_feat_with_depth = img_feat_with_depth.permute(
+                0, 3, 1, 4, 2
+            ).contiguous()  # [n, c, d, h, w] -> [n, h, c, w, d]
+            n, h, c, w, d = img_feat_with_depth.shape
+            img_feat_with_depth = img_feat_with_depth.view(-1, c, w, d)
+            img_feat_with_depth = (
+                self.depth_aggregation_net(img_feat_with_depth)
+                .view(n, h, c, w, d)
+                .permute(0, 2, 4, 1, 3)
+                .contiguous()
+            )
+        return img_feat_with_depth
 
     def _configure_depth_net(self, depth_net_conf):
         return DepthNet(
@@ -1391,16 +1662,37 @@ class BaseLSSFPN(nn.Module):
         geom_xyz = (
             (geom_xyz - (self.voxel_coord - self.voxel_size / 2.0)) / self.voxel_size
         ).int()
+        if self.training or self.use_da:
+            img_feat_with_depth = depth.unsqueeze(1) * depth_feature[
+                :, self.depth_channels : (self.depth_channels + self.output_channels)
+            ].unsqueeze(2)
 
-        feature_map = voxel_pooling_inference(
-            geom_xyz,
-            depth,
-            depth_feature[
-                :,
-                self.depth_channels : (self.depth_channels + self.output_channels),
-            ].contiguous(),
-            self.voxel_num,
-        )
+            img_feat_with_depth = self._forward_voxel_net(img_feat_with_depth)
+
+            img_feat_with_depth = img_feat_with_depth.reshape(
+                batch_size,
+                num_cams,
+                img_feat_with_depth.shape[1],
+                img_feat_with_depth.shape[2],
+                img_feat_with_depth.shape[3],
+                img_feat_with_depth.shape[4],
+            )
+
+            img_feat_with_depth = img_feat_with_depth.permute(0, 1, 3, 4, 5, 2)
+
+            feature_map = voxel_pooling_train(
+                geom_xyz, img_feat_with_depth.contiguous(), self.voxel_num
+            )
+        else:
+            feature_map = voxel_pooling_inference(
+                geom_xyz,
+                depth,
+                depth_feature[
+                    :,
+                    self.depth_channels : (self.depth_channels + self.output_channels),
+                ].contiguous(),
+                self.voxel_num,
+            )
         return feature_map.contiguous()
 
     def forward(self, sweep_imgs, mats_dict, timestamps=None, is_return_depth=False):
@@ -1969,3 +2261,31 @@ class BaseBEVDepth(nn.Module):
         x = self.backbone(x, mats_dict, timestamps)
         preds = self.head(x)
         return preds
+
+
+def create_bevdepth_model(
+    variant: str = "bev_depth_lss_r50_256x704_128x128_24e_2key",
+    is_train_depth: bool = False,
+):
+    """
+    Create a BEVDepth model with variant-specific configuration.
+
+    Args:
+        variant (str): One of the supported BEVDepth variants:
+            - "bev_depth_lss_r50_256x704_128x128_24e_2key" (base)
+            - "bev_depth_lss_r50_256x704_128x128_24e_2key_ema"
+            - "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da"
+            - "bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema"
+        is_train_depth (bool): Whether to enable depth training mode
+
+    Returns:
+        BaseBEVDepth: Configured model instance
+        dict: Complete configuration used for the model
+    """
+    config = get_bevdepth_config(variant)
+    model = BaseBEVDepth(
+        backbone_conf=config["backbone_conf"],
+        head_conf=config["head_conf"],
+        is_train_depth=is_train_depth,
+    )
+    return model
