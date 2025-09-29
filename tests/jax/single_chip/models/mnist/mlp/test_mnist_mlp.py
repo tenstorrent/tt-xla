@@ -82,7 +82,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester, request):
     inference_tester.test()
 
     if request.config.getoption("--serialize", default=False):
-        inference_tester.serialize_model()
+        inference_tester.serialize_model(request.node.name)
 
 
 @pytest.mark.push

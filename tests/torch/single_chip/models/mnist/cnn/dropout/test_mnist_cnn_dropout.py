@@ -70,7 +70,7 @@ def test_torch_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester, req
     inference_tester.test()
 
     if request.config.getoption("--serialize", default=False):
-        inference_tester.serialize_model()
+        inference_tester.serialize_model(request.node.name)
 
 
 @pytest.mark.push

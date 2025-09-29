@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Optional
+import re
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
@@ -61,3 +62,26 @@ class BaseTester(ABC):
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def serialize_model(self, test_name: str) -> None:
+        """Serialize the model with the appropriate output prefix.
+
+        Args:
+            test_name: Test name to generate output prefix from.
+        """
+
+        # Keep the test name but replace special chars with underscores
+        # Example: test_mnist_mlp_inference[256-128-64] -> output/test_mnist_mlp_inference_256_128_64
+        clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
+        # Remove trailing underscores
+        clean_name = clean_name.rstrip("_")
+
+        output_prefix = f"output/{clean_name}"
+
+        # Check if subclass has serialize_on_device method
+        if hasattr(self, "serialize_on_device"):
+            self.serialize_on_device(output_prefix)
+        else:
+            raise NotImplementedError(
+                "Subclass must implement serialize_on_device() method"
+            )
