@@ -35,19 +35,31 @@ SOFTWARE.
 # IMPORTS
 # ============================================================================
 
-import math
 import copy
+import math
+import sys
+from collections import OrderedDict
+from typing import List, Tuple
+
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import nn
+from torch.nn import init
 from torch.nn.init import normal_
+from torch.nn.modules.utils import _pair
+from torch.nn.parameter import Parameter
 
 from mmcv import ConfigDict
 from mmcv.cnn import (
+    CONV_LAYERS,
     Linear,
-    xavier_init,
-    constant_init,
+    MODELS as MMCV_MODELS,
+    build_conv_layer,
     build_norm_layer,
+    constant_init,
+    xavier_init,
 )
 from mmcv.cnn.bricks.registry import (
     ATTENTION,
@@ -55,27 +67,106 @@ from mmcv.cnn.bricks.registry import (
     TRANSFORMER_LAYER_SEQUENCE,
 )
 from mmcv.cnn.bricks.transformer import (
-    build_transformer_layer_sequence,
+    TransformerLayerSequence,
     build_attention,
     build_feedforward_network,
-    TransformerLayerSequence,
+    build_transformer_layer_sequence,
 )
 from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
 from mmcv.runner.base_module import BaseModule, ModuleList
+from mmcv.utils import Registry
 
 from mmdet.core.bbox import BaseBBoxCoder, build_bbox_coder
 from mmdet.core.bbox.builder import BBOX_CODERS
-from mmdet.core.bbox.transforms import bbox_xyxy_to_cxcywh, bbox_cxcywh_to_xyxy
+from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh
 from mmdet.models import DETECTORS, HEADS
-from mmdet.models.builder import BACKBONES, DETECTORS, HEADS, NECKS
-from mmdet.models.detectors import BaseDetector
+from mmdet.models.backbones.resnet import BasicBlock
+from mmdet.models.builder import BACKBONES, NECKS
 from mmdet.models.dense_heads import DETRHead
+from mmdet.models.detectors import BaseDetector
 from mmdet.models.utils.builder import TRANSFORMER
 from mmdet.models.utils.transformer import inverse_sigmoid
+
+from third_party.tt_forge_models.pointpillars.pytorch.src.utils import hard_voxelize
 
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
+
+
+class _Voxelization(nn.Module):
+    def forward(
+        points,
+        voxel_size,
+        coors_range,
+        max_points=35,
+        max_voxels=20000,
+        deterministic=True,
+    ):
+
+        voxels = points.new_zeros(size=(max_voxels, max_points, points.size(1)))
+        coors = points.new_zeros(size=(max_voxels, 3), dtype=torch.int)
+        num_points_per_voxel = points.new_zeros(size=(max_voxels,), dtype=torch.int)
+        voxel_num = hard_voxelize(
+            points,
+            voxels,
+            coors,
+            num_points_per_voxel,
+            voxel_size,
+            coors_range,
+            max_points,
+            max_voxels,
+            3,
+        )
+        voxels_out = voxels[:voxel_num]
+        coors_out = coors[:voxel_num].flip(-1)
+        num_points_per_voxel_out = num_points_per_voxel[:voxel_num]
+        return voxels_out, coors_out, num_points_per_voxel_out
+
+
+voxelization = _Voxelization.forward
+
+
+class Voxelization(nn.Module):
+    def __init__(
+        self,
+        voxel_size,
+        point_cloud_range,
+        max_num_points,
+        max_voxels=20000,
+        deterministic=True,
+    ):
+
+        super(Voxelization, self).__init__()
+        self.voxel_size = voxel_size
+        self.point_cloud_range = point_cloud_range
+        self.max_num_points = max_num_points
+        if isinstance(max_voxels, tuple):
+            self.max_voxels = max_voxels
+        else:
+            self.max_voxels = _pair(max_voxels)
+        self.deterministic = deterministic
+
+        point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
+        voxel_size = torch.tensor(voxel_size, dtype=torch.float32)
+        grid_size = (point_cloud_range[3:] - point_cloud_range[:3]) / voxel_size
+        grid_size = torch.round(grid_size).long()
+        input_feat_shape = grid_size[:2]
+        self.grid_size = grid_size
+        self.pcd_shape = [*input_feat_shape, 1]
+
+    def forward(self, input):
+        max_voxels = self.max_voxels[1]
+
+        return voxelization(
+            input,
+            self.voxel_size,
+            self.point_cloud_range,
+            self.max_num_points,
+            max_voxels,
+            self.deterministic,
+        )
+
 
 """
 CPU Implementation of Quickcumsum
@@ -209,6 +300,32 @@ bev_h_ = 200
 bev_w_ = 100
 queue_length = 1
 dbound = [1.0, 35.0, 0.5]
+
+lidar_point_cloud_range = [-15.0, -30.0, -5.0, 15.0, 30.0, 3.0]
+lidar_encoder_cfg = dict(
+    voxelize=dict(
+        max_num_points=10,
+        point_cloud_range=lidar_point_cloud_range,
+        voxel_size=voxel_size,
+        max_voxels=[90000, 120000],
+    ),
+    backbone=dict(
+        type="SparseEncoder",
+        in_channels=5,
+        sparse_shape=[300, 600, 41],
+        output_channels=128,
+        order=("conv", "norm", "act"),
+        encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
+        encoder_paddings=([0, 0, 1], [0, 0, 1], [0, 0, [1, 1, 0]], [0, 0]),
+        block_type="basicblock",
+    ),
+)
+
+fuser_cfg = dict(
+    type="ConvFuser",
+    in_channels=[_dim_, 256],
+    out_channels=_dim_,
+)
 
 lss_cfg = dict(
     type="LSSTransform",
@@ -389,6 +506,21 @@ def build_head(cfg):
     return HEADS.build(cfg)
 
 
+MODELS = Registry("models", parent=MMCV_MODELS)
+MIDDLE_ENCODERS = MODELS
+
+
+def build_middle_encoder(cfg):
+    return MIDDLE_ENCODERS.build(cfg)
+
+
+FUSERS = Registry("fusers")
+
+
+def build_fuser(cfg):
+    return FUSERS.build(cfg)
+
+
 def build_detector(cfg, train_cfg=None, test_cfg=None):
     return DETECTORS.build(
         cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg)
@@ -472,6 +604,1170 @@ class MapTRNMSFreeCoder(BaseBBoxCoder):
                 )
             )
         return predictions_list
+
+
+# ============================================================================
+# SparseConv
+# ============================================================================
+
+
+class SparseModule(nn.Module):
+    pass
+
+
+class SparseBasicBlock(BasicBlock, SparseModule):
+
+    expansion = 1
+
+    def __init__(
+        self, inplanes, planes, stride=1, downsample=None, conv_cfg=None, norm_cfg=None
+    ):
+        SparseModule.__init__(self)
+        BasicBlock.__init__(
+            self,
+            inplanes,
+            planes,
+            stride=stride,
+            downsample=downsample,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+        )
+
+    def forward(self, x):
+        identity = x.features
+
+        assert x.features.dim() == 2, f"x.features.dim()={x.features.dim()}"
+
+        out = self.conv1(x)
+        out.features = self.norm1(out.features)
+        out.features = self.relu(out.features)
+
+        out = self.conv2(out)
+        out.features = self.norm2(out.features)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out.features += identity
+        out.features = self.relu(out.features)
+
+        return out
+
+
+def _calculate_fan_in_and_fan_out_hwio(tensor):
+    dimensions = tensor.ndimension()
+
+    if dimensions == 2:
+        fan_in = tensor.size(-2)
+        fan_out = tensor.size(-1)
+    else:
+        num_input_fmaps = tensor.size(-2)
+        num_output_fmaps = tensor.size(-1)
+        receptive_field_size = 1
+        if tensor.dim() > 2:
+            receptive_field_size = tensor[..., 0, 0].numel()
+        fan_in = num_input_fmaps * receptive_field_size
+        fan_out = num_output_fmaps * receptive_field_size
+
+    return fan_in, fan_out
+
+
+def get_deconv_output_size(
+    input_size, kernel_size, stride, padding, dilation, output_padding
+):
+    ndim = len(input_size)
+    output_size = []
+    for i in range(ndim):
+        if kernel_size[i] == -1:
+            raise ValueError("deconv don't support kernel_size < 0")
+        size = (
+            (input_size[i] - 1) * stride[i]
+            - 2 * padding[i]
+            + kernel_size[i]
+            + output_padding[i]
+        )
+        output_size.append(size)
+    return output_size
+
+
+def get_conv_output_size(input_size, kernel_size, stride, padding, dilation):
+    ndim = len(input_size)
+    output_size = []
+    for i in range(ndim):
+        size = (
+            input_size[i] + 2 * padding[i] - dilation[i] * (kernel_size[i] - 1) - 1
+        ) // stride[i] + 1
+        if kernel_size[i] == -1:
+            output_size.append(1)
+        else:
+            output_size.append(size)
+    return output_size
+
+
+def get_valid_out_pos_3d(
+    input_pos: torch.Tensor,
+    kernel_size: List[int],
+    stride: List[int],
+    padding: List[int],
+    dilation: List[int],
+    out_spatial_shape: List[int],
+) -> Tuple[torch.Tensor, int]:
+    NDim = 3
+    lowers = torch.zeros(NDim, dtype=torch.int32)
+    uppers = torch.zeros(NDim, dtype=torch.int32)
+    counter = torch.zeros(NDim, dtype=torch.int32)
+    counter_size = torch.zeros(NDim, dtype=torch.int32)
+
+    # Calculate bounds
+    for i in range(NDim):
+        lowers[i] = (
+            input_pos[i]
+            - (kernel_size[i] - 1) * dilation[i]
+            - 1
+            + stride[i]
+            + padding[i]
+        ) // stride[i]
+        uppers[i] = (input_pos[i] + padding[i]) // stride[i]
+
+    # Calculate counter sizes
+    num_points = 1
+    for i in range(NDim):
+        counter_size[i] = (uppers[i] - lowers[i]) // dilation[i] + 1
+        num_points *= counter_size[i].item()
+
+    # Initialize counter
+    counter.zero_()
+
+    # Generate valid points
+    valid_points = []
+    point_counter = 0
+
+    for i in range(num_points):
+        valid = True
+        m = 1
+        offset = 0
+        point = torch.zeros(NDim + 1, dtype=torch.int32)
+
+        # Process dimensions in reverse order
+        for j in range(NDim - 1, -1, -1):
+            val = uppers[j] - counter[j] * dilation[j]
+            point[j] = val
+
+            if val < 0 or val > out_spatial_shape[j] - 1:
+                valid = False
+
+            offset += m * (input_pos[j] - val * stride[j] + padding[j]) // dilation[j]
+            m *= kernel_size[j]
+
+        point[NDim] = offset
+
+        if valid:
+            valid_points.append(point.clone())
+            point_counter += 1
+
+        # Update counter
+        counter[NDim - 1] += 1
+        for c in range(NDim - 1, -1, -1):
+            if counter[c] == counter_size[c] and c > 0:
+                counter[c - 1] += 1
+                counter[c] = 0
+
+    if valid_points:
+        return torch.stack(valid_points), point_counter
+    else:
+        return torch.empty((0, NDim + 1), dtype=torch.int32), point_counter
+
+
+def row_array_idx_3d(point: torch.Tensor, spatial_shape: List[int]) -> int:
+    return (
+        point[0] * spatial_shape[1] * spatial_shape[2]
+        + point[1] * spatial_shape[2]
+        + point[2]
+    ).item()
+
+
+def get_indice_pairs_3d_cpu(
+    indices: torch.Tensor,
+    batch_size: int,
+    out_shape: List[int],
+    spatial_shape: List[int],
+    ksize: List[int],
+    stride: List[int],
+    padding: List[int],
+    dilation: List[int],
+    out_padding: List[int],
+    subm: int,
+    transpose: int,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Python implementation of getIndicePairs function for both SubManifold and regular convolution
+    """
+
+    num_act_in = indices.shape[0]
+
+    if num_act_in == 0:
+        kernel_volume = torch.tensor(ksize).prod().item()
+        indice_pairs = torch.full((kernel_volume, 2, 1000), -1, dtype=torch.int32)
+        out_indices = torch.zeros((0, 4), dtype=torch.int32)
+        indice_num = torch.zeros(kernel_volume, dtype=torch.int32)
+        return out_indices, indice_pairs, indice_num
+
+    # Calculate spatial volume
+    spatial_volume = torch.tensor(out_shape).prod().item()
+    kernel_volume = torch.tensor(ksize).prod().item()
+
+    # Initialize grids
+    total_grid_size = batch_size * spatial_volume
+    grids_out = torch.full((total_grid_size,), -1, dtype=torch.int32)
+
+    # Initialize output structures
+    indice_num = torch.zeros(kernel_volume, dtype=torch.int32)
+    max_indices = num_act_in  # Use same size as input for consistent shape
+    indice_pairs = torch.full((kernel_volume, 2, max_indices), -1, dtype=torch.int32)
+
+    if subm == 1:
+        # SubM convolution
+        # Populate grids with input indices
+        for j in range(num_act_in):
+            batch_idx = indices[j, 0].item()
+            spatial_coords = indices[j, 1:4]
+            index = (
+                row_array_idx_3d(spatial_coords, out_shape) + spatial_volume * batch_idx
+            )
+            grids_out[index] = j
+
+        # Process each input sequentially
+        for j in range(num_act_in):
+            batch_idx = indices[j, 0].item()
+            input_pos = indices[j, 1:4]
+
+            # Get valid output positions
+            valid_points, num_valid = get_valid_out_pos_3d(
+                input_pos, ksize, stride, padding, dilation, out_shape
+            )
+
+            # Process each valid point
+            for i in range(num_valid):
+                point = valid_points[i]
+                offset = point[3].item()  # kernel offset
+                out_coords = point[:3]  # spatial coordinates
+
+                # Calculate output index
+                index = (
+                    row_array_idx_3d(out_coords, out_shape) + spatial_volume * batch_idx
+                )
+
+                if grids_out[index] > -1:
+                    current_slot = indice_num[offset].item()
+                    indice_pairs[offset, 0, current_slot] = j
+                    indice_pairs[offset, 1, current_slot] = grids_out[index]
+                    indice_num[offset] += 1
+
+        # Return original indices for SubM
+        out_indices = indices.int()
+
+    else:
+        # Regular convolution (subm=0)
+        out_indices_list = []
+        num_act_out = 0
+
+        for j in range(num_act_in):
+            batch_idx = indices[j, 0].item()
+            input_pos = indices[j, 1:4]
+
+            # Get valid output positions for this input
+            valid_points, num_valid = get_valid_out_pos_3d(
+                input_pos, ksize, stride, padding, dilation, out_shape
+            )
+
+            # Process each valid point
+            for i in range(num_valid):
+                point = valid_points[i]
+                offset = point[3].item()  # kernel offset
+                out_coords = point[:3]  # spatial coordinates
+
+                # Calculate grid index
+                grid_idx = (
+                    row_array_idx_3d(out_coords, out_shape) + spatial_volume * batch_idx
+                )
+
+                # Check if this output position is new
+                if grids_out[grid_idx] == -1:
+                    # New output position - add to output indices
+                    out_indices_list.append(
+                        [
+                            batch_idx,
+                            out_coords[0].item(),
+                            out_coords[1].item(),
+                            out_coords[2].item(),
+                        ]
+                    )
+                    grids_out[grid_idx] = num_act_out
+                    num_act_out += 1
+
+                # Add indice pair
+                current_slot = indice_num[offset].item()
+                if current_slot < max_indices:
+                    indice_pairs[offset, 0, current_slot] = j
+                    indice_pairs[offset, 1, current_slot] = grids_out[grid_idx]
+                    indice_num[offset] += 1
+
+        # Convert output indices list to tensor
+        if out_indices_list:
+            out_indices = torch.tensor(out_indices_list, dtype=torch.int32)
+        else:
+            out_indices = torch.zeros((0, 4), dtype=torch.int32)
+
+    return out_indices, indice_pairs, indice_num
+
+
+def get_indice_conv_cpu_fp32(
+    features: torch.Tensor,
+    filters: torch.Tensor,
+    indice_pairs: torch.Tensor,
+    indice_pair_num: torch.Tensor,
+    num_activate_out: int,
+    inverse: int = 0,
+    subm: int = 0,
+) -> torch.Tensor:
+
+    """
+    Python implementation of sparse_conv_ext.indice_conv_fp32
+
+    Performs sparse convolution using indice pairs that define the mapping between
+    input and output features.
+
+    Args:
+        features: Input features [N, C_in] where N is number of active input points
+        filters: Convolution weights [kernel_volume, C_in, C_out]
+        indice_pairs: Index pairs [kernel_volume, 2, max_pairs] mapping input->output indices
+        indice_pair_num: Number of valid pairs per kernel position [kernel_volume]
+        num_activate_out: Number of output active points
+        inverse: Whether this is inverse/transpose convolution (0=normal, 1=inverse)
+        subm: Whether this is submanifold convolution (0=normal, 1=subm)
+
+    Returns:
+        output: Output features [num_activate_out, C_out]
+    """
+
+    # Get dimensions
+    device = features.device
+    dtype = features.dtype
+    kernel_volume = indice_pairs.size(0)
+    num_in_planes = features.size(1)
+    num_out_planes = filters.size(-1)  # filters shape: [kernel_volume, C_in, C_out]
+
+    # Move indice_pair_num to CPU for processing
+    indice_pair_num_cpu = indice_pair_num.cpu()
+
+    # Find the kernel position with maximum number of pairs
+    indice_pair_max_size_iter = torch.argmax(indice_pair_num_cpu)
+    indice_pair_max_offset = indice_pair_max_size_iter.item()
+    indice_pair_max_size = indice_pair_num_cpu[indice_pair_max_offset].item()
+
+    # Initialize output tensor
+    output = torch.zeros(num_activate_out, num_out_planes, dtype=dtype, device=device)
+
+    # Handle edge case where no pairs exist
+    if indice_pair_max_size <= 0:
+        return output
+
+    # Reshape filters to [kernel_volume, C_in, C_out]
+    filters = filters.view(-1, num_in_planes, num_out_planes)
+
+    # Handle submanifold convolution center position
+    # In SubM conv, the center kernel position doesn't need gather/scatter operations
+    if subm == 1:
+        # Direct matrix multiplication for center position
+        output = torch.mm(features, filters[indice_pair_max_offset])
+
+    # Process each kernel position
+    for i in range(kernel_volume):
+        n_hot = indice_pair_num_cpu[i].item()
+
+        # Skip empty kernel positions or center position in SubM
+        if n_hot <= 0 or (subm == 1 and i == indice_pair_max_offset):
+            continue
+
+        # GATHER operation: collect input features based on indice pairs
+        if inverse == 0:
+            # Normal convolution: gather using input indices
+            input_indices = indice_pairs[i, 0, :n_hot]  # First column: input indices
+        else:
+            # Inverse convolution: gather using output indices (swapped)
+            input_indices = indice_pairs[i, 1, :n_hot]  # Second column as input indices
+
+        # Perform the gather operation
+        input_buffer_blob = torch.index_select(features, 0, input_indices)
+
+        # GEMM operation: matrix multiplication
+        output_buffer_blob = torch.mm(input_buffer_blob, filters[i])
+
+        # SCATTER-ADD operation: accumulate results to output positions
+        if inverse == 0:
+            # Normal convolution: scatter using output indices
+            output_indices = indice_pairs[i, 1, :n_hot]  # Second column: output indices
+        else:
+            # Inverse convolution: scatter using input indices (swapped)
+            output_indices = indice_pairs[
+                i, 0, :n_hot
+            ]  # First column as output indices
+
+        # Perform scatter-add operation
+        for j in range(n_hot):
+            out_idx = output_indices[j].item()
+            output[out_idx] += output_buffer_blob[j]
+
+    return output
+
+
+def get_indice_pairs(
+    indices,
+    batch_size,
+    spatial_shape,
+    ksize=3,
+    stride=1,
+    padding=0,
+    dilation=1,
+    out_padding=0,
+    subm=False,
+    transpose=False,
+    grid=None,
+):
+    ndim = indices.shape[1] - 1
+    if not isinstance(ksize, (list, tuple)):
+        ksize = [ksize] * ndim
+    if not isinstance(stride, (list, tuple)):
+        stride = [stride] * ndim
+    if not isinstance(padding, (list, tuple)):
+        padding = [padding] * ndim
+    if not isinstance(dilation, (list, tuple)):
+        dilation = [dilation] * ndim
+    if not isinstance(out_padding, (list, tuple)):
+        out_padding = [out_padding] * ndim
+
+    if not subm:
+        if transpose:
+            out_shape = get_deconv_output_size(
+                spatial_shape, ksize, stride, padding, dilation, out_padding
+            )
+        else:
+            out_shape = get_conv_output_size(
+                spatial_shape, ksize, stride, padding, dilation
+            )
+
+    else:
+        out_shape = spatial_shape
+    if grid is None:
+
+        op = get_indice_pairs_3d_cpu(
+            indices,
+            batch_size,
+            out_shape,
+            spatial_shape,
+            ksize,
+            stride,
+            padding,
+            dilation,
+            out_padding,
+            int(subm),
+            int(transpose),
+        )
+
+        return op
+
+
+def indice_conv(
+    features,
+    filters,
+    indice_pairs,
+    indice_pair_num,
+    num_activate_out,
+    inverse=False,
+    subm=False,
+):
+
+    op = get_indice_conv_cpu_fp32(
+        features,
+        filters,
+        indice_pairs,
+        indice_pair_num,
+        num_activate_out,
+        int(inverse),
+        int(subm),
+    )
+
+    return op
+
+
+def indice_subm_conv(
+    features,
+    filters,
+    indice_pairs,
+    indice_pair_num,
+    num_activate_out,
+    inverse=False,
+    subm=True,
+):
+
+    op = get_indice_conv_cpu_fp32(
+        features,
+        filters,
+        indice_pairs,
+        indice_pair_num,
+        num_activate_out,
+        int(inverse),
+        int(subm),
+    )
+
+    return op
+
+
+class SparseConvolution(SparseModule):
+    def __init__(
+        self,
+        ndim,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        subm=False,
+        output_padding=0,
+        transposed=False,
+        inverse=False,
+        indice_key=None,
+        fused_bn=False,
+    ):
+        super(SparseConvolution, self).__init__()
+        assert groups == 1
+        if not isinstance(kernel_size, (list, tuple)):
+            kernel_size = [kernel_size] * ndim
+        if not isinstance(stride, (list, tuple)):
+            stride = [stride] * ndim
+        if not isinstance(padding, (list, tuple)):
+            padding = [padding] * ndim
+        if not isinstance(dilation, (list, tuple)):
+            dilation = [dilation] * ndim
+        if not isinstance(output_padding, (list, tuple)):
+            output_padding = [output_padding] * ndim
+
+        for d, s in zip(dilation, stride):
+            assert any([s == 1, d == 1]), "don't support this."
+
+        self.ndim = ndim
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.conv1x1 = np.prod(kernel_size) == 1
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.transposed = transposed
+        self.inverse = inverse
+        self.output_padding = output_padding
+        self.groups = groups
+        self.subm = subm
+        self.indice_key = indice_key
+        self.fused_bn = fused_bn
+
+        self.weight = Parameter(torch.Tensor(*kernel_size, in_channels, out_channels))
+        if bias:
+            self.bias = Parameter(torch.Tensor(out_channels))
+        else:
+            self.register_parameter("bias", None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = _calculate_fan_in_and_fan_out_hwio(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input):
+        assert isinstance(input, SparseConvTensor)
+        features = input.features
+        device = features.device
+        indices = input.indices
+        spatial_shape = input.spatial_shape
+        batch_size = input.batch_size
+        if not self.subm:
+            if self.transposed:
+                out_spatial_shape = get_deconv_output_size(
+                    spatial_shape,
+                    self.kernel_size,
+                    self.stride,
+                    self.padding,
+                    self.dilation,
+                    self.output_padding,
+                )
+            else:
+                out_spatial_shape = get_conv_output_size(
+                    spatial_shape,
+                    self.kernel_size,
+                    self.stride,
+                    self.padding,
+                    self.dilation,
+                )
+
+        else:
+            out_spatial_shape = spatial_shape
+        if self.conv1x1:
+            features = torch.mm(
+                input.features, self.weight.view(self.in_channels, self.out_channels)
+            )
+            if self.bias is not None:
+                features += self.bias
+            out_tensor = SparseConvTensor(
+                features, input.indices, input.spatial_shape, input.batch_size
+            )
+            out_tensor.indice_dict = input.indice_dict
+            out_tensor.grid = input.grid
+            return out_tensor
+        datas = input.find_indice_pair(self.indice_key)
+        if self.inverse:
+            assert datas is not None and self.indice_key is not None
+            _, outids, indice_pairs, indice_pair_num, out_spatial_shape = datas
+            assert indice_pairs.shape[0] == np.prod(
+                self.kernel_size
+            ), "inverse conv must have same kernel size as its couple conv"
+        else:
+            if self.indice_key is not None and datas is not None:
+                outids, _, indice_pairs, indice_pair_num, _ = datas
+            else:
+                outids, indice_pairs, indice_pair_num = get_indice_pairs(
+                    indices,
+                    batch_size,
+                    spatial_shape,
+                    self.kernel_size,
+                    self.stride,
+                    self.padding,
+                    self.dilation,
+                    self.output_padding,
+                    self.subm,
+                    self.transposed,
+                    grid=input.grid,
+                )
+                input.indice_dict[self.indice_key] = (
+                    outids,
+                    indices,
+                    indice_pairs,
+                    indice_pair_num,
+                    spatial_shape,
+                )
+        if self.subm:
+            out_features = indice_subm_conv(
+                features,
+                self.weight,
+                indice_pairs.to(device),
+                indice_pair_num,
+                outids.shape[0],
+            )
+        else:
+            if not self.inverse:
+                out_features = indice_conv(
+                    features,
+                    self.weight,
+                    indice_pairs.to(device),
+                    indice_pair_num,
+                    outids.shape[0],
+                )
+
+        if self.bias is not None:
+            out_features += self.bias
+        out_tensor = SparseConvTensor(
+            out_features, outids, out_spatial_shape, batch_size
+        )
+        out_tensor.indice_dict = input.indice_dict
+        out_tensor.grid = input.grid
+        return out_tensor
+
+
+@CONV_LAYERS.register_module(force=True)
+class SubMConv3d(SparseConvolution):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        indice_key=None,
+    ):
+        super(SubMConv3d, self).__init__(
+            3,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            True,
+            indice_key=indice_key,
+        )
+
+
+@CONV_LAYERS.register_module(force=True)
+class SparseConv3d(SparseConvolution):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        indice_key=None,
+    ):
+        super(SparseConv3d, self).__init__(
+            3,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            indice_key=indice_key,
+        )
+
+
+@CONV_LAYERS.register_module(force=True)
+class SubMConv3d(SparseConvolution):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        indice_key=None,
+    ):
+        super(SubMConv3d, self).__init__(
+            3,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            True,
+            indice_key=indice_key,
+        )
+
+
+def make_sparse_convmodule(
+    in_channels,
+    out_channels,
+    kernel_size,
+    indice_key,
+    stride=1,
+    padding=0,
+    conv_type="SubMConv3d",
+    norm_cfg=None,
+    order=("conv", "norm", "act"),
+):
+
+    assert isinstance(order, tuple) and len(order) <= 3
+    assert set(order) | {"conv", "norm", "act"} == {"conv", "norm", "act"}
+
+    conv_cfg = dict(type=conv_type, indice_key=indice_key)
+
+    layers = list()
+    for layer in order:
+        if layer == "conv":
+            if conv_type not in [
+                "SparseInverseConv3d",
+                "SparseInverseConv2d",
+                "SparseInverseConv1d",
+            ]:
+                layers.append(
+                    build_conv_layer(
+                        conv_cfg,
+                        in_channels,
+                        out_channels,
+                        kernel_size,
+                        stride=stride,
+                        padding=padding,
+                        bias=False,
+                    )
+                )
+            else:
+                layers.append(
+                    build_conv_layer(
+                        conv_cfg, in_channels, out_channels, kernel_size, bias=False
+                    )
+                )
+        elif layer == "norm":
+            layers.append(build_norm_layer(norm_cfg, out_channels)[1])
+        elif layer == "act":
+            layers.append(nn.ReLU(inplace=True))
+
+    layers = SparseSequential(*layers)
+    return layers
+
+
+def scatter_nd(indices, updates, shape):
+    ret = torch.zeros(*shape, dtype=updates.dtype, device=updates.device)
+    ndim = indices.shape[-1]
+    output_shape = list(indices.shape[:-1]) + shape[indices.shape[-1] :]
+    flatted_indices = indices.view(-1, ndim)
+    slices = [flatted_indices[:, i] for i in range(ndim)]
+    slices += [Ellipsis]
+    ret[slices] = updates.view(*output_shape)
+    return ret
+
+
+class SparseConvTensor:
+    def __init__(self, features, indices, spatial_shape, batch_size, grid=None):
+        self.features = features
+        self.indices = indices
+        if self.indices.dtype != torch.int32:
+            self.indices.int()
+        self.spatial_shape = spatial_shape
+        self.batch_size = batch_size
+        self.indice_dict = {}
+        self.grid = grid
+
+    @property
+    def spatial_size(self):
+        return np.prod(self.spatial_shape)
+
+    def find_indice_pair(self, key):
+        if key is None:
+            return None
+        if key in self.indice_dict:
+            return self.indice_dict[key]
+        return None
+
+    def dense(self, channels_first=True):
+        output_shape = (
+            [self.batch_size] + list(self.spatial_shape) + [self.features.shape[1]]
+        )
+        res = scatter_nd(self.indices.long(), self.features, output_shape)
+        if not channels_first:
+            return res
+        ndim = len(self.spatial_shape)
+        trans_params = list(range(0, ndim + 1))
+        trans_params.insert(1, ndim + 1)
+        return res.permute(*trans_params).contiguous()
+
+    @property
+    def sparity(self):
+        return self.indices.shape[0] / np.prod(self.spatial_shape) / self.batch_size
+
+
+def is_spconv_module(module):
+    spconv_modules = (SparseModule,)
+    return isinstance(module, spconv_modules)
+
+
+def is_sparse_conv(module):
+    return isinstance(module, SparseConvolution)
+
+
+class SparseSequential(SparseModule):
+    def __init__(self, *args, **kwargs):
+        super(SparseSequential, self).__init__()
+        if len(args) == 1 and isinstance(args[0], OrderedDict):
+            for key, module in args[0].items():
+                self.add_module(key, module)
+        else:
+            for idx, module in enumerate(args):
+                self.add_module(str(idx), module)
+        for name, module in kwargs.items():
+            if sys.version_info < (3, 6):
+                raise ValueError("kwargs only supported in py36+")
+            if name in self._modules:
+                raise ValueError("name exists.")
+            self.add_module(name, module)
+        self._sparity_dict = {}
+
+    def __getitem__(self, idx):
+        if not (-len(self) <= idx < len(self)):
+            raise IndexError("index {} is out of range".format(idx))
+        if idx < 0:
+            idx += len(self)
+        it = iter(self._modules.values())
+        for i in range(idx):
+            next(it)
+        return next(it)
+
+    def __len__(self):
+        return len(self._modules)
+
+    @property
+    def sparity_dict(self):
+        return self._sparity_dict
+
+    def add(self, module, name=None):
+        if name is None:
+            name = str(len(self._modules))
+            if name in self._modules:
+                raise KeyError("name exists")
+        self.add_module(name, module)
+
+    def forward(self, input):
+        for k, module in self._modules.items():
+            if is_spconv_module(module):
+                assert isinstance(input, SparseConvTensor)
+                self._sparity_dict[k] = input.sparity
+                input = module(input)
+            else:
+                if isinstance(input, SparseConvTensor):
+                    if input.indices.shape[0] != 0:
+                        input.features = module(input.features)
+                else:
+                    input = module(input)
+
+        return input
+
+    def fused(self):
+        mods = [v for k, v in self._modules.items()]
+        fused_mods = []
+        idx = 0
+        while idx < len(mods):
+            if is_sparse_conv(mods[idx]):
+                if idx < len(mods) - 1 and isinstance(mods[idx + 1], nn.BatchNorm1d):
+                    new_module = SparseConvolution(
+                        ndim=mods[idx].ndim,
+                        in_channels=mods[idx].in_channels,
+                        out_channels=mods[idx].out_channels,
+                        kernel_size=mods[idx].kernel_size,
+                        stride=mods[idx].stride,
+                        padding=mods[idx].padding,
+                        dilation=mods[idx].dilation,
+                        groups=mods[idx].groups,
+                        bias=True,
+                        subm=mods[idx].subm,
+                        output_padding=mods[idx].output_padding,
+                        transposed=mods[idx].transposed,
+                        inverse=mods[idx].inverse,
+                        indice_key=mods[idx].indice_key,
+                        fused_bn=True,
+                    )
+                    new_module.load_state_dict(mods[idx].state_dict(), False)
+                    new_module.to(mods[idx].weight.device)
+                    conv = new_module
+                    bn = mods[idx + 1]
+                    conv.bias.data.zero_()
+                    conv.weight.data[:] = (
+                        conv.weight.data
+                        * bn.weight.data
+                        / (torch.sqrt(bn.running_var) + bn.eps)
+                    )
+                    conv.bias.data[:] = (
+                        conv.bias.data - bn.running_mean
+                    ) * bn.weight.data / (
+                        torch.sqrt(bn.running_var) + bn.eps
+                    ) + bn.bias.data
+                    fused_mods.append(conv)
+                    idx += 2
+                else:
+                    fused_mods.append(mods[idx])
+                    idx += 1
+            else:
+                fused_mods.append(mods[idx])
+                idx += 1
+        return SparseSequential(*fused_mods)
+
+
+# ============================================================================
+# MIDDLE ENCODERS
+# ============================================================================
+
+
+@MIDDLE_ENCODERS.register_module()
+class SparseEncoder(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        sparse_shape,
+        order=("conv", "norm", "act"),
+        norm_cfg=dict(type="BN1d", eps=1e-3, momentum=0.01),
+        base_channels=16,
+        output_channels=128,
+        encoder_channels=((16,), (32, 32, 32), (64, 64, 64), (64, 64, 64)),
+        encoder_paddings=((1,), (1, 1, 1), (1, 1, 1), ((0, 1, 1), 1, 1)),
+        block_type="conv_module",
+    ):
+        super().__init__()
+        assert block_type in ["conv_module", "basicblock"]
+        self.sparse_shape = sparse_shape
+        self.in_channels = in_channels
+        self.order = order
+        self.base_channels = base_channels
+        self.output_channels = output_channels
+        self.encoder_channels = encoder_channels
+        self.encoder_paddings = encoder_paddings
+        self.stage_num = len(self.encoder_channels)
+        self.fp16_enabled = False
+
+        assert isinstance(order, (list, tuple)) and len(order) == 3
+        assert set(order) == {"conv", "norm", "act"}
+
+        if self.order[0] != "conv":
+            self.conv_input = make_sparse_convmodule(
+                in_channels,
+                self.base_channels,
+                3,
+                norm_cfg=norm_cfg,
+                padding=1,
+                indice_key="subm1",
+                conv_type="SubMConv3d",
+                order=("conv",),
+            )
+        else:
+            self.conv_input = make_sparse_convmodule(
+                in_channels,
+                self.base_channels,
+                3,
+                norm_cfg=norm_cfg,
+                padding=1,
+                indice_key="subm1",
+                conv_type="SubMConv3d",
+            )
+
+        encoder_out_channels = self.make_encoder_layers(
+            make_sparse_convmodule, norm_cfg, self.base_channels, block_type=block_type
+        )
+
+        self.conv_out = make_sparse_convmodule(
+            encoder_out_channels,
+            self.output_channels,
+            kernel_size=(1, 1, 3),
+            stride=(1, 1, 2),
+            norm_cfg=norm_cfg,
+            padding=0,
+            indice_key="spconv_down2",
+            conv_type="SparseConv3d",
+        )
+
+    def forward(self, voxel_features, coors, batch_size, **kwargs):
+        coors = coors.int()
+        input_sp_tensor = SparseConvTensor(
+            voxel_features, coors, self.sparse_shape, batch_size
+        )
+        x = self.conv_input(input_sp_tensor)
+
+        encode_features = []
+        for encoder_layer in self.encoder_layers:
+            x = encoder_layer(x)
+            encode_features.append(x)
+
+        out = self.conv_out(encode_features[-1])
+        spatial_features = out.dense()
+        N, C, H, W, D = spatial_features.shape
+        spatial_features = spatial_features.permute(0, 1, 4, 2, 3).contiguous()
+        spatial_features = spatial_features.view(N, C * D, H, W)
+
+        return spatial_features
+
+    def make_encoder_layers(
+        self,
+        make_block,
+        norm_cfg,
+        in_channels,
+        block_type="conv_module",
+        conv_cfg=dict(type="SubMConv3d"),
+    ):
+        assert block_type in ["conv_module", "basicblock"]
+        self.encoder_layers = SparseSequential()
+
+        for i, blocks in enumerate(self.encoder_channels):
+            blocks_list = []
+            for j, out_channels in enumerate(tuple(blocks)):
+                padding = tuple(self.encoder_paddings[i])[j]
+                if i != 0 and j == 0 and block_type == "conv_module":
+                    blocks_list.append(
+                        make_block(
+                            in_channels,
+                            out_channels,
+                            3,
+                            norm_cfg=norm_cfg,
+                            stride=2,
+                            padding=padding,
+                            indice_key=f"spconv{i + 1}",
+                            conv_type="SparseConv3d",
+                        )
+                    )
+                elif block_type == "basicblock":
+                    if j == len(blocks) - 1 and i != len(self.encoder_channels) - 1:
+                        blocks_list.append(
+                            make_block(
+                                in_channels,
+                                out_channels,
+                                3,
+                                norm_cfg=norm_cfg,
+                                stride=2,
+                                padding=padding,
+                                indice_key=f"spconv{i + 1}",
+                                conv_type="SparseConv3d",
+                            )
+                        )
+                    else:
+                        blocks_list.append(
+                            SparseBasicBlock(
+                                out_channels,
+                                out_channels,
+                                norm_cfg=norm_cfg,
+                                conv_cfg=conv_cfg,
+                            )
+                        )
+                else:
+                    blocks_list.append(
+                        make_block(
+                            in_channels,
+                            out_channels,
+                            3,
+                            norm_cfg=norm_cfg,
+                            padding=padding,
+                            indice_key=f"subm{i + 1}",
+                            conv_type="SubMConv3d",
+                        )
+                    )
+                in_channels = out_channels
+            stage_name = f"encoder_layer{i + 1}"
+            stage_layers = SparseSequential(*blocks_list)
+            self.encoder_layers.add_module(stage_name, stage_layers)
+        return out_channels
+
+
+# ============================================================================
+# FUSERS
+# ============================================================================
+
+
+@FUSERS.register_module()
+class ConvFuser(nn.Sequential):
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        super().__init__(
+            nn.Conv2d(sum(in_channels), out_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(True),
+        )
+
+    def forward(self, inputs: List[torch.Tensor]) -> torch.Tensor:
+        return super().forward(torch.cat(inputs, dim=1))
 
 
 # ============================================================================
@@ -2083,6 +3379,8 @@ class MapTRPerceptionTransformer(BaseModule):
         **kwargs,
     ):
         super(MapTRPerceptionTransformer, self).__init__(**kwargs)
+        if modality == "fusion":
+            self.fuser = build_fuser(fuser)
         self.use_attn_bev = encoder["type"] == "BEVFormerEncoder"
         self.encoder = build_transformer_layer_sequence(encoder)
         self.decoder = build_transformer_layer_sequence(decoder)
@@ -2249,6 +3547,19 @@ class MapTRPerceptionTransformer(BaseModule):
             )
         else:
             bev_embed = self.lss_bev_encode(mlvl_feats, prev_bev=prev_bev, **kwargs)
+
+        if lidar_feat is not None:
+            bs = mlvl_feats[0].size(0)
+            bev_embed = (
+                bev_embed.view(bs, bev_h, bev_w, -1).permute(0, 3, 1, 2).contiguous()
+            )
+            lidar_feat = lidar_feat.permute(0, 1, 3, 2).contiguous()  # B C H W
+            lidar_feat = nn.functional.interpolate(
+                lidar_feat, size=(bev_h, bev_w), mode="bicubic", align_corners=False
+            )
+            fused_bev = self.fuser([bev_embed, lidar_feat])
+            fused_bev = fused_bev.flatten(2).permute(0, 2, 1).contiguous()
+            bev_embed = fused_bev
 
         return bev_embed
 
@@ -2663,6 +3974,52 @@ class MapTR(MVXTwoStageDetector):
             "prev_pos": 0,
             "prev_angle": 0,
         }
+        self.modality = modality
+        if self.modality == "fusion" and lidar_encoder is not None:
+            if lidar_encoder["voxelize"].get("max_num_points", -1) > 0:
+                voxelize_module = Voxelization(**lidar_encoder["voxelize"])
+            self.lidar_modal_extractor = nn.ModuleDict(
+                {
+                    "voxelize": voxelize_module,
+                    "backbone": build_middle_encoder(lidar_encoder["backbone"]),
+                }
+            )
+            self.voxelize_reduce = lidar_encoder.get("voxelize_reduce", True)
+
+    def voxelize(self, points):
+        feats, coords, sizes = [], [], []
+        for k, res in enumerate(points):
+            ret = self.lidar_modal_extractor["voxelize"](res)
+            if len(ret) == 3:
+                f, c, n = ret
+            else:
+                assert len(ret) == 2
+                f, c = ret
+                n = None
+            feats.append(f)
+            coords.append(F.pad(c, (1, 0), mode="constant", value=k))
+            if n is not None:
+                sizes.append(n)
+
+        feats = torch.cat(feats, dim=0)
+        coords = torch.cat(coords, dim=0)
+        if len(sizes) > 0:
+            sizes = torch.cat(sizes, dim=0)
+            if self.voxelize_reduce:
+                feats = feats.sum(dim=1, keepdim=False) / sizes.type_as(feats).view(
+                    -1, 1
+                )
+                feats = feats.contiguous()
+
+        return feats, coords, sizes
+
+    def extract_lidar_feat(self, points):
+        feats, coords, sizes = self.voxelize(points)
+        batch_size = coords[-1, 0] + 1
+        lidar_feat = self.lidar_modal_extractor["backbone"](
+            feats, coords, batch_size, sizes=sizes
+        )
+        return lidar_feat
 
     def extract_img_feat(self, img, img_metas, len_queue=None):
         B = img.size(0)
@@ -2743,6 +4100,8 @@ class MapTR(MVXTwoStageDetector):
         self, img_metas, img=None, points=None, prev_bev=None, rescale=False, **kwargs
     ):
         lidar_feat = None
+        if self.modality == "fusion":
+            lidar_feat = self.extract_lidar_feat(points)
         img_feats = self.extract_feat(img=img, img_metas=img_metas)
 
         bbox_list = [dict() for i in range(len(img_metas))]
