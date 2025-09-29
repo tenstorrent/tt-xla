@@ -58,6 +58,7 @@ def test_update_cache(num_heads, max_seq_len, head_size):
         (1, 12, 32, 128, 4, 128, False, 1.0),
         (8, 12, 32, 128, 4, 32, True, 1.0),
         (8, 12, 32, 128, 4, 128, False, 1.0),
+        (1, 32, 512, 128, 8, 512, False, 1.0)
     ],
 )
 def test_scaled_dot_product_attention(
