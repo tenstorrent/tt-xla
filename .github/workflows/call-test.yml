@@ -103,7 +103,7 @@ jobs:
         submodules: recursive
         lfs: true
         sparse-checkout: |
-          test
+          tests
           third-party/tt-forge-models
           venv
           python_package
