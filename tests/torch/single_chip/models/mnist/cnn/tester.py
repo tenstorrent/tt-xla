@@ -6,6 +6,7 @@ from typing import Any, Dict, Sequence, Type
 
 import torch
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+from infra.testers.compiler_config import CompilerConfig
 
 
 class MNISTCNNTester(TorchModelTester):
@@ -16,9 +17,10 @@ class MNISTCNNTester(TorchModelTester):
         model_class: Type[Model],
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         self._model_class = model_class
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, compiler_config)
 
     # @override
     def _get_model(self) -> Model:
