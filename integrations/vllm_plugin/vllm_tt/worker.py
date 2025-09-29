@@ -1,64 +1,59 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""A TPU worker class."""
 
-import os
-from typing import Any, Optional
+from contextlib import suppress
+from typing import TYPE_CHECKING, Optional
 
-import torch
-import torch.distributed
-import torch.nn as nn
-
-import vllm.envs as envs
 from vllm.config import VllmConfig
+from vllm.logger import init_logger
+from vllm.utils import STR_DTYPE_TO_TORCH_DTYPE
+from vllm.v1.kv_cache_interface import FullAttentionSpec, KVCacheConfig, KVCacheSpec
+from vllm.v1.outputs import ModelRunnerOutput
+from .model_runner import TTModelRunner
+from vllm.v1.worker.worker_base import WorkerBase
+import torch
+import torch_xla.core.xla_model as xm
+
+# from vllm.worker.tt_worker import (close_device,
+#                                    get_num_available_blocks_tt,
+#                                    open_device)
+
+if TYPE_CHECKING:
+    from vllm.v1.core.sched.output import SchedulerOutput
+
+logger = init_logger(__name__)
+
+
 from vllm.distributed import (
     ensure_model_parallel_initialized,
     init_distributed_environment,
 )
+
 from vllm.distributed.kv_transfer import (
     ensure_kv_transfer_initialized,
     has_kv_transfer_group,
 )
-from vllm.logger import init_logger
-from vllm.lora.request import LoRARequest
-from vllm.model_executor import set_random_seed
+
+import torch_xla.runtime as xr
 from vllm.platforms import current_platform
-from vllm.platforms.tpu import USE_TPU_COMMONS
-from vllm.tasks import SupportedTask
-from vllm.utils import STR_DTYPE_TO_TORCH_DTYPE, cdiv
-from vllm.v1.core.sched.output import SchedulerOutput
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
-from vllm.v1.outputs import ModelRunnerOutput
-from vllm.v1.utils import report_usage_stats
-from vllm.v1.worker.utils import bind_kv_cache
 
-logger = init_logger(__name__)
-
-if not USE_TPU_COMMONS:
-    logger.info("tpu_commons not found, using vLLM's TPUWorker.")
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.profiler as xp
-    import torch_xla.runtime as xr
-
-    from vllm.v1.attention.backends.pallas import TPU_HEAD_SIZE_ALIGNMENT
-    from vllm.v1.worker.tpu_model_runner import TPUModelRunner
+import vllm.envs as envs
 
 
-class TPUWorker:
+class TTWorker(WorkerBase):
+
     def __init__(
         self,
         vllm_config: VllmConfig,
         local_rank: int,
         rank: int,
         distributed_init_method: str,
-        is_driver_worker: bool = False,
+        is_driver_worker: bool = True,
     ):
-        self.is_driver_worker = is_driver_worker
-        self.vllm_config = vllm_config
-        self.model_config = vllm_config.model_config
-        self.cache_config = vllm_config.cache_config
-        self.lora_config = vllm_config.lora_config
-        self.load_config = vllm_config.load_config
+        super().__init__(
+            vllm_config, local_rank, rank, distributed_init_method, is_driver_worker
+        )
+
         self.parallel_config = vllm_config.parallel_config
         self.use_spmd = envs.VLLM_XLA_USE_SPMD
         self.original_parallel_config = None
@@ -69,243 +64,130 @@ class TPUWorker:
             self.parallel_config.tensor_parallel_size = 1
             self.parallel_config.pipeline_parallel_size = 1
             self.parallel_config.world_size = 1
-        self.scheduler_config = vllm_config.scheduler_config
-        self.device_config = vllm_config.device_config
-        self.speculative_config = vllm_config.speculative_config
-        self.observability_config = vllm_config.observability_config
 
         self.parallel_config.rank = rank
-        self.local_rank = local_rank
-        self.rank = rank
-        self.distributed_init_method = distributed_init_method
 
-        if self.cache_config.cache_dtype == "auto":
-            self.cache_dtype = self.model_config.dtype
-        else:
-            self.cache_dtype = STR_DTYPE_TO_TORCH_DTYPE[self.cache_config.cache_dtype]
+        # Initialized by init_device
+        self.device = None
 
-        if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
-            from vllm.utils import init_cached_hf_modules
+        # Whether to use ttnn tracing for model execution
+        override_tt_config = None  # self.model_config.override_tt_config
+        trace_key = "trace_mode"
+        self.trace_mode = True
+        if override_tt_config and trace_key in override_tt_config:
+            assert override_tt_config[trace_key] in [
+                True,
+                False,
+            ], f"Invalid {trace_key}: {override_tt_config[trace_key]}"
+            self.trace_mode = override_tt_config[trace_key]
 
-            init_cached_hf_modules()
+    def init_device(self) -> None:
+        # self.device = open_device(
+        #     self.model_config.override_tt_config, self.trace_mode)
+        self.device = xm.xla_device()
+        self.device_config.device = self.device
 
-        # Delay profiler initialization to the start of the profiling.
-        # This is because in vLLM V1, MP runtime is initialized before the
-        # TPU Worker is initialized. The profiler server needs to start after
-        # MP runtime is initialized.
-        self.profiler = None
-        self.profile_dir = None
-        if envs.VLLM_TORCH_PROFILER_DIR and self.rank < 1:
-            # For TPU, we can only have 1 active profiler session for 1 profiler
-            # server. So we only profile on rank0.
-            self.profile_dir = envs.VLLM_TORCH_PROFILER_DIR
-            logger.info(
-                "Profiling enabled. Traces will be saved to: %s", self.profile_dir
-            )
-
-        if self.model_config.seed is None:
-            self.model_config.seed = 0
-
-    def initialize_cache(self, num_gpu_blocks: int, num_cpu_blocks: int) -> None:
-        self.cache_config.num_gpu_blocks = num_gpu_blocks
-        self.cache_config.num_cpu_blocks = num_cpu_blocks
-
-    def init_device(self):
-        os.environ["PJRT_DEVICE"] = "TPU"
-        # Note: Currently the XLA compiler wrongly uses 2D ring strategy on 1D
-        # ring, the xla tpu compiler flag
-        # `xla_tpu_force_1d_allreduce_at_chunk_count` is a temporary solution to
-        # fix this. It will be removed after the bug in XLA compiler is fixed.
-        os.environ["LIBTPU_INIT_ARGS"] = (
-            os.environ.get("LIBTPU_INIT_ARGS", "")
-            + " --xla_tpu_force_1d_allreduce_at_chunk_count=1"
-            " --xla_jf_conv_input_fusion=False"
+        # Init ModelRunner here, so that we have access to self.device.
+        self.model_runner: TTModelRunner = TTModelRunner(
+            vllm_config=self.vllm_config,
+            device=self.device,
+            trace_mode=self.trace_mode,
         )
-        # --xla_jf_conv_input_fusion=False is used to improve the perf of
-        # quantized matmul.
-        torch.set_grad_enabled(False)
-        torch.set_default_dtype(self.model_config.dtype)
 
         # Initialize the distributed environment.
         self._init_tpu_worker_distributed_environment(
             self.vllm_config, self.rank, self.distributed_init_method, self.local_rank
         )
 
-        # Device initialization should happen after initializing
-        # the distributed runtime.
-        self.device = xm.xla_device()
-        self.device_config.device = self.device
+    def load_model(self):
+        self.model_runner.load_model()
 
-        # Set random seed.
-        set_random_seed(self.model_config.seed)
-        if self.model_config.seed is not None:
-            xm.set_rng_state(self.model_config.seed, self.device)
+    def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
+        """
+        For the GPU/TPU backends, this method generates the KVCacheSpec by
+        parsing the kv cache format from each Attention module in the static
+        forward context (compilation_config.static_forward_context).
+        core/kv_cache_utils.py uses the KVCacheSpec along with available
+        memory info from a profiling run to determine num blocks.
 
-        # Increase the cache size limit, which is the maximum number of
-        # dynamo graphs that can be compiled.
-        # TODO (NickLucche) On gsm we compile 80+ graphs.
-        # Re-evaluate limit, with MM we may get close to this limit.
-        torch._dynamo.config.cache_size_limit = 128
-        # Use persistent cache to avoid XLA recompilation.
-        # NOTE(woosuk): Set per-rank cache path since different ranks
-        # can have slightly different XLA graphs.
-        world_size = self.parallel_config.world_size
-        rank = xr.global_ordinal()
-        # The PyTorch/XLA compilation cache uses the Torch IR to generate keys.
-        # Consequently, changes in optimization flags, which affect compilation
-        # results, don't change the cache key. This can result in the wrong
-        # compilation being used. To prevent this, disabling the XLA compilation
-        # cache during development is recommended.We can disable it by
-        # `export VLLM_XLA_CACHE_PATH=`
-        if envs.VLLM_XLA_CACHE_PATH:
-            per_rank_path = os.path.join(
-                envs.VLLM_XLA_CACHE_PATH, f"tp{world_size}_rank{rank}"
-            )
-            xr.initialize_cache(per_rank_path, readonly=False)
+        For the TT backend, the static forward context is not populated since
+        the modelling code is independent so we currently skip creating a
+        kv cache spec for each layer, similar to the Spyre/Neuron backends.
+        Currently we also don't run profiling to determine available memory.
 
-        # Init ModelRunner here, so that we have access to self.device.
-        self.model_runner = TPUModelRunner(
-            self.vllm_config, self.device, self.original_parallel_config
+        Return a dummy single layer KVCacheSpec and in the
+        determine_available_memory function override num blocks using
+        self.cache_config.num_gpu_blocks_override.
+        """
+
+        # TODO: Once we're able to populate a static forward context,
+        # generate separate specs per layer (e.g. also sliding window, local
+        # attention).
+
+        model_config = self.model_config
+        parallel_config = self.parallel_config
+        cache_config = self.cache_config
+
+        # Excludes TP factor since that is handled on the model side for TT.
+        total_num_kv_heads = model_config.get_num_kv_heads(parallel_config)
+        head_size = model_config.get_head_size()
+        dtype = (
+            model_config.dtype
+            if cache_config.cache_dtype == "auto"
+            else STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
         )
 
-        if rank == 0:
-            # If usage stat is enabled, collect relevant info.
-            report_usage_stats(self.vllm_config)
+        attn_spec = FullAttentionSpec(
+            block_size=cache_config.block_size if cache_config.block_size else 32,
+            num_kv_heads=total_num_kv_heads,
+            head_size=head_size,
+            dtype=dtype,
+            use_mla=model_config.use_mla,
+            sliding_window=model_config.get_sliding_window(),
+        )
+        kv_cache_spec: dict[str, KVCacheSpec] = {"foo": attn_spec}
+        return kv_cache_spec
 
     def determine_available_memory(self) -> int:
-        kv_caches: dict[str, torch.Tensor] = {}
-        kv_cache_spec = self.model_runner.get_kv_cache_spec()
-        for layer_name, layer_spec in kv_cache_spec.items():
-            if isinstance(layer_spec, AttentionSpec):
-                dtype = layer_spec.dtype
+        """
+        For the GPU/TPU backends, this method runs profiling to determine
+        available memory for the KV cache. The available memory is then used
+        in conjunction with the output of get_kv_cache_spec to determine
+        the number of kv cache blocks (total memory / page_size / num layers).
 
-                # Use an empty tensor instead of `None`` to force Dynamo to pass
-                # it by reference, rather by specializing on the value ``None``.
-                tpu_kv_cache = torch.tensor([], dtype=dtype).to(self.device)
-                kv_caches[layer_name] = tpu_kv_cache
-            else:
-                raise NotImplementedError(
-                    f"Unsupported KV cache spec '{type(layer_spec)}'"
-                )
+        Currenly we just return a large dummy number of bytes similar to the
+        Spyre/Neuron backends and override the number of kv cache blocks.
+        """
 
-        runner_kv_caches: list[torch.Tensor] = []
-        bind_kv_cache(
-            kv_caches,
-            self.vllm_config.compilation_config.static_forward_context,
-            runner_kv_caches,
-        )
+        # TODO: Once we can run profiling, return real available memory
+        # instead of overriding the number of blocks.
+        # num_tt_blocks = get_num_available_blocks_tt(self.vllm_config)
+        # self.cache_config.num_gpu_blocks_override = num_tt_blocks
+        return 12 * 1024**3
 
-        # `max_num_tokens >= max_num_batched_tokens` due to padding.
-        with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
-            self.model_runner.profile_run(self.model_runner.max_num_tokens)
+    def initialize_from_config(self, kv_cache_config: KVCacheConfig) -> None:
+        """Allocate TT KV cache with the specified kv_cache_config."""
+        self.model_runner.initialize_kv_cache(kv_cache_config)
 
-        # Synchronize before measuring the memory usage.
-        xm.wait_device_ops()
+    def initialize_cache(self, num_gpu_blocks: int, num_cpu_blocks: int) -> None:
+        # Cache is already initialized in initialize_from_config.
+        self.cache_config.num_gpu_blocks = num_gpu_blocks
+        self.cache_config.num_cpu_blocks = num_cpu_blocks
 
-        # During the profiling run, the model runs without KV cache. After
-        # the profiling run, the model always runs with KV cache. Here we clear
-        # the dynamo cache and cached bytecode to ensure the model always has
-        # one compiled bytecode. Having one FX graph/cached bytecode per
-        # compiled model is required for `support_torch_compile` decorator to
-        # skip dynamo guard.
-        self.model_runner.reset_dynamo_cache()
-
-        # Get the maximum amount of memory used by the model weights and
-        # intermediate activations.
-        if self.use_spmd:
-            # This is a workaround for the TPU SPMD mode. The get_memory_info
-            # API doesn't work with SPMD mode in PyTorch/XLA.
-            # TODO: use xm.get_memory_info for SPMD once it's supported in
-            # PyTorch/XLA.
-            import tpu_info
-
-            chip_type, _ = tpu_info.device.get_local_chips()
-            device_usage = tpu_info.metrics.get_chip_usage(chip_type)
-            total_memory_size = device_usage[0].total_memory
-            current_mem = device_usage[0].memory_usage
-        else:
-            m = xm.get_memory_info(self.device)
-            total_memory_size = m["bytes_limit"]
-            current_mem = m["bytes_used"]
-        # Ideally we would use profiled = m["peak_bytes_used"] to
-        # get weights + activations. But there is memory used during
-        # compilation / weight loading that impacts the peak and
-        # there is no way to reset peak memory in XLA, So we
-        # use the heuristic of 2% of weights.
-        profiled = current_mem * 1.02
-
-        # Calculate the TPU KV cache size based on profiling.
-        usable_memory_size = int(
-            total_memory_size * self.cache_config.gpu_memory_utilization
-        )
-        tpu_kv_cache_bytes = max(usable_memory_size - profiled, 0)
-        head_size = self.model_config.get_head_size()
-        if head_size > 0:
-            padded_head_size = (
-                cdiv(head_size, TPU_HEAD_SIZE_ALIGNMENT) * TPU_HEAD_SIZE_ALIGNMENT
-            )
-            if padded_head_size != head_size:
-                logger.warning_once("head size is padded to %d", padded_head_size)
-            # We adjust the usable memory size for the KV cache to prevent OOM
-            # errors, even after padding the head_size.
-            tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
-        return int(tpu_kv_cache_bytes)
+    def compile_or_warm_up_model(self) -> None:
+        # Currently skip and compile/capture-trace during the first execution.
+        pass
 
     def execute_model(
         self,
         scheduler_output: "SchedulerOutput",
     ) -> Optional[ModelRunnerOutput]:
+        assert self.is_driver_worker, "There should only be one Worker for TT"
         output = self.model_runner.execute_model(scheduler_output)
-        # every worker's output is needed when kv_transfer_group is set up
-        return output if self.is_driver_worker or has_kv_transfer_group() else None
-
-    def profile(self, is_start: bool = True):
-        if self.rank < 1:
-            if self.profile_dir is None:
-                raise RuntimeError("Profiler is not enabled.")
-            if is_start:
-                if self.profiler is None:
-                    self.profiler = xp.start_server(9012)
-                xp.start_trace(self.profile_dir)
-            else:
-                xp.stop_trace()
-
-    def add_lora(self, lora_request: LoRARequest) -> bool:
-        return self.model_runner.add_lora(lora_request)
-
-    def load_model(self) -> None:
-        self.model_runner.load_model()
-
-    def update_config(self, overrides: dict[str, Any]) -> None:
-        self.model_runner.update_config(overrides)
-
-    def reload_weights(self) -> None:
-        self.model_runner.reload_weights()
-
-    def compile_or_warm_up_model(self) -> None:
-        if not self.model_config.enforce_eager:
-            self.model_runner.capture_model()
-
-        # Reset the seed to ensure that the random state is not affected by
-        # the model initialization and profiling.
-        set_random_seed(self.model_config.seed)
-
-    def get_model(self) -> nn.Module:
-        return self.model_runner.get_model()
-
-    def get_supported_tasks(self) -> tuple[SupportedTask, ...]:
-        return self.model_runner.get_supported_tasks()
-
-    def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
-        return self.model_runner.get_kv_cache_spec()
-
-    def initialize_from_config(self, kv_cache_config: KVCacheConfig) -> None:
-        """Allocate GPU KV cache with the specified kv_cache_config."""
-        self.model_runner.initialize_kv_cache(kv_cache_config)
+        return output
 
     def check_health(self) -> None:
-        # worker will always be healthy as long as it's running.
+        # Worker will always be healthy as long as it's running.
         return
 
     def _init_tpu_worker_distributed_environment(
@@ -336,11 +218,21 @@ class TPUWorker:
 
         ensure_kv_transfer_initialized(vllm_config)
 
-    def shutdown(self) -> None:
-        self.model_runner.ensure_kv_transfer_shutdown()
+    def get_supported_tasks(self):
+        return self.model_runner.get_supported_tasks()
 
+    ## Destructor (used to close devices)
 
-if USE_TPU_COMMONS:
-    from tpu_commons.worker import TPUWorker as TPUCommonsWorker
+    def __del__(self):
+        # Delete model runner first in case there are model artifacts
+        with suppress(AttributeError):
+            # attributes may be already torn down when destructor is called
+            del self.model_runner
 
-    TPUWorker = TPUCommonsWorker  # type: ignore
+            # if self.device:
+            #     close_device(self.device,
+            #                       self.model_config.override_tt_config)
+            #     del self.device
+
+        if hasattr(super(), "__del__"):
+            super().__del__()  # type: ignore
