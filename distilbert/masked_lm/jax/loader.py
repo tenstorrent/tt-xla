@@ -18,6 +18,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.jax_utils import cast_hf_model_to_type
 
 
 class ModelVariant(StrEnum):
@@ -123,6 +124,10 @@ class ModelLoader(ForgeModel):
         model = FlaxDistilBertForMaskedLM.from_pretrained(
             self._model_name, **model_kwargs
         )
+
+        # Cast the model to the dtype_override if provided
+        if dtype_override is not None:
+            model = cast_hf_model_to_type(model, dtype_override)
 
         return model
 

@@ -18,6 +18,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.jax_utils import cast_hf_model_to_type
 
 
 class ModelVariant(StrEnum):
@@ -41,7 +42,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.BASE
 
-    sample_text = "The capital of France is [MASK]."
+    sample_text = "Hello <mask>."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -113,6 +114,10 @@ class ModelLoader(ForgeModel):
             self._model_name,
             dtype=dtype_override,
         )
+
+        # Cast the model to the dtype_override if provided
+        if dtype_override is not None:
+            model = cast_hf_model_to_type(model, dtype_override)
 
         return model
 

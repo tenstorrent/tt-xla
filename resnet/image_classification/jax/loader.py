@@ -19,6 +19,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.jax_utils import cast_hf_model_to_type
 
 
 class ModelVariant(StrEnum):
@@ -183,13 +184,13 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
 
         try:
-            return FlaxResNetForImageClassification.from_pretrained(
+            model = FlaxResNetForImageClassification.from_pretrained(
                 hf_path, **model_kwargs
             )
         except Exception:
             # If direct loading fails, try loading with PyTorch weights conversion
             try:
-                return FlaxResNetForImageClassification.from_pretrained(
+                model = FlaxResNetForImageClassification.from_pretrained(
                     hf_path, from_pt=True, **model_kwargs
                 )
             except Exception:
@@ -207,7 +208,11 @@ class ModelLoader(ForgeModel):
 
                 model.params = variables
 
-                return model
+        # Cast the model to the dtype_override if provided
+        if dtype_override is not None:
+            model = cast_hf_model_to_type(model, dtype_override)
+
+        return model
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the ResNet model with this instance's variant settings.

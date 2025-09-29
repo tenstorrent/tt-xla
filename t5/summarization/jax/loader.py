@@ -7,6 +7,7 @@ T5 model loader implementation for summarization.
 """
 
 from typing import Optional
+from transformers.models.t5.modeling_flax_t5 import shift_tokens_right
 
 from ....base import ForgeModel
 from ....config import (
@@ -18,7 +19,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from transformers.models.t5.modeling_flax_t5 import shift_tokens_right
+from ....tools.jax_utils import cast_hf_model_to_type
 
 
 class ModelVariant(StrEnum):
@@ -118,6 +119,10 @@ class ModelLoader(ForgeModel):
         model = FlaxT5ForConditionalGeneration.from_pretrained(
             self._model_name, **model_kwargs
         )
+
+        # Cast the model to the dtype_override if provided
+        if dtype_override is not None:
+            model = cast_hf_model_to_type(model, dtype_override)
 
         return model
 
