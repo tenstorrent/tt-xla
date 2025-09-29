@@ -131,13 +131,11 @@ private:
                              std::vector<std::uint32_t> devices_mesh_shape);
 
   // Converts TTIR module to TTNN module.
-  tt_pjrt_status
-  convertFromTTIRToTTNN(const std::string &system_descriptor_path,
-                        mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                        const CompileOptions &compile_options,
-                        ClientInstance *client_instance,
-                        std::vector<std::uint32_t> devices_mesh_shape,
-                        std::string &ttnn_code);
+  tt_pjrt_status convertFromTTIRToTTNN(
+      const std::string &system_descriptor_path,
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const CompileOptions &compile_options, ClientInstance *client_instance,
+      std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
   // Creates flatbuffer binary from the built TTNN module.
   tt_pjrt_status createFlatbufferBinary(
