@@ -12,10 +12,9 @@
 
 // c++ standard library includes
 #include <cstdlib>
-#include <map>
 #include <memory>
 #include <string>
-#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 // third-party includes
@@ -104,15 +103,23 @@ public:
       std::unordered_map<std::string, std::string> &out_compile_options);
 
   // Tensor cache management for converted tensors
+  struct BufferVectorHash {
+    std::size_t operator()(const std::vector<BufferInstance *> &vec) const {
+      std::size_t hash = 0;
+      for (const auto *ptr : vec) {
+        hash ^= std::hash<const void *>{}(ptr) + 0x9e3779b9 + (hash << 6) +
+                (hash >> 2);
+      }
+      return hash;
+    }
+  };
 
   // Get cached tensor if it exists, returns nullptr if not found
   tt::runtime::Tensor *
-  getCachedTensor(const std::vector<BufferInstance *> &buffer_instances,
-                  const tt::runtime::Layout &expected_layout);
+  getCachedTensor(const std::vector<BufferInstance *> &buffer_instances);
 
-  // Cache a tensor for the given buffer instances and layout
+  // Cache a tensor for the given buffer instances
   void setCachedTensor(const std::vector<BufferInstance *> &buffer_instances,
-                       const tt::runtime::Layout &layout,
                        const tt::runtime::Tensor &tensor);
 
   // Clear all cached tensors
@@ -174,10 +181,10 @@ private:
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
 
-  // Tensor cache for converted tensors - maps (layout, buffer instances) to
-  // their converted tensors
-  std::map<std::tuple<tt::runtime::Layout, std::vector<BufferInstance *>>,
-           tt::runtime::Tensor>
+  // Tensor cache for converted tensors - maps buffer instance vectors to their
+  // converted tensors
+  std::unordered_map<std::vector<BufferInstance *>, tt::runtime::Tensor,
+                     BufferVectorHash>
       m_tensor_cache;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf

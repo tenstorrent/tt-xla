@@ -13,9 +13,9 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
-#include <map>
 #include <optional>
 #include <sstream>
+#include <unordered_map>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -375,19 +375,13 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
 }
 
 tt::runtime::Tensor *ClientInstance::getCachedTensor(
-    const std::vector<BufferInstance *> &buffer_instances,
-    const tt::runtime::Layout &expected_layout) {
-  auto cache_key = std::make_tuple(expected_layout, buffer_instances);
-  auto it = m_tensor_cache.find(cache_key);
+    const std::vector<BufferInstance *> &buffer_instances) {
+  auto it = m_tensor_cache.find(buffer_instances);
 
   std::ostringstream oss;
-  oss << "layout=" << expected_layout << ", buffers=(";
-  for (size_t i = 0; i < buffer_instances.size(); ++i) {
-    BufferInstance *keyfrag = buffer_instances[i];
-    oss << keyfrag << "[shape=" << keyfrag->toShapeString() << "]";
-    if (i < buffer_instances.size() - 1) {
-      oss << ", ";
-    }
+  oss << "(";
+  for (BufferInstance *keyfrag : buffer_instances) {
+    oss << keyfrag << ", ";
   }
   oss << ")";
 
@@ -405,24 +399,11 @@ tt::runtime::Tensor *ClientInstance::getCachedTensor(
 
 void ClientInstance::setCachedTensor(
     const std::vector<BufferInstance *> &buffer_instances,
-    const tt::runtime::Layout &layout, const tt::runtime::Tensor &tensor) {
-  auto cache_key = std::make_tuple(layout, buffer_instances);
-  m_tensor_cache[cache_key] = tensor;
-
-  std::ostringstream oss;
-  oss << "layout=" << layout << ", buffers=(";
-  for (size_t i = 0; i < buffer_instances.size(); ++i) {
-    BufferInstance *keyfrag = buffer_instances[i];
-    oss << keyfrag << "[shape=" << keyfrag->toShapeString() << "]";
-    if (i < buffer_instances.size() - 1) {
-      oss << ", ";
-    }
-  }
-  oss << ")";
-
+    const tt::runtime::Tensor &tensor) {
+  m_tensor_cache[buffer_instances] = tensor;
   DLOG_F(LOG_DEBUG,
-         "Cached tensor for %zu buffer instances %s (cache size now: %zu)",
-         buffer_instances.size(), oss.str().c_str(), m_tensor_cache.size());
+         "Cached tensor for %zu buffer instances (cache size now: %zu)",
+         buffer_instances.size(), m_tensor_cache.size());
 }
 
 void ClientInstance::clearTensorCache() {
