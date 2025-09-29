@@ -5,8 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs
-from infra.testers.single_chip.op.op_tester import serialize_op_with_random_inputs
+from infra import run_op_test_with_random_inputs, serialize_op_with_random_inputs
 from tests.infra.testers.compiler_config import CompilerConfig
 from utils import Category
 
