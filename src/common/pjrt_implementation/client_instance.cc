@@ -32,7 +32,7 @@
 #include "common/pjrt_implementation/event_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
-#include "common/pjrt_implementation/utils.h"
+#include "common/status.h"
 
 namespace tt::pjrt {
 
@@ -176,36 +176,16 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
-  tt_pjrt_status compile_status = m_module_builder->buildModule(
-      mlir_code, m_cached_system_descriptor_path, compile_options, this);
-
-  if (!tt_pjrt_status_is_ok(compile_status)) {
-    return compile_status;
+  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
+      m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
+                                    compile_options, this);
+  tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
   }
 
-  // TODO(mrakita): Use the VHLO module name from the module builder, if it has
-  // a name, otherwise some default string like the current one.
-  std::string executable_name = "tt_executable";
-
-  // Parse compile options for fingerprint generation
-  module_builder::CompileOptions parsed_compile_options =
-      module_builder::CompileOptions::parse(compile_options);
-
-  std::shared_ptr<ExecutableImage> executable_image =
-      ExecutableImage::createInstance(
-          m_module_builder->getFlatbufferBinary(), std::string(mlir_code),
-          m_module_builder->getTTIRMlirCode(),
-          m_module_builder->getTTNNMlirCode(), std::move(executable_name),
-          m_module_builder->getNumPartitions(),
-          m_module_builder->getNumReplicas(),
-          m_module_builder->getNumDevicesToUtilize(),
-          m_module_builder->getDevicesMeshShape(),
-          m_module_builder->getInputShardings(),
-          m_module_builder->getOutputShardings(),
-          m_module_builder->getIsOutputScalar(),
-          m_module_builder->getOutputDataTypes(),
-          std::move(parsed_compile_options));
-
+  auto executable_image =
+      std::get<std::shared_ptr<ExecutableImage>>(compile_result);
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
   // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
@@ -216,7 +196,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::vector<DeviceInstance *> addressable_devices(
       m_addressable_devices_raw.begin(),
       m_addressable_devices_raw.begin() +
-          m_module_builder->getNumDevicesToUtilize());
+          executable_image->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       LoadedExecutableInstance::createInstance(

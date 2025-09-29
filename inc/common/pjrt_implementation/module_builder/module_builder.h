@@ -9,6 +9,7 @@
 // c++ standard library includes
 #include <memory>
 #include <string>
+#include <tuple>
 
 // llvm mlir includes
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -16,7 +17,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "mlir/IR/Value.h"
 #include "mlir/Pass/PassManager.h"
 
 // PJRT C API includes
@@ -31,6 +31,7 @@
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
+#include "common/pjrt_implementation/executable_image.h"
 #include "common/status.h"
 #include "compile_options.h"
 
@@ -43,141 +44,122 @@ namespace tt::pjrt::module_builder {
 // MLIR program format name. This would ideally be defined in PJRT API header.
 extern const std::string c_mlir_format_name;
 
-// Enum to represent the role of input arguments
-enum class InputArgumentRole {
-  kInput, // Regular input data
-  kWeight // Weight/parameter data
+struct NumArgumentsResult {
+  size_t num_inputs;
+  size_t num_outputs;
+  std::vector<std::vector<std::uint32_t>> output_dimensions;
+  std::vector<size_t> output_ranks;
+  std::vector<std::int64_t> output_dimensions_flat;
+};
+
+struct NumDevicesResult {
+  size_t num_partitions;
+  size_t num_replicas;
+  size_t num_devices_to_utilize;
 };
 
 class ModuleBuilder {
 public:
   ModuleBuilder();
 
-  // Compiles given mlir module code and produces flatbuffer to execute on a
-  // given system.
-  tt_pjrt_status buildModule(
+  // Compiles given mlir module code and returns produced executable image
+  // for execution on a given system, together with the compilation status
+  // for error checking.
+  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> buildModule(
       const std::string_view &mlir_code,
       const std::string &system_descriptor_path,
       const std::unordered_map<std::string, std::string> &compile_options,
       tt::pjrt::ClientInstance *client_instance);
 
-  // Returns compiled flatbuffer binary.
-  const tt::runtime::Binary &getFlatbufferBinary() const {
-    return m_flatbuffer_binary;
-  }
-
-  // Returns TTIR MLIR code.
-  const std::string &getTTIRMlirCode() const { return m_ttir_mlir; }
-
-  // Returns TTNN MLIR code.
-  const std::string &getTTNNMlirCode() const { return m_ttnn_mlir; }
-
-  // Returns vector of boolean values determining if each output is scalar.
-  const std::vector<bool> &getIsOutputScalar() const {
-    return m_is_output_scalar;
-  };
-
-  // Returns a vector of PJRT_Buffer_Type enums corresponding to the data types
-  // of the outputs of the module.
-  const std::vector<PJRT_Buffer_Type> &getOutputDataTypes() const {
-    return m_output_data_types;
-  };
-
-  // Returns number of partitions defined for the program module.
-  size_t getNumPartitions() const { return m_num_partitions; }
-
-  // Returns number of replicas defined for the program module.
-  size_t getNumReplicas() const { return m_num_replicas; }
-
-  // Returns number of devices the binary is intended to run on, estimated from
-  // the compiled graph.
-  size_t getNumDevicesToUtilize() const { return m_num_devices_to_utilize; }
-
-  // Returns devices mesh shape the binary is intended to run on, estimated from
-  // the compiled graph.
-  const std::vector<std::uint32_t> &getDevicesMeshShape() const {
-    return m_devices_mesh_shape;
-  }
-
-  // Returns sharding information for inputs.
-  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
-  getInputShardings() const {
-    return m_input_shardings;
-  }
-
-  // Returns sharding information for outputs.
-  const std::vector<mlir::tt::sharding_utils::MeshSharding> &
-  getOutputShardings() const {
-    return m_output_shardings;
-  }
-
-  // Returns input argument roles (weight vs input).
-  const std::vector<InputArgumentRole> &getInputArgumentRoles() const {
-    return m_input_argument_roles;
-  }
-
 private:
   // Creates VHLO module from the input program code.
-  mlir::OwningOpRef<mlir::ModuleOp>
-  createVHLOModule(const std::string_view &code);
+  tt_pjrt_status
+  createVHLOModule(const std::string_view &code,
+                   mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts VHLO module to StableHLO module.
-  void convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  tt_pjrt_status
+  convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Runs frontend specific SHLO pipeline on the MLIR module.
-  void runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  tt_pjrt_status
+  runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Fills up the m_is_output_scalar array with information is the output type
-  // scalar or not.
-  void collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  // Collects the information about output types.
+  static std::vector<PJRT_Buffer_Type>
+  collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Collects the number of input and output arguments from the VHLO module.
+  static tt_pjrt_status
+  collectNumArguments(const mlir::OwningOpRef<mlir::ModuleOp> &module,
+                      NumArgumentsResult &result);
 
   // Collects the information about the sharding of specific inputs.
-  void collectInputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectInputShardings(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
 
   // Collects the information about the sharding of specific outputs.
-  void collectOutputShardings(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Collects the information about input argument roles (weight vs input).
-  void
-  collectInputArgumentRoles(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectOutputShardings(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
   // Runs compiler StableHLO pipeline on the MLIR module.
-  void
+  tt_pjrt_status
   runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Converts StableHLO module to TTIR module.
-  void convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  tt_pjrt_status
+  convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                        std::string &ttir_code);
 
   // Collects the information about the mesh shape the module is intended to run
   // on.
-  void collectMeshShape(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  static std::vector<std::uint32_t> collectMeshShape(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings);
 
   // Estimates devices mesh shape from input shardings in case the mesh
   // attribute is not set on the module.
-  void estimateMeshShape();
+  static std::vector<std::uint32_t> estimateMeshShape(
+      std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings);
 
   // Gets the number of devices the binary is intended to run on from the VHLO
   // module.
-  void
-  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  static NumDevicesResult
+  collectNumDevicesToUtilize(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                             std::vector<std::uint32_t> devices_mesh_shape);
 
   // Converts TTIR module to TTNN module.
-  void convertFromTTIRToTTNN(const std::string &system_descriptor_path,
-                             mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                             const CompileOptions &compile_options,
-                             tt::pjrt::ClientInstance *client_instance);
+  tt_pjrt_status convertFromTTIRToTTNN(
+      const std::string &system_descriptor_path,
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const CompileOptions &compile_options, ClientInstance *client_instance,
+      std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
   // Creates flatbuffer binary from the built TTNN module.
-  void
-  createFlatbufferBinary(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  tt_pjrt_status createFlatbufferBinary(
+      const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
+      tt::runtime::Binary &flatbuffer_binary);
 
   // Verifies that creates flatbuffer binary satisfies conditions estimated by
   // the compiler from the input graph.
-  void verifyCreatedFlatbufferBinary();
+  tt_pjrt_status verifyCreatedFlatbufferBinary(
+      const tt::runtime::Binary &flatbuffer_binary,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings);
 
   // Checks if the resulting outputs and their shardings are valid.
-  void checkOutputShardingShapes(
-      const std::vector<tt::runtime::TensorDesc> &output_specs);
+  static tt_pjrt_status checkOutputShardingShapes(
+      const std::vector<tt::runtime::TensorDesc> &output_specs,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings);
 
   // Prints module to console for debug purposes.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
@@ -186,25 +168,28 @@ private:
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
   // Checks if a particular type is scalar.
-  bool isScalarType(mlir::Type type);
+  static bool isScalarType(mlir::Type type);
 
   // Converts a MLIR module into it's textual representation
-  std::string getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  static std::string
+  getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Collect input sharding if we are using GSPMD.
-  void
-  collectInputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectInputShardingsGSPMD(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
 
   // Collect output sharding if we are using GSPMD.
-  void
-  collectOutputShardingsGSPMD(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+  tt_pjrt_status collectOutputShardingsGSPMD(
+      const mlir::OwningOpRef<mlir::ModuleOp> &module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
   // Collect input sharding if we are using Shardy.
-  void
+  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Collect output sharding if we are using Shardy.
-  void
+  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
   collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Checks if the StableHLO code is using the Shardy mlir dialect.
@@ -217,69 +202,33 @@ private:
 
   // Takes a vector of string attributes representing GSPMD sharding and fills
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
-  mlir::LogicalResult createShardingsFromGSPMD(
+  static mlir::LogicalResult createShardingsFromGSPMD(
       const std::vector<mlir::StringAttr> &gspmd_attributes,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
   // fills the vector of tt_mlir MeshSharding objects with the appropriate
   // corresponding values.
-  mlir::LogicalResult createShardingsFromShardy(
+  static mlir::LogicalResult createShardingsFromShardy(
       std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
       const mlir::sdy::MeshAttr &shardy_mesh,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
+  // Collects memory kinds for output buffers.
+  static void collectMemoryKinds(size_t num_outputs,
+                                 std::vector<const char *> &memory_kinds,
+                                 std::vector<size_t> &memory_kind_sizes);
+
   // Gets all public functions from the module.
-  std::vector<mlir::func::FuncOp>
+  static std::vector<mlir::func::FuncOp>
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
-  std::optional<mlir::sdy::MeshOp>
+  static std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
-
-  // Compiled flatbuffer binary.
-  tt::runtime::Binary m_flatbuffer_binary;
-
-  // TTIR MLIR code.
-  std::string m_ttir_mlir;
-
-  // TTNN MLIR code.
-  std::string m_ttnn_mlir;
-
-  // Holds status of the last builder action.
-  tt_pjrt_status m_status;
-
-  // For every output, holds if the type is a scalar or not.
-  std::vector<bool> m_is_output_scalar;
-
-  // For every output, stores the expected data type.
-  std::vector<PJRT_Buffer_Type> m_output_data_types;
-
-  // Number of partitions defined for the program module.
-  size_t m_num_partitions;
-
-  // Number of replicas defined for the program module.
-  size_t m_num_replicas;
-
-  // Number of devices the binary is intended to run on, estimated from the
-  // compiled graph.
-  size_t m_num_devices_to_utilize;
-
-  // Devices mesh shape the binary is intended to run on, estimated from the
-  // compiled graph.
-  std::vector<std::uint32_t> m_devices_mesh_shape;
-
-  // For every input, holds the sharding information.
-  std::vector<mlir::tt::sharding_utils::MeshSharding> m_input_shardings;
-
-  // For every output, holds the sharding information.
-  std::vector<mlir::tt::sharding_utils::MeshSharding> m_output_shardings;
-
-  // For every input, holds the argument role (weight vs input).
-  std::vector<InputArgumentRole> m_input_argument_roles;
 };
 
 } // namespace tt::pjrt::module_builder
