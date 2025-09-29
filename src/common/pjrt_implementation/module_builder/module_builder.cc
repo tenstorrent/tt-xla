@@ -190,24 +190,23 @@ ModuleBuilder::buildModule(
       return {status, nullptr};
     }
 
-  return {tt_pjrt_status::kSuccess,
-          FlatbufferExecutableImage::createInstance(
-              flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
-              std::move(ttnn_mlir), std::move(executable_name),
-              num_arguments.num_inputs, num_arguments.num_outputs,
-              std::move(num_arguments.output_dimensions),
-              std::move(num_arguments.output_ranks),
-              std::move(num_arguments.output_dimensions_flat), num_devices_result.num_partitions,
-              num_devices_result.num_replicas, num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
-              output_shardings, output_types, std::move(output_memory_kinds),
-              std::move(output_memory_kinds_sizes),
-              std::move(compile_options))};
-  }
-  else if (compile_options.backend == Backend::CodegenCpp) {
-    return {tt_pjrt_status::kUnimplemented,
-            nullptr};
-  }
-  else {
+    return {
+        tt_pjrt_status::kSuccess,
+        FlatbufferExecutableImage::createInstance(
+            flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
+            std::move(ttnn_mlir), std::move(executable_name),
+            num_arguments.num_inputs, num_arguments.num_outputs,
+            std::move(num_arguments.output_dimensions),
+            std::move(num_arguments.output_ranks),
+            std::move(num_arguments.output_dimensions_flat),
+            num_devices_result.num_partitions, num_devices_result.num_replicas,
+            num_devices_result.num_devices_to_utilize, mesh_shape,
+            input_shardings, output_shardings, output_types,
+            std::move(output_memory_kinds),
+            std::move(output_memory_kinds_sizes), std::move(compile_options))};
+  } else if (compile_options.backend == Backend::CodegenCpp) {
+    return {tt_pjrt_status::kUnimplemented, nullptr};
+  } else {
     DLOG_F(ERROR, "Unsupported backend option");
     return {tt_pjrt_status::kInvalidArgument, nullptr};
   }

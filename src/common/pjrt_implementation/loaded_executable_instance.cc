@@ -397,19 +397,21 @@ FlatbufferLoadedExecutableInstance::createInstance(
         std::vector<DeviceInstance *> &&addressable_devices,
         ClientInstance *client_instance)
         : FlatbufferLoadedExecutableInstance(std::move(executable_image),
-                                             std::move(addressable_devices), client_instance) {}
+                                             std::move(addressable_devices),
+                                             client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices), client_instance);
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 FlatbufferLoadedExecutableInstance::FlatbufferLoadedExecutableInstance(
     std::shared_ptr<FlatbufferExecutableImage> executable_image,
     const std::vector<DeviceInstance *> &addressable_devices,
     ClientInstance *client_instance)
-    : LoadedExecutableInstance(std::move(executable_image),
-                               addressable_devices, client_instance) {}
+    : LoadedExecutableInstance(std::move(executable_image), addressable_devices,
+                               client_instance) {}
 
 void FlatbufferLoadedExecutableInstance::releaseResources() {
   if (m_deleted) {
@@ -545,19 +547,21 @@ SOLoadedExecutableInstance::createInstance(
                         std::vector<DeviceInstance *> &&addressable_devices,
                         ClientInstance *client_instance)
         : SOLoadedExecutableInstance(std::move(executable_image),
-                                     std::move(addressable_devices), client_instance) {}
+                                     std::move(addressable_devices),
+                                     client_instance) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
-                                               std::move(addressable_devices), client_instance);
+                                               std::move(addressable_devices),
+                                               client_instance);
 }
 
 SOLoadedExecutableInstance::SOLoadedExecutableInstance(
     std::shared_ptr<SOExecutableImage> executable_image,
     const std::vector<DeviceInstance *> &addressable_devices,
     ClientInstance *client_instance)
-    : LoadedExecutableInstance(std::move(executable_image),
-                               addressable_devices, client_instance) {}
+    : LoadedExecutableInstance(std::move(executable_image), addressable_devices,
+                               client_instance) {}
 
 void SOLoadedExecutableInstance::releaseResources() {
   if (m_deleted) {

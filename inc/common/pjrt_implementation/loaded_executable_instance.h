@@ -189,7 +189,7 @@ private:
   FlatbufferLoadedExecutableInstance(
       std::shared_ptr<FlatbufferExecutableImage> executable_image,
       const std::vector<DeviceInstance *> &addressable_devices,
-    ClientInstance *client_instance);
+      ClientInstance *client_instance);
 };
 
 // Derived class for SO-based loaded executables
