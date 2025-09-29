@@ -79,3 +79,13 @@ class BaseTester(ABC):
         output_prefix = f"output_artifact/{clean_name}"
 
         self.serialize_on_device(output_prefix)
+
+    @abstractmethod
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
