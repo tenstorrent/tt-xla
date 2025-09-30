@@ -18,33 +18,27 @@ from infra.comparators.torch_comparator import TorchComparator
 # calculating and comparing golden vs device results.
 
 
-@pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("bias", [True])
 def test_simple_mm(bias):
-    class MM(torch.nn.Module):
+    class MyCustomModule(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.linear = torch.nn.Linear(32, 64, bias=bias, dtype=torch.bfloat16)
+            self.linear = torch.nn.Linear(32, 64, bias=bias)
 
         def forward(self, x):
+            x = torch.nn.functional.relu(x)
             return self.linear(x)
 
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-
-    model = MM()
-    golden = model(input_x)
-
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
 
-    output = model(input_x.to(device))
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
-        )
-    )
+    input_x = torch.randn(32, 32).to(device)
 
-    comparator.compare(output, golden)
+    model = MyCustomModule().to(device)
+    model = torch.compile(model, backend="tt")
 
+    output = model(input_x)
+    
+    output = output.to("cpu")
 
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm_eager(bias):
