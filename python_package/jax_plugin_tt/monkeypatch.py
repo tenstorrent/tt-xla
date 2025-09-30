@@ -20,6 +20,7 @@ import jax.nn
 from jax.extend import core
 from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
+from jax._src import random
 
 
 def _is_module_imported(module_name: str) -> bool:
@@ -288,6 +289,49 @@ def _create_flax_apply_patch_config(mark_weight_func):
     ]
 
 
+def _create_uniform_patch_config():
+    """
+    Create a MonkeyPatchConfig for patching jax._src.random._uniform.
+    """
+
+    if not (_is_module_imported("numpy")):
+        return []
+
+    import numpy as np
+
+    # The ttir.rand op requires shape argument to be int32, so to avoid
+    # type conversion during lowering in MLIR, we do it here in the patch.
+    def patch_uniform(config):
+        def with_shape_int32(*args, **kwargs):
+            # If "shape" is keyword argument
+            if "shape" in kwargs:
+                shape = kwargs["shape"]
+                kwargs["shape"] = tuple(np.int32(s) for s in shape)
+            # If "shape" is positional argument
+            else:
+                # convention: (key, shape, dtype, ...)
+                shape = args[1]
+                new_shape = tuple(np.int32(s) for s in shape)
+                args = (args[0], new_shape) + args[2:]
+
+            return jax.lax.composite(
+                lambda *inner_args, **inner_kwargs: config.backup(
+                    *inner_args, **inner_kwargs
+                ),
+                "tenstorrent.uniform",
+            )(*args, **kwargs)
+
+        return with_shape_int32
+
+    return [
+        MonkeyPatchConfig(
+            target_module=random,
+            target_function="_uniform",
+            replacement_factory=patch_uniform,
+        )
+    ]
+
+
 def _get_monkeypatches():
     """
     Get the list of monkey patches for the Tenstorrent JAX plugin.
@@ -303,6 +347,9 @@ def _get_monkeypatches():
     # Add flax patches
     mark_weight = _setup_mark_weight_primitive()
     patches.extend(_create_flax_apply_patch_config(mark_weight))
+
+    # Add uniform patch
+    patches.extend(_create_uniform_patch_config())
 
     return patches
 
