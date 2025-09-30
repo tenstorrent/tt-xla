@@ -12,6 +12,7 @@ import collections
 from dataclasses import dataclass
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from tests.utils import BringupStatus, Category
+from third_party.tt_forge_models.config import Parallelism
 
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
@@ -408,6 +409,7 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "parallelism": str(Parallelism.TENSOR_PARALLEL),
     }
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
