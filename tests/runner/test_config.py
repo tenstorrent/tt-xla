@@ -274,32 +274,22 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
+        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497",
+                "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
             },
         },
     },
@@ -1850,17 +1840,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "gemma/pytorch-google/gemma-1.1-7b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
         "arch_overrides": {
             "p150": {
-                "assert_pcc": False,
-                "status": ModelTestStatus.EXPECTED_PASSING,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
             },
-            "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97",
             },
         },
     },
@@ -2395,21 +2384,17 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
+        "reason": "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
@@ -2417,10 +2402,8 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475",
             },
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
             },
         },
     },

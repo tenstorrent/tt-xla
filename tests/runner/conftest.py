@@ -11,7 +11,7 @@ import difflib
 _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150"}
+ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
 
 
 def pytest_addoption(parser):
@@ -74,6 +74,16 @@ def pytest_collection_modifyitems(config, items):
         # Apply any custom/extra markers from config (e.g., "push", "nightly")
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
+
+        # Define default set of supported archs, which can be optionally overridden in test_config.py
+        # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
+        default_archs = ["n150", "p150"]
+        archs_to_mark = getattr(meta, "supported_archs", None) or default_archs
+        for arch_marker in archs_to_mark:
+            # Prefer the exact string; if it contains a hyphen and pytest disallows it, also add underscore variant
+            item.add_marker(getattr(pytest.mark, arch_marker))
+            if "-" in arch_marker:
+                item.add_marker(getattr(pytest.mark, arch_marker.replace("-", "_")))
 
     # If validating config, clear all items so no tests run
     if validate_config:

@@ -7,10 +7,13 @@ from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
+import torch_xla.runtime as xr
+
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
 from infra.workloads import Workload
+import os
 
 from .model_tester import ModelTester, RunMode
 
@@ -74,6 +77,20 @@ class TorchModelTester(ModelTester):
         self._workload = Workload(
             framework=self._framework, model=self._model, args=args, kwargs=kwargs
         )
+        self._workload.mesh = self._get_mesh()
+        self._workload.shard_spec_fn = self._get_shard_specs_function()
+
+        self._enable_xla_spmd_if_needed()
+
+    # If model has shard specs and running on multichip mesh, then convert StableHLO
+    # to Shardy dialect and initialize XLA SPMD runtime.
+    def _enable_xla_spmd_if_needed(self) -> None:
+        has_shard_specs = self._workload.shard_spec_fn is not None
+        is_multichip = self._workload.mesh and len(self._workload.mesh.device_ids) > 1
+
+        if has_shard_specs and is_multichip:
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+            xr.use_spmd()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
