@@ -257,6 +257,42 @@ def squeeze(input, dims):
     return input.reshape(newshape)
 
 
+# TODO(#1519): Constants other then 0 and 1 get lowered to vhlo as inputs.
+# Workaround this by adding 1s together which gets optimized out as a single constant later.
+def create_constant_tensor(scalar, dtype, device):
+    result = torch.ops.aten.scalar_tensor(0)
+    result = result.to(dtype).to(device)
+    ones = torch.ops.aten.scalar_tensor(1)
+    ones = ones.to(dtype).to(device)
+    for _ in range(int(scalar)):
+        result = result + ones
+    return result
+
+
+# If clamp inputs are integers or floats, convert them to tensors.
+def clamp(input, min_val=None, max_val=None):
+    if (
+        min_val is not None
+        and type(min_val) == int
+        or type(min_val) == float
+        and min_val.is_integer()
+    ):
+        min_val = create_constant_tensor(min_val, input.dtype, input.device)
+    if (
+        max_val is not None
+        and type(max_val) == int
+        or type(max_val) == float
+        and max_val.is_integer()
+    ):
+        max_val = create_constant_tensor(max_val, input.dtype, input.device)
+
+    return torch.clamp(input, min_val, max_val)
+
+
+def hardtanh(input, min_val, max_val):
+    return clamp(input, min_val, max_val)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -314,6 +350,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        aten.hardtanh.default: hardtanh,
+        aten.clamp.default: clamp,
     }
 
 
