@@ -108,6 +108,11 @@ jobs:
           tests
           venv
 
+    - name: Log out
+      shell: bash
+      run: |
+        ls -lah
+
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
