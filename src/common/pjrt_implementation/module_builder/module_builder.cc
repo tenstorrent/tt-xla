@@ -577,8 +577,6 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
                                     mlir::PassManager::Nesting::Implicit);
-  // shlo_to_ttir_pm.getContext()->disableMultithreading();
-  // shlo_to_ttir_pm.enableIRPrinting();
 
   mlir::tt::ttir::StableHLOToTTIRPipelineOptions shlo_options;
   shlo_options.arithDialectConversionsEnabled = true;
@@ -696,11 +694,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const CompileOptions &compile_options, ClientInstance *client_instance,
     std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
-  // shlo_to_ttir_pm.getContext()->disableMultithreading();
-  // shlo_to_ttir_pm.enableIRPrinting();
-  ttir_to_ttnn_pm.getContext()->disableMultithreading();
-  ttir_to_ttnn_pm.enableIRPrinting();
-
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
   options.optimizerPassEnabled = compile_options.enable_optimizer;

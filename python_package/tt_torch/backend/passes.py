@@ -7,8 +7,8 @@ from torch.fx.experimental import const_fold
 from torch.export.graph_signature import InputKind, OutputKind
 from .graph_patterns import (
     get_patterns,
+    replace_pattern,
 )
-from torch.fx import subgraph_rewriter
 
 
 def insert_argument_type_markers(
@@ -172,6 +172,8 @@ def run_rewrite_patterns(gm: torch.fx.GraphModule):
 
     patterns = get_patterns()
     for name, (pattern, replacement) in patterns.items():
-        matches = subgraph_rewriter.replace_pattern(gm, pattern, replacement)
+        matches = replace_pattern(gm, pattern, replacement)
+        # if len(matches) == 0:
+        #     assert False, f"Pattern {name} not found in graph"
 
     return gm
