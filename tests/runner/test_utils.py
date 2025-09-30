@@ -401,6 +401,15 @@ def record_model_test_properties(
             bringup_status = BringupStatus.UNKNOWN
             reason = "Not specified"
 
+    # TODO (kmabee) - This is temporary workaround to populate parallelism tag for superset
+    # database correctly in very short term for newly added TP models on n300-llmbox.
+    # This will be replaced by something more robust in near future.
+    arch = request.config.getoption("--arch")
+    if "llmbox" in arch:
+        parallelism = Parallelism.TENSOR_PARALLEL
+    else:
+        parallelism = Parallelism.SINGLE_DEVICE
+
     tags = {
         "test_name": str(request.node.originalname),
         "specific_test_case": str(request.node.name),
@@ -409,7 +418,7 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
-        "parallelism": str(Parallelism.TENSOR_PARALLEL),
+        "parallelism": str(parallelism),
     }
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
