@@ -114,6 +114,18 @@ size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   return static_cast<size_t>(runtime_tensor_size);
 }
 
+std::string BufferInstance::getShapeString() const {
+  std::string result = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0) {
+      result += ", ";
+    }
+    result += std::to_string(m_dimensions[i]);
+  }
+  result += "]";
+  return result;
+}
+
 bool BufferInstance::isDataDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   return m_data_deleted;
@@ -138,6 +150,7 @@ void BufferInstance::deleteData() {
   // buffer creation and copying data from host, so we have to check if handle
   // is set before deallocating tensor.
   if (m_runtime_tensor.handle) {
+    DLOG_F(LOG_DEBUG, "Tensor deallocated: shape=%s", getShapeString().c_str());
     tt::runtime::deallocateTensor(m_runtime_tensor, /*force=*/true);
   }
 

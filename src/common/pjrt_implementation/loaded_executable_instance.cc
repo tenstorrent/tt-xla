@@ -149,6 +149,16 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
+    std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+    std::string shape_str = "[";
+    for (size_t i = 0; i < output_shape.size(); ++i) {
+      if (i > 0)
+        shape_str += ", ";
+      shape_str += std::to_string(output_shape[i]);
+    }
+    shape_str += "]";
+    DLOG_F(LOG_DEBUG, "Tensor deallocated (output): shape=%s",
+           shape_str.c_str());
     tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
   }
 
@@ -263,6 +273,10 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.
     if (laid_out_tensor.data != input_tensor.data) {
+      BufferInstance *buffer =
+          BufferInstance::unwrap(argument_lists[0][arg_index]);
+      DLOG_F(LOG_DEBUG, "Tensor allocated on device: shape=%s",
+             buffer->getShapeString().c_str());
       tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
     }
 
