@@ -27,7 +27,7 @@ build_and_push() {
     local image_name=$1
     local dockerfile=$2
     local on_main=$3
-    local target_image=$5
+    local target_image=$4
 
     IMAGE_EXISTS=false
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then

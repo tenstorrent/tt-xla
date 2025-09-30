@@ -36,9 +36,7 @@ FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
 COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
-RUN echo "Before removal:" && ls -la $TTMLIR_TOOLCHAIN_DIR/ && \
-    rm -rf $TTMLIR_TOOLCHAIN_DIR/venv && \
-    echo "After removal:" && ls -la $TTMLIR_TOOLCHAIN_DIR/
+RUN rm -rf $TTMLIR_TOOLCHAIN_DIR/venv
 
 RUN du -h --max-depth=2 $TTMLIR_TOOLCHAIN_DIR
 
