@@ -27,7 +27,6 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     source env/activate && \
     cmake -B env/build env && \
     cmake --build env/build && \
-    rm -rf $TTMLIR_TOOLCHAIN_DIR/venv && \
     chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
 
 # Final stage
