@@ -10,13 +10,15 @@ import pytest
 def test_opt_generation():
     prompts = [
         "Hello, my name is",
+        # "The capital of France is",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
     llm_args = {
         "model": "facebook/opt-125m",
-        "max_num_batched_tokens": 16,
+        "max_num_batched_tokens": 32,
         "max_num_seqs": 1,
-        "max_model_len": 16,
+        "max_model_len": 32,
+        "dtype": "bfloat16",
     }
     llm = vllm.LLM(**llm_args)
 

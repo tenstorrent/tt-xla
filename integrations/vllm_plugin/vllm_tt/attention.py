@@ -123,13 +123,13 @@ class TTMetadata:
     #                                   |-- query_len ---|
 
     # Used in the TTAttentionBackendImpl
-    slot_mapping: torch.Tensor
-    block_tables: torch.Tensor
-    context_lens: torch.Tensor
-    query_start_loc: torch.Tensor
-    num_seqs: torch.Tensor
-    num_kv_update_slices: torch.Tensor
-    num_slices_per_kv_cache_update_block: int
+    # slot_mapping: torch.Tensor
+    # block_tables: torch.Tensor
+    cur_pos: torch.Tensor
+    # query_start_loc: torch.Tensor
+    # num_seqs: torch.Tensor
+    # num_kv_update_slices: torch.Tensor
+    # num_slices_per_kv_cache_update_block: int
     attn_mask: torch.Tensor
 
 
@@ -198,25 +198,39 @@ class TTAttentionBackendImpl(AttentionImpl):
         Returns:
             shape = [num_tokens, num_heads * head_size]
         """
-        num_tokens, hidden_size = query.shape
-        query = query.reshape(
-            1, query.shape[0], query.shape[1] // self.head_size, self.head_size
-        ).transpose(
+        # print(f"query: {query.shape}, key: {key.shape}, value: {value.shape}, kv_cache: {kv_cache.shape}")
+        # num_tokens, hidden_size = query.shape
+        # query = query.reshape(
+        #     1, query.shape[0], query.shape[1] // self.head_size, self.head_size
+        # ).transpose(
+        #     -3, -2
+        # )  # [1, num_heads, num_tokens, head_size]
+        # key = key.reshape(
+        #     1, key.shape[0], key.shape[1] // self.head_size, self.head_size
+        # ).transpose(
+        #     -3, -2
+        # )  # [1, num_kv_heads, max_seq_len, head_size]
+        # value = value.reshape(
+        #     1, value.shape[0], value.shape[1] // self.head_size, self.head_size
+        # ).transpose(
+        #     -3, -2
+        # )  # [1, num_kv_heads, max_seq_len, head_size]
+
+        batch_size, seq_len = query.shape[:2]
+        num_heads = query.shape[2] // self.head_size
+
+        query = query.reshape(batch_size, seq_len, num_heads, self.head_size).transpose(
             -3, -2
-        )  # [1, num_heads, num_tokens, head_size]
+        )
         key = key.reshape(
-            1, key.shape[0], key.shape[1] // self.head_size, self.head_size
-        ).transpose(
-            -3, -2
-        )  # [1, num_kv_heads, max_seq_len, head_size]
+            batch_size, seq_len, self.num_kv_heads, self.head_size
+        ).transpose(-3, -2)
         value = value.reshape(
-            1, value.shape[0], value.shape[1] // self.head_size, self.head_size
-        ).transpose(
-            -3, -2
-        )  # [1, num_kv_heads, max_seq_len, head_size]
+            batch_size, seq_len, self.num_kv_heads, self.head_size
+        ).transpose(-3, -2)
 
         if kv_cache.numel() > 1:
-            cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
+            cache_position = (attn_metadata.cur_pos[:1] - 1).to(query.device)
 
             k_cache = kv_cache[0]
             v_cache = kv_cache[1]
@@ -234,7 +248,7 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         if query.shape[-2] == 1:
             query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
-            cur_pos_tensor = attn_metadata.context_lens[:1]
+            cur_pos_tensor = attn_metadata.cur_pos[:1].to(query.device)
             out = torch.ops.tt.scaled_dot_product_attention_decode(
                 query,
                 key,
@@ -244,7 +258,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
-            out = out.reshape(num_tokens, hidden_size)
+            out = out.reshape(batch_size, seq_len, num_heads * self.head_size)
             return out
         else:
             return (
@@ -256,7 +270,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                     attn_mask=attn_metadata.attn_mask,
                 )
                 .transpose(-3, -2)
-                .reshape(num_tokens, hidden_size)
+                .reshape(batch_size, seq_len, num_heads * self.head_size)
             )
 
 

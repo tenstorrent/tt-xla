@@ -102,51 +102,54 @@ class TTWorker(WorkerBase):
     def load_model(self):
         self.model_runner.load_model()
 
+    # def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
+    #     """
+    #     For the GPU/TPU backends, this method generates the KVCacheSpec by
+    #     parsing the kv cache format from each Attention module in the static
+    #     forward context (compilation_config.static_forward_context).
+    #     core/kv_cache_utils.py uses the KVCacheSpec along with available
+    #     memory info from a profiling run to determine num blocks.
+
+    #     For the TT backend, the static forward context is not populated since
+    #     the modelling code is independent so we currently skip creating a
+    #     kv cache spec for each layer, similar to the Spyre/Neuron backends.
+    #     Currently we also don't run profiling to determine available memory.
+
+    #     Return a dummy single layer KVCacheSpec and in the
+    #     determine_available_memory function override num blocks using
+    #     self.cache_config.num_gpu_blocks_override.
+    #     """
+
+    #     # TODO: Once we're able to populate a static forward context,
+    #     # generate separate specs per layer (e.g. also sliding window, local
+    #     # attention).
+
+    #     model_config = self.model_config
+    #     parallel_config = self.parallel_config
+    #     cache_config = self.cache_config
+
+    #     # Excludes TP factor since that is handled on the model side for TT.
+    #     total_num_kv_heads = model_config.get_num_kv_heads(parallel_config)
+    #     head_size = model_config.get_head_size()
+    #     dtype = (
+    #         model_config.dtype
+    #         if cache_config.cache_dtype == "auto"
+    #         else STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
+    #     )
+
+    #     attn_spec = FullAttentionSpec(
+    #         block_size=cache_config.block_size if cache_config.block_size else 32,
+    #         num_kv_heads=total_num_kv_heads,
+    #         head_size=head_size,
+    #         dtype=dtype,
+    #         use_mla=model_config.use_mla,
+    #         sliding_window=model_config.get_sliding_window(),
+    #     )
+    #     kv_cache_spec: dict[str, KVCacheSpec] = {"foo": attn_spec}
+    #     return kv_cache_spec
+
     def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
-        """
-        For the GPU/TPU backends, this method generates the KVCacheSpec by
-        parsing the kv cache format from each Attention module in the static
-        forward context (compilation_config.static_forward_context).
-        core/kv_cache_utils.py uses the KVCacheSpec along with available
-        memory info from a profiling run to determine num blocks.
-
-        For the TT backend, the static forward context is not populated since
-        the modelling code is independent so we currently skip creating a
-        kv cache spec for each layer, similar to the Spyre/Neuron backends.
-        Currently we also don't run profiling to determine available memory.
-
-        Return a dummy single layer KVCacheSpec and in the
-        determine_available_memory function override num blocks using
-        self.cache_config.num_gpu_blocks_override.
-        """
-
-        # TODO: Once we're able to populate a static forward context,
-        # generate separate specs per layer (e.g. also sliding window, local
-        # attention).
-
-        model_config = self.model_config
-        parallel_config = self.parallel_config
-        cache_config = self.cache_config
-
-        # Excludes TP factor since that is handled on the model side for TT.
-        total_num_kv_heads = model_config.get_num_kv_heads(parallel_config)
-        head_size = model_config.get_head_size()
-        dtype = (
-            model_config.dtype
-            if cache_config.cache_dtype == "auto"
-            else STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
-        )
-
-        attn_spec = FullAttentionSpec(
-            block_size=cache_config.block_size if cache_config.block_size else 32,
-            num_kv_heads=total_num_kv_heads,
-            head_size=head_size,
-            dtype=dtype,
-            use_mla=model_config.use_mla,
-            sliding_window=model_config.get_sliding_window(),
-        )
-        kv_cache_spec: dict[str, KVCacheSpec] = {"foo": attn_spec}
-        return kv_cache_spec
+        return self.model_runner.get_kv_cache_spec()
 
     def determine_available_memory(self) -> int:
         """
