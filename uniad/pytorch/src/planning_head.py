@@ -204,7 +204,7 @@ class PlanningHeadSingleMode(nn.Module):
                 )
                 < self.occ_filter_range**2
             )
-            pos_xy_t.append(pos_xy[keep_index].cpu().detach().numpy())
+            pos_xy_t.append(pos_xy[keep_index].detach().numpy())
             valid_occupancy_num += torch.sum(keep_index > 0)
         if valid_occupancy_num == 0:
             return sdc_traj_all
@@ -212,7 +212,7 @@ class PlanningHeadSingleMode(nn.Module):
         col_optimizer = CollisionNonlinearOptimizer(
             self.planning_steps, 0.5, self.sigma, self.alpha_collision, pos_xy_t
         )
-        col_optimizer.set_reference_trajectory(sdc_traj_all[0].cpu().detach().numpy())
+        col_optimizer.set_reference_trajectory(sdc_traj_all[0].detach().numpy())
         sol = col_optimizer.solve()
         sdc_traj_optim = np.stack(
             [sol.value(col_optimizer.position_x), sol.value(col_optimizer.position_y)],

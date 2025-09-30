@@ -610,19 +610,19 @@ class UniADTrack(MVXTwoStageDetector):
         obj_idxes = bboxes_dict["obj_idxes"]
         result_dict = dict(
             boxes_3d=bboxes,
-            scores_3d=scores.cpu(),
-            labels_3d=labels.cpu(),
-            track_scores=track_scores.cpu(),
-            bbox_index=bbox_index.cpu(),
-            track_ids=obj_idxes.cpu(),
-            mask=bboxes_dict["mask"].cpu(),
+            scores_3d=scores,
+            labels_3d=labels,
+            track_scores=track_scores,
+            bbox_index=bbox_index,
+            track_ids=obj_idxes,
+            mask=bboxes_dict["mask"],
             track_bbox_results=[
                 [
                     bboxes,
-                    scores.cpu(),
-                    labels.cpu(),
-                    bbox_index.cpu(),
-                    bboxes_dict["mask"].cpu(),
+                    scores,
+                    labels,
+                    bbox_index,
+                    bboxes_dict["mask"],
                 ]
             ],
         )
@@ -663,8 +663,8 @@ class UniADTrack(MVXTwoStageDetector):
         result_dict = results[0]
         result_dict_det = dict(
             boxes_3d_det=bboxes,
-            scores_3d_det=scores.cpu(),
-            labels_3d_det=labels.cpu(),
+            scores_3d_det=scores,
+            labels_3d_det=labels,
         )
         result_dict.update(result_dict_det)
         return [result_dict]

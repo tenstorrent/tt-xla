@@ -119,13 +119,6 @@ class UniAD(UniADTrack):
         list[list[dict]]), with the outer list indicating test time
         augmentations.
         """
-        for k, v in kwargs.items():
-            if isinstance(v, torch.Tensor):
-                kwargs[k] = v.to("cpu")
-            elif isinstance(v, list):
-                kwargs[k] = [
-                    x.to("cpu") if isinstance(x, torch.Tensor) else x for x in v
-                ]
         return self.forward_test(**kwargs)
 
     def loss_weighted_and_prefixed(self, loss_dict, prefix=""):
@@ -156,20 +149,6 @@ class UniAD(UniADTrack):
             if not isinstance(var, list):
                 raise TypeError("{} must be a list, but got {}".format(name, type(var)))
         img = [img] if img is None else img
-
-        if img_metas[0][0]["scene_token"] != self.prev_frame_info["scene_token"]:
-            self.prev_frame_info["prev_bev"] = None
-        self.prev_frame_info["scene_token"] = img_metas[0][0]["scene_token"]
-
-        self.prev_frame_info["prev_bev"] = None
-
-        tmp_pos = copy.deepcopy(img_metas[0][0]["can_bus"][:3])
-        tmp_angle = copy.deepcopy(img_metas[0][0]["can_bus"][-1])
-        img_metas[0][0]["can_bus"][:3] -= self.prev_frame_info["prev_pos"]
-        img_metas[0][0]["can_bus"][-1] -= self.prev_frame_info["prev_angle"]
-        self.prev_frame_info["prev_pos"] = tmp_pos
-        self.prev_frame_info["prev_angle"] = tmp_angle
-
         img = img[0]
         img_metas = img_metas[0]
         timestamp = timestamp[0] if timestamp is not None else None
