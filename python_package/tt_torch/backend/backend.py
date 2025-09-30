@@ -46,8 +46,8 @@ def torch_pass_pipeline(
     compiled_graph = insert_argument_type_markers(
         compiled_graph, program.graph_signature
     )
-    compiled_graph = bypass_dtype_promotion(compiled_graph)
-    compiled_graph = bypass_redundant_cast(compiled_graph)
+    compiled_graph = bypass_dtype_promotion(compiled_graph, example_inputs)
+    compiled_graph = bypass_redundant_cast(compiled_graph, example_inputs)
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 

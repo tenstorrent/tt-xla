@@ -75,6 +75,75 @@ def test_simple_mm_eager(bias):
     comparator.compare(output, golden)
 
 
+def test_silu():
+    class Silu(torch.nn.Module):
+        def forward(self, x):
+            return torch.nn.functional.silu(x)
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+    model = Silu()
+    golden = model(input_x)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
+
+    output = model(input_x.to(device))
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(required_atol=0.02),
+        )
+    )
+    comparator.compare(output, golden)
+
+
+def test_silu_with_dtype_promotion():
+    class Silu(torch.nn.Module):
+        def forward(self, x):
+            res = torch.nn.functional.silu(x)
+            return res.to(torch.float32)
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+    model = Silu()
+    golden = model(input_x)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
+
+    output = model(input_x.to(device))
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(required_atol=0.02),
+        )
+    )
+    comparator.compare(output, golden)
+
+
+def test_mul():
+    class Mul(torch.nn.Module):
+        def forward(self, x, y):
+            return x * y
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+    input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+
+    model = Mul()
+    golden = model(input_x, input_y)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
+
+    output = model(input_x.to(device), input_y.to(device))
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(required_atol=0.02),
+        )
+    )
+    comparator.compare(output, golden)
+
+
 @pytest.mark.parametrize("in_channels", [3, 64])
 @pytest.mark.parametrize("out_channels", [3, 64])
 @pytest.mark.parametrize("kernel_size", [2, 3])

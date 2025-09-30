@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-import gc
-from torch.fx.experimental import const_fold
 from torch.export.graph_signature import InputKind, OutputKind
 
 
@@ -120,7 +118,26 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
-def bypass_redundant_cast(gm):
+def run_shape_prop(gm, example_inputs):
+    """
+    Propagates shape and dtype information through the graph.
+    """
+    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
+    if shape_prop.fake_mode is not None:
+        fake_args = [
+            (
+                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
+                if isinstance(act, torch.Tensor)
+                else act
+            )
+            for act in example_inputs
+        ]
+    else:
+        fake_args = example_inputs
+    shape_prop.run(*fake_args)
+
+
+def bypass_redundant_cast(gm, example_inputs):
     """
     Removes data type casting operations which are applied to tensors
     which are already of the desired dtype.
@@ -136,10 +153,13 @@ def bypass_redundant_cast(gm):
             if node.args[1] == node.args[0].meta["tensor_meta"].dtype:
                 node.replace_all_uses_with(node.args[0])
 
+    gm.graph.eliminate_dead_code()
+    # removing typecasts changes the meta (dtype) of the graph, so we need to run shape propagation again
+    run_shape_prop(gm, example_inputs)
     return gm
 
 
-def bypass_dtype_promotion(gm):
+def bypass_dtype_promotion(gm, example_inputs):
     """
     Removes casting of nodes to float32 unless they were explicitly cast by the user.
     Pytorch insists on casting params to float32, even though the user may have specified a different dtype,
@@ -157,4 +177,7 @@ def bypass_dtype_promotion(gm):
             ):
                 node.replace_all_uses_with(node.args[0])
 
+    gm.graph.eliminate_dead_code()
+    # removing typecasts changes the meta (dtype) of the graph, so we need to run shape propagation again
+    run_shape_prop(gm, example_inputs)
     return gm
