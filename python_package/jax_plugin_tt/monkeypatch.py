@@ -20,8 +20,7 @@ import jax.nn
 from jax.extend import core
 from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
-
-import numpy as np
+from jax._src import random
 
 
 def _is_module_imported(module_name: str) -> bool:
@@ -294,7 +293,11 @@ def _create_uniform_patch_config():
     """
     Create a MonkeyPatchConfig for patching jax._src.random._uniform.
     """
-    from jax._src import random
+
+    if not (_is_module_imported("numpy")):
+        return []
+
+    import numpy as np
 
     # The ttir.rand op requires shape argument to be int32, so to avoid
     # type conversion during lowering in MLIR, we do it here in the patch.
