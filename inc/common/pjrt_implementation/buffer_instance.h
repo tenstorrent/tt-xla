@@ -9,8 +9,10 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -96,6 +98,12 @@ public:
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
+  // Returns the unique ID of this buffer instance.
+  uint64_t getId() const { return m_id; }
+
+  // Returns a string representation of the buffer's shape, e.g., "[1,4,16]".
+  std::string toShapeString() const;
+
   // Returns the size of the tensor in the data type that the host expects.
   // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
   // runtime/ttnn. And so, the true data type of the runtime tensor may be
@@ -142,6 +150,8 @@ public:
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
 
 private:
+  // Static counter for generating unique IDs.
+  static std::atomic<uint64_t> s_next_id;
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                  size_t num_dims, DeviceInstance *device,
@@ -208,6 +218,9 @@ private:
 
   // Thread for copying data to host.
   std::unique_ptr<std::thread> m_copy_to_host_thread;
+
+  // Unique ID for this buffer instance.
+  const uint64_t m_id;
 };
 
 namespace internal {

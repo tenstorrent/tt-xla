@@ -243,6 +243,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+      DLOG_F(LOG_DEBUG, "getInputRuntimeTensors: arg_index=%zu, device_index=%zu, buffer_id=%lu, shape=%s",
+             arg_index, device_index, buffer->getId(), buffer->toShapeString().c_str());
       arg_tensors.push_back(buffer->getRuntimeTensor());
     }
 

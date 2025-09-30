@@ -31,6 +31,9 @@
 
 namespace tt::pjrt {
 
+// Initialize static ID counter
+std::atomic<uint64_t> BufferInstance::s_next_id{1};
+
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
     DeviceInstance *device, MemoryInstance *memory) {
@@ -44,9 +47,9 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
   auto buffer_instance = std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
                                                                device, memory);
 
-  DLOG_F(LOG_DEBUG, "createInputBufferInstance: shape=%s, ptr=%p",
+  DLOG_F(LOG_DEBUG, "createInputBufferInstance: shape=%s, id=%lu",
          buffer_instance->toShapeString().c_str(),
-         static_cast<void*>(buffer_instance.get()));
+         buffer_instance->getId());
 
   return buffer_instance;
 }
@@ -67,9 +70,9 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
   auto buffer_instance = std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
                                                                device, memory, data_type);
 
-  DLOG_F(LOG_DEBUG, "createOutputBufferInstance: shape=%s, ptr=%p",
+  DLOG_F(LOG_DEBUG, "createOutputBufferInstance: shape=%s, id=%lu",
          buffer_instance->toShapeString().c_str(),
-         static_cast<void*>(buffer_instance.get()));
+         buffer_instance->getId());
 
   return buffer_instance;
 }
@@ -81,7 +84,8 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device(device), m_memory(memory),
       m_runtime_tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN),
       m_data_ready(false), m_data_ready_event(nullptr),
-      m_done_with_host_buffer_event(nullptr), m_data_deleted(false) {}
+      m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
+      m_id(s_next_id.fetch_add(1)) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
@@ -91,13 +95,25 @@ BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {
+      m_data_deleted(false), m_id(s_next_id.fetch_add(1)) {
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(m_runtime_tensor, /*retain=*/true);
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }
+
+std::string BufferInstance::toShapeString() const {
+  std::string result = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0) {
+      result += ",";
+    }
+    result += std::to_string(m_dimensions[i]);
+  }
+  result += "]";
+  return result;
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
