@@ -4,6 +4,7 @@
 
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
+from third_party.tt_forge_models.config import Parallelism
 
 # Note: List of placeholder model names that are important, planned but not yet merged.
 # They will be consumed by test_placeholder_models and automatically generate reports
@@ -280,10 +281,20 @@ test_config = {
         "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
+        "arch_overrides": {
+            "n300-llmbox": {
+                "parallelism": Parallelism.TENSOR_PARALLEL,
+            },
+        },
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n300-llmbox": {
+                "parallelism": Parallelism.TENSOR_PARALLEL,
+            },
+        },
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
@@ -1853,6 +1864,7 @@ test_config = {
             },
             "n300-llmbox": {
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97",
+                "parallelism": Parallelism.TENSOR_PARALLEL,
             },
         },
     },
@@ -2407,6 +2419,7 @@ test_config = {
             },
             "n300-llmbox": {
                 "status": ModelTestStatus.EXPECTED_PASSING,
+                "parallelism": Parallelism.TENSOR_PARALLEL,
             },
         },
     },

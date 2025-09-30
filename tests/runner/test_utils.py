@@ -70,6 +70,11 @@ class ModelTestConfig:
             self._resolve("supported_archs", default=[])
         )
 
+        # Optional parallelism specification. Impacts reporting, SPMD enablement.
+        self.parallelism = self._resolve(
+            "parallelism", default=Parallelism.SINGLE_DEVICE
+        )
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
@@ -401,14 +406,8 @@ def record_model_test_properties(
             bringup_status = BringupStatus.UNKNOWN
             reason = "Not specified"
 
-    # TODO (kmabee) - This is temporary workaround to populate parallelism tag for superset
-    # database correctly in very short term for newly added TP models on n300-llmbox.
-    # This will be replaced by something more robust in near future.
-    arch = request.config.getoption("--arch")
-    if "llmbox" in arch:
-        parallelism = Parallelism.TENSOR_PARALLEL
-    else:
-        parallelism = Parallelism.SINGLE_DEVICE
+    # Determine parallelism from test configuration (with arch_overrides support)
+    parallelism = getattr(test_metadata, "parallelism", Parallelism.SINGLE_DEVICE)
 
     tags = {
         "test_name": str(request.node.originalname),
