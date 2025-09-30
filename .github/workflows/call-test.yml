@@ -104,7 +104,6 @@ jobs:
         sparse-checkout: |
           .gitmodules
           .test_durations
-          pytest.ini
           python_package/requirements.txt
           tests
           venv
