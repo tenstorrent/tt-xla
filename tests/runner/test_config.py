@@ -280,7 +280,8 @@ test_config = {
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "markers": ["push"],
+        # "required_pcc": 0.98,
         "arch_overrides": {
             "n300-llmbox": {
                 "parallelism": Parallelism.TENSOR_PARALLEL,
