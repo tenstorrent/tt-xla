@@ -240,12 +240,17 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     std::vector<tt::runtime::Tensor> arg_tensors;
     arg_tensors.reserve(num_devices);
 
+    // Collect buffer IDs for cache key
+    std::vector<uint64_t> buffer_ids;
+    buffer_ids.reserve(num_devices);
+
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       DLOG_F(LOG_DEBUG, "getInputRuntimeTensors: arg_index=%zu, device_index=%zu, buffer_id=%lu, shape=%s",
              arg_index, device_index, buffer->getId(), buffer->toShapeString().c_str());
       arg_tensors.push_back(buffer->getRuntimeTensor());
+      buffer_ids.push_back(buffer->getId());
     }
 
     mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
@@ -259,8 +264,29 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     tt::runtime::Tensor input_tensor =
         getTensorFromStrategy(arg_tensors, *strategy);
 
-    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-        input_tensor, program_index, arg_index, runtime_device);
+    // Check cache for laid out tensor
+    tt::runtime::Tensor laid_out_tensor;
+
+    // Create buffer IDs string for logging
+    std::string buffer_ids_str = "[";
+    for (size_t i = 0; i < buffer_ids.size(); ++i) {
+      if (i > 0) buffer_ids_str += ",";
+      buffer_ids_str += std::to_string(buffer_ids[i]);
+    }
+    buffer_ids_str += "]";
+
+    if (m_client_instance->getTensorFromCache(buffer_ids, laid_out_tensor)) {
+      DLOG_F(LOG_DEBUG, "Cache hit for arg_index=%zu, buffer_ids=%s, using cached tensor",
+             arg_index, buffer_ids_str.c_str());
+    } else {
+      DLOG_F(LOG_DEBUG, "Cache miss for arg_index=%zu, buffer_ids=%s, converting layout",
+             arg_index, buffer_ids_str.c_str());
+      laid_out_tensor = convertTensorLayout(
+          input_tensor, program_index, arg_index, runtime_device);
+
+      // Store in cache
+      m_client_instance->storeTensorInCache(buffer_ids, laid_out_tensor);
+    }
 
     // In case when new tensor was created, we want it to be automatically
     // deallocated during runtime.

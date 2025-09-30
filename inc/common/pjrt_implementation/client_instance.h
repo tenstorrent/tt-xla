@@ -12,12 +12,17 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
 // third-party includes
 #include <google/protobuf/unknown_field_set.h>
+
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
 
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
@@ -97,6 +102,12 @@ public:
       const char *compile_options_data, size_t compile_options_size,
       std::unordered_map<std::string, std::string> &out_compile_options);
 
+  // Runtime tensor cache methods
+  bool getTensorFromCache(const std::vector<uint64_t> &buffer_ids,
+                         tt::runtime::Tensor &out_tensor);
+  void storeTensorInCache(const std::vector<uint64_t> &buffer_ids,
+                         const tt::runtime::Tensor &tensor);
+
 protected:
   std::string cached_platform_name_;
   std::string cached_platform_version_;
@@ -152,6 +163,10 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Runtime tensor cache keyed by buffer IDs
+  std::map<std::vector<uint64_t>, tt::runtime::Tensor> m_tensor_cache;
+  std::mutex m_tensor_cache_mutex;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.

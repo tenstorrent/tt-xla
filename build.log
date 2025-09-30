@@ -1,0 +1,769 @@
+[1/248] Creating directories for 'loguru'
+[2/248] Creating directories for 'tt-mlir'
+[3/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/io_win32.cc.o
+[4/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/arenaz_sampler.cc.o
+[5/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/zero_copy_stream.cc.o
+[6/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/strtod.cc.o
+[7/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/zero_copy_stream_impl.cc.o
+[8/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/arena.cc.o
+[9/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/zero_copy_stream_impl_lite.cc.o
+[10/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/coded_stream.cc.o
+[11/248] Performing download step (git clone) for 'loguru'
+Cloning into 'loguru'...
+remote: Enumerating objects: 1155, done.        
+remote: Counting objects:   1% (1/85)        remote: Counting objects:   2% (2/85)        remote: Counting objects:   3% (3/85)        remote: Counting objects:   4% (4/85)        remote: Counting objects:   5% (5/85)        remote: Counting objects:   7% (6/85)        remote: Counting objects:   8% (7/85)        remote: Counting objects:   9% (8/85)        remote: Counting objects:  10% (9/85)        remote: Counting objects:  11% (10/85)        remote: Counting objects:  12% (11/85)        remote: Counting objects:  14% (12/85)        remote: Counting objects:  15% (13/85)        remote: Counting objects:  16% (14/85)        remote: Counting objects:  17% (15/85)        remote: Counting objects:  18% (16/85)        remote: Counting objects:  20% (17/85)        remote: Counting objects:  21% (18/85)        remote: Counting objects:  22% (19/85)        remote: Counting objects:  23% (20/85)        remote: Counting objects:  24% (21/85)        remote: Counting objects:  25% (22/85)        remote: Counting objects:  27% (23/85)        remote: Counting objects:  28% (24/85)        remote: Counting objects:  29% (25/85)        remote: Counting objects:  30% (26/85)        remote: Counting objects:  31% (27/85)        remote: Counting objects:  32% (28/85)        remote: Counting objects:  34% (29/85)        remote: Counting objects:  35% (30/85)        remote: Counting objects:  36% (31/85)        remote: Counting objects:  37% (32/85)        remote: Counting objects:  38% (33/85)        remote: Counting objects:  40% (34/85)        remote: Counting objects:  41% (35/85)        remote: Counting objects:  42% (36/85)        remote: Counting objects:  43% (37/85)        remote: Counting objects:  44% (38/85)        remote: Counting objects:  45% (39/85)        remote: Counting objects:  47% (40/85)        remote: Counting objects:  48% (41/85)        remote: Counting objects:  49% (42/85)        remote: Counting objects:  50% (43/85)        remote: Counting objects:  51% (44/85)        remote: Counting objects:  52% (45/85)        remote: Counting objects:  54% (46/85)        remote: Counting objects:  55% (47/85)        remote: Counting objects:  56% (48/85)        remote: Counting objects:  57% (49/85)        remote: Counting objects:  58% (50/85)        remote: Counting objects:  60% (51/85)        remote: Counting objects:  61% (52/85)        remote: Counting objects:  62% (53/85)        remote: Counting objects:  63% (54/85)        remote: Counting objects:  64% (55/85)        remote: Counting objects:  65% (56/85)        remote: Counting objects:  67% (57/85)        remote: Counting objects:  68% (58/85)        remote: Counting objects:  69% (59/85)        remote: Counting objects:  70% (60/85)        remote: Counting objects:  71% (61/85)        remote: Counting objects:  72% (62/85)        remote: Counting objects:  74% (63/85)        remote: Counting objects:  75% (64/85)        remote: Counting objects:  76% (65/85)        remote: Counting objects:  77% (66/85)        remote: Counting objects:  78% (67/85)        remote: Counting objects:  80% (68/85)        remote: Counting objects:  81% (69/85)        remote: Counting objects:  82% (70/85)        remote: Counting objects:  83% (71/85)        remote: Counting objects:  84% (72/85)        remote: Counting objects:  85% (73/85)        remote: Counting objects:  87% (74/85)        remote: Counting objects:  88% (75/85)        remote: Counting objects:  89% (76/85)        remote: Counting objects:  90% (77/85)        remote: Counting objects:  91% (78/85)        remote: Counting objects:  92% (79/85)        remote: Counting objects:  94% (80/85)        remote: Counting objects:  95% (81/85)        remote: Counting objects:  96% (82/85)        remote: Counting objects:  97% (83/85)        remote: Counting objects:  98% (84/85)        remote: Counting objects: 100% (85/85)        remote: Counting objects: 100% (85/85), done.        
+remote: Compressing objects:   2% (1/34)        remote: Compressing objects:   5% (2/34)        remote: Compressing objects:   8% (3/34)        remote: Compressing objects:  11% (4/34)        remote: Compressing objects:  14% (5/34)        remote: Compressing objects:  17% (6/34)        remote: Compressing objects:  20% (7/34)        remote: Compressing objects:  23% (8/34)        remote: Compressing objects:  26% (9/34)        remote: Compressing objects:  29% (10/34)        remote: Compressing objects:  32% (11/34)        remote: Compressing objects:  35% (12/34)        remote: Compressing objects:  38% (13/34)        remote: Compressing objects:  41% (14/34)        remote: Compressing objects:  44% (15/34)        remote: Compressing objects:  47% (16/34)        remote: Compressing objects:  50% (17/34)        remote: Compressing objects:  52% (18/34)        remote: Compressing objects:  55% (19/34)        remote: Compressing objects:  58% (20/34)        remote: Compressing objects:  61% (21/34)        remote: Compressing objects:  64% (22/34)        remote: Compressing objects:  67% (23/34)        remote: Compressing objects:  70% (24/34)        remote: Compressing objects:  73% (25/34)        remote: Compressing objects:  76% (26/34)        remote: Compressing objects:  79% (27/34)        remote: Compressing objects:  82% (28/34)        remote: Compressing objects:  85% (29/34)        remote: Compressing objects:  88% (30/34)        remote: Compressing objects:  91% (31/34)        remote: Compressing objects:  94% (32/34)        remote: Compressing objects:  97% (33/34)        remote: Compressing objects: 100% (34/34)        remote: Compressing objects: 100% (34/34), done.        
+Receiving objects:   0% (1/1155)Receiving objects:   1% (12/1155)Receiving objects:   2% (24/1155)Receiving objects:   3% (35/1155)Receiving objects:   4% (47/1155)Receiving objects:   5% (58/1155)Receiving objects:   6% (70/1155)Receiving objects:   7% (81/1155)Receiving objects:   8% (93/1155)Receiving objects:   9% (104/1155)Receiving objects:  10% (116/1155)Receiving objects:  11% (128/1155)Receiving objects:  12% (139/1155)Receiving objects:  13% (151/1155)Receiving objects:  14% (162/1155)Receiving objects:  15% (174/1155)Receiving objects:  16% (185/1155)Receiving objects:  17% (197/1155)Receiving objects:  18% (208/1155)Receiving objects:  19% (220/1155)Receiving objects:  20% (231/1155)Receiving objects:  21% (243/1155)Receiving objects:  22% (255/1155)Receiving objects:  23% (266/1155)Receiving objects:  24% (278/1155)Receiving objects:  25% (289/1155)Receiving objects:  26% (301/1155)Receiving objects:  27% (312/1155)Receiving objects:  28% (324/1155)Receiving objects:  29% (335/1155)Receiving objects:  30% (347/1155)Receiving objects:  31% (359/1155)Receiving objects:  32% (370/1155)Receiving objects:  33% (382/1155)Receiving objects:  34% (393/1155)Receiving objects:  35% (405/1155)Receiving objects:  36% (416/1155)Receiving objects:  37% (428/1155)Receiving objects:  38% (439/1155)Receiving objects:  39% (451/1155)Receiving objects:  40% (462/1155)Receiving objects:  41% (474/1155)Receiving objects:  42% (486/1155)Receiving objects:  43% (497/1155)Receiving objects:  44% (509/1155)Receiving objects:  45% (520/1155)Receiving objects:  46% (532/1155)Receiving objects:  47% (543/1155)Receiving objects:  48% (555/1155)Receiving objects:  49% (566/1155)Receiving objects:  50% (578/1155)Receiving objects:  51% (590/1155)Receiving objects:  52% (601/1155)Receiving objects:  53% (613/1155)Receiving objects:  54% (624/1155)Receiving objects:  55% (636/1155)Receiving objects:  56% (647/1155)Receiving objects:  57% (659/1155)Receiving objects:  58% (670/1155)Receiving objects:  59% (682/1155)Receiving objects:  60% (693/1155)Receiving objects:  61% (705/1155)Receiving objects:  62% (717/1155)Receiving objects:  63% (728/1155)Receiving objects:  64% (740/1155)Receiving objects:  65% (751/1155)Receiving objects:  66% (763/1155)Receiving objects:  67% (774/1155)Receiving objects:  68% (786/1155)Receiving objects:  69% (797/1155)Receiving objects:  70% (809/1155)Receiving objects:  71% (821/1155)Receiving objects:  72% (832/1155)Receiving objects:  73% (844/1155)Receiving objects:  74% (855/1155)Receiving objects:  75% (867/1155)Receiving objects:  76% (878/1155)Receiving objects:  77% (890/1155)Receiving objects:  78% (901/1155)Receiving objects:  79% (913/1155)Receiving objects:  80% (924/1155)Receiving objects:  81% (936/1155)Receiving objects:  82% (948/1155)Receiving objects:  83% (959/1155)Receiving objects:  84% (971/1155)Receiving objects:  85% (982/1155)Receiving objects:  86% (994/1155)Receiving objects:  87% (1005/1155)Receiving objects:  88% (1017/1155)Receiving objects:  89% (1028/1155)Receiving objects:  90% (1040/1155)Receiving objects:  91% (1052/1155)Receiving objects:  92% (1063/1155)remote: Total 1155 (delta 63), reused 51 (delta 51), pack-reused 1070 (from 2)        
+Receiving objects:  93% (1075/1155)Receiving objects:  94% (1086/1155)Receiving objects:  95% (1098/1155)Receiving objects:  96% (1109/1155)Receiving objects:  97% (1121/1155)Receiving objects:  98% (1132/1155)Receiving objects:  99% (1144/1155)Receiving objects: 100% (1155/1155)Receiving objects: 100% (1155/1155), 973.20 KiB | 12.98 MiB/s, done.
+Resolving deltas:   0% (0/724)Resolving deltas:   1% (8/724)Resolving deltas:   2% (15/724)Resolving deltas:   3% (22/724)Resolving deltas:   4% (29/724)Resolving deltas:   5% (37/724)Resolving deltas:   6% (44/724)Resolving deltas:   7% (51/724)Resolving deltas:   8% (58/724)Resolving deltas:   9% (66/724)Resolving deltas:  10% (73/724)Resolving deltas:  11% (80/724)Resolving deltas:  12% (87/724)Resolving deltas:  13% (95/724)Resolving deltas:  14% (102/724)Resolving deltas:  15% (109/724)Resolving deltas:  16% (116/724)Resolving deltas:  17% (124/724)Resolving deltas:  18% (131/724)Resolving deltas:  19% (138/724)Resolving deltas:  20% (145/724)Resolving deltas:  21% (153/724)Resolving deltas:  22% (160/724)Resolving deltas:  23% (167/724)Resolving deltas:  24% (174/724)Resolving deltas:  25% (181/724)Resolving deltas:  26% (189/724)Resolving deltas:  27% (196/724)Resolving deltas:  28% (203/724)Resolving deltas:  29% (210/724)Resolving deltas:  30% (218/724)Resolving deltas:  31% (225/724)Resolving deltas:  32% (232/724)Resolving deltas:  33% (239/724)Resolving deltas:  34% (247/724)Resolving deltas:  35% (254/724)Resolving deltas:  36% (261/724)Resolving deltas:  37% (268/724)Resolving deltas:  38% (276/724)Resolving deltas:  39% (283/724)Resolving deltas:  40% (290/724)Resolving deltas:  41% (297/724)Resolving deltas:  42% (305/724)Resolving deltas:  43% (312/724)Resolving deltas:  44% (319/724)Resolving deltas:  45% (326/724)Resolving deltas:  46% (334/724)Resolving deltas:  47% (341/724)Resolving deltas:  48% (348/724)Resolving deltas:  49% (355/724)Resolving deltas:  50% (362/724)Resolving deltas:  51% (370/724)Resolving deltas:  52% (377/724)Resolving deltas:  53% (384/724)Resolving deltas:  54% (391/724)Resolving deltas:  55% (399/724)Resolving deltas:  56% (406/724)Resolving deltas:  57% (413/724)Resolving deltas:  58% (420/724)Resolving deltas:  59% (428/724)Resolving deltas:  60% (435/724)Resolving deltas:  61% (442/724)Resolving deltas:  62% (449/724)Resolving deltas:  63% (457/724)Resolving deltas:  64% (464/724)Resolving deltas:  65% (471/724)Resolving deltas:  66% (478/724)Resolving deltas:  67% (486/724)Resolving deltas:  68% (493/724)Resolving deltas:  69% (500/724)Resolving deltas:  70% (507/724)Resolving deltas:  71% (515/724)Resolving deltas:  72% (522/724)Resolving deltas:  73% (529/724)Resolving deltas:  74% (536/724)Resolving deltas:  75% (543/724)Resolving deltas:  76% (551/724)Resolving deltas:  77% (558/724)Resolving deltas:  78% (565/724)Resolving deltas:  79% (572/724)Resolving deltas:  80% (580/724)Resolving deltas:  81% (587/724)Resolving deltas:  82% (594/724)Resolving deltas:  83% (601/724)Resolving deltas:  84% (609/724)Resolving deltas:  85% (616/724)Resolving deltas:  86% (623/724)Resolving deltas:  87% (630/724)Resolving deltas:  88% (638/724)Resolving deltas:  89% (645/724)Resolving deltas:  90% (652/724)Resolving deltas:  91% (659/724)Resolving deltas:  92% (667/724)Resolving deltas:  93% (674/724)Resolving deltas:  94% (681/724)Resolving deltas:  95% (688/724)Resolving deltas:  96% (696/724)Resolving deltas:  97% (703/724)Resolving deltas:  98% (710/724)Resolving deltas:  99% (720/724)Resolving deltas: 100% (724/724)Resolving deltas: 100% (724/724), done.
+HEAD is now at 4adaa18 Merge pull request #215 from skaravos/add-cmake-support
+[12/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_enum_util.cc.o
+[13/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/inlined_string_field.cc.o
+[14/248] Performing update step for 'loguru'
+-- Already at requested ref: 4adaa185883e3c04da25913579c451d3c32cfac1
+[15/248] No patch step for 'loguru'
+[16/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/implicit_weak_message.cc.o
+[17/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/map.cc.o
+[18/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_message_util.cc.o
+[19/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/arenastring.cc.o
+[20/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/any_lite.cc.o
+[21/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/statusor.cc.o
+[22/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/message_lite.cc.o
+[23/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/status.cc.o
+[24/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/bytestream.cc.o
+[25/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/stringpiece.cc.o
+[26/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/int128.cc.o
+[27/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/stringprintf.cc.o
+[28/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/common.cc.o
+[29/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/structurally_valid.cc.o
+[30/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/parse_context.cc.o
+[31/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/repeated_ptr_field.cc.o
+[32/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/time.cc.o
+[33/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/strutil.cc.o
+[34/248] Performing configure step for 'loguru'
+-- The CXX compiler identification is Clang 17.0.6
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/clang++-17 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring loguru as top-level
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- !!! the examples don't work with this cmake build yet
+-- !!! the tests don't work with this cmake build yet
+-- generating install rules
+-- generating install rules - done
+-- setting up cpack
+-- setting up cpack - done
+-- Configuring done (0.8s)
+-- Generating done (0.0s)
+CMake Warning:
+  Manually-specified variables were not used by the project:
+
+    CMAKE_C_COMPILER
+
+
+-- Build files have been written to: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-build
+[35/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/extension_set.cc.o
+[36/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/wire_format_lite.cc.o
+[37/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_message_tctable_lite.cc.o
+In file included from /localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_lite.cc:36:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h: In function ‘void google::protobuf::internal::AlignFail(uintptr_t) [with long unsigned int align = 4]’:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h:256:1: warning: ‘noreturn’ function does return
+  256 | }
+      | ^
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h: In function ‘void google::protobuf::internal::AlignFail(uintptr_t) [with long unsigned int align = 8]’:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h:256:1: warning: ‘noreturn’ function does return
+[38/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/repeated_field.cc.o
+[39/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/any.cc.o
+[40/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/any.pb.cc.o
+[41/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/duration.pb.cc.o
+[42/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/gzip_stream.cc.o
+[43/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/empty.pb.cc.o
+[44/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/compiler/importer.cc.o
+[45/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/api.pb.cc.o
+[46/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/field_mask.pb.cc.o
+[47/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_message_bases.cc.o
+[48/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/dynamic_message.cc.o
+[49/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/printer.cc.o
+[50/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_message_tctable_full.cc.o
+[51/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/service.cc.o
+[52/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/io/tokenizer.cc.o
+[53/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/extension_set_heavy.cc.o
+[54/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/stubs/substitute.cc.o
+[55/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/source_context.pb.cc.o
+[56/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/compiler/parser.cc.o
+[57/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/map_field.cc.o
+[58/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/reflection_ops.cc.o
+[59/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/timestamp.pb.cc.o
+[60/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/delimited_message_util.cc.o
+[61/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/descriptor.pb.cc.o
+[62/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/generated_message_reflection.cc.o
+[63/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/message.cc.o
+[64/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/error_listener.cc.o
+[65/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/json_escaping.cc.o
+[66/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/struct.pb.cc.o
+[67/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/descriptor_database.cc.o
+[68/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/type.pb.cc.o
+[69/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/unknown_field_set.cc.o
+[70/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/field_comparator.cc.o
+[71/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/json_stream_parser.cc.o
+[72/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/field_mask_util.cc.o
+[73/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/field_mask_utility.cc.o
+[74/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/datapiece.cc.o
+[75/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/object_writer.cc.o
+[76/248] Performing download step (git clone) for 'tt-mlir'
+Cloning into 'tt-mlir'...
+remote: Enumerating objects: 125734, done.        
+remote: Counting objects:   0% (1/6426)        remote: Counting objects:   1% (65/6426)        remote: Counting objects:   2% (129/6426)        remote: Counting objects:   3% (193/6426)        remote: Counting objects:   4% (258/6426)        remote: Counting objects:   5% (322/6426)        remote: Counting objects:   6% (386/6426)        remote: Counting objects:   7% (450/6426)        remote: Counting objects:   8% (515/6426)        remote: Counting objects:   9% (579/6426)        remote: Counting objects:  10% (643/6426)        remote: Counting objects:  11% (707/6426)        remote: Counting objects:  12% (772/6426)        remote: Counting objects:  13% (836/6426)        remote: Counting objects:  14% (900/6426)        remote: Counting objects:  15% (964/6426)        remote: Counting objects:  16% (1029/6426)        remote: Counting objects:  17% (1093/6426)        remote: Counting objects:  18% (1157/6426)        remote: Counting objects:  19% (1221/6426)        remote: Counting objects:  20% (1286/6426)        remote: Counting objects:  21% (1350/6426)        remote: Counting objects:  22% (1414/6426)        remote: Counting objects:  23% (1478/6426)        remote: Counting objects:  24% (1543/6426)        remote: Counting objects:  25% (1607/6426)        remote: Counting objects:  26% (1671/6426)        remote: Counting objects:  27% (1736/6426)        remote: Counting objects:  28% (1800/6426)        remote: Counting objects:  29% (1864/6426)        remote: Counting objects:  30% (1928/6426)        remote: Counting objects:  31% (1993/6426)        remote: Counting objects:  32% (2057/6426)        remote: Counting objects:  33% (2121/6426)        remote: Counting objects:  34% (2185/6426)        remote: Counting objects:  35% (2250/6426)        remote: Counting objects:  36% (2314/6426)        remote: Counting objects:  37% (2378/6426)        remote: Counting objects:  38% (2442/6426)        remote: Counting objects:  39% (2507/6426)        remote: Counting objects:  40% (2571/6426)        remote: Counting objects:  41% (2635/6426)        remote: Counting objects:  42% (2699/6426)        remote: Counting objects:  43% (2764/6426)        remote: Counting objects:  44% (2828/6426)        remote: Counting objects:  45% (2892/6426)        remote: Counting objects:  46% (2956/6426)        remote: Counting objects:  47% (3021/6426)        remote: Counting objects:  48% (3085/6426)        remote: Counting objects:  49% (3149/6426)        remote: Counting objects:  50% (3213/6426)        remote: Counting objects:  51% (3278/6426)        remote: Counting objects:  52% (3342/6426)        remote: Counting objects:  53% (3406/6426)        remote: Counting objects:  54% (3471/6426)        remote: Counting objects:  55% (3535/6426)        remote: Counting objects:  56% (3599/6426)        remote: Counting objects:  57% (3663/6426)        remote: Counting objects:  58% (3728/6426)        remote: Counting objects:  59% (3792/6426)        remote: Counting objects:  60% (3856/6426)        remote: Counting objects:  61% (3920/6426)        remote: Counting objects:  62% (3985/6426)        remote: Counting objects:  63% (4049/6426)        remote: Counting objects:  64% (4113/6426)        remote: Counting objects:  65% (4177/6426)        remote: Counting objects:  66% (4242/6426)        remote: Counting objects:  67% (4306/6426)        remote: Counting objects:  68% (4370/6426)        remote: Counting objects:  69% (4434/6426)        remote: Counting objects:  70% (4499/6426)        remote: Counting objects:  71% (4563/6426)        remote: Counting objects:  72% (4627/6426)        remote: Counting objects:  73% (4691/6426)        remote: Counting objects:  74% (4756/6426)        remote: Counting objects:  75% (4820/6426)        remote: Counting objects:  76% (4884/6426)        remote: Counting objects:  77% (4949/6426)        remote: Counting objects:  78% (5013/6426)        remote: Counting objects:  79% (5077/6426)        remote: Counting objects:  80% (5141/6426)        remote: Counting objects:  81% (5206/6426)        remote: Counting objects:  82% (5270/6426)        remote: Counting objects:  83% (5334/6426)        remote: Counting objects:  84% (5398/6426)        remote: Counting objects:  85% (5463/6426)        remote: Counting objects:  86% (5527/6426)        remote: Counting objects:  87% (5591/6426)        remote: Counting objects:  88% (5655/6426)        remote: Counting objects:  89% (5720/6426)        remote: Counting objects:  90% (5784/6426)        remote: Counting objects:  91% (5848/6426)        remote: Counting objects:  92% (5912/6426)        remote: Counting objects:  93% (5977/6426)        remote: Counting objects:  94% (6041/6426)        remote: Counting objects:  95% (6105/6426)        remote: Counting objects:  96% (6169/6426)        remote: Counting objects:  97% (6234/6426)        remote: Counting objects:  98% (6298/6426)        remote: Counting objects:  99% (6362/6426)        remote: Counting objects: 100% (6426/6426)        remote: Counting objects: 100% (6426/6426), done.        
+remote: Compressing objects:   0% (1/2663)        remote: Compressing objects:   1% (27/2663)        remote: Compressing objects:   2% (54/2663)        remote: Compressing objects:   3% (80/2663)        remote: Compressing objects:   4% (107/2663)        remote: Compressing objects:   5% (134/2663)        remote: Compressing objects:   6% (160/2663)        remote: Compressing objects:   7% (187/2663)        remote: Compressing objects:   8% (214/2663)        remote: Compressing objects:   9% (240/2663)        remote: Compressing objects:  10% (267/2663)        remote: Compressing objects:  11% (293/2663)        remote: Compressing objects:  12% (320/2663)        remote: Compressing objects:  13% (347/2663)        remote: Compressing objects:  14% (373/2663)        remote: Compressing objects:  15% (400/2663)        remote: Compressing objects:  16% (427/2663)        remote: Compressing objects:  17% (453/2663)        remote: Compressing objects:  18% (480/2663)        remote: Compressing objects:  19% (506/2663)        remote: Compressing objects:  20% (533/2663)        remote: Compressing objects:  21% (560/2663)        remote: Compressing objects:  22% (586/2663)        remote: Compressing objects:  23% (613/2663)        remote: Compressing objects:  24% (640/2663)        remote: Compressing objects:  25% (666/2663)        remote: Compressing objects:  26% (693/2663)        remote: Compressing objects:  27% (720/2663)        remote: Compressing objects:  28% (746/2663)        remote: Compressing objects:  29% (773/2663)        remote: Compressing objects:  30% (799/2663)        remote: Compressing objects:  31% (826/2663)        remote: Compressing objects:  32% (853/2663)        remote: Compressing objects:  33% (879/2663)        remote: Compressing objects:  34% (906/2663)        remote: Compressing objects:  35% (933/2663)        remote: Compressing objects:  36% (959/2663)        remote: Compressing objects:  37% (986/2663)        remote: Compressing objects:  38% (1012/2663)        remote: Compressing objects:  39% (1039/2663)        remote: Compressing objects:  40% (1066/2663)        remote: Compressing objects:  41% (1092/2663)        remote: Compressing objects:  42% (1119/2663)        remote: Compressing objects:  43% (1146/2663)        remote: Compressing objects:  44% (1172/2663)        remote: Compressing objects:  45% (1199/2663)        remote: Compressing objects:  46% (1225/2663)        remote: Compressing objects:  47% (1252/2663)        remote: Compressing objects:  48% (1279/2663)        remote: Compressing objects:  49% (1305/2663)        remote: Compressing objects:  50% (1332/2663)        remote: Compressing objects:  51% (1359/2663)        remote: Compressing objects:  52% (1385/2663)        remote: Compressing objects:  53% (1412/2663)        remote: Compressing objects:  54% (1439/2663)        remote: Compressing objects:  55% (1465/2663)        remote: Compressing objects:  56% (1492/2663)        remote: Compressing objects:  57% (1518/2663)        remote: Compressing objects:  58% (1545/2663)        remote: Compressing objects:  59% (1572/2663)        remote: Compressing objects:  60% (1598/2663)        remote: Compressing objects:  61% (1625/2663)        remote: Compressing objects:  62% (1652/2663)        remote: Compressing objects:  63% (1678/2663)        remote: Compressing objects:  64% (1705/2663)        remote: Compressing objects:  65% (1731/2663)        remote: Compressing objects:  66% (1758/2663)        remote: Compressing objects:  67% (1785/2663)        remote: Compressing objects:  68% (1811/2663)        remote: Compressing objects:  69% (1838/2663)        remote: Compressing objects:  70% (1865/2663)        remote: Compressing objects:  71% (1891/2663)        remote: Compressing objects:  72% (1918/2663)        remote: Compressing objects:  73% (1944/2663)        remote: Compressing objects:  74% (1971/2663)        remote: Compressing objects:  75% (1998/2663)        remote: Compressing objects:  76% (2024/2663)        remote: Compressing objects:  77% (2051/2663)        remote: Compressing objects:  78% (2078/2663)        remote: Compressing objects:  79% (2104/2663)        remote: Compressing objects:  80% (2131/2663)        remote: Compressing objects:  81% (2158/2663)        remote: Compressing objects:  82% (2184/2663)        remote: Compressing objects:  83% (2211/2663)        remote: Compressing objects:  84% (2237/2663)        remote: Compressing objects:  85% (2264/2663)        remote: Compressing objects:  86% (2291/2663)        remote: Compressing objects:  87% (2317/2663)        remote: Compressing objects:  88% (2344/2663)        remote: Compressing objects:  89% (2371/2663)        remote: Compressing objects:  90% (2397/2663)        remote: Compressing objects:  91% (2424/2663)        remote: Compressing objects:  92% (2450/2663)        remote: Compressing objects:  93% (2477/2663)        remote: Compressing objects:  94% (2504/2663)        remote: Compressing objects:  95% (2530/2663)        remote: Compressing objects:  96% (2557/2663)        remote: Compressing objects:  97% (2584/2663)        remote: Compressing objects:  98% (2610/2663)        remote: Compressing objects:  99% (2637/2663)        remote: Compressing objects: 100% (2663/2663)        remote: Compressing objects: 100% (2663/2663), done.        
+Receiving objects:   0% (1/125734)Receiving objects:   1% (1258/125734)Receiving objects:   2% (2515/125734)Receiving objects:   3% (3773/125734)Receiving objects:   4% (5030/125734)Receiving objects:   5% (6287/125734)Receiving objects:   6% (7545/125734)Receiving objects:   7% (8802/125734)Receiving objects:   8% (10059/125734)Receiving objects:   9% (11317/125734)Receiving objects:  10% (12574/125734)Receiving objects:  11% (13831/125734)Receiving objects:  12% (15089/125734)Receiving objects:  13% (16346/125734)Receiving objects:  14% (17603/125734)Receiving objects:  15% (18861/125734)Receiving objects:  16% (20118/125734)Receiving objects:  17% (21375/125734)Receiving objects:  18% (22633/125734)Receiving objects:  19% (23890/125734)Receiving objects:  20% (25147/125734)Receiving objects:  21% (26405/125734)Receiving objects:  22% (27662/125734)Receiving objects:  23% (28919/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  24% (30177/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  25% (31434/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  26% (32691/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  27% (33949/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  28% (35206/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  29% (36463/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  30% (37721/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  31% (38978/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  32% (40235/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  33% (41493/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  34% (42750/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  35% (44007/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  36% (45265/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  37% (46522/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  38% (47779/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  39% (49037/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  40% (50294/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  41% (51551/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  42% (52809/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  43% (54066/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  44% (55323/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  45% (56581/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  46% (57838/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  47% (59095/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  48% (60353/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  49% (61610/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  50% (62867/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  51% (64125/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  52% (65382/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  53% (66640/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  54% (67897/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  55% (69154/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  56% (70412/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  57% (71669/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  58% (72926/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  59% (74184/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  60% (75441/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  61% (76698/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  62% (77956/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  63% (79213/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  64% (80470/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  65% (81728/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  66% (82985/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  67% (84242/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  68% (85500/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  69% (86757/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  70% (88014/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  71% (89272/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  72% (90529/125734), 11.32 MiB | 22.62 MiB/sReceiving objects:  72% (90643/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  73% (91786/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  74% (93044/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  75% (94301/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  76% (95558/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  77% (96816/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  78% (98073/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  79% (99330/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  80% (100588/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  81% (101845/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  82% (103102/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  83% (104360/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  84% (105617/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  85% (106874/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  86% (108132/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  87% (109389/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  88% (110646/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  89% (111904/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  90% (113161/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  91% (114418/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  92% (115676/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  93% (116933/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  94% (118190/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  95% (119448/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  96% (120705/125734), 21.24 MiB | 21.21 MiB/sReceiving objects:  97% (121962/125734), 31.59 MiB | 21.04 MiB/sReceiving objects:  98% (123220/125734), 31.59 MiB | 21.04 MiB/sReceiving objects:  99% (124477/125734), 31.59 MiB | 21.04 MiB/sremote: Total 125734 (delta 5462), reused 3874 (delta 3757), pack-reused 119308 (from 4)        
+Receiving objects: 100% (125734/125734), 31.59 MiB | 21.04 MiB/sReceiving objects: 100% (125734/125734), 33.40 MiB | 21.05 MiB/s, done.
+Resolving deltas:   0% (0/92065)Resolving deltas:   1% (921/92065)Resolving deltas:   2% (1842/92065)Resolving deltas:   3% (2762/92065)Resolving deltas:   4% (3683/92065)Resolving deltas:   5% (4604/92065)Resolving deltas:   6% (5524/92065)Resolving deltas:   7% (6445/92065)Resolving deltas:   8% (7366/92065)Resolving deltas:   9% (8286/92065)Resolving deltas:  10% (9207/92065)Resolving deltas:  11% (10128/92065)Resolving deltas:  12% (11048/92065)Resolving deltas:  13% (11969/92065)Resolving deltas:  14% (12890/92065)Resolving deltas:  15% (13811/92065)Resolving deltas:  16% (14733/92065)Resolving deltas:  17% (15652/92065)Resolving deltas:  18% (16572/92065)Resolving deltas:  19% (17493/92065)Resolving deltas:  20% (18413/92065)Resolving deltas:  21% (19334/92065)Resolving deltas:  22% (20255/92065)Resolving deltas:  23% (21175/92065)Resolving deltas:  24% (22096/92065)Resolving deltas:  25% (23017/92065)Resolving deltas:  26% (23937/92065)Resolving deltas:  27% (24858/92065)Resolving deltas:  28% (25780/92065)Resolving deltas:  29% (26699/92065)Resolving deltas:  30% (27620/92065)Resolving deltas:  31% (28541/92065)Resolving deltas:  32% (29461/92065)Resolving deltas:  33% (30382/92065)Resolving deltas:  34% (31303/92065)Resolving deltas:  35% (32223/92065)Resolving deltas:  36% (33144/92065)Resolving deltas:  37% (34065/92065)Resolving deltas:  38% (34985/92065)Resolving deltas:  39% (35906/92065)Resolving deltas:  40% (36826/92065)Resolving deltas:  41% (37747/92065)Resolving deltas:  42% (38668/92065)Resolving deltas:  43% (39588/92065)Resolving deltas:  44% (40509/92065)Resolving deltas:  45% (41430/92065)Resolving deltas:  46% (42350/92065)Resolving deltas:  47% (43271/92065)Resolving deltas:  48% (44192/92065)Resolving deltas:  49% (45112/92065)Resolving deltas:  50% (46033/92065)Resolving deltas:  51% (46954/92065)Resolving deltas:  52% (47874/92065)Resolving deltas:  53% (48795/92065)Resolving deltas:  54% (49716/92065)Resolving deltas:  55% (50636/92065)Resolving deltas:  56% (51557/92065)Resolving deltas:  57% (52478/92065)Resolving deltas:  58% (53398/92065)Resolving deltas:  59% (54319/92065)Resolving deltas:  60% (55239/92065)Resolving deltas:  61% (56160/92065)Resolving deltas:  62% (57081/92065)Resolving deltas:  63% (58001/92065)Resolving deltas:  64% (58922/92065)Resolving deltas:  65% (59843/92065)Resolving deltas:  66% (60763/92065)Resolving deltas:  67% (61684/92065)Resolving deltas:  68% (62605/92065)Resolving deltas:  69% (63526/92065)Resolving deltas:  70% (64446/92065)Resolving deltas:  71% (65367/92065)Resolving deltas:  72% (66287/92065)Resolving deltas:  73% (67208/92065)Resolving deltas:  74% (68129/92065)Resolving deltas:  75% (69049/92065)Resolving deltas:  76% (69970/92065)Resolving deltas:  77% (70891/92065)Resolving deltas:  78% (71811/92065)Resolving deltas:  79% (72732/92065)Resolving deltas:  80% (73652/92065)Resolving deltas:  81% (74573/92065)Resolving deltas:  82% (75494/92065)Resolving deltas:  83% (76414/92065)Resolving deltas:  84% (77335/92065)Resolving deltas:  85% (78256/92065)Resolving deltas:  86% (79176/92065)Resolving deltas:  87% (80097/92065)Resolving deltas:  88% (81018/92065)Resolving deltas:  89% (81938/92065)Resolving deltas:  90% (82859/92065)Resolving deltas:  91% (83780/92065)Resolving deltas:  92% (84700/92065)Resolving deltas:  93% (85621/92065)Resolving deltas:  94% (86543/92065)Resolving deltas:  95% (87462/92065)Resolving deltas:  96% (88383/92065)Resolving deltas:  97% (89304/92065)Resolving deltas:  98% (90224/92065)Resolving deltas:  99% (91145/92065)Resolving deltas: 100% (92065/92065)Resolving deltas: 100% (92065/92065), done.
+HEAD is now at eec393862 TTKernel to EmitC ArithFloorDivRewriter (#5115)
+[77/248] Performing update step for 'tt-mlir'
+-- Already at requested ref: eec3938621eb4fca485f01b859b8fc2115013801
+[78/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/default_value_objectwriter.cc.o
+[79/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/json_objectwriter.cc.o
+[80/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/text_format.cc.o
+[81/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/protostream_objectsource.cc.o
+[82/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/utility.cc.o
+[83/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/type_info.cc.o
+[84/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/time_util.cc.o
+[85/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/type_resolver_util.cc.o
+[86/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/protostream_objectwriter.cc.o
+[87/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/code_generator.cc.o
+[88/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/wrappers.pb.cc.o
+[89/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/internal/proto_writer.cc.o
+[90/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/json_util.cc.o
+[91/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/wire_format.cc.o
+[92/248] Performing build step for 'loguru'
+[1/2] Building CXX object CMakeFiles/loguru.dir/loguru.cpp.o
+[2/2] Linking CXX static library libloguru.a
+[93/248] Performing install step for 'loguru'
+[0/1] Install the project...
+-- Install configuration: "Release"
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/libloguru.a
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/include/loguru/loguru.hpp
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/cmake/loguru/loguru-config.cmake
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/cmake/loguru/loguru-config-version.cmake
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/pkgconfig/loguru.pc
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/cmake/loguru/loguru-targets.cmake
+-- Installing: /localdev/jameszianxu/tt-xla/third_party/loguru/src/loguru-install/lib/cmake/loguru/loguru-targets-release.cmake
+[94/248] Completed 'loguru'
+[95/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/extension.cc.o
+[96/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/enum.cc.o
+[97/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/enum_field.cc.o
+[98/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/field.cc.o
+[99/248] Building CXX object src/common/CMakeFiles/TTPJRTCommonDylibPlatform.dir/dylib_platform.cc.o
+[100/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/util/message_differencer.cc.o
+[101/248] Linking CXX static library src/common/libTTPJRTCommonDylibPlatform.a
+[102/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/generator.cc.o
+[103/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_doc_comment.cc.o
+[104/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/padding_optimizer.cc.o
+[105/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/message_field.cc.o
+[106/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf.dir/src/google/protobuf/descriptor.cc.o
+[107/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/map_field.cc.o
+[108/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/primitive_field.cc.o
+[109/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/service.cc.o
+[110/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/command_line_interface.cc.o
+[111/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_enum_field.cc.o
+[112/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_enum.cc.o
+[113/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_generator.cc.o
+[114/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_field_base.cc.o
+[115/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/string_field.cc.o
+[116/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/parse_function_generator.cc.o
+[117/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_map_field.cc.o
+[118/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_helpers.cc.o
+[119/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/file.cc.o
+[120/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/helpers.cc.o
+[121/248] Linking CXX static library _deps/protobuf-build/libprotobufd.a
+[122/248] Performing patch step for 'tt-mlir'
+Ignoring ml_dtypes: markers 'python_version >= "3.13"' don't match your environment
+Collecting nanobind<3.0,>=2.4 (from -r /localdev/jameszianxu/tt-xla/venv/bin/requirements_cache/llvm-requirements-f8cb7987c64dcffb72414a40560055cb717dbf74.txt (line 1))
+  Using cached nanobind-2.9.2-py3-none-any.whl.metadata (1.8 kB)
+Requirement already satisfied: numpy<=2.1.2,>=1.19.5 in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/venv/bin/requirements_cache/llvm-requirements-f8cb7987c64dcffb72414a40560055cb717dbf74.txt (line 2)) (2.1.2)
+Collecting pybind11<=2.13.6,>=2.10.0 (from -r /localdev/jameszianxu/tt-xla/venv/bin/requirements_cache/llvm-requirements-f8cb7987c64dcffb72414a40560055cb717dbf74.txt (line 3))
+  Using cached pybind11-2.13.6-py3-none-any.whl.metadata (9.5 kB)
+Collecting PyYAML<=6.0.1,>=5.4.0 (from -r /localdev/jameszianxu/tt-xla/venv/bin/requirements_cache/llvm-requirements-f8cb7987c64dcffb72414a40560055cb717dbf74.txt (line 4))
+  Using cached PyYAML-6.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+Requirement already satisfied: ml_dtypes<=0.6.0,>=0.1.0 in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/venv/bin/requirements_cache/llvm-requirements-f8cb7987c64dcffb72414a40560055cb717dbf74.txt (line 5)) (0.5.3)
+Using cached nanobind-2.9.2-py3-none-any.whl (243 kB)
+Using cached pybind11-2.13.6-py3-none-any.whl (243 kB)
+Using cached PyYAML-6.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (757 kB)
+Installing collected packages: nanobind, PyYAML, pybind11
+  Attempting uninstall: PyYAML
+    Found existing installation: PyYAML 6.0.3
+    Uninstalling PyYAML-6.0.3:
+      Successfully uninstalled PyYAML-6.0.3
+  Attempting uninstall: pybind11
+    Found existing installation: pybind11 3.0.1
+    Not uninstalling pybind11 at /usr/local/lib/python3.11/dist-packages, outside environment /localdev/jameszianxu/tt-xla/venv
+    Can't uninstall 'pybind11'. No files were found to uninstall.
+
+Successfully installed PyYAML-6.0.1 nanobind-2.9.2 pybind11-2.13.6
+Requirement already satisfied: cmake in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 1)) (4.1.0)
+Requirement already satisfied: ninja in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 2)) (1.13.0)
+Requirement already satisfied: clang-format in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 3)) (21.1.2)
+Collecting clang-tidy==19.1.0 (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 4))
+  Using cached clang_tidy-19.1.0-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.7 kB)
+Requirement already satisfied: wheel in /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 5)) (0.45.1)
+Requirement already satisfied: setuptools in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 6)) (80.9.0)
+Requirement already satisfied: black in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (25.9.0)
+Requirement already satisfied: pre-commit in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (4.3.0)
+Requirement already satisfied: pydantic in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 9)) (2.11.9)
+Requirement already satisfied: tqdm in /usr/local/lib/python3.11/dist-packages (from -r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 10)) (4.67.1)
+Requirement already satisfied: click>=8.0.0 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (8.3.0)
+Requirement already satisfied: mypy-extensions>=0.4.3 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (1.1.0)
+Requirement already satisfied: packaging>=22.0 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (25.0)
+Requirement already satisfied: pathspec>=0.9.0 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (0.12.1)
+Requirement already satisfied: platformdirs>=2 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (4.4.0)
+Requirement already satisfied: pytokens>=0.1.10 in /usr/local/lib/python3.11/dist-packages (from black->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 7)) (0.1.10)
+Requirement already satisfied: cfgv>=2.0.0 in /usr/local/lib/python3.11/dist-packages (from pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (3.4.0)
+Requirement already satisfied: identify>=1.0.0 in /usr/local/lib/python3.11/dist-packages (from pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (2.6.14)
+Requirement already satisfied: nodeenv>=0.11.1 in /usr/local/lib/python3.11/dist-packages (from pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (1.9.1)
+Requirement already satisfied: pyyaml>=5.1 in /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages (from pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (6.0.1)
+Requirement already satisfied: virtualenv>=20.10.0 in /usr/local/lib/python3.11/dist-packages (from pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (20.34.0)
+Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.11/dist-packages (from pydantic->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 9)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.33.2 in /usr/local/lib/python3.11/dist-packages (from pydantic->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 9)) (2.33.2)
+Requirement already satisfied: typing-extensions>=4.12.2 in /usr/local/lib/python3.11/dist-packages (from pydantic->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 9)) (4.15.0)
+Requirement already satisfied: typing-inspection>=0.4.0 in /usr/local/lib/python3.11/dist-packages (from pydantic->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 9)) (0.4.1)
+Requirement already satisfied: distlib<1,>=0.3.7 in /usr/local/lib/python3.11/dist-packages (from virtualenv>=20.10.0->pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (0.4.0)
+Requirement already satisfied: filelock<4,>=3.12.2 in /usr/local/lib/python3.11/dist-packages (from virtualenv>=20.10.0->pre-commit->-r /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/env/build-requirements.txt (line 8)) (3.13.1)
+Using cached clang_tidy-19.1.0-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (37.7 MB)
+Installing collected packages: clang-tidy
+Successfully installed clang-tidy-19.1.0
+[123/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_primitive_field.cc.o
+[124/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_message.cc.o
+[125/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_repeated_enum_field.cc.o
+[126/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_message_field.cc.o
+[127/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_repeated_primitive_field.cc.o
+[128/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_repeated_message_field.cc.o
+[129/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/cpp/message.cc.o
+[130/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_reflection_class.cc.o
+[131/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_wrapper_field.cc.o
+[132/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/csharp/csharp_source_generator_base.cc.o
+[133/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/doc_comment.cc.o
+[134/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/context.cc.o
+[135/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/enum.cc.o
+[136/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/enum_field.cc.o
+[137/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/extension.cc.o
+[138/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/enum_field_lite.cc.o
+[139/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/enum_lite.cc.o
+[140/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/generator_factory.cc.o
+[141/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/extension_lite.cc.o
+[142/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/field.cc.o
+[143/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/generator.cc.o
+[144/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/kotlin_generator.cc.o
+[145/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/map_field_lite.cc.o
+[146/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/helpers.cc.o
+[147/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/map_field.cc.o
+[148/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/file.cc.o
+[149/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message_builder_lite.cc.o
+[150/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message_field.cc.o
+[151/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/name_resolver.cc.o
+[152/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message.cc.o
+[153/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/primitive_field_lite.cc.o
+[154/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message_builder.cc.o
+[155/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/shared_code_generator.cc.o
+[156/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/primitive_field.cc.o
+[157/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message_lite.cc.o
+[158/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/service.cc.o
+[159/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/string_field_lite.cc.o
+[160/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/string_field.cc.o
+[161/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_enum.cc.o
+[162/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_enum_field.cc.o
+[163/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_extension.cc.o
+[164/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/java/message_field_lite.cc.o
+[165/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_generator.cc.o
+[166/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_field.cc.o
+[167/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_oneof.cc.o
+[168/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_map_field.cc.o
+[169/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_message_field.cc.o
+[170/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_helpers.cc.o
+[171/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/zip_writer.cc.o
+[172/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/arenaz_sampler.cc.o
+[173/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_primitive_field.cc.o
+[174/248] Building CXX object _deps/protobuf-build/CMakeFiles/protoc.dir/src/google/protobuf/compiler/main.cc.o
+[175/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_file.cc.o
+[176/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/plugin.cc.o
+[177/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/plugin.pb.cc.o
+[178/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/arena.cc.o
+[179/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/io_win32.cc.o
+[180/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/python/generator.cc.o
+[181/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/python/helpers.cc.o
+[182/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/objectivec/objectivec_message.cc.o
+[183/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/any_lite.cc.o
+[184/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/subprocess.cc.o
+[185/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/generated_enum_util.cc.o
+[186/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/strtod.cc.o
+[187/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/arenastring.cc.o
+[188/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/zero_copy_stream.cc.o
+[189/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/inlined_string_field.cc.o
+[190/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/zero_copy_stream_impl.cc.o
+[191/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/php/php_generator.cc.o
+[192/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/implicit_weak_message.cc.o
+[193/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/zero_copy_stream_impl_lite.cc.o
+[194/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/generated_message_util.cc.o
+[195/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/map.cc.o
+[196/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/io/coded_stream.cc.o
+[197/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/ruby/ruby_generator.cc.o
+[198/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/statusor.cc.o
+[199/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/stringpiece.cc.o
+[200/248] Linking C static library third_party/pjrt_c_api/libXLACAPIHeader.a
+[201/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/bytestream.cc.o
+[202/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/status.cc.o
+[203/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/stringprintf.cc.o
+[204/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotoc.dir/src/google/protobuf/compiler/python/pyi_generator.cc.o
+[205/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/int128.cc.o
+[206/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/repeated_ptr_field.cc.o
+[207/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/common.cc.o
+[208/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/structurally_valid.cc.o
+[209/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/generated_message_tctable_lite.cc.o
+In file included from /localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_lite.cc:36:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h: In function ‘void google::protobuf::internal::AlignFail(uintptr_t) [with long unsigned int align = 4]’:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h:256:1: warning: ‘noreturn’ function does return
+  256 | }
+      | ^
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h: In function ‘void google::protobuf::internal::AlignFail(uintptr_t) [with long unsigned int align = 8]’:
+/localdev/jameszianxu/tt-xla/build/_deps/protobuf-src/src/google/protobuf/generated_message_tctable_impl.h:256:1: warning: ‘noreturn’ function does return
+[210/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/time.cc.o
+[211/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/parse_context.cc.o
+[212/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/extension_set.cc.o
+[213/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/message_lite.cc.o
+[214/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/stubs/strutil.cc.o
+[215/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/wire_format_lite.cc.o
+[216/248] Building CXX object _deps/protobuf-build/CMakeFiles/libprotobuf-lite.dir/src/google/protobuf/repeated_field.cc.o
+[217/248] Linking CXX static library _deps/protobuf-build/libprotobuf-lited.a
+[218/248] Linking CXX static library _deps/protobuf-build/libprotocd.a
+[219/248] Linking CXX executable _deps/protobuf-build/protoc-3.21.12.0
+[220/248] Creating executable symlink _deps/protobuf-build/protoc
+[221/248] Performing configure step for 'tt-mlir'
+-- The CXX compiler identification is Clang 17.0.6
+-- The C compiler identification is Clang 17.0.6
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/clang++-17 - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/clang-17 - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Using LLD linker: /usr/bin/ld.lld-17
+-- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.2.11")
+-- Found LibXml2: /usr/lib/x86_64-linux-gnu/libxml2.so (found version "2.9.13")
+-- Using MLIRConfig.cmake in: /opt/ttmlir-toolchain/lib/cmake/mlir
+-- Using LLVMConfig.cmake in: /opt/ttmlir-toolchain/lib/cmake/llvm
+-- Linker detection: GNU ld
+-- Performing Test LLVM_LIBSTDCXX_MIN
+-- Performing Test LLVM_LIBSTDCXX_MIN - Success
+-- Performing Test LLVM_LIBSTDCXX_SOFT_ERROR
+-- Performing Test LLVM_LIBSTDCXX_SOFT_ERROR - Success
+-- Performing Test C_SUPPORTS_FPIC
+-- Performing Test C_SUPPORTS_FPIC - Success
+-- Performing Test CXX_SUPPORTS_FPIC
+-- Performing Test CXX_SUPPORTS_FPIC - Success
+-- Building with -fPIC
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test C_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION
+-- Performing Test CXX_SUPPORTS_FNO_SEMANTIC_INTERPOSITION - Success
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG
+-- Performing Test SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG - Success
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG
+-- Performing Test CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG - Success
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL
+-- Performing Test CXX_WSUGGEST_OVERRIDE_ALLOWS_ONLY_FINAL - Success
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP
+-- Performing Test C_WCOMMENT_ALLOWS_LINE_WRAP - Success
+-- Performing Test C_SUPPORTS_MISLEADING_INDENTATION_FLAG
+-- Performing Test C_SUPPORTS_MISLEADING_INDENTATION_FLAG - Success
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG
+-- Performing Test CXX_SUPPORTS_MISLEADING_INDENTATION_FLAG - Success
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG
+-- Performing Test C_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG - Success
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG
+-- Performing Test CXX_SUPPORTS_CTAD_MAYBE_UNSPPORTED_FLAG - Success
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS
+-- Performing Test LINKER_SUPPORTS_COLOR_DIAGNOSTICS - Success
+-- Looking for os_signpost_interval_begin
+-- Looking for os_signpost_interval_begin - not found
+-- Found Python3: /localdev/jameszianxu/tt-xla/venv/bin/python3 (found version "3.11.13") found components: Interpreter Development.Module
+-- Found Python: /localdev/jameszianxu/tt-xla/venv/bin/python3.11 (found version "3.11.13") found components: Interpreter Development.Module
+-- Found python include dirs: /usr/include/python3.11
+-- Found python libraries: 
+-- Found numpy v: 
+-- Checking for pybind11 in python path...
+-- found (/usr/local/lib/python3.11/dist-packages/pybind11/share/cmake/pybind11)
+-- Performing Test HAS_FLTO_THIN
+-- Performing Test HAS_FLTO_THIN - Success
+-- Performing Test HAS_FLTO
+-- Performing Test HAS_FLTO - Success
+-- Found pybind11: /usr/local/lib/python3.11/dist-packages/pybind11/include (found version "3.0.1")
+-- Found pybind11 v3.0.1: /usr/local/lib/python3.11/dist-packages/pybind11/include
+-- Python prefix = '', suffix = '', extension = '.cpython-311-x86_64-linux-gnu.so
+-- Checking for nanobind in python path...
+-- found (/localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake)
+-- Found nanobind v2.9.2: /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/include
+-- Python prefix = '', suffix = '', extension = '.cpython-311-x86_64-linux-gnu.so
+-- Project commit hash: eec3938621eb4fca485f01b859b8fc2115013801
+-- Project version: 0.0.2067
+-- Setting tt-metal CPM cache to: /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/.cpmcache
+-- Using ccache for tt-metal
+CMake Deprecation Warning at /opt/ttmlir-toolchain/src/shardy/CMakeLists.txt:9 (cmake_policy):
+  The OLD behavior for policy CMP0116 will be removed from a future version
+  of CMake.
+
+  The cmake-policies(7) manual explains that the OLD behaviors of all
+  policies are deprecated and that a policy should be set to OLD only under
+  specific short-term circumstances.  Projects should be ported to the NEW
+  behavior and not rely on setting a policy to OLD.
+
+
+-- Building Shardy embedded in another project
+-- Building with -fPIC
+-- Performing Test LLVM_LINKER_SUPPORTS_B_SYMBOLIC_FUNCTIONS
+-- Performing Test LLVM_LINKER_SUPPORTS_B_SYMBOLIC_FUNCTIONS - Success
+CMake Deprecation Warning at /opt/ttmlir-toolchain/src/stablehlo/CMakeLists.txt:34 (cmake_policy):
+  The OLD behavior for policy CMP0116 will be removed from a future version
+  of CMake.
+
+  The cmake-policies(7) manual explains that the OLD behaviors of all
+  policies are deprecated and that a policy should be set to OLD only under
+  specific short-term circumstances.  Projects should be ported to the NEW
+  behavior and not rely on setting a policy to OLD.
+
+
+-- Building StableHLO embedded in another project
+-- Building with -fPIC
+-- Found python include dirs: /usr/include/python3.11
+-- Found python libraries: 
+-- Found numpy v: 
+-- Using explicit pybind11 cmake directory: /usr/local/lib/python3.11/dist-packages/pybind11/share/cmake/pybind11 (-Dpybind11_DIR to change)
+-- Found pybind11 v3.0.1: /usr/local/lib/python3.11/dist-packages/pybind11/include
+-- Python prefix = '', suffix = '', extension = '.cpython-311-x86_64-linux-gnu.so
+-- Using explicit nanobind cmake directory: /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake (-Dnanobind_DIR to change)
+-- Found nanobind v2.9.2: /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/include
+-- Python prefix = '', suffix = '', extension = '.cpython-311-x86_64-linux-gnu.so
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/nanobind/cmake/nanobind-config.cmake:332 (cmake_parse_arguments):
+  The NB_DOMAIN keyword was followed by an empty string or no value at all.
+  Policy CMP0174 is not set, so cmake_parse_arguments() will unset the
+  ARG_NB_DOMAIN variable rather than setting it to an empty string.
+Call Stack (most recent call first):
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:668 (nanobind_add_module)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:235 (add_mlir_python_extension)
+  /opt/ttmlir-toolchain/lib/cmake/mlir/AddMLIRPython.cmake:256 (_process_target)
+  /opt/ttmlir-toolchain/src/stablehlo/stablehlo/integrations/python/CMakeLists.txt:179 (add_mlir_python_modules)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- TTMLIR_ENABLE_OPMODEL[ON]
+CMake Warning at lib/OpModel/TTNN/CMakeLists.txt:17 (message):
+  TT_METAL_HOME is not set
+
+
+-- Found Clang-17 here: /usr/bin/clang++-17
+CMake Warning at tools/ttnn-standalone/CMakeLists.txt:58 (message):
+  TT_METAL_HOME is not set in ttnn-standalone.  Skipping build.
+
+
+-- Found Python3: /localdev/jameszianxu/tt-xla/venv/bin/python3 (found version "3.11.13") found components: Interpreter
+-- Runtimes Enabled: TTNN[ON] TTMETAL[ON]
+-- Target triple: x86_64-pc-linux
+CMake Warning (dev) at runtime/tools/chisel/CMakeLists.txt:4 (add_custom_command):
+  Exactly one of PRE_BUILD, PRE_LINK, or POST_BUILD must be given.  Assuming
+  POST_BUILD to preserve backward compatibility.
+
+  Policy CMP0175 is not set: add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+Collecting sphinx
+  Using cached sphinx-8.2.3-py3-none-any.whl.metadata (7.0 kB)
+Collecting sphinx-markdown-builder
+  Using cached sphinx_markdown_builder-0.6.8-py3-none-any.whl.metadata (3.6 kB)
+Collecting sphinxcontrib-applehelp>=1.0.7 (from sphinx)
+  Using cached sphinxcontrib_applehelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting sphinxcontrib-devhelp>=1.0.6 (from sphinx)
+  Using cached sphinxcontrib_devhelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting sphinxcontrib-htmlhelp>=2.0.6 (from sphinx)
+  Using cached sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting sphinxcontrib-jsmath>=1.0.1 (from sphinx)
+  Using cached sphinxcontrib_jsmath-1.0.1-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting sphinxcontrib-qthelp>=1.0.6 (from sphinx)
+  Using cached sphinxcontrib_qthelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting sphinxcontrib-serializinghtml>=1.1.9 (from sphinx)
+  Using cached sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl.metadata (2.4 kB)
+Requirement already satisfied: Jinja2>=3.1 in /usr/local/lib/python3.11/dist-packages (from sphinx) (3.1.4)
+Requirement already satisfied: Pygments>=2.17 in /usr/local/lib/python3.11/dist-packages (from sphinx) (2.19.2)
+Collecting docutils<0.22,>=0.20 (from sphinx)
+  Using cached docutils-0.21.2-py3-none-any.whl.metadata (2.8 kB)
+Collecting snowballstemmer>=2.2 (from sphinx)
+  Using cached snowballstemmer-3.0.1-py3-none-any.whl.metadata (7.9 kB)
+Collecting babel>=2.13 (from sphinx)
+  Using cached babel-2.17.0-py3-none-any.whl.metadata (2.0 kB)
+Collecting alabaster>=0.7.14 (from sphinx)
+  Using cached alabaster-1.0.0-py3-none-any.whl.metadata (2.8 kB)
+Collecting imagesize>=1.3 (from sphinx)
+  Using cached imagesize-1.4.1-py2.py3-none-any.whl.metadata (1.5 kB)
+Requirement already satisfied: requests>=2.30.0 in /usr/local/lib/python3.11/dist-packages (from sphinx) (2.32.5)
+Collecting roman-numerals-py>=1.0.0 (from sphinx)
+  Using cached roman_numerals_py-3.1.0-py3-none-any.whl.metadata (3.6 kB)
+Requirement already satisfied: packaging>=23.0 in /usr/local/lib/python3.11/dist-packages (from sphinx) (25.0)
+Requirement already satisfied: tabulate in /usr/local/lib/python3.11/dist-packages (from sphinx-markdown-builder) (0.9.0)
+Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.11/dist-packages (from Jinja2>=3.1->sphinx) (2.1.5)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/dist-packages (from requests>=2.30.0->sphinx) (3.4.3)
+Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.11/dist-packages (from requests>=2.30.0->sphinx) (2.10)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/local/lib/python3.11/dist-packages (from requests>=2.30.0->sphinx) (2.5.0)
+Requirement already satisfied: certifi>=2017.4.17 in /usr/local/lib/python3.11/dist-packages (from requests>=2.30.0->sphinx) (2022.12.7)
+Using cached sphinx-8.2.3-py3-none-any.whl (3.6 MB)
+Using cached docutils-0.21.2-py3-none-any.whl (587 kB)
+Using cached sphinx_markdown_builder-0.6.8-py3-none-any.whl (17 kB)
+Using cached alabaster-1.0.0-py3-none-any.whl (13 kB)
+Using cached babel-2.17.0-py3-none-any.whl (10.2 MB)
+Using cached imagesize-1.4.1-py2.py3-none-any.whl (8.8 kB)
+Using cached roman_numerals_py-3.1.0-py3-none-any.whl (7.7 kB)
+Using cached snowballstemmer-3.0.1-py3-none-any.whl (103 kB)
+Using cached sphinxcontrib_applehelp-2.0.0-py3-none-any.whl (119 kB)
+Using cached sphinxcontrib_devhelp-2.0.0-py3-none-any.whl (82 kB)
+Using cached sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl (98 kB)
+Using cached sphinxcontrib_jsmath-1.0.1-py2.py3-none-any.whl (5.1 kB)
+Using cached sphinxcontrib_qthelp-2.0.0-py3-none-any.whl (88 kB)
+Using cached sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl (92 kB)
+Installing collected packages: sphinxcontrib-serializinghtml, sphinxcontrib-qthelp, sphinxcontrib-jsmath, sphinxcontrib-htmlhelp, sphinxcontrib-devhelp, sphinxcontrib-applehelp, snowballstemmer, roman-numerals-py, imagesize, docutils, babel, alabaster, sphinx, sphinx-markdown-builder
+
+Successfully installed alabaster-1.0.0 babel-2.17.0 docutils-0.21.2 imagesize-1.4.1 roman-numerals-py-3.1.0 snowballstemmer-3.0.1 sphinx-8.2.3 sphinx-markdown-builder-0.6.8 sphinxcontrib-applehelp-2.0.0 sphinxcontrib-devhelp-2.0.0 sphinxcontrib-htmlhelp-2.1.0 sphinxcontrib-jsmath-1.0.1 sphinxcontrib-qthelp-2.0.0 sphinxcontrib-serializinghtml-2.0.0
+-- Found Doxygen: /usr/bin/doxygen (found version "1.9.1") found components: doxygen dot
+-- Configuring done (9.2s)
+CMake Warning (dev) at runtime/lib/CMakeLists.txt:16 (add_library):
+  The feature 'WHOLE_ARCHIVE', specified as part of a generator-expression
+  '$<LINK_LIBRARY:WHOLE_ARCHIVE>', will not be applied to the
+  INTERFACE_LIBRARY 'TTRuntimeTTNNTestLib'.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Generating done (1.6s)
+-- Build files have been written to: /localdev/jameszianxu/tt-xla/third_party/tt-mlir/build

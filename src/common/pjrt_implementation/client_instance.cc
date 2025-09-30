@@ -427,6 +427,23 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   return tt::runtime::openMeshDevice(options);
 }
 
+bool ClientInstance::getTensorFromCache(const std::vector<uint64_t> &buffer_ids,
+                                       tt::runtime::Tensor &out_tensor) {
+  std::lock_guard<std::mutex> lock(m_tensor_cache_mutex);
+  auto it = m_tensor_cache.find(buffer_ids);
+  if (it != m_tensor_cache.end()) {
+    out_tensor = it->second;
+    return true;
+  }
+  return false;
+}
+
+void ClientInstance::storeTensorInCache(const std::vector<uint64_t> &buffer_ids,
+                                       const tt::runtime::Tensor &tensor) {
+  std::lock_guard<std::mutex> lock(m_tensor_cache_mutex);
+  m_tensor_cache[buffer_ids] = tensor;
+}
+
 namespace internal {
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
