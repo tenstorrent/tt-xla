@@ -18,6 +18,7 @@ from .passes import (
     handle_composite_ops,
     insert_argument_type_markers,
 )
+from .utils import MetadataDispatchMode, extract_nodes_info
 
 
 # This function runs a series of passes on a torch GraphModule.
@@ -26,7 +27,7 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature]:
+) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
@@ -57,7 +58,11 @@ def torch_pass_pipeline(
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
-    return compiled_graph, program.graph_signature
+
+    # Extract metadata from FX nodes in order to inject them into locs
+    node_info = extract_nodes_info(compiled_graph)
+
+    return compiled_graph, program.graph_signature, node_info
 
 
 class XLAExecutor:
@@ -69,10 +74,17 @@ class XLAExecutor:
     """
 
     def __init__(
-        self, module: torch.fx.GraphModule, signature: torch.export.ExportGraphSignature
+        self,
+        module: torch.fx.GraphModule,
+        signature: torch.export.ExportGraphSignature,
+        node_info: list[str],
     ):
         self.module = module
         self.signature = signature
+        self.node_info = node_info
+        # Inject metadata if xla debug is enabled and node_info is not empty
+        # We need xla debug to be enabled in order for torch-xla to inject metadata
+        self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
@@ -84,7 +96,13 @@ class XLAExecutor:
 
     def __call__(self, *args):
 
-        output = self.module(*args)
+        if self.inject_metadata:
+            # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
+            # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
+            with MetadataDispatchMode(self.node_info):
+                output = self.module(*args)
+        else:
+            output = self.module(*args)
 
         gm_has_functional_output_kind: bool = True
 
@@ -109,6 +127,6 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
-
-    module, graph_signature = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature)
+    """TT backend for torch.compile."""
+    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+    return XLAExecutor(module, graph_signature, node_info)
