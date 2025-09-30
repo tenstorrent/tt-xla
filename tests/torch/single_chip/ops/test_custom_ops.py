@@ -48,29 +48,20 @@ def test_update_cache(num_heads, max_seq_len, head_size):
 
 
 @pytest.mark.parametrize(
-    "batch_size, num_heads, seq_len, head_size, num_kv_heads, max_seq_len, is_causal, scale",
-    [
-        (1, 12, 32, 128, 12, 32, True, 1.0),
-        (1, 12, 32, 128, 12, 128, False, 1.0),
-        (8, 12, 32, 128, 12, 32, True, 1.0),
-        (8, 12, 32, 128, 12, 128, False, 1.0),
-        (1, 12, 32, 128, 4, 32, True, 1.0),
-        (1, 12, 32, 128, 4, 128, False, 1.0),
-        (8, 12, 32, 128, 4, 32, True, 1.0),
-        (8, 12, 32, 128, 4, 128, False, 1.0),
-        (1, 32, 512, 128, 8, 512, False, 1.0)
-    ],
+    "seq_len",
+    [32, 512, 1024, 2048, 4096, 8192, 16384, 32768],
 )
 def test_scaled_dot_product_attention(
-    batch_size,
-    num_heads,
     seq_len,
-    head_size,
-    num_kv_heads,
-    max_seq_len,
-    is_causal,
-    scale,
 ):
+    # Values to simulate attention for Qwen3-4B and Qwen3-8B Embedding models
+    batch_size=1
+    num_heads=32
+    head_size=128
+    num_kv_heads=8
+    is_causal=False
+    scale=1.0
+    max_seq_len=seq_len
 
     query = torch.randn(batch_size, num_heads, seq_len, head_size, dtype=torch.bfloat16)
     key = torch.randn(
@@ -93,23 +84,19 @@ def test_scaled_dot_product_attention(
 
 
 @pytest.mark.parametrize(
-    "batch_size, num_heads, head_size, num_kv_heads, max_seq_len, is_causal, scale",
-    [
-        (1, 12, 128, 12, 32, True, 1.0),
-        (1, 12, 128, 12, 32, False, 1.0),
-        (1, 12, 128, 12, 128, False, 1.0),
-        (8, 12, 128, 12, 32, True, 1.0),
-        (8, 12, 128, 12, 128, False, 1.0),
-        (1, 12, 128, 4, 32, True, 1.0),
-        (1, 12, 128, 4, 32, False, 1.0),
-        (1, 12, 128, 4, 128, False, 1.0),
-        (8, 12, 128, 4, 32, True, 1.0),
-        (8, 12, 128, 4, 128, False, 1.0),
-    ],
+    "max_seq_len",
+    [32768, 65536, 131072, 262144, 524288, 1048576],
 )
 def test_scaled_dot_product_attention_decode(
-    batch_size, num_heads, head_size, num_kv_heads, max_seq_len, is_causal, scale
+    max_seq_len,
 ):
+    # Values to simulate attention for Qwen3-4B and Qwen3-8B Decoding models
+    batch_size=1
+    num_heads=32
+    head_size=128
+    num_kv_heads=8
+    is_causal=False
+    scale=1.0
 
     query = torch.randn(1, batch_size, num_heads, head_size, dtype=torch.bfloat16)
     key = torch.randn(
