@@ -41,8 +41,14 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
         : BufferInstance(data_type, dims, num_dims, device, memory) {}
   };
 
-  return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
-                                               device, memory);
+  auto buffer_instance = std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
+                                                               device, memory);
+
+  DLOG_F(LOG_DEBUG, "createInputBufferInstance: shape=%s, ptr=%p",
+         buffer_instance->toShapeString().c_str(),
+         static_cast<void*>(buffer_instance.get()));
+
+  return buffer_instance;
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
@@ -58,8 +64,14 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
                          data_type) {}
   };
 
-  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device, memory, data_type);
+  auto buffer_instance = std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
+                                                               device, memory, data_type);
+
+  DLOG_F(LOG_DEBUG, "createOutputBufferInstance: shape=%s, ptr=%p",
+         buffer_instance->toShapeString().c_str(),
+         static_cast<void*>(buffer_instance.get()));
+
+  return buffer_instance;
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
