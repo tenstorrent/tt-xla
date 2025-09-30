@@ -89,18 +89,27 @@ class Gemma3Config(BaseConfig):
             self.num_key_value_heads = self.num_attention_heads // 2
         if self.head_dim is None:
             self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.num_attention_heads % self.num_key_value_heads == 0, (
-            "GQA: num_attention_heads must be divisible by num_key_value_heads"
-        )
+        assert (
+            self.num_attention_heads % self.num_key_value_heads == 0
+        ), "GQA: num_attention_heads must be divisible by num_key_value_heads"
 
         # Validate RoPE scaling config if provided
         if self.rope_scaling is not None:
             rope_type = self.rope_scaling.get("rope_type", "default")
-            if rope_type not in ["default", "linear", "dynamic", "yarn", "longrope", "llama3"]:
+            if rope_type not in [
+                "default",
+                "linear",
+                "dynamic",
+                "yarn",
+                "longrope",
+                "llama3",
+            ]:
                 raise ValueError(f"Unknown RoPE scaling type: {rope_type}")
 
             if rope_type != "default" and "factor" not in self.rope_scaling:
-                raise ValueError(f"RoPE scaling type {rope_type} requires 'factor' parameter")
+                raise ValueError(
+                    f"RoPE scaling type {rope_type} requires 'factor' parameter"
+                )
 
             if (
                 rope_type in ["dynamic", "longrope", "llama3"]
@@ -139,14 +148,19 @@ class Gemma3Config(BaseConfig):
                 if "low_freq_factor" not in self.rope_scaling:
                     raise ValueError("Llama3 RoPE requires 'low_freq_factor' parameter")
                 if "high_freq_factor" not in self.rope_scaling:
-                    raise ValueError("Llama3 RoPE requires 'high_freq_factor' parameter")
+                    raise ValueError(
+                        "Llama3 RoPE requires 'high_freq_factor' parameter"
+                    )
 
         # Generate layer types based on sliding window pattern
         self.layer_types = [
-            "sliding_attention" if bool((i + 1) % self.sliding_window_pattern) else "full_attention"
+            (
+                "sliding_attention"
+                if bool((i + 1) % self.sliding_window_pattern)
+                else "full_attention"
+            )
             for i in range(self.num_hidden_layers)
         ]
-
 
 
 class Gemma3RMSNorm(nnx.Module):
@@ -203,12 +217,18 @@ class Gemma3RotaryEmbedding(nnx.Module):
             quarter_dim = half_dim // 2
             # First quarter: low frequency
             inv_freq_low = 1.0 / (
-                (self.theta ** (jnp.arange(0, quarter_dim, dtype=jnp.float32) / quarter_dim))
+                (
+                    self.theta
+                    ** (jnp.arange(0, quarter_dim, dtype=jnp.float32) / quarter_dim)
+                )
                 * low_freq_factor
             )
             # Second quarter: high frequency
             inv_freq_high = 1.0 / (
-                (self.theta ** (jnp.arange(0, quarter_dim, dtype=jnp.float32) / quarter_dim))
+                (
+                    self.theta
+                    ** (jnp.arange(0, quarter_dim, dtype=jnp.float32) / quarter_dim)
+                )
                 * high_freq_factor
             )
             self.inv_freq = jnp.concatenate([inv_freq_low, inv_freq_high])
@@ -344,7 +364,9 @@ class Gemma3Attention(nnx.Module):
         self.rope = Gemma3RotaryEmbedding(
             dim=config.head_dim,
             max_position_embeddings=config.max_position_embeddings,
-            theta=config.rope_local_base_freq if self.is_local_attn else config.rope_theta,
+            theta=(
+                config.rope_local_base_freq if self.is_local_attn else config.rope_theta
+            ),
             rope_scaling=config.rope_scaling,
             is_local_attention=self.is_local_attn,
         )
@@ -356,7 +378,9 @@ class Gemma3Attention(nnx.Module):
             rngs=rngs,
         )
 
-    def _make_sliding_window_mask(self, q_len: int, kv_len: int, dtype: jnp.dtype) -> jnp.ndarray:
+    def _make_sliding_window_mask(
+        self, q_len: int, kv_len: int, dtype: jnp.dtype
+    ) -> jnp.ndarray:
         """Creates a combined causal and sliding window mask. True allows attention."""
         # Creates the lower triangular part for causality
         causal_mask = jnp.tril(jnp.ones((q_len, kv_len), dtype=jnp.bool_))
@@ -399,7 +423,9 @@ class Gemma3Attention(nnx.Module):
         self,
         hidden_states: jnp.ndarray,
         position_ids: jnp.ndarray,
-        attention_mask: jnp.ndarray | None = None,  # Boolean Input Padding Mask [B, kv_len]
+        attention_mask: (
+            jnp.ndarray | None
+        ) = None,  # Boolean Input Padding Mask [B, kv_len]
         cache: tuple[jnp.ndarray, jnp.ndarray] | None = None,  # (k_cache, v_cache)
         deterministic: bool = True,  # Used for dropout in training
     ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
@@ -442,7 +468,9 @@ class Gemma3Attention(nnx.Module):
         value_states = self._repeat_kv(value_states, self.num_key_value_groups)
 
         # Compute attention weights with scaling
-        attn_weights = jnp.matmul(query_states, key_states.transpose(0, 1, 3, 2)) * self.scaling
+        attn_weights = (
+            jnp.matmul(query_states, key_states.transpose(0, 1, 3, 2)) * self.scaling
+        )
 
         # Apply attention logits soft cap (BEFORE masking)
         if self.attn_logit_soft_cap is not None:
@@ -454,7 +482,9 @@ class Gemma3Attention(nnx.Module):
             attn_weights = attn_weights + attention_mask.astype(self.config.dtype)
         else:
             # 1. Causal/Sliding Window Mask [1, 1, q_len, kv_seq_len]
-            attn_internal_mask = self._make_sliding_window_mask(kv_seq_len, kv_seq_len, dtype=jnp.bool_)
+            attn_internal_mask = self._make_sliding_window_mask(
+                kv_seq_len, kv_seq_len, dtype=jnp.bool_
+            )
             attn_internal_mask = attn_internal_mask[:, :, -q_len:, :]
             # 2. Combine with padding mask if provided (boolean 2D mask [B, kv_seq_len])
             if attention_mask is not None:
@@ -472,7 +502,9 @@ class Gemma3Attention(nnx.Module):
                 )
             # Apply additive mask bias: 0 for keep, large negative for mask
             neg_inf = jnp.finfo(self.config.dtype).min
-            attention_bias = jnp.where(final_mask, 0.0, neg_inf).astype(self.config.dtype)
+            attention_bias = jnp.where(final_mask, 0.0, neg_inf).astype(
+                self.config.dtype
+            )
             attn_weights = attn_weights + attention_bias
 
         # --- Softmax & Output ---
@@ -552,7 +584,9 @@ class Gemma3DecoderLayer(nnx.Module):
         super().__init__()
         # Alternate global/local per layer
         attention_type = "global" if layer_idx % 6 == 5 else "local"
-        self.input_layernorm = Gemma3RMSNorm(config.hidden_size, eps=config.rms_norm_eps, rngs=rngs)
+        self.input_layernorm = Gemma3RMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps, rngs=rngs
+        )
         self.post_attention_layernorm = Gemma3RMSNorm(
             config.hidden_size, eps=config.rms_norm_eps, rngs=rngs
         )
@@ -572,7 +606,9 @@ class Gemma3DecoderLayer(nnx.Module):
         self,
         x: jnp.ndarray,
         position_ids: jnp.ndarray,
-        attention_mask: jnp.ndarray | None = None,  # Boolean Input Padding Mask [B, kv_len]
+        attention_mask: (
+            jnp.ndarray | None
+        ) = None,  # Boolean Input Padding Mask [B, kv_len]
         cache: tuple[jnp.ndarray, jnp.ndarray] | None = None,  # (k_cache, v_cache)
         deterministic: bool = True,
     ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray]]:
@@ -580,7 +616,11 @@ class Gemma3DecoderLayer(nnx.Module):
         residual = x
         hidden_states = self.input_layernorm(x)
         attn_output, updated_cache = self.self_attn(
-            hidden_states, position_ids, attention_mask, cache, deterministic=deterministic
+            hidden_states,
+            position_ids,
+            attention_mask,
+            cache,
+            deterministic=deterministic,
         )
         hidden_states = self.post_attention_layernorm(attn_output)
         hidden_states = residual + hidden_states
@@ -601,7 +641,9 @@ class Gemma3ForCausalLM(BaseModel):
     config: Gemma3Config  # This helps to fix a mypy issue
 
     def __init__(self, config: Gemma3Config, *, rngs: nnx.Rngs) -> None:
-        super().__init__(config, dtype=config.dtype, param_dtype=config.param_dtype, rngs=rngs)
+        super().__init__(
+            config, dtype=config.dtype, param_dtype=config.param_dtype, rngs=rngs
+        )
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
             features=config.hidden_size,
@@ -609,18 +651,23 @@ class Gemma3ForCausalLM(BaseModel):
             rngs=rngs,
         )
         self.layers = [
-            Gemma3DecoderLayer(idx, config, rngs=rngs) for idx in range(config.num_hidden_layers)
+            Gemma3DecoderLayer(idx, config, rngs=rngs)
+            for idx in range(config.num_hidden_layers)
         ]
-        self.norm = Gemma3RMSNorm(config.hidden_size, eps=config.rms_norm_eps, rngs=rngs)
+        self.norm = Gemma3RMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps, rngs=rngs
+        )
 
     def __call__(
         self,
         input_ids: jnp.ndarray,  # [B, S]
         position_ids: jnp.ndarray | None = None,
-        attention_mask: jnp.ndarray
-        | None = None,  # [B, S], True for valid tokens, used for padding
-        cache: list[tuple[jnp.ndarray, jnp.ndarray]]
-        | None = None,  # List of (k_cache, v_cache) per layer
+        attention_mask: (
+            jnp.ndarray | None
+        ) = None,  # [B, S], True for valid tokens, used for padding
+        cache: (
+            list[tuple[jnp.ndarray, jnp.ndarray]] | None
+        ) = None,  # List of (k_cache, v_cache) per layer
         deterministic: bool = True,
         use_cache: bool | None = None,
     ) -> tuple[jnp.ndarray, list[tuple[jnp.ndarray, jnp.ndarray]] | None]:
@@ -717,7 +764,9 @@ class Gemma3ForCausalLM(BaseModel):
         return logits, next_cache_list if use_cache else None
 
     def convert_weights_from_hf(
-        self, state: nnx.State | dict[str, jnp.ndarray], weights: Iterator[tuple[Any, Any]]
+        self,
+        state: nnx.State | dict[str, jnp.ndarray],
+        weights: Iterator[tuple[Any, Any]],
     ) -> None:
         num_layers = len(state["layers"])
         for wholekey, tensor in weights:
