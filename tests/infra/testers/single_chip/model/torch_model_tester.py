@@ -49,6 +49,11 @@ class TorchModelTester(ModelTester):
             )
 
     # @override
+    def _configure_model(self) -> None:
+        self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
+        super()._configure_model()
+
+    # @override
     def _configure_model_for_inference(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.eval()
@@ -57,7 +62,6 @@ class TorchModelTester(ModelTester):
     def _configure_model_for_training(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
-        self._device_runner.set_training_mode()
 
     # @override
     def _cache_model_inputs(self) -> None:
