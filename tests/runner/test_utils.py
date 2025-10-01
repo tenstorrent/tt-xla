@@ -282,9 +282,6 @@ class DynamicTorchModelTester(TorchModelTester):
         )
         return mesh
 
-    def get_comparison_result(self):
-        return self._comparator.get_results()
-
 
 def setup_models_path(project_root):
     """Setup models root path and add to sys.path for imports."""
