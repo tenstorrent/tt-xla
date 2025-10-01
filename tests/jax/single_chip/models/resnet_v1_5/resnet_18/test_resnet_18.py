@@ -15,6 +15,7 @@ from utils import (
 
 from ..tester import ResNetTester
 from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
+from tests.infra.utilities.utils import create_jax_inference_tester
 
 VARIANT_NAME = ModelVariant.RESNET_18
 MODEL_NAME = build_model_name(
@@ -29,9 +30,9 @@ MODEL_NAME = build_model_name(
 # ----- Fixtures -----
 
 
-@pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
+def create_inference_tester(format: str) -> ResNetTester:
+    """Create inference tester with specified format."""
+    return create_jax_inference_tester(ResNetTester, VARIANT_NAME, format)
 
 
 @pytest.fixture
@@ -50,8 +51,22 @@ def training_tester() -> ResNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_resnet_v1_5_18_inference(inference_tester: ResNetTester):
-    inference_tester.test()
+@pytest.mark.parametrize(
+    "format",
+    [
+        "float32",
+        "bfloat16",
+        pytest.param(
+            "bfp8",
+            marks=pytest.mark.skip(
+                reason="Encountered mlir error: Expected TileType for non-bfloat16 element type. Currently MLIR bfp8 pass requires all weights to be in bfloat16 and stablehlo contains cast to f32 for reduction used in softmax."
+            ),
+        ),
+    ],
+)
+def test_resnet_v1_5_18_inference(format: str):
+    tester = create_inference_tester(format)
+    tester.test()
 
 
 @pytest.mark.nightly
