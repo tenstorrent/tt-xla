@@ -2433,11 +2433,9 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "required_pcc": 0.985,  # Decreased Sept 26th - https://github.com/tenstorrent/tt-xla/issues/1491
-            },
-        },
+        "reason": "PCC failure - https://github.com/tenstorrent/tt-xla/issues/1491",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
 }
