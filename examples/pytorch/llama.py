@@ -17,9 +17,14 @@ import os
 import numpy as np
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.spmd as xs
+from typing import List
 
 
 def setup_spmd():
+    """
+    Initializes SPMD mode in torch_xla.
+    """
+
     print("Setting up XLA environment...")
     num_devices = xr.global_runtime_device_count()
 
@@ -34,10 +39,6 @@ def setup_spmd():
 def create_device_mesh() -> Mesh:
     """
     Create device mesh for tensor parallelism.
-
-    Args:
-        num_devices: Total number of devices
-        mesh_shape: Shape of the device mesh (batch_dim, model_dim)
 
     Returns:
         Mesh object for SPMD operations
@@ -58,35 +59,33 @@ def llama():
     # Must be called at start of program.
     setup_spmd()
 
-    # Set up config variables
-    tokens_to_generate = 16
-    output_tokens = []
-    model_hidden_layers = 28
-    batch_size = 1
-    max_cache_len = 32
+    # Set up config variables.
+    tokens_to_generate: int = 16
+    output_tokens: List[str] = []
+    model_hidden_layers: int = 28  # model config default
+    batch_size: int = 1
+    max_cache_len: int = 32
+    input_prompt: str = "I like taking walks in the"
 
-    # Connect the device.
-    device = xm.xla_device()
-    mesh = create_device_mesh()
+    # Connect the device and create an xla mesh.
+    device: torch.device = torch_xla.device()
+    mesh: Mesh = create_device_mesh()
 
     # Instantiate model.
     model_name: str = "meta-llama/Llama-3.2-3B"
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    # Default, controllable hidden layer count.
     model.config.num_hidden_layers = model_hidden_layers
+    model = model.eval()
 
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    # Put it in inference mode.
-    model = model.eval()
-
     # Generate inputs.
     inputs = tokenizer.encode_plus(
-        "I like taking walks in the",
+        input_prompt,
         return_tensors="pt",
         truncation=True,
     )
@@ -99,7 +98,7 @@ def llama():
         device="cpu",
         dtype=torch.bfloat16,
     )
-    cache_position = torch.arange(0, inputs.input_ids.shape[1])
+    cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
@@ -159,7 +158,7 @@ def llama():
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
-            # reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations)
+            # reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
             for i, (key, value) in enumerate(
                 zip(
                     input_args["past_key_values"].key_cache,
