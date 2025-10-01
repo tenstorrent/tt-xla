@@ -18,15 +18,15 @@ import os
 from .model_tester import ModelTester, RunMode
 
 
-class FunctionModule(torch.nn.Module):
-    """A wrapper to convert a function into a torch.nn.Module."""
+# class FunctionModule(torch.nn.Module):
+#     """A wrapper to convert a function into a torch.nn.Module."""
 
-    def __init__(self, func: Callable):
-        super().__init__()
-        self.func = func
+#     def __init__(self, func: Callable):
+#         super().__init__()
+#         self.func = func
 
-    def forward(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+#     def forward(self, *args, **kwargs):
+#         return self.func(*args, **kwargs)
 
 
 class TorchModelTester(ModelTester):
@@ -59,25 +59,27 @@ class TorchModelTester(ModelTester):
                 compiler_config.to_torch_compile_options()
             )
 
-    def _ensure_model_is_module(self) -> None:
+    def _ensure_is_executable(self) -> None:
         """Ensures that self._model is a torch.nn.Module, wrapping it if necessary."""
 
         assert isinstance(self._model, torch.nn.Module) or callable(
             self._model
         ), f"Model must be either a torch.nn.Module or a callable, got {type(self._model)}"
 
-        if not isinstance(self._model, torch.nn.Module):
-            self._model = FunctionModule(self._model)
+        # if not isinstance(self._model, torch.nn.Module):
+        #     self._model = FunctionModule(self._model)
 
     # @override
     def _configure_model_for_inference(self) -> None:
-        self._ensure_model_is_module()
-        self._model.eval()
+        self._ensure_is_executable()
+        if isinstance(self._model, torch.nn.Module):
+            self._model.eval()
 
     # @override
     def _configure_model_for_training(self) -> None:
-        self._ensure_model_is_module()
-        self._model.train()
+        self._ensure_is_executable()
+        if isinstance(self._model, torch.nn.Module):
+            self._model.train()
 
     # @override
     def _cache_model_inputs(self) -> None:
@@ -96,7 +98,7 @@ class TorchModelTester(ModelTester):
         ), f"Forward method args or kwargs or both must be provided"
 
         self._workload = Workload(
-            framework=self._framework, model=self._model, args=args, kwargs=kwargs
+            framework=self._framework, executable=self._model, args=args, kwargs=kwargs
         )
         self._workload.mesh = self._get_mesh()
         self._workload.shard_spec_fn = self._get_shard_specs_function()
@@ -146,6 +148,6 @@ class TorchModelTester(ModelTester):
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
-        assert workload.is_torch and workload.model is not None
+        assert workload.is_torch and workload.executable is not None
 
-        workload.model.compile(backend=backend)
+        workload.compiled_executable = torch.compile(workload.executable, backend=backend)
