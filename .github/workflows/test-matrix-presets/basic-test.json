@@ -1,5 +1,5 @@
 [
-  { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 20 },
-  { "runs-on": "p150",               "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 20 },
-  { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test-mark": "push", "parallel-groups": 20 }
+  { "runs-on": "n150",        "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 30 },
+  { "runs-on": "p150",               "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 30 },
+  { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test-mark": "push", "parallel-groups": 30 }
 ]
