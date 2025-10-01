@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -17,58 +16,33 @@ import os
 import numpy as np
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.spmd as xs
+from infra.utilities.xla_multichip_utils import enable_spmd, get_mesh
+from infra.comparators.torch_comparator import TorchComparator
+from tests.infra.comparators.comparison_config import (
+    AtolConfig,
+    ComparisonConfig,
+    PccConfig,
+)
+from typing import List
+import pytest
+from enum import Enum
 
 
-def setup_spmd():
-    print("Setting up XLA environment...")
-    num_devices = xr.global_runtime_device_count()
-
-    # Basic XLA configuration
-    os.environ["ENABLE_AUTO_PARALLEL"] = (
-        "TRUE"  # Enables the auto parallel pass in tt-mlir
-    )
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = (
-        "1"  # Converts the StableHLO emitted by torch-xla to the Shardy dialect
-    )
-    os.environ["MESH_SHAPE"] = (
-        f"1,{num_devices}"  # Sets the mesh shape used by the auto parallel pass
-    )
-
-    # Initialize SPMD
-    xr.use_spmd()
-    print("XLA environment configured.")
+class RunMode(Enum):
+    PREFILL = "prefill"
+    DECODE = "decode"
 
 
-def create_device_mesh() -> Mesh:
-    """
-    Create device mesh for tensor parallelism.
-
-    Args:
-        num_devices: Total number of devices
-        mesh_shape: Shape of the device mesh (batch_dim, model_dim)
-
-    Returns:
-        Mesh object for SPMD operations
-    """
-    num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-    print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
-    return mesh
-
-
-# --------------------------------
-# Llama Generation Example
-# --------------------------------
-def llama():
-
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.parametrize("run_mode", [RunMode.PREFILL, RunMode.DECODE])
+def test_llama_step(run_mode):
     # Must be called at start of program.
-    setup_spmd()
+    enable_spmd()
 
     # Connect the device.
     device = xm.xla_device()
-    mesh = create_device_mesh()
+    mesh = get_mesh((1, 2), ("batch", "model"))
 
     # Instantiate model.
     model_name: str = "meta-llama/Llama-3.2-3B"
@@ -101,18 +75,37 @@ def llama():
         dtype=torch.bfloat16,
     )
 
-    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
-    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
-
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
     input_args = {
-        "input_ids": inputs.input_ids.to(device),
+        "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
-        "cache_position": cache_position.to(device),
+        "cache_position": cache_position,
         "use_cache": True,
     }
 
-    # mark shard specs
+    # In decode mode, use only the first token and reset cache position
+    if run_mode == RunMode.DECODE:
+        input_args["input_ids"] = input_args["input_ids"][
+            :, :1
+        ]  # Take first token, keep batch dim
+        input_args["cache_position"] = torch.tensor([0])  # Set cache position to [0]
+
+    # CPU comparison
+    cpu_output_logits: List[torch.Tensor] = []
+    with torch.no_grad():
+        cpu_output: CausalLMOutputWithPast = model(**input_args)
+        cpu_logits = cpu_output.logits
+        cpu_output_logits.append(cpu_logits)
+        cpu_tok = tokenizer.decode(cpu_logits[:, -1].argmax(dim=-1))
+        print("Cpu tok: ", cpu_tok)
+
+    # Move inputs to device
+    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
+    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+    input_args["input_ids"] = input_args["input_ids"].to(device)
+    input_args["cache_position"] = input_args["cache_position"].to(device)
+
+    # Mark shard specs on inputs.
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
@@ -125,10 +118,10 @@ def llama():
         xs.mark_sharding(key, mesh, (None, "model", None, None))
         xs.mark_sharding(value, mesh, (None, "model", None, None))
 
-    # Move inputs and model to device.
+    # Move model to device.
     model = model.to(device)
 
-    # shard model internals
+    # Mark shard specs on model internals.
     for layer in model.model.layers:
         xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
@@ -139,9 +132,10 @@ def llama():
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
-    tokens_to_generate = 16
+    tokens_to_generate = 1
 
     output_tokens = []
+    generated_output_logits: List[torch.Tensor] = []
 
     model.compile(backend="tt")
 
@@ -150,10 +144,11 @@ def llama():
         for step in range(tokens_to_generate):
             output: CausalLMOutputWithPast = model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
+            generated_output_logits.append(output_logits)
             output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
             output_tokens.append(output_text)
-            print(output_text, end="")
+            print("Generated token:", output_text)
 
             # Update inputs for next iteration
             next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
@@ -173,12 +168,12 @@ def llama():
                 xs.mark_sharding(key, mesh, (None, "model", None, None))
                 xs.mark_sharding(value, mesh, (None, "model", None, None))
 
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(enabled=False),
+            pcc=PccConfig(required_pcc=0.99),
+        )
+    )
 
-# --------------------------------
-# main
-# --------------------------------
-if __name__ == "__main__":
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
-    xr.set_device_type("TT")
-
-    llama()
+    comparator.compare(generated_output_logits, cpu_output_logits)
+    print("output tokens:", output_tokens)
