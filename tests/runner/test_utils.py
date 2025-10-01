@@ -7,6 +7,12 @@ import importlib.util
 import inspect
 import os
 import sys
+import importlib.util
+from tests.infra.comparators import comparison_config
+import torch
+import inspect
+from enum import Enum
+import collections
 from dataclasses import dataclass
 from enum import Enum
 
@@ -378,6 +384,7 @@ def record_model_test_properties(
     parallelism: Parallelism,
     test_passed: bool = False,
     comparison_result=None,
+    comparison_config=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -434,12 +441,17 @@ def record_model_test_properties(
             {
                 "pcc": comparison_result.pcc,
                 "atol": comparison_result.atol,
-                "pcc_threshold": test_metadata.required_pcc,
-                "atol_threshold": test_metadata.required_atol,
-                "pcc_assertion_enabled": test_metadata.assert_pcc,
-                "atol_assertion_enabled": test_metadata.assert_atol,
                 "comparison_passed": comparison_result.passed,
                 "comparison_error_message": comparison_result.error_message,
+            }
+        )
+    if comparison_config is not None:
+        tags.update(
+            {
+                "pcc_threshold": comparison_config.pcc.required_pcc,
+                "atol_threshold": comparison_config.atol.required_atol,
+                "pcc_assertion_enabled": comparison_config.pcc.enabled,
+                "atol_assertion_enabled": comparison_config.atol.enabled,
             }
         )
 
