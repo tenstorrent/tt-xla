@@ -8,22 +8,29 @@ from tests.infra.comparators.comparison_config import (
 )
 import torch
 import torch_xla.core.xla_model as xm
-#import torch_xla.runtime as xr
+import torch_xla.runtime as xr
 
 import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
+
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader,
     ModelVariant,
 )
 
+available_variants = ModelLoader.query_available_variants()
 
+@pytest.mark.parametrize(
+    "variant, variant_config",
+    available_variants.items(),
+    ids=[str(k) for k in available_variants.keys()],
+)
 @pytest.mark.parametrize("seq_len", [256, 512, 1024, 2048, 4096])
-def test_rotary_embeddings(seq_len):
-    loader = ModelLoader(ModelVariant.LLAMA_3_2_3B)
+def test_llama_rotary_emb(seq_len, variant, variant_config):
+    loader = ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
-    
+   
     # extract RoPE module from model
     RoPE = model.model.rotary_emb 
 
@@ -39,7 +46,7 @@ def test_rotary_embeddings(seq_len):
     cos, sin = RoPE(query_states, position_ids)
     
     # Compile RoPE module and run on device
-    #xr.set_device_type("TT")
+    xr.set_device_type("TT")
     device = xm.xla_device()
     compiled_RoPE = torch.compile(RoPE.to(device), backend="tt")
     
