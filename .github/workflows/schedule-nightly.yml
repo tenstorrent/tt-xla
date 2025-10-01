@@ -54,7 +54,6 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-passing.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run full model tests on Civ1
@@ -69,7 +68,6 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-xfail.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run full model tests on Civ1

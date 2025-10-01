@@ -37,11 +37,6 @@ on:
         description: 'Name of the build artifact (codecov)'
         required: false
         type: string
-      timeout_minutes:
-        description: 'Timeout minutes for the test job'
-        required: false
-        default: 120
-        type: number
       test_suite:
         description: 'Test suite preset options or custom'
         required: true
