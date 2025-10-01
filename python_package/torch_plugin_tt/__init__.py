@@ -33,6 +33,9 @@ class TTPlugin(DevicePlugin):
         # We rely on this for Codegen exporting.
         os.environ["XLA_HLO_DEBUG"] = "1"
         os.environ["XLA_IR_DEBUG"] = "1"
+        # In pytorch/xla this enables the ConvertStableHloToSdy pass which should run by default.
+        os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
