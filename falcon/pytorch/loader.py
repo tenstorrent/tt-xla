@@ -173,11 +173,25 @@ class ModelLoader(ForgeModel):
         return self.tokenizer.decode(response_tokens)
 
     def get_mesh_config(self, num_devices: int):
+        # Single-device: always return data-parallel (1, 1)
+        if num_devices == 1:
+            return (1, 1), ("batch", "model")
+
+        # Variant-specific mesh decisions for clarity and robustness
+        if self._variant == ModelVariant.FALCON_MAMBA_7B:
+            assert (
+                num_devices % 2 == 0
+            ), "Mamba requires an even number of devices for (2, N/2) mesh"
+            mesh_shape = (2, num_devices // 2)
+            return mesh_shape, ("batch", "model")
+
+        # All other Falcon variants have attention heads in config
         if self.config.num_attention_heads % num_devices == 0:
             mesh_shape = (1, num_devices)
         else:
             assert num_devices % 2 == 0, "Attention heads cannot be evenly distributed"
             mesh_shape = (2, num_devices // 2)
+
         shard_attention = self._variant in [
             ModelVariant.FALCON_7B,
             ModelVariant.FALCON_10B,
