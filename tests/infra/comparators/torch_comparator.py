@@ -30,33 +30,30 @@ class TorchComparator(Comparator):
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
-    def _compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
+    def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         passed = tree_map(lambda x, y: torch.equal(x, y), device_output, golden_output)
         flat_passed, _ = tree_flatten(passed)
-        assert all(flat_passed), "Equal comparison failed."
+        return all(flat_passed)
 
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
-    ) -> None:
+    ) -> float:
         leaf_atols = tree_map(
             lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
         )
         flat_atols, _ = tree_flatten(leaf_atols)
         atol = max(flat_atols)
-        assert atol <= atol_config.required_atol, (
-            f"Atol comparison failed. "
-            f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
-        )
+        return float(atol)
 
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_pcc(
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
-    ) -> None:
+    ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
@@ -65,19 +62,21 @@ class TorchComparator(Comparator):
             return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
 
         # If tensors are really close, pcc will be nan. Handle that before calculating
-        # pcc.
+        # pcc by checking allclose first.
         try:
-            TorchComparator._compare_allclose(
+            # Use the existing _compare_allclose method
+            if TorchComparator._compare_allclose(
                 device_output, golden_output, pcc_config.allclose
-            )
-        except AssertionError:
-            leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
-            flat_pccs, _ = tree_flatten(leaf_pccs)
-            pcc = min(flat_pccs)
-            assert pcc >= pcc_config.required_pcc, (
-                f"PCC comparison failed. "
-                f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
-            )
+            ):
+                return 1.0  # Perfect correlation when values are essentially identical
+        except:
+            pass
+
+        # Calculate PCC for non-identical values
+        leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
+        flat_pccs, _ = tree_flatten(leaf_pccs)
+        pcc = min(flat_pccs)
+        return float(pcc)
 
     # @override
     @staticmethod
@@ -86,7 +85,7 @@ class TorchComparator(Comparator):
         device_output: PyTree,
         golden_output: PyTree,
         allclose_config: AllcloseConfig,
-    ) -> None:
+    ) -> bool:
         all_close = tree_map(
             lambda x, y: torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
@@ -95,7 +94,4 @@ class TorchComparator(Comparator):
             golden_output,
         )
         flat_close, _ = tree_flatten(all_close)
-        assert all(flat_close), (
-            f"Allclose comparison failed. "
-            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
-        )
+        return all(flat_close)

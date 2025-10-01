@@ -50,6 +50,7 @@ class ComparisonConfig:
     atol: AtolConfig = field(default_factory=lambda: AtolConfig(False))
     pcc: PccConfig = field(default_factory=PccConfig)
     allclose: AllcloseConfig = field(default_factory=lambda: AllcloseConfig(False))
+    assert_on_failure: bool = True  # Default to True for backwards compatibility
 
     def enable_all(self) -> None:
         self.equal.enable()

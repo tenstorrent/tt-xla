@@ -16,6 +16,7 @@ from tests.runner.requirements import RequirementsManager
 from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
+from tests.infra.comparators.comparator import ComparisonResult
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -58,6 +59,7 @@ def test_all_models(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False
+        comparison_result = None
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -69,7 +71,10 @@ def test_all_models(
                 )
 
                 tester.test()
-                succeeded = True
+                comparison_result = tester.get_comparison_result()
+                succeeded = comparison_result.passed
+
+                tester._comparator.assert_on_results()
 
         except Exception as e:
             err = capteesys.readouterr().err
@@ -86,6 +91,7 @@ def test_all_models(
                 test_metadata=test_metadata,
                 run_mode=run_mode,
                 test_passed=succeeded,
+                comparison_result=comparison_result,
             )
 
 
