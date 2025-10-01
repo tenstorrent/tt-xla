@@ -123,7 +123,12 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        echo "matrix-hash=$(echo '${{ needs.generate-matrix-test.outputs.test_matrix }}' | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        cat << 'EOF' > _test_matrix.json
+          ${{ needs.generate-matrix-test.outputs.test_matrix }}
+        EOF
+        cat _test_matrix.json
+        echo "matrix-hash=$(cat _test_matrix.json | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        rm -f _test_matrix.json
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
