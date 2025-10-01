@@ -92,7 +92,7 @@ def llama():
 
     # Instantiate static cache on host then transfer it to device to avoid compiling creation ops
     batch_size = 1
-    max_cache_len = 16
+    max_cache_len = 32
     static_cache: StaticCache = StaticCache(
         config=model.config,
         max_batch_size=batch_size,
@@ -139,7 +139,7 @@ def llama():
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
-    tokens_to_generate = 8
+    tokens_to_generate = 16
 
     output_tokens = []
 
