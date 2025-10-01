@@ -29,25 +29,27 @@ RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
     cmake --build env/build && \
     chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
 
-# Final stage
+# CI image build
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
 
 # Copy the TTMLIR_TOOLCHAIN_DIR from the previous stage
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
 COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
 RUN rm -rf $TTMLIR_TOOLCHAIN_DIR/venv
 
 RUN du -h --max-depth=2 $TTMLIR_TOOLCHAIN_DIR
 
-# Ird image
 
+# Ird image build
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
 COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
 
