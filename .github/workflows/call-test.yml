@@ -272,10 +272,10 @@ jobs:
         # multiply the estimate with 3 until estimates are more precise
         ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
 
-        echo "timeout-seconds=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
     - name: Run tests
-      timeout-minutes: ${{ steps.collect-tests.outputs.timeout-seconds }}
+      timeout-minutes: ${{ steps.collect-tests.outputs.timeout-minutes }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
