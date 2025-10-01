@@ -153,10 +153,11 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   // [James] Deallocate input tensors
-  for (size_t input_index = 0; input_index < input_tensors.size();
-       ++input_index) {
-    tt::runtime::deallocateTensor(input_tensors[input_index], /*force=*/true);
-  }
+  // for (size_t input_index = 0; input_index < input_tensors.size();
+  //      ++input_index) {
+  //   tt::runtime::deallocateTensor(input_tensors[input_index],
+  //   /*force=*/true);
+  // }
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
