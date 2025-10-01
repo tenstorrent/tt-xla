@@ -6,6 +6,7 @@ import os
 import pytest
 from infra import RunMode
 
+from tests.infra.comparators.comparator import ComparisonResult
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -89,6 +90,7 @@ def test_all_models(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False
+        comparison_result = None
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -101,7 +103,10 @@ def test_all_models(
                 )
 
                 tester.test()
-                succeeded = True
+                comparison_result = tester.get_comparison_result()
+                succeeded = comparison_result.passed
+
+                tester._comparator.assert_on_results()
 
         except Exception as e:
             err = capteesys.readouterr().err
@@ -117,8 +122,9 @@ def test_all_models(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
-                test_passed=succeeded,
                 parallelism=parallelism,
+                test_passed=succeeded,
+                comparison_result=comparison_result,
             )
 
 

@@ -117,6 +117,7 @@ class ModelTestConfig:
                 config.pcc.allclose.rtol = self.allclose_rtol
             if self.allclose_atol is not None:
                 config.pcc.allclose.atol = self.allclose_atol
+        config.assert_on_failure = False
         return config
 
     def _normalize_markers(self, markers_value):
@@ -285,6 +286,9 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
         return get_mesh(mesh_shape, mesh_names)
 
+    def get_comparison_result(self):
+        return self._comparator.get_results()
+
 
 def setup_models_path(project_root):
     """Setup models root path and add to sys.path for imports."""
@@ -376,6 +380,7 @@ def record_model_test_properties(
     run_mode: RunMode,
     parallelism: Parallelism,
     test_passed: bool = False,
+    comparison_result=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -425,6 +430,21 @@ def record_model_test_properties(
         "bringup_status": str(bringup_status),
         "parallelism": str(parallelism),
     }
+
+    # Add comparison result metrics if available
+    if comparison_result is not None:
+        tags.update(
+            {
+                "pcc": comparison_result.pcc,
+                "atol": comparison_result.atol,
+                "pcc_threshold": test_metadata.required_pcc,
+                "atol_threshold": test_metadata.required_atol,
+                "pcc_assertion_enabled": test_metadata.assert_pcc,
+                "atol_assertion_enabled": test_metadata.assert_atol,
+                "comparison_passed": comparison_result.passed,
+                "comparison_error_message": comparison_result.error_message,
+            }
+        )
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
