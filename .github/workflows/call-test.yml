@@ -67,7 +67,6 @@ jobs:
   # Run tests on TT hardware
   run-tests:
     needs: generate-matrix-test
-    timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
     strategy:
       fail-fast: false
       matrix:
@@ -265,13 +264,21 @@ jobs:
         python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
 
     - name: Collect Tests
+      id: collect-tests
       shell: bash
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
+        COLLECTED_OUTPUT=$(python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }})
+        echo "$COLLECTED_OUTPUT"
+
+        ESTIMATED_DURATION=$(echo "$COLLECT_OUTPUT" | grep "estimated duration:")
+        ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/')
+
+        echo "timeout-seconds=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
     - name: Run tests
+      timeout-minutes: ${{ steps.collect-tests.outputs.timeout-seconds || inputs.timeout_minutes }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
