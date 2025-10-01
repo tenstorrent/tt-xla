@@ -8,6 +8,7 @@
 // c++ standard library includes
 #include <cassert>
 #include <cstdlib>
+#include <fstream>
 #include <numeric>
 
 // loguru includes
@@ -145,6 +146,16 @@ ModuleBuilder::buildModule(
   }
 
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
+
+  // Print mlir_module to local file.
+  std::error_code ec;
+  std::string tmp_mlir_path = "proper.shlo.mlir";
+  llvm::raw_fd_ostream file_stream(tmp_mlir_path, ec);
+  if (ec) {
+    llvm::errs() << "Error opening file: " << ec.message() << "\n";
+    exit(1);
+  }
+  mlir_module->print(file_stream, mlir::OpPrintingFlags().enableDebugInfo());
 
   status = runCompilerStableHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -844,7 +855,9 @@ void ModuleBuilder::printModule(
     return;
   }
 
-  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+  return;
+
+  // mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
 }
 
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
@@ -855,7 +868,13 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   // Multithreading must be disabled when printing at module scope
   // to avoid interleaved output.
   pm.getContext()->disableMultithreading();
-  pm.enableIRPrinting();
+
+  // Print only after passes.
+  pm.enableIRPrinting([](mlir::Pass *p, mlir::Operation *op) {
+    return true;  // before
+  },
+                      [](mlir::Pass *p, mlir::Operation *op) { return false; // after
+  });
 }
 
 bool ModuleBuilder::isUsingShardy(
