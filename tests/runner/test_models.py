@@ -90,6 +90,7 @@ def test_all_models(
                 run_mode=run_mode,
                 test_passed=succeeded,
                 comparison_result=comparison_result,
+                comparison_config=tester._comparison_config,
             )
 
 
