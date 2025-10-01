@@ -274,7 +274,7 @@ jobs:
 
         ESTIMATED_DURATION=$(echo "$COLLECTED_OUTPUT" | grep "estimated duration:")
         ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/' | awk '{print int($1)}')
-        ESTIMATED_DURATION=$((ESTIMATED_DURATION * 30))
+        ESTIMATED_DURATION=$((ESTIMATED_DURATION * 2 / 60))
 
         echo "timeout-seconds=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
