@@ -68,7 +68,6 @@ build_and_push() {
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base $ON_MAIN
 build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN ci
 build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN ird
-# build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ird $ON_MAIN ci
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"
