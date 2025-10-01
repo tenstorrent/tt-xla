@@ -23,16 +23,8 @@ def setup_spmd():
     print("Setting up XLA environment...")
     num_devices = xr.global_runtime_device_count()
 
-    # Basic XLA configuration
-    os.environ["ENABLE_AUTO_PARALLEL"] = (
-        "TRUE"  # Enables the auto parallel pass in tt-mlir
-    )
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = (
-        "1"  # Converts the StableHLO emitted by torch-xla to the Shardy dialect
-    )
-    os.environ["MESH_SHAPE"] = (
-        f"1,{num_devices}"  # Sets the mesh shape used by the auto parallel pass
-    )
+    # Converts the StableHLO emitted by torch-xla to the Shardy dialect
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
     # Initialize SPMD
     xr.use_spmd()
@@ -66,6 +58,13 @@ def llama():
     # Must be called at start of program.
     setup_spmd()
 
+    # Set up config variables
+    tokens_to_generate = 16
+    output_tokens = []
+    model_hidden_layers = 28
+    batch_size = 1
+    max_cache_len = 32
+
     # Connect the device.
     device = xm.xla_device()
     mesh = create_device_mesh()
@@ -75,12 +74,14 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = 28
+    # Default, controllable hidden layer count.
+    model.config.num_hidden_layers = model_hidden_layers
+
     # Instantiate tokenizer.
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    # Put it in inference mode
+    # Put it in inference mode.
     model = model.eval()
 
     # Generate inputs.
@@ -90,9 +91,7 @@ def llama():
         truncation=True,
     )
 
-    # Instantiate static cache on host then transfer it to device to avoid compiling creation ops
-    batch_size = 1
-    max_cache_len = 32
+    # Instantiate static cache on host (device instantiation leads to trace of unfusable creation ops.)
     static_cache: StaticCache = StaticCache(
         config=model.config,
         max_batch_size=batch_size,
@@ -100,19 +99,23 @@ def llama():
         device="cpu",
         dtype=torch.bfloat16,
     )
-
-    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
-    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
-
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
     input_args = {
-        "input_ids": inputs.input_ids.to(device),
+        "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
-        "cache_position": cache_position.to(device),
+        "cache_position": cache_position,
         "use_cache": True,
     }
 
-    # mark shard specs
+    # Move model and inputs to device.
+    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
+    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+    input_args["input_ids"] = input_args["input_ids"].to(device)
+    input_args["cache_position"] = input_args["cache_position"].to(device)
+
+    model = model.to(device)
+
+    # mark shardings on model and inputs.
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
@@ -125,9 +128,6 @@ def llama():
         xs.mark_sharding(key, mesh, (None, "model", None, None))
         xs.mark_sharding(value, mesh, (None, "model", None, None))
 
-    # Move inputs and model to device.
-    model = model.to(device)
-
     # shard model internals
     for layer in model.model.layers:
         xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
@@ -138,10 +138,6 @@ def llama():
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
-
-    tokens_to_generate = 16
-
-    output_tokens = []
 
     model.compile(backend="tt")
 
@@ -174,9 +170,6 @@ def llama():
                 xs.mark_sharding(value, mesh, (None, "model", None, None))
 
 
-# --------------------------------
-# main
-# --------------------------------
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
