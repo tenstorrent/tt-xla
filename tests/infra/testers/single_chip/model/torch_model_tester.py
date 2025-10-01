@@ -14,6 +14,8 @@ from infra.utilities import Framework
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
+from infra.utilities.xla_multichip_utils import enable_spmd
+import os
 
 from .model_tester import ModelTester, RunMode
 
@@ -94,8 +96,7 @@ class TorchModelTester(ModelTester):
         is_multichip = self._workload.mesh and len(self._workload.mesh.device_ids) > 1
 
         if has_shard_specs and is_multichip:
-            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-            xr.use_spmd()
+            enable_spmd()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
