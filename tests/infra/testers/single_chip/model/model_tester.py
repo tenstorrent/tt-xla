@@ -8,8 +8,9 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
-from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
+from infra.comparators import ComparisonConfig, ComparisonResult
+from tests.infra.testers.compiler_config import CompilerConfig
+from infra.utilities import Framework, Model, Tensor, ShardSpec, Mesh
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -118,14 +119,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self) -> None:
+    def test(self) -> ComparisonResult:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            self._test_inference()
+            return self._test_inference()
         else:
-            self._test_training()
+            return self._test_training()
 
-    def _test_inference(self) -> None:
+    def _test_inference(self) -> ComparisonResult:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -136,7 +137,7 @@ class ModelTester(BaseTester, ABC):
         self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
 
-        self._compare(tt_res, cpu_res)
+        return self._compare(tt_res, cpu_res)
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
@@ -146,11 +147,11 @@ class ModelTester(BaseTester, ABC):
         """Runs workload on TT device."""
         return self._device_runner.run_on_tt_device(compiled_workload)
 
-    def _compare(self, device_out: Tensor, golden_out: Tensor) -> None:
-        """Compares device with golden output."""
-        self._comparator.compare(device_out, golden_out)
+    def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
+        """Compares device with golden output and returns the result."""
+        return self._comparator.compare(device_out, golden_out)
 
-    def _test_training(self):
+    def _test_training(self) -> ComparisonResult:
         """
         Tests the model by running training on TT device and on CPU and comparing the
         forward results and gradients. Implementation is framework-specific.

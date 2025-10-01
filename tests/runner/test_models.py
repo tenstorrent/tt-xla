@@ -6,7 +6,7 @@ import os
 import pytest
 from infra import RunMode
 
-from tests.infra.comparators.comparator import ComparisonResult
+from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -20,6 +20,7 @@ from tests.runner.test_utils import (
 )
 from tests.utils import BringupStatus
 from third_party.tt_forge_models.config import Parallelism
+from tests.runner.test_config import PLACEHOLDER_MODELS
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -102,11 +103,9 @@ def test_all_models(
                     parallelism=parallelism,
                 )
 
-                tester.test()
-                comparison_result = tester.get_comparison_result()
+                comparison_result = tester.test()
                 succeeded = comparison_result.passed
-
-                tester._comparator.assert_on_results()
+                Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
             err = capteesys.readouterr().err

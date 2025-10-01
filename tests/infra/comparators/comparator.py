@@ -37,7 +37,6 @@ class Comparator(ABC):
     def __init__(self, comparison_config: ComparisonConfig) -> None:
         """Initialize the comparator with comparison configuration."""
         self._comparison_config = comparison_config
-        self._comparison_result = None
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """
@@ -49,12 +48,7 @@ class Comparator(ABC):
         """
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
-
-        assert (
-            self._comparison_result is None
-        ), "Comparison result is already initialized. Comparator object should not be reused for multiple comparisons."
-
-        self._comparison_result = ComparisonResult(
+        _comparison_result = ComparisonResult(
             passed=None,
             pcc=None,
             atol=None,
@@ -64,96 +58,73 @@ class Comparator(ABC):
         )
 
         if self._comparison_config.equal.enabled:
-            self._comparison_result.equal = self._compare_equal(
-                device_output, golden_output
-            )
+            _comparison_result.equal = self._compare_equal(device_output, golden_output)
         if self._comparison_config.atol.enabled:
-            self._comparison_result.atol = self._compare_atol(
+            _comparison_result.atol = self._compare_atol(
                 device_output, golden_output, self._comparison_config.atol
             )
         if self._comparison_config.pcc.enabled:
-            self._comparison_result.pcc = self._compare_pcc(
+            _comparison_result.pcc = self._compare_pcc(
                 device_output, golden_output, self._comparison_config.pcc
             )
         if self._comparison_config.allclose.enabled:
-            self._comparison_result.allclose = self._compare_allclose(
+            _comparison_result.allclose = self._compare_allclose(
                 device_output, golden_output, self._comparison_config.allclose
             )
 
         # Evaluate the overall pass/fail status and capture any error message
-        self._comparison_result.passed, self._comparison_result.error_message = (
-            self._evaluate_results()
+        _comparison_result.passed, _comparison_result.error_message = (
+            self._evaluate_results(_comparison_result)
         )
 
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:
-            self.assert_on_results()
+            Comparator._assert_on_results(_comparison_result)
 
-        return self._comparison_result
+        return _comparison_result
 
-    def get_results(self) -> ComparisonResult:
-        """
-        Get comparison results.
-
-        Returns the ComparisonResult object containing
-        """
-        if self._comparison_result is None:
-            raise RuntimeError(
-                "Comparison results are not initialized. Call compare() first."
-            )
-        return self._comparison_result
-
-    def _evaluate_results(self) -> tuple[bool, str | None]:
+    def _evaluate_results(
+        self, comparison_result: ComparisonResult
+    ) -> tuple[bool, str | None]:
         """
         Evaluate comparison results and return whether all enabled checks passed along with error message.
+
+        Args:
+            comparison_result: The ComparisonResult to evaluate
 
         Returns (passed, error_message) where:
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
         - error_message: None if passed, combined error message for all failures if any failed
         """
-        if self._comparison_result is None:
-            raise RuntimeError(
-                "Comparison results are not initialized. Call compare() first."
-            )
-
         passed = True
         error_messages = []
 
         # Check each enabled comparison type and collect all failures
-        if (
-            self._comparison_config.equal.enabled
-            and self._comparison_result.equal is False
-        ):
+        if self._comparison_config.equal.enabled and comparison_result.equal is False:
             passed = False
             error_messages.append("Equal comparison failed.")
 
-        if (
-            self._comparison_config.atol.enabled
-            and self._comparison_result.atol is not None
-        ):
+        if self._comparison_config.atol.enabled and comparison_result.atol is not None:
             required_atol = self._comparison_config.atol.required_atol
-            if self._comparison_result.atol > required_atol:
+            if comparison_result.atol > required_atol:
                 passed = False
                 error_messages.append(
                     f"Atol comparison failed. "
-                    f"Calculated: atol={self._comparison_result.atol}. Required: atol={required_atol}."
+                    f"Calculated: atol={comparison_result.atol}. Required: atol={required_atol}."
                 )
 
-        if (
-            self._comparison_config.pcc.enabled
-            and self._comparison_result.pcc is not None
-        ):
+        if self._comparison_config.pcc.enabled and comparison_result.pcc is not None:
             required_pcc = self._comparison_config.pcc.required_pcc
-            if self._comparison_result.pcc < required_pcc:
+            if comparison_result.pcc < required_pcc:
                 passed = False
                 error_messages.append(
                     f"PCC comparison failed. "
-                    f"Calculated: pcc={self._comparison_result.pcc}. Required: pcc={required_pcc}."
+                    f"Calculated: pcc={comparison_result.pcc}. Required: pcc={required_pcc}."
                 )
 
         if (
             self._comparison_config.allclose.enabled
-            and self._comparison_result.allclose is False
+            and comparison_result.allclose is False
         ):
             passed = False
             allclose_config = self._comparison_config.allclose
@@ -169,20 +140,17 @@ class Comparator(ABC):
 
         return passed, combined_error_message
 
-    def assert_on_results(self) -> None:
+    @staticmethod
+    def _assert_on_results(comparison_result: ComparisonResult) -> None:
         """
         Assert based on comparison results if any checks failed.
-        Automatically called if assert_on_failure is enabled, but callers can manually trigger this assertion
-        at later time if some cleanup needs to be done.
-        """
-        if self._comparison_result is None:
-            raise RuntimeError(
-                "Comparison results are not initialized. Call compare() first."
-            )
 
+        Args:
+            comparison_result: The ComparisonResult to assert on
+        """
         # Simply assert if we have a failure with the stored error message
-        if not self._comparison_result.passed:
-            assert False, self._comparison_result.error_message
+        if not comparison_result.passed:
+            assert False, comparison_result.error_message
 
     @staticmethod
     @abstractmethod
