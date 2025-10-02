@@ -1115,8 +1115,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
-            print(f"INPUT IDS: {input_ids}")
-            print(f"INPUT EMBEDS: {inputs_embeds}")
             xm.mark_step()
             # Run the decoder
             with set_forward_context(
