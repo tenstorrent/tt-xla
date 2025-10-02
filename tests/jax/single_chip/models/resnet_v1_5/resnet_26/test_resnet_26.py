@@ -87,7 +87,7 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
 )
 @pytest.mark.skip(
     reason=failed_runtime(
-        "Optimizer test hangs as part of a test suite - works when run standalone ",
+        "Optimizer test hangs as part of a test suite - works when run standalone "
         "https://github.com/tenstorrent/tt-xla/issues/1547",
     )
 )
