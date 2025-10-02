@@ -273,7 +273,6 @@ def create_constant_tensor(scalar, dtype, device):
 # If possible, we will represent min/max values as tensors which will be lowered as constants.
 # NOTE: see `create_constant_tensor()`
 def clamp(input, min_val=None, max_val=None):
-def clamp(input, min_val=None, max_val=None):
     if (
         min_val is not None
         and type(min_val) == int
