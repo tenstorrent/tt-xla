@@ -268,10 +268,15 @@ tt::runtime::Tensor LoadedExecutableInstance::prepareInputTensor(
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
-  tt::runtime::Tensor prepared_tensor = arg_buffers[0]->getPreparedTensor();
+  std::optional<tt::runtime::Tensor> prepared_tensor =
+      arg_buffers[0]->getPreparedTensor();
   for (size_t i = 1; i < arg_buffers.size(); ++i) {
-    assert(arg_buffers[i]->getPreparedTensor().handle ==
-           prepared_tensor.handle);
+    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
+           prepared_tensor.has_value());
+    if (prepared_tensor.has_value()) {
+      assert(arg_buffers[i]->getPreparedTensor()->handle ==
+             prepared_tensor->handle);
+    }
   }
 
   // Check if we already have a prepared tensor corresponding to the buffer
@@ -279,12 +284,12 @@ tt::runtime::Tensor LoadedExecutableInstance::prepareInputTensor(
   // expecting. If so, we can just reuse this tensor.
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       m_executable_image->getFlatbufferBinary(), program_index, arg_index);
-  if (prepared_tensor.handle != nullptr &&
-      tt::runtime::hasLayout(prepared_tensor, expected_layout)) {
+  if (prepared_tensor.has_value() &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
     DLOG_F(LOG_DEBUG,
            "Reusing already prepared input tensor for argument index %zu",
            arg_index);
-    return prepared_tensor;
+    return *prepared_tensor;
   }
 
   // We don't have an already prepared tensor so we need to prepare it now.
@@ -359,13 +364,23 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::vector<BufferInstance *> &arg_buffers,
     const std::unordered_map<std::string, std::string> &strategy) {
   if (strategy.at("strategy") == "identity") {
-    return arg_buffers.front()->getHostRuntimeTensor();
+    std::optional<tt::runtime::Tensor> host_runtime_tensor =
+        arg_buffers.front()->getHostRuntimeTensor();
+    assert(
+        host_runtime_tensor.has_value() &&
+        "Host tensor should be available in the buffer instance at this point");
+    return *host_runtime_tensor;
   }
 
   std::vector<tt::runtime::Tensor> runtime_tensor_shards;
   runtime_tensor_shards.reserve(arg_buffers.size());
   for (const BufferInstance *buffer : arg_buffers) {
-    runtime_tensor_shards.push_back(buffer->getHostRuntimeTensor());
+    std::optional<tt::runtime::Tensor> host_runtime_tensor =
+        buffer->getHostRuntimeTensor();
+    assert(
+        host_runtime_tensor.has_value() &&
+        "Host tensor should be available in the buffer instance at this point");
+    runtime_tensor_shards.push_back(*host_runtime_tensor);
   }
 
   tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(

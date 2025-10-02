@@ -66,12 +66,10 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
                                DeviceInstance *device, MemoryInstance *memory)
     : m_data_type(data_type), m_dimensions(dims, dims + num_dims),
-      m_device(device), m_memory(memory),
-      m_host_runtime_tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN),
+      m_device(device), m_memory(memory), m_host_runtime_tensor(std::nullopt),
       m_data_ready(false), m_data_ready_event(nullptr),
       m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
-      m_prepared_runtime_tensor(nullptr, nullptr,
-                                tt::runtime::DeviceRuntime::TTNN) {}
+      m_prepared_runtime_tensor(std::nullopt) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
@@ -81,12 +79,10 @@ BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_host_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false),
-      m_prepared_runtime_tensor(nullptr, nullptr,
-                                tt::runtime::DeviceRuntime::TTNN) {
+      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
-  tt::runtime::setTensorRetain(m_host_runtime_tensor, /*retain=*/true);
+  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }
@@ -110,8 +106,10 @@ void BufferInstance::bindApi(PJRT_Api *api) {
 }
 
 size_t BufferInstance::getConvertedRuntimeTensorSize() const {
+  assert(m_host_runtime_tensor.has_value() &&
+         "Trying to get runtime tensor size of uninitialized tensor");
   std::uint32_t runtime_tensor_size =
-      tt::runtime::getTensorVolume(m_host_runtime_tensor) *
+      tt::runtime::getTensorVolume(*m_host_runtime_tensor) *
       tt::runtime::utils::dataTypeElementSize(
           data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
@@ -138,22 +136,10 @@ void BufferInstance::deleteData() {
     m_copy_to_host_thread->join();
   }
 
-  // Runtime tensor can be uninitialized if something breaks between input
-  // buffer creation and copying data from host, so we have to check if handle
-  // is set before deallocating tensor.
-  if (m_host_runtime_tensor.handle) {
-    // Just reset the tensor, deallocation happens automatically when
-    // reference count drops to zero.
-    m_host_runtime_tensor =
-        tt::runtime::Tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN);
-  }
-
-  if (m_prepared_runtime_tensor.handle) {
-    // Just reset the tensor, deallocation happens automatically when
-    // reference count drops to zero.
-    m_prepared_runtime_tensor =
-        tt::runtime::Tensor(nullptr, nullptr, tt::runtime::DeviceRuntime::TTNN);
-  }
+  // Just reset the tensors, deallocation happens automatically when
+  // reference count drops to zero.
+  m_host_runtime_tensor = std::nullopt;
+  m_prepared_runtime_tensor = std::nullopt;
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -230,7 +216,7 @@ void BufferInstance::copyFromHost(
 
   // We want to be in control when input buffers are deallocated, which happens
   // during buffer destruction or on delete/destroy API calls.
-  tt::runtime::setTensorRetain(m_host_runtime_tensor, /*retain=*/true);
+  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 
   markAsDataReady();
 
@@ -253,8 +239,9 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
       /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
 
-  tt::runtime::memcpy(m_host_runtime_tensor, src_buffer->m_host_runtime_tensor);
-  tt::runtime::setTensorRetain(m_host_runtime_tensor, /*retain=*/true);
+  tt::runtime::memcpy(*m_host_runtime_tensor,
+                      *src_buffer->m_host_runtime_tensor);
+  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 
   markAsDataReady();
 }
@@ -303,6 +290,8 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
+  assert(m_host_runtime_tensor.has_value() &&
+         "Trying to copy from uninitialized tensor");
   // Making sure that the host buffer size is greater than or equal to the
   // runtime tensor size.
   size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
@@ -341,7 +330,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, m_host_runtime_tensor, event.get(), m_data_type,
+      host_buffer, *m_host_runtime_tensor, event.get(), m_data_type,
       runtime_tensor_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is

@@ -11,6 +11,7 @@
 // c++ standard library includes
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -89,13 +90,13 @@ public:
   const DeviceInstance *getDevice() const { return m_device; }
 
   // Returns the underlying runtime tensor created for this buffer.
-  const tt::runtime::Tensor &getHostRuntimeTensor() const {
+  const std::optional<tt::runtime::Tensor> &getHostRuntimeTensor() const {
     return m_host_runtime_tensor;
   }
 
   // Returns the prepared runtime tensor created for this buffer on last
   // execution.
-  const tt::runtime::Tensor &getPreparedTensor() const {
+  const std::optional<tt::runtime::Tensor> &getPreparedTensor() const {
     return m_prepared_runtime_tensor;
   }
 
@@ -191,13 +192,13 @@ private:
   MemoryInstance *m_memory;
 
   // Underlying host runtime tensor created for this buffer.
-  tt::runtime::Tensor m_host_runtime_tensor;
+  std::optional<tt::runtime::Tensor> m_host_runtime_tensor;
 
   // Prepared runtime tensor created for this buffer on last execution. If this
   // buffer is used in multiple programs, it will be the tensor prepared for the
   // last program executed. If this buffer instance is a part of a multi-device
   // tensor, this field contains the full tensor.
-  tt::runtime::Tensor m_prepared_runtime_tensor;
+  std::optional<tt::runtime::Tensor> m_prepared_runtime_tensor;
 
   // True if data in the buffer is ready (transferred from host or computed on
   // device).
