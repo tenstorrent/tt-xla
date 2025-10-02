@@ -279,8 +279,9 @@ jobs:
         # multiply the estimate with 3 until estimates are more precise
         ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
 
-        if [ $ESTIMATED_DURATION -lt 30 ]; then
-          ESTIMATED_DURATION=30
+        MIN_TEST_DURATION=30
+        if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
+          ESTIMATED_DURATION=$MIN_TEST_DURATION
         fi
 
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
