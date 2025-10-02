@@ -19,6 +19,7 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "tt/runtime/debug.h"
 
 // third-party includes
 #include <google/protobuf/io/coded_stream.h>
@@ -37,11 +38,38 @@
 
 namespace tt::pjrt {
 
+// Debug callback functions
+void preOperatorCallback(tt::runtime::Binary binary, tt::runtime::CallbackContext callbackContext, tt::runtime::OpContext opContext) {
+  std::string debugStr = tt::runtime::getOpDebugString(opContext);
+  std::string locInfo = tt::runtime::getOpLocInfo(opContext);
+  
+  std::cout << "\n[DEBUG PRE-OP] ==========================================\n"
+            << "  Location: " << locInfo << "\n"
+            << "  Operation: " << debugStr << "\n"
+            << "  Runtime: " << static_cast<int>(callbackContext.associatedRuntime) << "\n"
+            << "========================================================\n" << std::endl;
+}
+
+void postOperatorCallback(tt::runtime::Binary binary, tt::runtime::CallbackContext callbackContext, tt::runtime::OpContext opContext) {
+  std::string debugStr = tt::runtime::getOpDebugString(opContext);
+  std::string locInfo = tt::runtime::getOpLocInfo(opContext);
+  
+  std::cout << "\n[DEBUG POST-OP] =========================================\n"
+            << "  Location: " << locInfo << "\n"
+            << "  Operation: " << debugStr << "\n"
+            << "  Runtime: " << static_cast<int>(callbackContext.associatedRuntime) << "\n"
+            << "  Status: Completed\n"
+            << "========================================================\n" << std::endl;
+}
+
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
       m_parent_mesh(std::nullopt) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
+
+  // Register debug callbacks for runtime debugging
+  tt::runtime::debug::Hooks::get(preOperatorCallback, postOperatorCallback);
 
   // TODO(mrakita): Add support for multi-process environment. Process index is
   // always 0 in single-process settings.

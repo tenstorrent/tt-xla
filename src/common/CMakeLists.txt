@@ -77,3 +77,8 @@ target_link_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
 )
+
+# Enable TT_RUNTIME_DEBUG preprocessor definition if the CMake option is ON
+if(TT_RUNTIME_DEBUG)
+  target_compile_definitions(TTPJRTCommon PUBLIC TT_RUNTIME_DEBUG=1)
+endif()

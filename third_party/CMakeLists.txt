@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "d5bf8aaf4aced9952b67f9ec5ec4d31fe16af56a")
+    set(TT_MLIR_VERSION "1d9e267175465a45733146da1d976f14129f64c5")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -62,7 +62,7 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
     set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
-    set(TT_RUNTIME_DEBUG OFF CACHE BOOL "Enable ttmlir runtime debugging")
+    set(TT_RUNTIME_DEBUG ON CACHE BOOL "Enable ttmlir runtime debugging")
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
