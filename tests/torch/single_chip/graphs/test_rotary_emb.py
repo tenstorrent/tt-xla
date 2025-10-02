@@ -23,7 +23,7 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 llama_available_variants = LlamaModelLoader.query_available_variants()
 qwen_available_variants = QwenModelLoader.query_available_variants()
 
-
+@pytest.mark.push
 @pytest.mark.parametrize(
     "variant, variant_config",
     llama_available_variants.items(),
@@ -71,7 +71,7 @@ def test_llama_rotary_emb(seq_len, variant, variant_config):
     comparator.compare(device_cos, cos)
     comparator.compare(device_sin, sin)
 
-
+@pytest.mark.push
 @pytest.mark.parametrize(
     "variant, variant_config",
     qwen_available_variants.items(),
