@@ -24,6 +24,8 @@ CompileOptions CompileOptions::parse(
   options.enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(compile_options,
                                 "enable_fusing_conv2d_with_multiply_pattern");
+  options.enable_trace =
+      internal::parseBoolOption(compile_options, "enable_trace");
 
   return options;
 }
