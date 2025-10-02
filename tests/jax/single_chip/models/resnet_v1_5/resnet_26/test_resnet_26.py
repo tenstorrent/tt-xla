@@ -85,10 +85,10 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
-        "Float32 not supported for ttnn.maxpool_2d op "
-        "https://github.com/tenstorrent/tt-xla/issues/941"
+        "Optimizer test hangs as part of a test suite - works when run standalone ",
+        "https://github.com/tenstorrent/tt-xla/issues/1547",
     )
 )
 def test_resnet_v1_5_26_inference_optimizer(inference_tester_optimizer: ResNetTester):
