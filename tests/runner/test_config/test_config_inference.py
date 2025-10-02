@@ -1897,6 +1897,28 @@ test_config = {
             },
         },
     },
+    "phi4/seq_cls/pytorch-microsoft/phi-4-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
+    },
+    "phi4/token_cls/pytorch-microsoft/phi-4-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
+    },
     "phi3/phi_3_5_vision/pytorch-instruct-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'",
