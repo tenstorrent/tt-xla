@@ -11,6 +11,8 @@ from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 import torch
 import tt_torch  # registers "tt" backend for torch.compile
 
+import torch_xla
+
 
 class TTPlugin(DevicePlugin):
     """
@@ -36,6 +38,7 @@ class TTPlugin(DevicePlugin):
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
+        torch_xla._XLAC._set_xla_all_numbers_special_scalars(True)
 
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
