@@ -348,14 +348,15 @@ tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     return arg_buffers.front()->getHostRuntimeTensor();
   }
 
-  std::vector<tt::runtime::Tensor> tensors;
-  tensors.reserve(arg_buffers.size());
+  std::vector<tt::runtime::Tensor> runtime_tensor_shards;
+  runtime_tensor_shards.reserve(arg_buffers.size());
   for (const BufferInstance *buffer : arg_buffers) {
-    tensors.push_back(buffer->getHostRuntimeTensor());
+    runtime_tensor_shards.push_back(buffer->getHostRuntimeTensor());
   }
 
   tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
-      tensors, strategy, m_executable_image->getDevicesMeshShape());
+      runtime_tensor_shards, strategy,
+      m_executable_image->getDevicesMeshShape());
   tt::runtime::setTensorRetain(tensor, /*retain=*/true);
 
   return tensor;
