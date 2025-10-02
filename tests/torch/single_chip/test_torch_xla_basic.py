@@ -8,7 +8,10 @@ from tests.infra.comparators.comparison_config import (
 )
 import torch
 import torch_xla.core.xla_model as xm
-
+import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
+import numpy as np
+from torch_xla.distributed.spmd import Mesh
 import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
@@ -33,6 +36,12 @@ def test_simple_mm(bias):
     model = MM()
     golden = model(input_x)
 
+    xr.use_spmd()
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape, mesh_names = (1, 8), ("x", "y")
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
+    xs.set_global_mesh(mesh)
     device = xm.xla_device()
     model = torch.compile(model.to(device), backend="tt")
 

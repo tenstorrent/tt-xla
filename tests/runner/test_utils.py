@@ -15,6 +15,7 @@ from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 import torch_xla.runtime as xr
+import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import numpy as np
 
@@ -279,6 +280,7 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh = (
             Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
         )
+        xs.set_global_mesh(mesh)
         return mesh
 
 
