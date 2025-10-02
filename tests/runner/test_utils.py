@@ -405,7 +405,7 @@ def record_model_test_properties(
     # database correctly in very short term for newly added TP models on n300-llmbox.
     # This will be replaced by something more robust in near future.
     arch = request.config.getoption("--arch")
-    if "llmbox" in arch:
+    if arch is not None and "llmbox" in arch:
         parallelism = Parallelism.TENSOR_PARALLEL
     else:
         parallelism = Parallelism.SINGLE_DEVICE
