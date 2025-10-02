@@ -18,6 +18,7 @@ from infra.comparators.torch_comparator import TorchComparator
 # calculating and comparing golden vs device results.
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm(bias):
     class MM(torch.nn.Module):
@@ -46,6 +47,7 @@ def test_simple_mm(bias):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm_eager(bias):
     class MM(torch.nn.Module):
@@ -237,6 +239,7 @@ def test_conv2d(
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("in_channels", [3, 64])
 @pytest.mark.parametrize("out_channels", [3, 64])
 @pytest.mark.parametrize("kernel_size", [2, 3])
@@ -341,6 +344,7 @@ eltwise_unary_ops = [
 ]
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_unary_ops)
 def test_eltwise_unary(op):
     input_x = (
@@ -372,6 +376,7 @@ def test_eltwise_unary(op):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_unary_ops)
 def test_eltwise_unary_eager(op):
     class Unary(torch.nn.Module):
@@ -442,6 +447,7 @@ eltwise_binary_ops = [
 ]
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_binary_ops)
 def test_eltwise_binary(op):
     if op in [
@@ -479,6 +485,7 @@ def test_eltwise_binary(op):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_binary_ops)
 def test_eltwise_binary_eager(op):
     if op in [
