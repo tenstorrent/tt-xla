@@ -326,9 +326,18 @@ def create_test_entries(loader_paths):
     """Create test entries combining loader paths and variants."""
     test_entries = []
 
+    # Development / Debug workaround to collect only red models.
+    red_only = os.environ.get("TT_XLA_RED_ONLY", "0") == "1"
+
     # Store variant tuple along with the ModelLoader
     for loader_path, variant_tuples in loader_paths.items():
         for variant_info in variant_tuples:
+
+            if red_only:
+                model_info = variant_info[1].get_model_info(variant_info[0])
+                if model_info.group.value != "red":
+                    continue
+
             test_entries.append(
                 ModelTestEntry(path=loader_path, variant_info=variant_info)
             )
@@ -405,7 +414,7 @@ def record_model_test_properties(
     # database correctly in very short term for newly added TP models on n300-llmbox.
     # This will be replaced by something more robust in near future.
     arch = request.config.getoption("--arch")
-    if "llmbox" in arch:
+    if arch is not None and "llmbox" in arch:
         parallelism = Parallelism.TENSOR_PARALLEL
     else:
         parallelism = Parallelism.SINGLE_DEVICE
