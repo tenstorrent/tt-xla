@@ -45,6 +45,7 @@ def test_display_available_variants(model_name):
 
 """Llama attention tests"""
 
+@pytest.mark.push
 @pytest.mark.parametrize("seq_len", [1024, 2048, 4096])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -85,6 +86,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -138,6 +140,7 @@ def test_llama_attention_decode(variant, variant_config):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("seq_len", [1024, 2048, 4096])
 @pytest.mark.parametrize(
     "variant,variant_config", 
@@ -178,6 +181,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     comparator.compare(output.cpu(), golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("seq_len", [1024, 2048, 4096])
 @pytest.mark.parametrize(
     "variant,variant_config", 
@@ -236,6 +240,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
         comparator.compare(out_tensor.cpu(), golden_tensor)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("seq_len", [1024, 2048]) # 4096 causes OOM on CPU
 @pytest.mark.parametrize(
     "variant,variant_config", 
