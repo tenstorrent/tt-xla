@@ -269,7 +269,10 @@ def create_constant_tensor(scalar, dtype, device):
     return result
 
 
-# If clamp inputs are integers or floats, convert them to tensors.
+# Decomposition needed because min/max values don't get lowered to constants properly.
+# If possible, we will represent min/max values as tensors which will be lowered as constants.
+# NOTE: see `create_constant_tensor()`
+def clamp(input, min_val=None, max_val=None):
 def clamp(input, min_val=None, max_val=None):
     if (
         min_val is not None
