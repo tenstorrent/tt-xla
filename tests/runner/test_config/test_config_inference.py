@@ -2433,11 +2433,33 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
+        "required_pcc": 0.985,  # https://github.com/tenstorrent/tt-xla/issues/1491
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "required_pcc": 0.985,  # Decreased Sept 26th - https://github.com/tenstorrent/tt-xla/issues/1491
-            },
-        },
+    },
+    "centernet/pytorch-hourglass_coco-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+    },
+    "centernet/pytorch-resnet18_coco-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.PASSED,
+    },
+    "centernet/pytorch-resnet101_coco-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9282846450805664. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+    },
+    "centernet/pytorch-dla1x_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "centernet/pytorch-dla2x_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
 }
