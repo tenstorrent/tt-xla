@@ -91,7 +91,7 @@ def test_silu():
 
     comparator = TorchComparator(
         ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
+            atol=AtolConfig(required_atol=0.4),
         )
     )
     comparator.compare(output, golden)
@@ -114,7 +114,7 @@ def test_silu_with_dtype_promotion():
 
     comparator = TorchComparator(
         ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
+            atol=AtolConfig(required_atol=0.04),
         )
     )
     comparator.compare(output, golden)

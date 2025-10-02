@@ -137,47 +137,37 @@ def run_shape_prop(gm, example_inputs):
     shape_prop.run(*fake_args)
 
 
-def bypass_redundant_cast(gm, example_inputs):
+def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
-    Removes data type casting operations which are applied to tensors
-    which are already of the desired dtype.
+    Removes casting of nodes to float32 unless they were explicitly set by the user.
+    Pytorch insists on casting nodes to float32 during decompositions, even though the
+    user may have specified a different dtype.
+    Also removes redundant casts.
     """
+    removed_non_redundant_casts = False
     for node in gm.graph.nodes:
         if (
             node.op == "call_function"
             and hasattr(node.target, "name")
             and "prims::convert_element_type" in node.target.name()
         ):
-            if "tensor_meta" not in node.args[0].meta:
-                continue
-            if node.args[1] == node.args[0].meta["tensor_meta"].dtype:
-                node.replace_all_uses_with(node.args[0])
-
-    gm.graph.eliminate_dead_code()
-    # removing typecasts changes the meta (dtype) of the graph, so we need to run shape propagation again
-    run_shape_prop(gm, example_inputs)
-    return gm
-
-
-def bypass_dtype_promotion(gm, example_inputs):
-    """
-    Removes casting of nodes to float32 unless they were explicitly cast by the user.
-    Pytorch insists on casting params to float32, even though the user may have specified a different dtype,
-    and forcing certain decomposition (i.e. adaptive_avg_pool2d) to be in float32
-    """
-    for node in gm.graph.nodes:
-        if (
-            node.op == "call_function"
-            and hasattr(node.target, "name")
-            and "prims::convert_element_type" in node.target.name()
-        ):
-            if (
+            is_unwanted_dtype_promotion = (
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
-            ):
+            )
+            is_redundant_cast = (
+                "tensor_meta" in node.args[0].meta
+                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
+            )
+
+            if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
+                removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
-    # removing typecasts changes the meta (dtype) of the graph, so we need to run shape propagation again
-    run_shape_prop(gm, example_inputs)
+    if removed_non_redundant_casts:
+        # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
+        run_shape_prop(gm, example_inputs)
+        gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
+
     return gm
