@@ -89,7 +89,7 @@ public:
   // Returns const device instance on which this buffer resides.
   const DeviceInstance *getDevice() const { return m_device; }
 
-  // Returns the underlying runtime tensor created for this buffer.
+  // Returns the underlying host runtime tensor created for this buffer.
   const std::optional<tt::runtime::Tensor> &getHostRuntimeTensor() const {
     return m_host_runtime_tensor;
   }
@@ -191,7 +191,9 @@ private:
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
   MemoryInstance *m_memory;
 
-  // Underlying host runtime tensor created for this buffer.
+  // Underlying host runtime tensor created for this buffer. Unlike the prepared
+  // tensor this one is guaranteed to be on host and is exactly the shard that
+  // the buffer instance represents.
   std::optional<tt::runtime::Tensor> m_host_runtime_tensor;
 
   // Prepared runtime tensor created for this buffer on last execution. If this
