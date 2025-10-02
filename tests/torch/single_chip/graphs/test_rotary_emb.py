@@ -7,7 +7,7 @@ from tests.infra.comparators.comparison_config import (
     PccConfig,
 )
 import torch
-import torch_xla.core.xla_model as xm
+import torch_xla
 import torch_xla.runtime as xr
 
 import pytest
@@ -15,11 +15,9 @@ from infra.comparators.torch_comparator import TorchComparator
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
-    ModelVariant as LlamaModelVariant,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as QwenModelLoader,
-    ModelVariant as QwenModelVariant,
 )
 
 llama_available_variants = LlamaModelLoader.query_available_variants()
@@ -52,7 +50,7 @@ def test_llama_rotary_emb(seq_len, variant, variant_config):
     
     # Compile RoPE module and run on device
     xr.set_device_type("TT")
-    device = xm.xla_device()
+    device = torch_xla.device()
     compiled_RoPE = torch.compile(RoPE.to(device), backend="tt")
     
     # Run on device
@@ -100,7 +98,7 @@ def test_qwen_3_rotary_emb(seq_len, variant, variant_config):
     
     # Compile RoPE module and run on device
     xr.set_device_type("TT")
-    device = xm.xla_device()
+    device = torch_xla.device()
     compiled_RoPE = torch.compile(RoPE.to(device), backend="tt")
     
     # Run on device
