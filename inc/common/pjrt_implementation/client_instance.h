@@ -11,6 +11,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -75,6 +76,16 @@ public:
     return m_addressable_memories_raw;
   }
 
+  // Returns the mesh device of the provided shape. If there is already opened
+  // mesh device within this client instance and its shape matches the provided
+  // shape, it is returned. Otherwise, we close any previously opened mesh
+  // device and open a new one with the provided shape.
+  //
+  // NOTE: this method is not thread-safe and we will need to revisit this when
+  // adding support for parallel execution.
+  tt::runtime::Device
+  getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -82,9 +93,9 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options);
 
   // Gets custom compile options from the given compile options protobuf.
-  static std::unordered_map<std::string, std::string>
-  getCompileOptions(const char *compile_options_data,
-                    size_t compile_options_size);
+  static tt_pjrt_status getCompileOptions(
+      const char *compile_options_data, size_t compile_options_size,
+      std::unordered_map<std::string, std::string> &out_compile_options);
 
 protected:
   std::string cached_platform_name_;
@@ -93,6 +104,10 @@ protected:
 private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
+
+  // Wrapper method around `tt::runtime::openMeshDevice` that also handles
+  // setting fabric config when needed.
+  tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
 
   std::unique_ptr<Platform> platform_;
 
@@ -135,11 +150,14 @@ private:
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
 
+  // Currently in-use mesh device.
+  std::optional<tt::runtime::Device> m_parent_mesh;
+
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
-  static std::unordered_map<std::string, std::string>
-  extractCustomProtobufFields(
-      const google::protobuf::UnknownFieldSet &unknown_fields);
+  static tt_pjrt_status extractCustomProtobufFields(
+      const google::protobuf::UnknownFieldSet &unknown_fields,
+      std::unordered_map<std::string, std::string> &out_compile_options);
 };
 
 namespace internal {

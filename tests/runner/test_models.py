@@ -10,10 +10,12 @@ from tests.runner.test_utils import (
     create_test_id_generator,
     record_model_test_properties,
     update_test_metadata_for_exception,
+    ModelTestConfig,
 )
 from tests.runner.requirements import RequirementsManager
 from infra import RunMode
 from tests.utils import BringupStatus
+from tests.runner.test_config import PLACEHOLDER_MODELS
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -25,8 +27,10 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
     "run_mode",
-    [RunMode.INFERENCE],
-    ids=["inference"],
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
 )
 @pytest.mark.parametrize(
     "op_by_op",
@@ -39,7 +43,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
+    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capteesys
 ):
 
     loader_path = test_entry.path
@@ -68,7 +72,7 @@ def test_all_models(
                 succeeded = True
 
         except Exception as e:
-            err = capfd.readouterr().err
+            err = capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
@@ -83,3 +87,49 @@ def test_all_models(
                 run_mode=run_mode,
                 test_passed=succeeded,
             )
+
+
+# A test to generate placeholder model reports for models not yet added to tt-forge-models
+@pytest.mark.model_test
+@pytest.mark.placeholder
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "model_name",
+    list(PLACEHOLDER_MODELS.keys()),
+    ids=lambda x: x,
+)
+def test_placeholder_models(model_name, record_property, request):
+
+    from third_party.tt_forge_models.config import ModelGroup
+
+    class DummyModelInfo:
+        def __init__(self, name):
+            self._name = name
+            self.group = ModelGroup.RED
+
+        @property
+        def name(self):
+            return self._name
+
+        def to_report_dict(self):
+            return {}
+
+    cfg = PLACEHOLDER_MODELS.get(model_name) or {}
+    model_test_config_data = {
+        "bringup_status": cfg.get("bringup_status", BringupStatus.NOT_STARTED),
+        "reason": cfg.get("reason", "Not yet started or WIP"),
+    }
+
+    # Sanitize model name to lower case, replace spaches and slashes with underscores
+    model_name_lc = model_name.lower().replace(" ", "_").replace("/", "_")
+
+    model_info = DummyModelInfo(model_name_lc)
+    test_metadata = ModelTestConfig(data=model_test_config_data, arch=None)
+
+    record_model_test_properties(
+        record_property,
+        request,
+        model_info=model_info,
+        test_metadata=test_metadata,
+        run_mode=RunMode.INFERENCE,
+    )

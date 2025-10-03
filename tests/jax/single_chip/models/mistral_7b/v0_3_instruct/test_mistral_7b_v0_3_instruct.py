@@ -52,7 +52,7 @@ def training_tester() -> Mistral7BTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, "
         "where each bank needs to store 19574784 B "

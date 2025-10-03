@@ -11,11 +11,12 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from .tester import ResnetTester
 from third_party.tt_forge_models.resnet.pytorch import ModelVariant
+from tests.infra.testers.compiler_config import CompilerConfig
 
 VARIANT_NAME = ModelVariant.RESNET_50_HF
 
@@ -34,7 +35,8 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ResnetTester:
-    return ResnetTester(VARIANT_NAME)
+    compiler_config = CompilerConfig(enable_optimizer=True)
+    return ResnetTester(VARIANT_NAME, compiler_config=compiler_config)
 
 
 @pytest.fixture
@@ -45,13 +47,20 @@ def training_tester() -> ResnetTester:
 # ----- Tests -----
 
 
+@pytest.mark.push
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/1384"
+    )
 )
 def test_torch_resnet_inference(inference_tester: ResnetTester):
     inference_tester.test()

@@ -27,11 +27,6 @@ annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
 namespace internal {
 
-// Annotates the attributes of the function arguments if the annotations are
-// provided by a custom call.
-tt_pjrt_status annotateArgumentAttributesFromCustomCall(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
 // Propagates ttcore.argument_type attributes from tt.mark func.call operations
 // upwards to the module root public function arguments.
 void propagateInputRoleAttributes(
@@ -49,8 +44,14 @@ void inlineTTMarkFunctions(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 // Check is the function is tt_mark.
 bool isTTMarkFunction(const std::string &function_name);
 
-// Returns a vector of block arguments that traces from a given mlir::Value.
-mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value);
+// Annotates the attributes of the function arguments.
+tt_pjrt_status annotateArgumentAttributesFromCustomCall(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
+// Sets default role for function arguments that have not been annotated.
+// Currently the default role is Input.
+void setDefaultRoleForUnannotatedArguments(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
 } // namespace internal
 

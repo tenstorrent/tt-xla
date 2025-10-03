@@ -10,6 +10,7 @@ from tests.torch.single_chip.models.mnist.cnn.dropout.model_implementation impor
     MNISTCNNDropoutModel,
 )
 
+
 # --------------------------------
 # Test run
 # --------------------------------

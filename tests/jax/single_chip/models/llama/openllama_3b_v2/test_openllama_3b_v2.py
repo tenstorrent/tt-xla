@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_runtime,
 )
 from third_party.tt_forge_models.llama.causal_lm.jax import ModelVariant
 from ..tester import LLamaTester
@@ -47,9 +48,14 @@ def training_tester() -> LLamaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
+)
 def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()
 
