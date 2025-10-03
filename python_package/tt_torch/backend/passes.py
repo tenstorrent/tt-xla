@@ -165,6 +165,8 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
+    gm.graph.lint()
+
     if removed_non_redundant_casts:
         # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
         run_shape_prop(gm, example_inputs)
