@@ -9,8 +9,19 @@ on:
       - "Build and Test"
       - "On nightly"
       - "Performance Benchmark"
+      - "On nightly Experimental"
     types:
       - completed
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run ID to collect data for'
+        required: true
+        default: '0'
+      run_attempt:
+        description: 'Run attempt to collect data for'
+        required: true
+        default: '1'
 
 jobs:
   produce-cicd-data:
@@ -18,13 +29,24 @@ jobs:
     env:
         GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Collect CI/CD data
+      - name: Collect CI/CD data (from workflow run)
         uses: tenstorrent/tt-github-actions/.github/actions/collect_data@main
         if: ${{ github.event_name == 'workflow_run' }}
         with:
           repository: ${{ github.repository }}
           run_id: ${{ github.event.workflow_run.id }}
           run_attempt: ${{ github.event.workflow_run.run_attempt }}
+          sftp_host: ${{ secrets.SFTP_CICD_WRITER_HOSTNAME }}
+          sftp_user: ${{ secrets.SFTP_CICD_WRITER_USERNAME }}
+          ssh-private-key: ${{ secrets.SFTP_CICD_WRITER_KEY }}
+
+      - name: Collect CI/CD data (from workflow_dispatch)
+        uses: tenstorrent/tt-github-actions/.github/actions/collect_data@main
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          repository: ${{ github.repository }}
+          run_id: ${{ github.event.inputs.run_id }}
+          run_attempt: ${{ github.event.inputs.run_attempt }}
           sftp_host: ${{ secrets.SFTP_CICD_WRITER_HOSTNAME }}
           sftp_user: ${{ secrets.SFTP_CICD_WRITER_USERNAME }}
           ssh-private-key: ${{ secrets.SFTP_CICD_WRITER_KEY }}

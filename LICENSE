@@ -199,32 +199,3 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
---------------------------------------------------------------------------------
-
-Third-Party Dependencies:
-
-The following dependencies are utilized by this project but are not explicitly
-distributed as part of the software:
-
-- black - MIT License (https://github.com/psf/black/blob/main/LICENSE)
-- datasets - Apache v2.0 License (https://github.com/huggingface/datasets/blob/main/LICENSE)
-- einops - MIT License (https://github.com/arogozhnikov/einops/blob/main/LICENSE)
-- flatbuffers - Apache v2.0 License (https://github.com/google/flatbuffers/blob/master/LICENSE)
-- flax - Apache v2.0 License (https://github.com/google/flax/blob/main/LICENSE)
-- fsspec - BSD 3-Clause "New" or "Revised" License (https://github.com/fsspec/filesystem_spec/blob/master/LICENSE)
-- jax - Apache v2.0 License (https://github.com/jax-ml/jax/blob/main/LICENSE)
-- jaxtyping - MIT License (https://github.com/patrick-kidger/jaxtyping/blob/main/LICENSE)
-- librosa - ISC License (https://github.com/librosa/librosa/blob/main/LICENSE.md)
-- llvm-project - Apache v2.0 License with LLVM Exceptions (https://github.com/llvm/llvm-project/blob/main/LICENSE.TXT)
-- ml_collections - Apache v2.0 License (https://github.com/google/ml_collections/blob/master/LICENSE)
-- loguru - MIT License (https://github.com/Delgan/loguru/blob/master/LICENSE)
-- pillow - Custom License (https://github.com/python-pillow/Pillow/blob/main/LICENSE)
-- pre-commit - MIT License (https://github.com/pre-commit/pre-commit/blob/main/LICENSE)
-- sentencepiece - Apache v2.0 License (https://github.com/google/sentencepiece/blob/master/LICENSE)
-- soundfile - BSD 3-Clause License (https://github.com/bastibe/python-soundfile/blob/master/LICENSE)
-- stablehlo - Apache v2.0 License (https://github.com/openxla/stablehlo/blob/main/LICENSE)
-- torch - Custom License (https://github.com/pytorch/pytorch/blob/main/LICENSE)
-- transformers - Apache v2.0 License (https://github.com/huggingface/transformers/blob/main/LICENSE)
-- vision_transformer - Apache v2.0 License (https://github.com/google-research/vision_transformer/blob/main/LICENSE)
-- xla/pjrt/c/pjrt_c_api.h - Apache v2.0 License (https://github.com/openxla/xla/blob/main/LICENSE)

@@ -14,6 +14,7 @@ DecompositionOpsList = Sequence[
     Union[torch._ops.OperatorBase, torch._ops.OpOverloadPacket]
 ]
 
+
 # This method is derived from the implementation of jax.image.resize in JAX:
 #     https://github.com/jax-ml/jax/blob/354bd5271077654af983965c8e01ee462ce4ce91/jax/_src/image/scale.py#L52
 #
@@ -256,15 +257,49 @@ def squeeze(input, dims):
     return input.reshape(newshape)
 
 
+# TODO(#1519): Constants other then 0 and 1 get lowered to vhlo as inputs.
+# Workaround this by adding 1s together which gets optimized out as a single constant later.
+def create_constant_tensor(scalar, dtype, device):
+    result = torch.ops.aten.scalar_tensor(0)
+    result = result.to(dtype).to(device)
+    ones = torch.ops.aten.scalar_tensor(1)
+    ones = ones.to(dtype).to(device)
+    for _ in range(int(scalar)):
+        result = result + ones
+    return result
+
+
+# Decomposition needed because min/max values don't get lowered to constants properly.
+# If possible, we will represent min/max values as tensors which will be lowered as constants.
+# NOTE: see `create_constant_tensor()`
+def clamp(input, min_val=None, max_val=None):
+    if (
+        min_val is not None
+        and type(min_val) == int
+        or type(min_val) == float
+        and min_val.is_integer()
+    ):
+        min_val = create_constant_tensor(min_val, input.dtype, input.device)
+    if (
+        max_val is not None
+        and type(max_val) == int
+        or type(max_val) == float
+        and max_val.is_integer()
+    ):
+        max_val = create_constant_tensor(max_val, input.dtype, input.device)
+
+    return torch.clamp(input, min_val, max_val)
+
+
+def hardtanh(input, min_val, max_val):
+    return clamp(input, min_val, max_val)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
     # default decompositions pulled from SHARK / torch._decomp
     return [
-        aten.embedding_dense_backward,
-        aten.native_layer_norm_backward,
-        aten.slice_backward,
-        aten.select_backward,
         aten.norm.ScalarOpt_dim,
         aten.native_group_norm,
         aten.split.Tensor,
@@ -274,36 +309,15 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten.masked_fill.Scalar,
         aten.t,
         aten.addmm,
-        # decompositions that aid us in handling nn.BatchNorm2d
-        aten._native_batch_norm_legit_functional,
-        aten._native_batch_norm_legit,
-        aten._native_batch_norm_legit.no_stats,
-        aten._native_batch_norm_legit_no_training,
         aten.squeeze.dims,
         # decompositions for miscellaneous ops that are not handled in torch-mlir but have available decompositions
-        aten.soft_margin_loss,
-        aten.im2col,
-        aten._euclidean_dist,
-        aten.index_copy,
-        aten.index_copy_,
         aten.grid_sampler_2d,
-        aten.log_sigmoid_forward,
-        aten.unsafe_split.Tensor,
-        aten.binary_cross_entropy,
-        aten.dot,
         aten._adaptive_avg_pool2d,
-        aten._prelu_kernel,
         aten.full,
         aten._log_softmax,
-        aten.nll_loss_forward,
-        aten.nll_loss_backward,
         aten._to_copy,
-        aten._log_softmax_backward_data,
         aten.lift_fresh_copy.default,
         aten._unsafe_index.Tensor,
-        aten.unbind.int,
-        aten.linspace.Tensor_Tensor,
-        aten._scaled_dot_product_flash_attention_for_cpu.default,
         aten.slice_scatter,
     ]
 
@@ -338,6 +352,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        aten.hardtanh.default: hardtanh,
+        aten.clamp.default: clamp,
     }
 
 

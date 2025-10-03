@@ -65,6 +65,7 @@ def pytest_configure(config: pytest.Config):
 def pytest_collection_modifyitems(items):
     """
     Pytest hook to process the custom marker and attach recorder properties to the test.
+    Also filters tests based on .pytest_tests_to_run file if it exists.
     """
 
     def validate_keys(keys: dict, tagged_as_model_test: bool):
@@ -78,6 +79,7 @@ def pytest_collection_modifyitems(items):
             "run_mode",
             "parallelism",
             "bringup_status",
+            "execution_pass",
             "pcc",
             "atol",
         ]
@@ -115,6 +117,15 @@ def pytest_collection_modifyitems(items):
                     f"Model tests must have either new properties: {new_mandatory_properties} "
                     f"or old properties: {old_mandatory_properties}."
                 )
+
+    # Filter tests based on .pytest_tests_to_run file if it exists
+    tests_to_run_file = Path(".pytest_tests_to_run")
+    if tests_to_run_file.exists():
+        with open(tests_to_run_file, "r") as f:
+            allowed_tests = set(line.strip() for line in f if line.strip())
+
+        # Remove tests not in the allowed list
+        items[:] = [item for item in items if item.nodeid in allowed_tests]
 
     for item in items:
 
@@ -277,18 +288,6 @@ def memory_usage_tracker(request):
         vm = psutil.virtual_memory()
         after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
-
-
-@pytest.fixture(scope="session", autouse=True)
-def initialize_device_connectors():
-    """
-    Autouse fixture that establishes connection to devices by creating connector
-    instances.
-
-    Done to make sure it is executed before any other jax command during tests.
-    """
-    DeviceConnectorFactory.create_connector(Framework.JAX)
-    DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
 @pytest.fixture(autouse=True)
