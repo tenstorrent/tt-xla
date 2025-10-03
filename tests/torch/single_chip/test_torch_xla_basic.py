@@ -7,7 +7,9 @@ from tests.infra.comparators.comparison_config import (
     PccConfig,
 )
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 
 import pytest
 
@@ -395,6 +397,44 @@ def test_eltwise_binary_eager(op):
     output = model(input_x, input_y).to("cpu")
 
     # Not verifying data as many are wrong. Simply testing compile and execute
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(enabled=False, required_atol=0.02),
+        )
+    )
+    comparator.compare(output, golden)
+
+
+@pytest.mark.parametrize("spmd_mode", [True, False])
+def test_fully_replicated_graph(spmd_mode):
+    import os
+
+    if spmd_mode:
+        xr.use_spmd()
+    else:
+        # There is no official way to unset SPMD mode in torch_xla.
+        # So this is a workaround to delete the env var and reset the state.
+        if os.environ.get("XLA_USE_SPMD") is not None:
+            del os.environ["XLA_USE_SPMD"]
+
+    # User should set is_spmd_mode compile option when running in SPMD mode
+    torch_xla.set_custom_compile_options({"is_spmd_mode": xr.is_spmd()})
+
+    class AddSelf(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x + x
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+    model = AddSelf()
+    golden = model(input_x)
+
+    device = xm.xla_device()
+    model = model.to(device)
+    input_x = input_x.to(device)
+    output = model(input_x).to("cpu")
     comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),

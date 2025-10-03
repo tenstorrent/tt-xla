@@ -24,7 +24,8 @@ CompileOptions CompileOptions::parse(
   options.enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(compile_options,
                                 "enable_fusing_conv2d_with_multiply_pattern");
-
+  options.is_spmd_mode =
+      internal::parseBoolOption(compile_options, "is_spmd_mode");
   return options;
 }
 
