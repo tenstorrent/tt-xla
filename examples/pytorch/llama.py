@@ -26,7 +26,6 @@ def setup_spmd():
     """
 
     print("Setting up XLA environment...")
-    num_devices = xr.global_runtime_device_count()
 
     # Converts the StableHLO emitted by torch-xla to the Shardy dialect
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
