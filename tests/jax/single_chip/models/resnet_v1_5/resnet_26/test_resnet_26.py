@@ -60,15 +60,9 @@ def inference_tester_optimizer() -> ResNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Calculated: pcc=-0.05205399543046951. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     inference_tester.test()
 
@@ -91,10 +85,10 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
-        "Float32 not supported for ttnn.maxpool_2d op "
-        "https://github.com/tenstorrent/tt-xla/issues/941"
+        "Optimizer test hangs as part of a test suite - works when run standalone "
+        "https://github.com/tenstorrent/tt-xla/issues/1547",
     )
 )
 def test_resnet_v1_5_26_inference_optimizer(inference_tester_optimizer: ResNetTester):

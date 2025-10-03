@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Union
+from typing import Union, Dict, Tuple
 
 import jax
 import torch
@@ -13,6 +13,7 @@ from flax import linen, nnx
 from jaxtyping import PyTree as jax_pytree
 from torch.utils._pytree import PyTree as torch_pytree
 from transformers import FlaxPreTrainedModel
+from torch_xla.distributed.spmd import Mesh
 
 # Convenience alias. Used to jointly represent tensors from different frameworks.
 Tensor = Union[jax.Array, torch.Tensor]
@@ -29,6 +30,10 @@ Device = Union[jax.Device, torch.device]
 
 # Convenience alias.
 PyTree = Union[jax_pytree, torch_pytree]
+
+Mesh = Mesh
+
+ShardSpec = Dict[Tensor, Tuple[str, ...]]
 
 
 class Framework(Enum):

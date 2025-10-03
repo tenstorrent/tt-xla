@@ -5,6 +5,8 @@
 import ctypes
 from contextlib import contextmanager
 import gc
+import os
+import shutil
 import sys
 import threading
 import time
@@ -63,6 +65,7 @@ def pytest_configure(config: pytest.Config):
 def pytest_collection_modifyitems(items):
     """
     Pytest hook to process the custom marker and attach recorder properties to the test.
+    Also filters tests based on .pytest_tests_to_run file if it exists.
     """
 
     def validate_keys(keys: dict, tagged_as_model_test: bool):
@@ -76,6 +79,7 @@ def pytest_collection_modifyitems(items):
             "run_mode",
             "parallelism",
             "bringup_status",
+            "execution_pass",
             "pcc",
             "atol",
         ]
@@ -113,6 +117,15 @@ def pytest_collection_modifyitems(items):
                     f"Model tests must have either new properties: {new_mandatory_properties} "
                     f"or old properties: {old_mandatory_properties}."
                 )
+
+    # Filter tests based on .pytest_tests_to_run file if it exists
+    tests_to_run_file = Path(".pytest_tests_to_run")
+    if tests_to_run_file.exists():
+        with open(tests_to_run_file, "r") as f:
+            allowed_tests = set(line.strip() for line in f if line.strip())
+
+        # Remove tests not in the allowed list
+        items[:] = [item for item in items if item.nodeid in allowed_tests]
 
     for item in items:
 
@@ -173,6 +186,16 @@ def pytest_addoption(parser):
         default=False,
         help="Enable memory usage tracking for tests",
     )
+
+
+# DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
+# TODO: Consider using a more explicit way to differentiate CIv2-specific environment
+# Issue: https://github.com/tenstorrent/github-ci-infra/issues/772
+def _is_on_CIv2() -> bool:
+    """
+    Check if we are on CIv2.
+    """
+    return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
 
 
 @contextmanager
@@ -267,16 +290,29 @@ def memory_usage_tracker(request):
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
 
 
-@pytest.fixture(scope="session", autouse=True)
-def initialize_device_connectors():
+@pytest.fixture(autouse=True)
+def cleanup_cache():
     """
-    Autouse fixture that establishes connection to devices by creating connector
-    instances.
+    Pytest fixture that cleans up cache directories after each test.
+    Only runs if we are running on CIv2.
+    """
+    yield
+    if not _is_on_CIv2():
+        return
 
-    Done to make sure it is executed before any other jax command during tests.
-    """
-    DeviceConnectorFactory.create_connector(Framework.JAX)
-    DeviceConnectorFactory.create_connector(Framework.TORCH)
+    cache_dirs = [
+        Path.home().joinpath(".cache", "lfcache"),
+        Path.home().joinpath(".cache", "url_cache"),
+        Path("/mnt/dockercache/huggingface"),
+    ]
+
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will

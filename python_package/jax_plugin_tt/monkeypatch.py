@@ -18,7 +18,9 @@ import jax
 import jax.lax
 import jax.nn
 from jax.extend import core
+from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
+from jax._src import random
 
 
 def _is_module_imported(module_name: str) -> bool:
@@ -193,6 +195,15 @@ def _setup_mark_weight_primitive():
             )
         return [op.result]
 
+    # As we added new primitive, we need to define the jvp function: https://docs.jax.dev/en/latest/jax-primitives.html#forward-differentiation
+    # TODO: there is also primitive_transposes, for more info check: https://docs.jax.dev/en/latest/jax-primitives.html#transposition
+    def _mark_weight_jvp(primals, tangents):
+        (x,) = primals
+        (tx,) = tangents
+        return mark_weight_p.bind(x), tx
+
+    ad.primitive_jvps[mark_weight_p] = _mark_weight_jvp
+
     mark_weight_p.def_impl(lambda x: x)
     mark_weight_p.def_abstract_eval(lambda x: x)
     register_lowering(mark_weight_p, lowering_mark_weight)
@@ -207,6 +218,27 @@ def _create_gelu_patch_config():
     Returns:
         list[MonkeyPatchConfig]: List containing gelu patch config.
     """
+
+    def patch_gelu(config: MonkeyPatchConfig):
+        def gelu_composite(x, approximate=True):
+            gelu = config.backup
+            composite = jax.lax.composite(
+                lambda x: gelu(x, approximate=approximate),
+                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
+            )
+            composite_vjp = jax.custom_vjp(lambda x: composite(x))
+
+            composite_fwd = lambda x: (composite(x), x)
+
+            composite_bwd = jax.lax.composite(
+                lambda x, g: jax.vjp(gelu, x)[1](g),
+                "tenstorrent.gelu_tanh_bwd" if approximate else "tenstorrent.gelu_bwd",
+            )
+            composite_vjp.defvjp(composite_fwd, composite_bwd)
+
+            return composite_vjp(x)
+
+        return gelu_composite
 
     def post_patch_func():
         if _is_module_imported("transformers") and _is_module_imported(
@@ -225,12 +257,7 @@ def _create_gelu_patch_config():
         MonkeyPatchConfig(
             target_module=jax.nn,
             target_function="gelu",
-            replacement_factory=lambda config: lambda x, approximate=True: jax.lax.composite(
-                lambda x: config.backup(x, approximate=approximate),
-                "tenstorrent.gelu_tanh" if approximate else "tenstorrent.gelu",
-            )(
-                x
-            ),
+            replacement_factory=patch_gelu,
             post_patch=post_patch_func,
         )
     ]
@@ -262,6 +289,49 @@ def _create_flax_apply_patch_config(mark_weight_func):
     ]
 
 
+def _create_uniform_patch_config():
+    """
+    Create a MonkeyPatchConfig for patching jax._src.random._uniform.
+    """
+
+    if not (_is_module_imported("numpy")):
+        return []
+
+    import numpy as np
+
+    # The ttir.rand op requires shape argument to be int32, so to avoid
+    # type conversion during lowering in MLIR, we do it here in the patch.
+    def patch_uniform(config):
+        def with_shape_int32(*args, **kwargs):
+            # If "shape" is keyword argument
+            if "shape" in kwargs:
+                shape = kwargs["shape"]
+                kwargs["shape"] = tuple(np.int32(s) for s in shape)
+            # If "shape" is positional argument
+            else:
+                # convention: (key, shape, dtype, ...)
+                shape = args[1]
+                new_shape = tuple(np.int32(s) for s in shape)
+                args = (args[0], new_shape) + args[2:]
+
+            return jax.lax.composite(
+                lambda *inner_args, **inner_kwargs: config.backup(
+                    *inner_args, **inner_kwargs
+                ),
+                "tenstorrent.uniform",
+            )(*args, **kwargs)
+
+        return with_shape_int32
+
+    return [
+        MonkeyPatchConfig(
+            target_module=random,
+            target_function="_uniform",
+            replacement_factory=patch_uniform,
+        )
+    ]
+
+
 def _get_monkeypatches():
     """
     Get the list of monkey patches for the Tenstorrent JAX plugin.
@@ -277,6 +347,9 @@ def _get_monkeypatches():
     # Add flax patches
     mark_weight = _setup_mark_weight_primitive()
     patches.extend(_create_flax_apply_patch_config(mark_weight))
+
+    # Add uniform patch
+    patches.extend(_create_uniform_patch_config())
 
     return patches
 
