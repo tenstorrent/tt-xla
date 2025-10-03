@@ -3,27 +3,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_runtime,
 )
 
 from ..tester import Dinov2Tester
-
-MODEL_PATH = "facebook/dinov2-giant"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "dinov2",
-    "giant",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.dinov2.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
+
+VARIANT_NAME = ModelVariant.GIANT
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -31,12 +26,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Dinov2Tester:
-    return Dinov2Tester(MODEL_PATH)
+    return Dinov2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> Dinov2Tester:
-    return Dinov2Tester(MODEL_PATH, RunMode.TRAINING)
+    return Dinov2Tester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,17 +40,18 @@ def training_tester() -> Dinov2Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "tt-metal error: input_tensor_a.padded_shape().rank() == this->slice_start.rank() && "
-        "this->slice_start.rank() == this->slice_end.rank() "
-        "https://github.com/tenstorrent/tt-xla/issues/923"
+        "Statically allocated circular buffers in program 1331 clash with "
+        "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
+        "L1 buffer allocated at 1069056 and static circular buffer region ends at 1117312"
+        "(https://github.com/tenstorrent/tt-xla/issues/1066)"
     )
 )
 def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
@@ -65,8 +61,8 @@ def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.large

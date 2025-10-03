@@ -2,15 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Mapping, Sequence
+from typing import Dict, Sequence
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode, random_image
-from transformers import (
-    AutoImageProcessor,
-    Dinov2Config,
-    FlaxDinov2ForImageClassification,
-    FlaxPreTrainedModel,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.dinov2.image_classification.jax.loader import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
@@ -19,33 +18,20 @@ class Dinov2Tester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxDinov2ForImageClassification.from_pretrained(self._model_path)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
-    def _get_input_activations(self) -> jax.Array:
-        model_config = Dinov2Config.from_pretrained(self._model_path)
-        image_size = model_config.image_size
-        input_image = random_image(image_size)
-
-        processor = AutoImageProcessor.from_pretrained(self._model_path)
-        inputs = processor(images=input_image, return_tensors="jax")
-        return inputs["pixel_values"]
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
-        return {
-            "params": self._input_parameters,
-            "pixel_values": self._input_activations,
-        }
+    def _get_input_activations(self) -> Dict[str, jax.Array]:
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_static_argnames(self) -> Sequence[str]:
