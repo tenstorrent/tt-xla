@@ -105,6 +105,9 @@ def test_all_models(
 
                 comparison_result = tester.test()
                 succeeded = comparison_result.passed
+
+                # Trigger assertion after comparison_result is cached, and
+                #     fallthrough to finally block on failure.
                 Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
