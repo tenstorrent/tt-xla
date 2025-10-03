@@ -2459,14 +2459,14 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "centernet/pytorch-resnet18_coco-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.PASSED,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "centernet/pytorch-resnet101_coco-full-inference": {
-        "assert_pcc": False,
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9282846450805664. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505",
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "centernet/pytorch-dla1x_coco-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
