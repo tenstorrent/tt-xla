@@ -142,16 +142,24 @@ class Comparator(ABC):
         return passed, combined_error_message
 
     @staticmethod
-    def _assert_on_results(comparison_result: Tuple[ComparisonResult, ...]) -> None:
+    def _assert_on_results(
+        comparison_result: ComparisonResult | Tuple[ComparisonResult, ...],
+    ) -> None:
         """
         Assert based on comparison results if any checks failed.
 
         Args:
-            comparison_result: The tuple of ComparisonResults to assert on. There may be multiple results for each test,
-            eg. forward and backward pass results for training.
+            comparison_result: Either a single ComparisonResult or a tuple of ComparisonResults to assert on.
+            There may be multiple results for each test, eg. forward and backward pass results for training.
         """
+        # Handle both single ComparisonResult and tuple of ComparisonResults
+        if isinstance(comparison_result, ComparisonResult):
+            results = (comparison_result,)
+        else:
+            results = comparison_result
+
         error_messages = []
-        for i, result in enumerate(comparison_result):
+        for i, result in enumerate(results):
             if not result.passed:
                 error_messages.append(
                     f"Comparison result {i} failed: {result.error_message}"
