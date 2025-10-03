@@ -3,47 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Vision encoder and visual abstractor modules for mPLUG-Owl2.
-
-# code apapted from :
-# https://github.com/X-PLUG/mPLUG-Owl/tree/main/mPLUG-Owl2
-
-MIT License
-
-Copyright (c) 2022 mPLUG
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
+Code adapted from: https://github.com/X-PLUG/mPLUG-Owl/tree/main/mPLUG-Owl2
+License: https://github.com/X-PLUG/mPLUG-Owl/blob/main/LICENSE
 """
 
-import math
-from typing import Optional, Tuple, Union
 
-from transformers.modeling_outputs import (
-    BaseModelOutput,
-    BaseModelOutputWithPooling,
-)
-from transformers.modeling_utils import PreTrainedModel
-from transformers.pytorch_utils import (
-    find_pruneable_heads_and_indices,
-    prune_linear_layer,
-)
+import math
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -51,11 +17,17 @@ import torch.nn as nn
 import torch.utils.checkpoint
 import torch.nn.functional as F
 
+from .transformers_utils import (
+    PreTrainedModel,
+    BaseModelOutput,
+    BaseModelOutputWithPooling,
+    find_pruneable_heads_and_indices,
+    prune_linear_layer,
+    ACT2FN,
+)
+
 
 def get_abs_pos(abs_pos, tgt_size):
-    # abs_pos: L, C
-    # tgt_size: M
-    # return: M, C
     src_size = int(math.sqrt(abs_pos.size(0)))
     tgt_size = int(math.sqrt(tgt_size))
     dtype = abs_pos.dtype
@@ -76,16 +48,10 @@ def get_abs_pos(abs_pos, tgt_size):
         return abs_pos
 
 
-# https://github.com/facebookresearch/mae/blob/efb2a8062c206524e35e47d04501ed4f544c0ae8/util/pos_embed.py#L20
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
-    """
-    grid_size: int of the grid height and width
-    return:
-    pos_embed: [grid_size*grid_size, embed_dim] or [1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
-    """
     grid_h = np.arange(grid_size, dtype=np.float32)
     grid_w = np.arange(grid_size, dtype=np.float32)
-    grid = np.meshgrid(grid_w, grid_h)  # here w goes first
+    grid = np.meshgrid(grid_w, grid_h)
     grid = np.stack(grid, axis=0)
 
     grid = grid.reshape([2, 1, grid_size, grid_size])
@@ -98,32 +64,26 @@ def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
 def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
     assert embed_dim % 2 == 0
 
-    # use half of dimensions to encode grid_h
-    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
-    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
+    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])
+    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])
 
-    emb = np.concatenate([emb_h, emb_w], axis=1)  # (H*W, D)
+    emb = np.concatenate([emb_h, emb_w], axis=1)
     return emb
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
-    """
-    embed_dim: output dimension for each position
-    pos: a list of positions to be encoded: size (M,)
-    out: (M, D)
-    """
     assert embed_dim % 2 == 0
     omega = np.arange(embed_dim // 2, dtype=np.float32)
     omega /= embed_dim / 2.0
-    omega = 1.0 / 10000**omega  # (D/2,)
+    omega = 1.0 / 10000**omega
 
-    pos = pos.reshape(-1)  # (M,)
-    out = np.einsum("m,d->md", pos, omega)  # (M, D/2), outer product
+    pos = pos.reshape(-1)
+    out = np.einsum("m,d->md", pos, omega)
 
-    emb_sin = np.sin(out)  # (M, D/2)
-    emb_cos = np.cos(out)  # (M, D/2)
+    emb_sin = np.sin(out)
+    emb_cos = np.cos(out)
 
-    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
+    emb = np.concatenate([emb_sin, emb_cos], axis=1)
     return emb
 
 
@@ -179,8 +139,6 @@ class MplugOwlVisionEmbeddings(nn.Module):
 
 
 class MplugOwlVisionAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
-
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -211,85 +169,27 @@ class MplugOwlVisionAttention(nn.Module):
         head_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        """Input shape: Batch x Time x Channel"""
 
         bsz, seq_len, embed_dim = hidden_states.size()
-
         mixed_qkv = self.query_key_value(hidden_states)
 
         mixed_qkv = mixed_qkv.reshape(
             bsz, seq_len, self.num_heads, 3, embed_dim // self.num_heads
-        ).permute(
-            3, 0, 2, 1, 4
-        )  # [3, b, np, sq, hn]
+        ).permute(3, 0, 2, 1, 4)
         query_states, key_states, value_states = (
             mixed_qkv[0],
             mixed_qkv[1],
             mixed_qkv[2],
         )
-        # if self.config.use_flash_attn and flash_attn_func is not None:
-        if False:
-            # [b*sq, np, hn]
-            query_states = query_states.permute(0, 2, 1, 3).contiguous()
-            query_states = query_states.view(
-                query_states.size(0) * query_states.size(1), query_states.size(2), -1
-            )
 
-            key_states = key_states.permute(0, 2, 1, 3).contiguous()
-            key_states = key_states.view(
-                key_states.size(0) * key_states.size(1), key_states.size(2), -1
-            )
+        attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
+        attention_scores = attention_scores * self.scale
+        attention_probs = torch.softmax(attention_scores, dim=-1)
+        attention_probs = self.dropout(attention_probs)
+        if head_mask is not None:
+            attention_probs = attention_probs * head_mask
 
-            value_states = value_states.permute(0, 2, 1, 3).contiguous()
-            value_states = value_states.view(
-                value_states.size(0) * value_states.size(1), value_states.size(2), -1
-            )
-
-            cu_seqlens = torch.arange(
-                0,
-                (bsz + 1) * seq_len,
-                step=seq_len,
-                dtype=torch.int32,
-                device=query_states.device,
-            )
-
-            context_layer = flash_attn_func(
-                query_states,
-                key_states,
-                value_states,
-                cu_seqlens,
-                cu_seqlens,
-                seq_len,
-                seq_len,
-                self.dropout if self.training else 0.0,
-                softmax_scale=self.scale,
-                causal=False,
-                return_attn_probs=False,
-            )
-            # [b*sq, np, hn] => [b, sq, np, hn]
-            context_layer = context_layer.view(
-                bsz, seq_len, context_layer.size(1), context_layer.size(2)
-            )
-        else:
-            # Take the dot product between "query" and "key" to get the raw attention scores.
-            attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
-
-            attention_scores = attention_scores * self.scale
-
-            # Normalize the attention scores to probabilities.
-            attention_probs = torch.softmax(attention_scores, dim=-1)
-
-            # This is actually dropping out entire tokens to attend to, which might
-            # seem a bit unusual, but is taken from the original Transformer paper.
-            attention_probs = self.dropout(attention_probs)
-
-            # Mask heads if we want to
-            if head_mask is not None:
-                attention_probs = attention_probs * head_mask
-
-            context_layer = torch.matmul(attention_probs, value_states).permute(
-                0, 2, 1, 3
-            )
+        context_layer = torch.matmul(attention_probs, value_states).permute(0, 2, 1, 3)
 
         new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size,)
         context_layer = context_layer.reshape(new_context_layer_shape)
@@ -305,7 +205,6 @@ class MplugOwlMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        from transformers.activations import ACT2FN
 
         self.activation_fn = ACT2FN[config.hidden_act]
         self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
@@ -335,16 +234,6 @@ class MplugOwlVisionEncoderLayer(nn.Module):
         attention_mask: torch.Tensor,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.FloatTensor]:
-        """
-        Args:
-            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            attention_mask (`torch.FloatTensor`): attention mask of size
-                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-                `(config.encoder_attention_heads,)`.
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-        """
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
@@ -369,15 +258,6 @@ class MplugOwlVisionEncoderLayer(nn.Module):
 
 
 class MplugOwlVisionEncoder(nn.Module):
-    """
-    Transformer encoder consisting of `config.num_hidden_layers` self attention layers. Each layer is a
-    [`MplugOwlVisionEncoderLayer`].
-
-    Args:
-        config (`MplugOwlVisionConfig`):
-            The corresponding vision configuration for the `MplugOwlEncoder`.
-    """
-
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -397,26 +277,6 @@ class MplugOwlVisionEncoder(nn.Module):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
-        r"""
-        Args:
-            inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-                Embedded representation of the inputs. Should be float, not int tokens.
-            attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
-
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-
-                [What are attention masks?](../glossary#attention-mask)
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-            output_hidden_states (`bool`, *optional*):
-                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
-                for more detail.
-            return_dict (`bool`, *optional*):
-                Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
-        """
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -505,10 +365,6 @@ class MplugOwlVisionModel(PreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        r"""
-        Returns:
-
-        """
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -596,14 +452,6 @@ class MplugOwlVisualAbstractorMultiHeadAttention(nn.Module):
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
         self.save_attention = False
-
-        #         self.q_pos_embed = nn.Parameter(
-        #             torch.from_numpy(get_1d_sincos_pos_embed_from_grid(config.hidden_size, np.arange(config.num_learnable_queries, dtype=np.float32))).float()
-        #         ).requires_grad_(False)
-        #         grids = config.grid_size
-        #         self.k_pos_embed = nn.Parameter(
-        #             torch.from_numpy(get_2d_sincos_pos_embed(config.hidden_size, grids, cls_token=True)).float()
-        #         ).requires_grad_(False)
         grids = config.grid_size
         self.register_buffer(
             "q_pos_embed",
@@ -653,10 +501,6 @@ class MplugOwlVisualAbstractorMultiHeadAttention(nn.Module):
         past_key_value=None,
         output_attentions=False,
     ):
-        # If this is instantiated as a cross-attention module, the keys
-        # and values come from an encoder; the attention mask needs to be
-        # such that the encoder's padding tokens are not attended to.
-
         qk_pos_embed = (
             torch.cat([self.q_pos_embed, self.k_pos_embed], dim=0)
             .unsqueeze(0)
@@ -677,27 +521,21 @@ class MplugOwlVisualAbstractorMultiHeadAttention(nn.Module):
 
         past_key_value = (key_layer, value_layer)
 
-        # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
         if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
             attention_scores = attention_scores + attention_mask
 
-        # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attention_scores)
 
         if self.save_attention:
             self.save_attention_map(attention_probs)
             attention_probs.register_hook(self.save_attn_gradients)
 
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs_dropped = self.dropout(attention_probs)
 
-        # Mask heads if we want to
         if head_mask is not None:
             attention_probs_dropped = attention_probs_dropped * head_mask
 
@@ -771,13 +609,11 @@ class MplugOwlVisualAbstractorAttention(nn.Module):
             self.pruned_heads,
         )
 
-        # Prune linear layers
         self.attention.query = prune_linear_layer(self.attention.query, index)
         self.attention.key = prune_linear_layer(self.attention.key, index)
         self.attention.value = prune_linear_layer(self.attention.value, index)
         self.output.dense = prune_linear_layer(self.output.out_proj, index, dim=1)
 
-        # Update hyper params and store pruned heads
         self.attention.num_attention_heads = self.attention.num_attention_heads - len(
             heads
         )
@@ -796,7 +632,6 @@ class MplugOwlVisualAbstractorAttention(nn.Module):
         past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
-        # HACK we apply norm on q and k
         hidden_states = self.norm1(hidden_states)
         encoder_hidden_states = self.normk(encoder_hidden_states)
         encoder_hidden_states = torch.cat([hidden_states, encoder_hidden_states], dim=1)
@@ -813,7 +648,6 @@ class MplugOwlVisualAbstractorAttention(nn.Module):
             output_attentions,
         )
         attention_output = self.output(self_outputs[0], hidden_states)
-        # add attentions if we output them
         outputs = (attention_output,) + self_outputs[1:]
         return outputs
 
@@ -938,10 +772,6 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
         self.post_init()
 
     def _prune_heads(self, heads_to_prune):
-        """
-        Prunes heads of the model. heads_to_prune: dict of {layer_num: list of heads to prune in this layer} See base
-        class PreTrainedModel
-        """
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
@@ -951,27 +781,9 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
         input_shape: Tuple[int],
         device: torch.device,
     ) -> torch.Tensor:
-        """
-        Makes broadcastable attention and causal masks so that future and masked tokens are ignored.
-
-        Arguments:
-            attention_mask (`torch.Tensor`):
-                Mask with ones indicating tokens to attend to, zeros for tokens to ignore.
-            input_shape (`Tuple[int]`):
-                The shape of the input to the model.
-            device: (`torch.device`):
-                The device of the input to the model.
-
-        Returns:
-            `torch.Tensor` The extended attention mask, with a the same dtype as `attention_mask.dtype`.
-        """
-        # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
-        # ourselves in which case we just need to make it broadcastable to all heads.
         if attention_mask.dim() == 3:
             extended_attention_mask = attention_mask[:, None, :, :]
         elif attention_mask.dim() == 2:
-            # Provided a padding mask of dimensions [batch_size, seq_length]
-            # - the model is an encoder, so make the mask broadcastable to [batch_size, num_heads, seq_length, seq_length]
             extended_attention_mask = attention_mask[:, None, None, :]
         else:
             raise ValueError(
@@ -980,14 +792,7 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
                 )
             )
 
-        # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
-        # masked positions, this operation will create a tensor which is 0.0 for
-        # positions we want to attend and -10000.0 for masked positions.
-        # Since we are adding it to the raw scores before the softmax, this is
-        # effectively the same as removing these entirely.
-        extended_attention_mask = extended_attention_mask.to(
-            dtype=self.dtype
-        )  # fp16 compatibility
+        extended_attention_mask = extended_attention_mask.to(dtype=self.dtype)
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         return extended_attention_mask
 
@@ -1002,22 +807,6 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        encoder_hidden_states  (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`, `optional`):
-            Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention if
-            the model is configured as a decoder.
-        encoder_attention_mask (`torch.FloatTensor` of shape `(batch_size, sequence_length)`, `optional`):
-            Mask to avoid performing attention on the padding token indices of the encoder input. This mask is used in
-            the cross-attention if the model is configured as a decoder. Mask values selected in `[0, 1]`:
-            - 1 for tokens that are **not masked**,
-            - 0 for tokens that are **masked**.
-        past_key_values (`tuple(tuple(torch.FloatTensor))` of length `config.n_layers` with each tuple having 4 tensors of:
-            shape `(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`): Contains precomputed key and
-            value hidden states of the attention blocks. Can be used to speed up decoding. If `past_key_values` are
-            used, the user can optionally input only the last `decoder_input_ids` (those that don't have their past key
-            value states given to this model) of shape `(batch_size, 1)` instead of all `decoder_input_ids` of shape
-            `(batch_size, sequence_length)`.
-        """
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -1037,8 +826,6 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
         batch_size, seq_length = input_shape
         device = embedding_output.device
 
-        # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
-        # ourselves in which case we just need to make it broadcastable to all heads.
         if attention_mask is None:
             attention_mask = torch.ones(
                 (query_embeds.shape[0], query_embeds.shape[1]),
@@ -1049,8 +836,6 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
             attention_mask, input_shape, device
         )
 
-        # If a 2D or 3D attention mask is provided for the cross-attention
-        # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
         if encoder_hidden_states is not None:
             if type(encoder_hidden_states) == list:
                 encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states[
@@ -1080,11 +865,6 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
         else:
             encoder_extended_attention_mask = None
 
-        # Prepare head mask if needed
-        # 1.0 in head_mask indicate we keep the head
-        # attention_probs has shape bsz x n_heads x N x N
-        # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
-        # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
         encoder_outputs = self.encoder(
@@ -1112,16 +892,3 @@ class MplugOwlVisualAbstractorModel(PreTrainedModel):
             pooler_output=pooled_output,
             hidden_states=encoder_outputs.hidden_states,
         )
-
-
-if __name__ == "__main__":
-    from configuration_mplug_owl2 import MPLUGOwl2Config
-
-    config = MPLUGOwl2Config()
-    visual_model = MplugOwlVisionModel(config.visual_config["visual_model"])
-    print(visual_model)
-
-    abstractor_module = MplugOwlVisualAbstractorModel(
-        config.visual_config["visual_abstractor"], config.hidden_size
-    )
-    print(abstractor_module)

@@ -11,9 +11,9 @@ from PIL import Image
 from transformers import AutoTokenizer
 from transformers.models.clip.image_processing_clip import CLIPImageProcessor
 
-from ..tools.utils import get_file
-from ..base import ForgeModel
-from ..config import (
+from ...tools.utils import get_file
+from ...base import ForgeModel
+from ...config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -32,7 +32,9 @@ from .src.model_utils import (
     DEFAULT_IMAGE_TOKEN,
     IMAGE_TOKEN_INDEX,
     tokenizer_image_token,
+    load_weights,
 )
+from .src.configuration_mplug_owl2 import MPLUGOwl2Config
 
 
 class ModelVariant(StrEnum):
@@ -119,13 +121,18 @@ class ModelLoader(ForgeModel):
         """
 
         model_kwargs: Dict[str, Any] = {
+            "return_dict": False,
             "use_cache": False,
             "dtype": dtype_override if dtype_override is not None else torch.float32,
         }
 
-        model = MPLUGOwl2LlamaForCausalLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
-        )
+        # create model
+        config = get_file("test_files/pytorch/mplug_owl2/config.json")
+        model_config = MPLUGOwl2Config.from_pretrained(config, **model_kwargs)
+        model = MPLUGOwl2LlamaForCausalLM(model_config)
+
+        # load weights
+        model = load_weights(model)
         model.eval()
         return model
 

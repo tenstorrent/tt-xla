@@ -3,33 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-mPLUG-Owl2 causal language model and multimodal wrapper registration.
-
-# code apapted from :
-# https://github.com/X-PLUG/mPLUG-Owl/tree/main/mPLUG-Owl2
-
-MIT License
-
-Copyright (c) 2022 mPLUG
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
+Code adapted from: https://github.com/X-PLUG/mPLUG-Owl/tree/main/mPLUG-Owl2
+License: https://github.com/X-PLUG/mPLUG-Owl/blob/main/LICENSE
 """
 
 from abc import ABC, abstractmethod
@@ -38,25 +13,14 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
-
-from transformers import (
-    AutoConfig,
-    AutoModelForCausalLM,
-    LlamaConfig,
-    LlamaModel,
-    LlamaForCausalLM,
-)
-from transformers.modeling_outputs import CausalLMOutputWithPast
-
+from .modeling_llama2 import LlamaModel, LlamaForCausalLM
 from .configuration_mplug_owl2 import (
     MPLUGOwl2Config,
     MplugOwlVisionConfig,
     MplugOwlVisualAbstractorConfig,
 )
 from .visual_encoder import MplugOwlVisionModel, MplugOwlVisualAbstractorModel
-from .modeling_llama2 import replace_llama_modality_adaptive
 from .model_utils import IMAGE_TOKEN_INDEX, IGNORE_INDEX
-from transformers.modeling_utils import PreTrainedModel
 
 
 class MPLUGOwl2MetaModel:
@@ -89,12 +53,10 @@ class MPLUGOwl2MetaForCausalLM(ABC):
         pass
 
     def encode_images(self, images):
-        image_features = self.get_model().vision_model(images).last_hidden_state
-        image_features = (
-            self.get_model()
-            .visual_abstractor(encoder_hidden_states=image_features)
-            .last_hidden_state
-        )
+        image_features = self.get_model().vision_model(images)[0]
+        image_features = self.get_model().visual_abstractor(
+            encoder_hidden_states=image_features
+        )[0]
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
@@ -106,7 +68,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
                 and images is not None
                 and input_ids.shape[1] == 1
             ):
-                # print(attention_mask)
                 if attention_mask is not None:
                     attention_mask = torch.ones(
                         (
@@ -141,8 +102,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
         cur_image_idx = 0
         for batch_idx, cur_input_ids in enumerate(input_ids):
             if (cur_input_ids == IMAGE_TOKEN_INDEX).sum() == 0:
-                # multimodal LLM, but the current sample is not multimodal
-                # FIXME: this is a hacky fix, for deepspeed zero3 to work
                 half_len = cur_input_ids.shape[0] // 2
                 cur_image_features = image_features[cur_image_idx]
                 cur_input_embeds_1 = self.get_model().embed_tokens(
@@ -179,8 +138,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
                     self.get_model().embed_tokens(cur_input_ids[:image_token_start])
                 )
                 cur_new_input_embeds.append(cur_image_features)
-
-                # Add modality indicator
                 assert image_token_start == len(cur_input_ids[:image_token_start])
                 cur_modality_indicators.append(
                     torch.zeros(len(cur_input_ids[:image_token_start])).long()
@@ -215,8 +172,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
             ]
             cur_new_input_embeds = torch.cat(cur_new_input_embeds, dim=0)
             new_input_embeds.append(cur_new_input_embeds)
-
-            # Modality
             cur_modality_indicators = [
                 x.to(device=self.device) for x in cur_modality_indicators
             ]
@@ -229,8 +184,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
 
         if any(x.shape != new_input_embeds[0].shape for x in new_input_embeds):
             max_len = max(x.shape[0] for x in new_input_embeds)
-
-            # Embedding
             new_input_embeds_align = []
             for cur_new_embed in new_input_embeds:
                 cur_new_embed = torch.cat(
@@ -247,7 +200,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
                 new_input_embeds_align.append(cur_new_embed)
             new_input_embeds = torch.stack(new_input_embeds_align, dim=0)
 
-            # Modality
             new_modality_indicators_align = []
             for cur_modality_indicator in new_modality_indicators:
                 cur_new_embed = torch.cat(
@@ -264,7 +216,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
                 new_modality_indicators_align.append(cur_new_embed)
             new_modality_indicators = torch.stack(new_modality_indicators_align, dim=0)
 
-            # Label
             if labels is not None:
                 new_labels_align = []
                 _new_labels = new_labels
@@ -284,7 +235,6 @@ class MPLUGOwl2MetaForCausalLM(ABC):
                     new_labels_align.append(cur_new_label)
                 new_labels = torch.stack(new_labels_align, dim=0)
 
-            # Attention Mask
             if attention_mask is not None:
                 new_attention_mask = []
                 for cur_attention_mask, cur_new_labels, cur_new_labels_align in zip(
@@ -358,17 +308,13 @@ class MPLUGOwl2LlamaForCausalLM(LlamaForCausalLM, MPLUGOwl2MetaForCausalLM):
         self.model = MPLUGOwl2LlamaModel(config)
 
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
-        # Initialize weights and apply final processing
         self.post_init()
 
     def encode_images(self, images):
-        image_features = self.get_model().vision_model(images).last_hidden_state
-        image_features = (
-            self.get_model()
-            .visual_abstractor(encoder_hidden_states=image_features)
-            .last_hidden_state
-        )
+        image_features = self.get_model().vision_model(images)[0]
+        image_features = self.get_model().visual_abstractor(
+            encoder_hidden_states=image_features
+        )[0]
         return image_features
 
     def get_model(self):
@@ -386,7 +332,7 @@ class MPLUGOwl2LlamaForCausalLM(LlamaForCausalLM, MPLUGOwl2MetaForCausalLM):
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, CausalLMOutputWithPast]:
+    ) -> Union[Tuple]:
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -410,8 +356,6 @@ class MPLUGOwl2LlamaForCausalLM(LlamaForCausalLM, MPLUGOwl2MetaForCausalLM):
         ) = self.prepare_inputs_labels_for_multimodal(
             input_ids, attention_mask, past_key_values, labels, images
         )
-
-        # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
             input_ids=input_ids,
             modality_indicators=modality_indicators,
@@ -429,90 +373,14 @@ class MPLUGOwl2LlamaForCausalLM(LlamaForCausalLM, MPLUGOwl2MetaForCausalLM):
 
         loss = None
         if labels is not None:
-            # Shift so that tokens < n predict n
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
             loss_fct = CrossEntropyLoss()
             shift_logits = shift_logits.view(-1, self.config.vocab_size)
             shift_labels = shift_labels.view(-1)
-            # Enable model/pipeline parallelism
             shift_labels = shift_labels.to(shift_logits.device)
             loss = loss_fct(shift_logits, shift_labels)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
-
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
-
-    def prepare_inputs_for_generation(
-        self,
-        input_ids,
-        past_key_values=None,
-        attention_mask=None,
-        inputs_embeds=None,
-        **kwargs
-    ):
-        if past_key_values:
-            input_ids = input_ids[:, -1:]
-
-        # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and past_key_values is None:
-            model_inputs = {"inputs_embeds": inputs_embeds}
-        else:
-            model_inputs = {"input_ids": input_ids}
-
-        model_inputs.update(
-            {
-                "past_key_values": past_key_values,
-                "use_cache": kwargs.get("use_cache"),
-                "attention_mask": attention_mask,
-                "images": kwargs.get("images", None),
-            }
-        )
-        return model_inputs
-
-
-AutoConfig.register("mplug_owl2", MPLUGOwl2Config)
-AutoModelForCausalLM.register(MPLUGOwl2Config, MPLUGOwl2LlamaForCausalLM)
-
-replace_llama_modality_adaptive()
-
-if __name__ == "__main__":
-    config = MPLUGOwl2Config.from_pretrained(
-        "/cpfs01/shared/public/test/vicuna-7b-v1.5/"
-    )
-    from icecream import ic
-
-    # config = MPLUGOwl2Config()
-    model = MPLUGOwl2LlamaForCausalLM(config)
-
-    images = torch.randn(2, 3, 448, 448)
-    input_ids = torch.cat(
-        [
-            torch.ones(8).long(),
-            torch.tensor([-1] * 1).long(),
-            torch.ones(8).long(),
-            torch.tensor([-1] * 1).long(),
-            torch.ones(8).long(),
-        ],
-        dim=0,
-    ).unsqueeze(0)
-    labels = input_ids.clone()
-    labels[labels < 0] = -100
-
-    # image_feature = model.encode_images(images)
-    # ic(image_feature.shape)
-
-    output = model(images=images, input_ids=input_ids, labels=labels)
-    ic(output.loss)
-    ic(output.logits.shape)
-
-    model.save_pretrained("/cpfs01/shared/public/test/tmp_owl")
