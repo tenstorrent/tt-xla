@@ -65,28 +65,43 @@ class XLAExecutor:
     2. Signalling to torch-xla to cut the graph at the model output.
     """
 
-    def __init__(self, module: torch.fx.GraphModule):
+    def __init__(self, module: torch.fx.GraphModule, auto_to_xla: bool = False):
         self.module = module
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
         self.devices = set()
+        self.auto_to_xla = auto_to_xla
+        if self.auto_to_xla:
+            self.module = self.module.to("xla")
         for _, tensor in module.state_dict().items():
-            self.devices.add(tensor.device.type)
+            if hasattr(tensor, "device"):
+                self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
     def __call__(self, *args):
-
+        args = list(args)
+        for idx, arg in enumerate(args):
+            if self.auto_to_xla and arg.device.type != "xla":
+                args[idx] = arg.to("xla")
+        args = tuple(args)
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
         torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        output = list(output)
+        for idx, out in enumerate(output):
+            if hasattr(out, "to"):
+                output[idx] = out.to("cpu")
+        output = tuple(output)
+        assert False
         return output
 
 
 @register_backend(name="tt")
-def xla_backend(gm, example_inputs, options=None):
+def xla_backend(gm, example_inputs, options={}):
+    auto_to_xla = options.get("auto_to_xla", True)
 
     module = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module)
+    return XLAExecutor(module, auto_to_xla)
