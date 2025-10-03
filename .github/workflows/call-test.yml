@@ -98,6 +98,7 @@ jobs:
         sparse-checkout: |
           .gitmodules
           .test_durations
+          pytest.ini
           python_package/requirements.txt
           tests
           venv
@@ -278,10 +279,15 @@ jobs:
         # multiply the estimate with 3 until estimates are more precise
         ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
 
+        MIN_TEST_DURATION=30
+        if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
+          ESTIMATED_DURATION=$MIN_TEST_DURATION
+        fi
+
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
     - name: Run tests
-      timeout-minutes: ${{ steps.collect-tests.outputs.timeout-minutes }}
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
