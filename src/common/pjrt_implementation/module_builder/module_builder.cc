@@ -924,11 +924,11 @@ tt_pjrt_status ModuleBuilder::setProperSdyMeshAttributeInSpmdMode(
     mlir::sdy::MeshAttr mesh_attr = shardy_op->getMesh();
     auto ctx = mlir_module->getContext();
     llvm::SmallVector<mlir::sdy::MeshAxisAttr> new_axes;
-    for (auto [i, axes] : llvm::enumerate(mesh_attr.getAxes())) {
-      if (axes.getSize() > 1) {
+    for (auto [i, axis] : llvm::enumerate(mesh_attr.getAxes())) {
+      if (axis.getSize() > 1) {
         // This axis already has a non-trivial size; leave the mesh as-is.
         DLOG_F(LOG_DEBUG, "Mesh axis %s has size %ld; leaving unchanged.",
-               axes.getName().str().data(), axes.getSize());
+               axis.getName().str().data(), axis.getSize());
         return tt_pjrt_status::kSuccess;
       }
       if (i == mesh_attr.getAxes().size() - 1) {
