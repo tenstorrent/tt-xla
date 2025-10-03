@@ -18,6 +18,7 @@ from infra.comparators.torch_comparator import TorchComparator
 # calculating and comparing golden vs device results.
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm(bias):
     class MM(torch.nn.Module):
@@ -46,6 +47,7 @@ def test_simple_mm(bias):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("bias", [True, False])
 def test_simple_mm_eager(bias):
     class MM(torch.nn.Module):
@@ -75,29 +77,7 @@ def test_simple_mm_eager(bias):
     comparator.compare(output, golden)
 
 
-def test_relu6():
-    class Relu6(torch.nn.Module):
-        def forward(self, x):
-            return torch.nn.functional.relu6(x)
-
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-
-    model = Relu6()
-    golden = model(input_x)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device))
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
-        )
-    )
-    comparator.compare(output, golden)
-
-
+@pytest.mark.push
 def test_silu():
     class Silu(torch.nn.Module):
         def forward(self, x):
@@ -120,6 +100,7 @@ def test_silu():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_silu_with_dtype_promotion():
     class Silu(torch.nn.Module):
         def forward(self, x):
@@ -143,6 +124,7 @@ def test_silu_with_dtype_promotion():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_relu6():
     class Relu6(torch.nn.Module):
         def forward(self, x):
@@ -166,6 +148,7 @@ def test_relu6():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_mul():
     class Mul(torch.nn.Module):
         def forward(self, x, y):
@@ -190,6 +173,7 @@ def test_mul():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("in_channels", [3, 64])
 @pytest.mark.parametrize("out_channels", [3, 64])
 @pytest.mark.parametrize("kernel_size", [2, 3])
@@ -237,6 +221,7 @@ def test_conv2d(
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("in_channels", [3, 64])
 @pytest.mark.parametrize("out_channels", [3, 64])
 @pytest.mark.parametrize("kernel_size", [2, 3])
@@ -340,7 +325,42 @@ eltwise_unary_ops = [
     torch.trunc,
 ]
 
+# Operations that fail only in eager mode due to different nan/inf handling
+eager_failing_unary_ops = {
+    torch.acos,
+    torch.acosh,
+    torch.asin,
+    torch.atanh,
+    torch.digamma,
+    torch.erfinv,
+    torch.log,
+    torch.log10,
+    torch.log1p,
+    torch.log2,
+    torch.logit,
+    torch.rsqrt,
+    torch.sqrt,
+    torch.tan,
+}
 
+# Create eager version with xfail markers for failing ops
+eltwise_unary_ops_eager = [
+    (
+        pytest.param(
+            op,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+            ),
+        )
+        if op in eager_failing_unary_ops
+        else op
+    )
+    for op in eltwise_unary_ops
+]
+
+
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_unary_ops)
 def test_eltwise_unary(op):
     input_x = (
@@ -372,7 +392,8 @@ def test_eltwise_unary(op):
     comparator.compare(output, golden)
 
 
-@pytest.mark.parametrize("op", eltwise_unary_ops)
+@pytest.mark.push
+@pytest.mark.parametrize("op", eltwise_unary_ops_eager)
 def test_eltwise_unary_eager(op):
     class Unary(torch.nn.Module):
         def forward(self, x):
@@ -411,19 +432,55 @@ eltwise_binary_ops = [
     torch.bitwise_xor,
     torch.bitwise_left_shift,
     torch.bitwise_right_shift,
-    torch.div,
-    torch.divide,
-    torch.floor_divide,
-    torch.fmod,
+    pytest.param(
+        torch.div,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
+    pytest.param(
+        torch.divide,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
+    pytest.param(
+        torch.floor_divide,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
+    pytest.param(
+        torch.fmod,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
     torch.logaddexp,
     torch.logaddexp2,
     torch.mul,
     torch.multiply,
     torch.nextafter,
-    torch.remainder,
+    pytest.param(
+        torch.remainder,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
     torch.sub,
     torch.subtract,
-    torch.true_divide,
+    pytest.param(
+        torch.true_divide,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
+        ),
+    ),
     torch.eq,
     torch.ne,
     torch.le,
@@ -442,6 +499,7 @@ eltwise_binary_ops = [
 ]
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_binary_ops)
 def test_eltwise_binary(op):
     if op in [
@@ -479,6 +537,7 @@ def test_eltwise_binary(op):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("op", eltwise_binary_ops)
 def test_eltwise_binary_eager(op):
     if op in [

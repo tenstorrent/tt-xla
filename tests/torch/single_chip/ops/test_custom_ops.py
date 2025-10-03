@@ -14,6 +14,7 @@ from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 # TODO: Record superset properties for these tests.
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("num_heads", [12, 16])
 @pytest.mark.parametrize("max_seq_len", [64, 128])
 @pytest.mark.parametrize("head_size", [64, 128])
@@ -30,6 +31,7 @@ def test_fill_cache(num_heads, max_seq_len, head_size, seq_len_to_fill):
     )
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("num_heads", [12, 16])
 @pytest.mark.parametrize("max_seq_len", [64, 128])
 @pytest.mark.parametrize("head_size", [64, 128])
