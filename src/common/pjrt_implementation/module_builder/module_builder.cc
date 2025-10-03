@@ -927,8 +927,6 @@ tt_pjrt_status ModuleBuilder::setProperSdyMeshAttributeInSpmdMode(
     for (auto [i, axis] : llvm::enumerate(mesh_attr.getAxes())) {
       if (axis.getSize() > 1) {
         // This axis already has a non-trivial size; leave the mesh as-is.
-        DLOG_F(LOG_DEBUG, "Mesh axis %s has size %ld; leaving unchanged.",
-               axis.getName().str().data(), axis.getSize());
         return tt_pjrt_status::kSuccess;
       }
       if (i == mesh_attr.getAxes().size() - 1) {
@@ -936,11 +934,15 @@ tt_pjrt_status ModuleBuilder::setProperSdyMeshAttributeInSpmdMode(
         // num_devices]). In the future, this may be driven by a user-provided
         // mesh or computed inside tt-xla.
         new_axes.push_back(mlir::sdy::MeshAxisAttr::get(
-            ctx, axes.getName(), tt::runtime::getNumAvailableDevices()));
+            ctx, axis.getName(), tt::runtime::getNumAvailableDevices()));
       } else {
-        new_axes.push_back(axes);
+        new_axes.push_back(axis);
       }
     }
+
+    DLOG_F(LOG_DEBUG,
+           "SPMD-enabled mesh has trivial size [1, 1], reshaping to [1, %ld]",
+           tt::runtime::getNumAvailableDevices());
 
     // Replace the mesh on the op with the updated axes.
     shardy_op->setMeshAttr(mlir::sdy::MeshAttr::get(ctx, new_axes));
