@@ -1394,19 +1394,18 @@ test_config:
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
         bringup_status: INCORRECT_RESULT
-
       n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
         bringup_status: FAILED_RUNTIME
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
 
   flux/pytorch-dev-single_device-full-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
       n150:
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (flux.1-dev is 12B param model)
         bringup_status: FAILED_RUNTIME
 
   gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-inference:
@@ -1435,9 +1434,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
-        bringup_status: FAILED_RUNTIME  # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL, "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
+        bringup_status: FAILED_RUNTIME
 
   phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-inference:
     arch_overrides:
@@ -1447,24 +1446,24 @@ test_config:
         bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99"
       n150:
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
         bringup_status: FAILED_RUNTIME
 
   phi4/seq_cls/pytorch-microsoft/phi-4-single_device-full-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
         bringup_status: FAILED_RUNTIME
 
   phi4/token_cls/pytorch-microsoft/phi-4-single_device-full-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP  # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-        reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host."
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
         bringup_status: FAILED_RUNTIME
 
   phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:

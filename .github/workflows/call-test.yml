@@ -224,7 +224,7 @@ jobs:
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
         if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
-          ARCH="--arch ${{ matrix.build.runs-on }}"
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
