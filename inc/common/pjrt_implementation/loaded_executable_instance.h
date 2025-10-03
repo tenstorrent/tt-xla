@@ -116,7 +116,7 @@ private:
   // prepared for execution. If we cannot reuse the already prepared tensor
   // contained within the buffer instances, this will involve calling
   // `toLayout()` which in most cases involves moving the data to the device.
-  tt::runtime::Tensor
+  std::optional<tt::runtime::Tensor>
   prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index);

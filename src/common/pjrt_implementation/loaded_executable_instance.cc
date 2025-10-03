@@ -246,21 +246,21 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       arg_buffers.push_back(buffer);
     }
 
-    tt::runtime::Tensor prepared_tensor = prepareInputTensor(
+    std::optional<tt::runtime::Tensor> prepared_tensor = prepareInputTensor(
         arg_buffers, runtime_device, num_devices, program_index, arg_index);
 
-    if (prepared_tensor.handle == nullptr) {
+    if (!prepared_tensor.has_value()) {
       // Error is reported in `prepareInputTensor`.
       return tt_pjrt_status::kInternal;
     }
 
-    input_tensors.push_back(prepared_tensor);
+    input_tensors.push_back(*prepared_tensor);
   }
 
   return tt_pjrt_status::kSuccess;
 }
 
-tt::runtime::Tensor LoadedExecutableInstance::prepareInputTensor(
+std::optional<tt::runtime::Tensor> LoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
@@ -268,6 +268,7 @@ tt::runtime::Tensor LoadedExecutableInstance::prepareInputTensor(
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
+  assert(!arg_buffers.empty());
   std::optional<tt::runtime::Tensor> prepared_tensor =
       arg_buffers[0]->getPreparedTensor();
   for (size_t i = 1; i < arg_buffers.size(); ++i) {
@@ -303,7 +304,7 @@ tt::runtime::Tensor LoadedExecutableInstance::prepareInputTensor(
           m_executable_image->getInputSharding(arg_index), num_devices);
   if (mlir::failed(strategy)) {
     DLOG_F(ERROR, "Failed to fill strategy map from sharding");
-    return tt::runtime::Tensor{nullptr, nullptr, runtime::DeviceRuntime::TTNN};
+    return std::nullopt;
   }
 
   tt::runtime::Tensor input_tensor =
