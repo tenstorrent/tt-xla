@@ -105,7 +105,7 @@ def test_all_models(
 
                 comparison_result = tester.test()
 
-                # All results in the tuple must pass for the test to succeed
+                # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
                 # Trigger assertion after comparison_result is cached, and
@@ -118,6 +118,15 @@ def test_all_models(
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
+            # If there are multiple comparison results, only record the first one because the
+            #     DB only supports single comparison result for now
+            print("running test all models")
+            if len(comparison_result) > 1:
+                print(
+                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one"
+                )
+            comparison_result = comparison_result[0]
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(

@@ -186,4 +186,6 @@ class TorchModelTester(ModelTester):
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
 
-        return forward_result, backward_result
+        # Only the first result is recorded in the report properties,
+        # and only want to report on the backward result
+        return backward_result, forward_result
