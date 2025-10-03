@@ -33,4 +33,10 @@ else
 
   export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
   export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+  # Try install location first, fallback to build directory
+  if [ -d "$(pwd)/third_party/tt-mlir/install/runtime/python" ]; then
+    export TTMLIR_RUNTIME_PYTHON_PATH="$(pwd)/third_party/tt-mlir/install/runtime/python"
+  else
+    export TTMLIR_RUNTIME_PYTHON_PATH="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/runtime/python"
+  fi
 fi
