@@ -3,6 +3,9 @@ name: On PR
 on:
   pull_request:
     branches: [ "main" ]
+  push:
+    branches:
+      - "**"
 
 permissions:
   packages: write
