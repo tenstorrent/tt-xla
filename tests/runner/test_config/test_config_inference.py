@@ -99,12 +99,6 @@ PLACEHOLDER_MODELS = {
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "bevdepth": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
-    "bevformer": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2483,5 +2477,30 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "bevformer/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('dynamic-update-slice.212'): error: failed to legalize operation 'stablehlo.dynamic_update_slice'",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
