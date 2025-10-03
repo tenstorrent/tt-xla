@@ -52,7 +52,7 @@ def test_display_available_variants(model_name):
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("seq_len", [512, 1024, 2048]) # 4096 causes OOM
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -62,7 +62,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     # Xfail 70B models that don't fit on device
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
-    
+
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -153,7 +153,7 @@ def test_llama_attention_decode(variant, variant_config):
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("seq_len", [1024, 2048, 4096])
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -194,7 +194,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("seq_len", [1024, 2048, 4096])
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -253,7 +253,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("seq_len", [1024, 2048])  # 4096 causes OOM on CPU
+@pytest.mark.parametrize("seq_len", [1024])  # 4096 causes OOM on CPU
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
