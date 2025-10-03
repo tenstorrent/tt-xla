@@ -77,29 +77,7 @@ def test_simple_mm_eager(bias):
     comparator.compare(output, golden)
 
 
-def test_relu6():
-    class Relu6(torch.nn.Module):
-        def forward(self, x):
-            return torch.nn.functional.relu6(x)
-
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-
-    model = Relu6()
-    golden = model(input_x)
-
-    device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
-
-    output = model(input_x.to(device))
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            atol=AtolConfig(required_atol=0.02),
-        )
-    )
-    comparator.compare(output, golden)
-
-
+@pytest.mark.push
 def test_silu():
     class Silu(torch.nn.Module):
         def forward(self, x):
@@ -122,6 +100,7 @@ def test_silu():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_silu_with_dtype_promotion():
     class Silu(torch.nn.Module):
         def forward(self, x):
@@ -145,6 +124,7 @@ def test_silu_with_dtype_promotion():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_relu6():
     class Relu6(torch.nn.Module):
         def forward(self, x):
@@ -168,6 +148,7 @@ def test_relu6():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 def test_mul():
     class Mul(torch.nn.Module):
         def forward(self, x, y):
@@ -192,6 +173,7 @@ def test_mul():
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("in_channels", [3, 64])
 @pytest.mark.parametrize("out_channels", [3, 64])
 @pytest.mark.parametrize("kernel_size", [2, 3])
