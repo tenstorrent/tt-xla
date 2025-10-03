@@ -29,6 +29,7 @@ permissions:
   checks: write
   contents: write
   id-token: write
+  actions: write
 
 jobs:
   docker-build:
