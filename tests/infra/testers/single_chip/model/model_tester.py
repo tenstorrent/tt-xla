@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Sequence, Callable, Optional, Tuple
 
 from infra.comparators import ComparisonConfig, ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -119,14 +119,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self) -> ComparisonResult:
+    def test(self) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
             return self._test_inference()
         else:
             return self._test_training()
 
-    def _test_inference(self) -> ComparisonResult:
+    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -137,7 +137,7 @@ class ModelTester(BaseTester, ABC):
         self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
 
-        return self._compare(tt_res, cpu_res)
+        return (self._compare(tt_res, cpu_res),)
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
@@ -151,7 +151,7 @@ class ModelTester(BaseTester, ABC):
         """Compares device with golden output and returns the result."""
         return self._comparator.compare(device_out, golden_out)
 
-    def _test_training(self) -> ComparisonResult:
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running training on TT device and on CPU and comparing the
         forward results and gradients. Implementation is framework-specific.

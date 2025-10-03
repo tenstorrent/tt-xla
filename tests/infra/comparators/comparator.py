@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
+from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
 
@@ -141,16 +142,22 @@ class Comparator(ABC):
         return passed, combined_error_message
 
     @staticmethod
-    def _assert_on_results(comparison_result: ComparisonResult) -> None:
+    def _assert_on_results(comparison_result: Tuple[ComparisonResult, ...]) -> None:
         """
         Assert based on comparison results if any checks failed.
 
         Args:
-            comparison_result: The ComparisonResult to assert on
+            comparison_result: The tuple of ComparisonResults to assert on. There may be multiple results for each test,
+            eg. forward and backward pass results for training.
         """
-        # Simply assert if we have a failure with the stored error message
-        if not comparison_result.passed:
-            assert False, comparison_result.error_message
+        error_messages = []
+        for i, result in enumerate(comparison_result):
+            if not result.passed:
+                error_messages.append(
+                    f"Comparison result {i} failed: {result.error_message}"
+                )
+        if error_messages:
+            assert False, "\n".join(error_messages)
 
     @staticmethod
     @abstractmethod

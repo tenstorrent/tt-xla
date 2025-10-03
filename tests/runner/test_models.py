@@ -104,7 +104,9 @@ def test_all_models(
                 )
 
                 comparison_result = tester.test()
-                succeeded = comparison_result.passed
+
+                # All results in the tuple must pass for the test to succeed
+                succeeded = all(result.passed for result in comparison_result)
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.

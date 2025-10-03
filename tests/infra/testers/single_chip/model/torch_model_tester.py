@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-import os
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 from tests.infra.comparators.comparator import ComparisonResult
 import torch
@@ -142,7 +141,7 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
-    def _test_training(self) -> ComparisonResult:
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
@@ -184,8 +183,7 @@ class TorchModelTester(ModelTester):
             name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
 
-        # Compare forward results and gradients
-        self._compare(tt_res, cpu_res)
+        forward_result = self._compare(tt_res, cpu_res)
+        backward_result = self._compare(tt_grads, cpu_grads)
 
-        # Return comparison result for backward pass only
-        return self._compare(tt_grads, cpu_grads)
+        return forward_result, backward_result

@@ -123,6 +123,7 @@ class ModelTestConfig:
                 config.pcc.allclose.rtol = self.allclose_rtol
             if self.allclose_atol is not None:
                 config.pcc.allclose.atol = self.allclose_atol
+
         config.assert_on_failure = False
         return config
 
