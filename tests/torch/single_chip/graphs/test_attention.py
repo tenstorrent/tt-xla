@@ -90,7 +90,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
 
     comparator = TorchComparator(
         ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
@@ -145,7 +144,6 @@ def test_llama_attention_decode(variant, variant_config):
 
     comparator = TorchComparator(
         ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
@@ -186,7 +184,6 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
 
     comparator = TorchComparator(
         ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
@@ -244,7 +241,6 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
     comparator = TorchComparator(
         ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
@@ -338,7 +334,6 @@ def test_llama_sdpa(variant, variant_config, seq_len):
 
     comparator = TorchComparator(
         ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
