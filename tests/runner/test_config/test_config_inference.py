@@ -1800,6 +1800,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "flux/pytorch-schnell-full-inference": {
+        "markers": ["large"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
@@ -1807,26 +1809,11 @@ test_config = {
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99",
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
             },
-            "n150": {
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-            },
         },
     },
     "flux/pytorch-dev-full-inference": {
-        "arch_overrides": {
-            "p150": {
-                "status": ModelTestStatus.EXPECTED_PASSING,
-            },
-            "n150": {
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
+        "markers": ["large"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gliner/pytorch-urchade/gliner_multi-v2.1-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -1858,6 +1845,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "mistral/pixtral/pytorch-full-inference": {
+        "markers": ["large"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
@@ -1865,53 +1854,27 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-8.055820217123255e-06. Required: pcc=0.99",
             },
-            "n150": {
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-                # "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                # "reason": "RuntimeError: Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
         },
     },
     "phi4/causal_lm/pytorch-microsoft/phi-4-full-inference": {
+        "markers": ["large"],
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
                 "status": ModelTestStatus.EXPECTED_PASSING,
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99",
-            },
-            "n150": {
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
+            }
         },
     },
     "phi4/seq_cls/pytorch-microsoft/phi-4-full-inference": {
+        "markers": ["large"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "phi4/token_cls/pytorch-microsoft/phi-4-full-inference": {
+        "markers": ["large"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "phi3/phi_3_5_vision/pytorch-instruct-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
