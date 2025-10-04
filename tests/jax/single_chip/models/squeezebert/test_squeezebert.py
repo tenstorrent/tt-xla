@@ -43,10 +43,6 @@ class SqueezeBertTester(JaxModelTester):
         return self._model_loader.load_model()
 
     # @override
-    def _get_forward_method_name(self):
-        return "apply"
-
-    # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
 

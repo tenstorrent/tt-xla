@@ -6,7 +6,7 @@ import inspect
 from typing import Any, Sequence
 
 import jax
-from flax import linen
+from flax import linen, nnx
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload

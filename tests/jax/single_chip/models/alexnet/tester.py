@@ -40,27 +40,17 @@ class AlexNetTester(JaxModelTester):
 
     # @override
     def _get_model(self) -> nn.Module:
-        return AlexNetModel()
-
-    # @override
-    def _get_forward_method_name(self) -> str:
-        return "apply"
-
-    # @override
-    def _get_input_activations(self) -> Sequence[jax.Array]:
-        return create_alexnet_random_input_image()
-
-    # @override
-    def _get_input_parameters(self) -> PyTree:
-        # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set of initial tensors (parameters
-        # and maybe some extra state). Parameters are not stored with the models
-        # themselves, they are provided together with inputs to the forward method.
-        return self._model.init(
+        model = AlexNetModel()
+        model.params = self._model.init(
             jax.random.PRNGKey(ALEXNET_PARAMS_INIT_SEED),
             self._input_activations,
             train=False,
         )
+        return model
+
+    # @override
+    def _get_input_activations(self) -> Sequence[jax.Array]:
+        return create_alexnet_random_input_image()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
