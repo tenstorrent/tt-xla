@@ -58,3 +58,5 @@ yolov6detect
 
 # bge-m3 model
 FlagEmbedding
+
+casadi==3.7.2
