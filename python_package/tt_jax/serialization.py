@@ -11,7 +11,7 @@ import jax
 from jax.experimental import serialize_executable
 import os
 import pickle
-from ttxla_tools import parse_executable
+from pjrt_plugin_tt._src import parse_executable
 from typing import Callable
 
 
