@@ -121,7 +121,7 @@ class TorchModelTester(ModelTester):
 
         Compiles for inductor backend by default.
         """
-        self._compile_for_backend(workload, backend="inductor")
+        self._compile_for_backend(workload, backend="tt")
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
