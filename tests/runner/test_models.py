@@ -69,6 +69,10 @@ def test_all_models(
                 )
 
                 tester.test()
+
+                if request.config.getoption("--serialize", default=False):
+                    tester.serialize_model(request.node.name)
+
                 succeeded = True
 
         except Exception as e:
