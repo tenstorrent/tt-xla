@@ -151,6 +151,13 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  if (compile_options.is_spmd_mode) {
+    status = setProperSdyMeshAttributeInSpmdMode(mlir_module);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+  }
+
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -908,6 +915,39 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   }
 
   return found_mesh_op;
+}
+
+tt_pjrt_status ModuleBuilder::setProperSdyMeshAttributeInSpmdMode(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const {
+  auto shardy_op = getFirstShardyMeshOp(mlir_module);
+  if (shardy_op.has_value()) {
+    mlir::sdy::MeshAttr mesh_attr = shardy_op->getMesh();
+    auto ctx = mlir_module->getContext();
+    llvm::SmallVector<mlir::sdy::MeshAxisAttr> new_axes;
+    for (auto [i, axis] : llvm::enumerate(mesh_attr.getAxes())) {
+      if (axis.getSize() > 1) {
+        // This axis already has a non-trivial size; leave the mesh as-is.
+        return tt_pjrt_status::kSuccess;
+      }
+      if (i == mesh_attr.getAxes().size() - 1) {
+        // We use the last axis to encode the mesh shape (e.g., [1,
+        // num_devices]). In the future, this may be driven by a user-provided
+        // mesh or computed inside tt-xla.
+        new_axes.push_back(mlir::sdy::MeshAxisAttr::get(
+            ctx, axis.getName(), tt::runtime::getNumAvailableDevices()));
+      } else {
+        new_axes.push_back(axis);
+      }
+    }
+
+    DLOG_F(LOG_DEBUG,
+           "SPMD-enabled mesh has trivial size [1, 1], reshaping to [1, %ld]",
+           tt::runtime::getNumAvailableDevices());
+
+    // Replace the mesh on the op with the updated axes.
+    shardy_op->setMeshAttr(mlir::sdy::MeshAttr::get(ctx, new_axes));
+  }
+  return tt_pjrt_status::kSuccess;
 }
 
 } // namespace tt::pjrt::module_builder
