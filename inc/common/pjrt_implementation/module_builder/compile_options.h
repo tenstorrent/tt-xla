@@ -41,6 +41,9 @@ struct CompileOptions {
   // fixed.
   bool enable_fusing_conv2d_with_multiply_pattern = false;
 
+  // Enables trace hoisting for TTNN pipeline.
+  bool enable_trace = false;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };
