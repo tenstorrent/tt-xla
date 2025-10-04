@@ -22,6 +22,8 @@ from torch._dynamo import register_backend
 
 import torch_xla
 
+from tt_torch.composite_ops import handle_composite_ops
+
 
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
@@ -30,6 +32,9 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
 ) -> torch.fx.GraphModule:
+
+    handle_composite_ops(gm)
+
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
