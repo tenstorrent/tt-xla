@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
+from tests.infra.comparators.comparator import ComparisonResult
 import torch
 import torch_xla
 import torch_xla.runtime as xr
@@ -134,7 +135,7 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
-    def _test_training(self):
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
@@ -176,6 +177,9 @@ class TorchModelTester(ModelTester):
             name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
 
-        # Compare forward results and gradients
-        self._compare(tt_res, cpu_res)
-        self._compare(tt_grads, cpu_grads)
+        forward_result = self._compare(tt_res, cpu_res)
+        backward_result = self._compare(tt_grads, cpu_grads)
+
+        # Only the first result is recorded in the report properties,
+        # and only want to report on the backward result
+        return backward_result, forward_result
