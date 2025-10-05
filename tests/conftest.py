@@ -290,6 +290,18 @@ def memory_usage_tracker(request):
         logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def initialize_device_connectors():
+    """
+    Autouse fixture that establishes connection to devices by creating connector
+    instances.
+
+    Done to make sure it is executed before any other jax command during tests.
+    """
+    DeviceConnectorFactory.create_connector(Framework.JAX)
+    DeviceConnectorFactory.create_connector(Framework.TORCH)
+
+
 @pytest.fixture(autouse=True)
 def cleanup_cache():
     """

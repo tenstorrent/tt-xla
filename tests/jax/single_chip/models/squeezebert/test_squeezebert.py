@@ -5,34 +5,23 @@
 from typing import Dict
 
 import jax
-import jax.numpy as jnp
 import pytest
-import torch
 from flax import linen as nn
-from huggingface_hub import hf_hub_download
-from infra import Framework, JaxModelTester, RunMode
+from infra import JaxModelTester, RunMode, ComparisonConfig
 from jaxtyping import PyTree
-from transformers import AutoTokenizer
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    incorrect_result,
 )
 
-from .model_implementation import SqueezeBertConfig, SqueezeBertForMaskedLM
-
-MODEL_PATH = "squeezebert/squeezebert-uncased"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "squeezebert",
-    "uncased",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.CUSTOM,
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.squeezebert.masked_lm.jax import (
+    ModelLoader,
+    ModelVariant,
 )
+
+VARIANT_NAME = ModelVariant.BASE
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Tester -----
 
@@ -40,10 +29,18 @@ MODEL_NAME = build_model_name(
 class SqueezeBertTester(JaxModelTester):
     """Tester for SqueezeBERT model on a masked language modeling task"""
 
+    def __init__(
+        self,
+        variant_name: ModelVariant,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        run_mode: RunMode = RunMode.INFERENCE,
+    ):
+        self._model_loader = ModelLoader(variant_name)
+        super().__init__(comparison_config, run_mode)
+
     # @override
     def _get_model(self) -> nn.Module:
-        config = SqueezeBertConfig.from_pretrained(MODEL_PATH)
-        return SqueezeBertForMaskedLM(config)
+        return self._model_loader.load_model()
 
     # @override
     def _get_forward_method_name(self):
@@ -51,18 +48,11 @@ class SqueezeBertTester(JaxModelTester):
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-        inputs = tokenizer("The [MASK] barked at me", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_input_parameters(self) -> PyTree:
-        model_file = hf_hub_download(
-            repo_id="squeezebert/squeezebert-uncased", filename="pytorch_model.bin"
-        )
-        state_dict = torch.load(model_file, weights_only=True)
-
-        return self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
+        return self._model_loader.load_parameters()
 
     def _get_forward_method_args(self) -> list:
         return []
@@ -85,12 +75,12 @@ class SqueezeBertTester(JaxModelTester):
 
 @pytest.fixture
 def inference_tester() -> SqueezeBertTester:
-    return SqueezeBertTester()
+    return SqueezeBertTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> SqueezeBertTester:
-    return SqueezeBertTester(RunMode.TRAINING)
+    return SqueezeBertTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -99,8 +89,8 @@ def training_tester() -> SqueezeBertTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -111,8 +101,8 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

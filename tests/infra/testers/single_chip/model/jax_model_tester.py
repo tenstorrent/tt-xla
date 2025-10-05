@@ -225,7 +225,7 @@ class JaxModelTester(ModelTester):
         train_fwd_cpu = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(training_workload.executable)
+                jax.vjp, wrapper_model(training_workload.compiled_executable)
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
@@ -236,7 +236,7 @@ class JaxModelTester(ModelTester):
         train_fwd_tt = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(training_workload.executable)
+                jax.vjp, wrapper_model(training_workload.compiled_executable)
             ),
             args=[training_workload.args, training_workload.kwargs],
         )

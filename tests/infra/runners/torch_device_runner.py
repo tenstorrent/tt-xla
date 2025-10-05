@@ -62,7 +62,7 @@ class TorchDeviceRunner(DeviceRunner):
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
         if workload.compiled_executable is not None:
-            workload.compiled_executable.to(device)
+            attempt_to_device(workload.compiled_executable)
 
         return Workload(
             framework=workload.framework,

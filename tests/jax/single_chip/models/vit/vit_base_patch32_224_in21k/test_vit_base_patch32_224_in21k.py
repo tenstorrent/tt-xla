@@ -4,26 +4,22 @@
 
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+    failed_runtime,
 )
 
 from ..tester import ViTTester
-
-MODEL_PATH = "google/vit-base-patch32-224-in21k"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "vit",
-    "base_patch32_224_in21k",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.vit.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
+
+VARIANT_NAME = ModelVariant.BASE_PATCH32_224_IN_21K
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -31,12 +27,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH)
+    return ViTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(MODEL_PATH, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,10 +41,17 @@ def training_tester() -> ViTTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
+)
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks, "
+        "where each bank needs to store 1143808 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+    )
 )
 def test_vit_base_patch32_224_in21k_inference(
     inference_tester: ViTTester,
@@ -59,8 +62,8 @@ def test_vit_base_patch32_224_in21k_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

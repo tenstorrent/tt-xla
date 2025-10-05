@@ -3,28 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_runtime,
-    incorrect_result,
 )
 
 from ..tester import OPTTester
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.opt.causal_lm.jax import ModelVariant, ModelLoader
 
-MODEL_PATH = "facebook/opt-2.7b"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "opt",
-    "2.7b",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant._2_7B
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -32,12 +23,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH)
+    return OPTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return OPTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -46,8 +37,8 @@ def training_tester() -> OPTTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
@@ -64,8 +55,8 @@ def test_opt_2_7b_inference(inference_tester: OPTTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.large

@@ -51,6 +51,7 @@ def training_tester() -> RegNetTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
+@pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 56438554624 B L1 buffer "

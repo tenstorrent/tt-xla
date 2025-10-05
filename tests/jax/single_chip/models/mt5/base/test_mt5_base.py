@@ -3,23 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import MT5Tester
-
-MODEL_PATH = "google/mt5-base"
-MODEL_NAME = build_model_name(
-    Framework.JAX, "mt5", "base", ModelTask.NLP_SUMMARIZATION, ModelSource.HUGGING_FACE
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.mt5.nlp_summarization.jax import (
+    ModelVariant,
+    ModelLoader,
 )
+
+VARIANT_NAME = ModelVariant.BASE
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -27,12 +27,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MT5Tester:
-    return MT5Tester(MODEL_PATH)
+    return MT5Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> MT5Tester:
-    return MT5Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return MT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -41,14 +41,15 @@ def training_tester() -> MT5Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.skip(
-    reason=failed_runtime(
-        "Hangs in the runtime (https://github.com/tenstorrent/tt-xla/issues/539)"
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.7113243341445923. Required: pcc=0.99. "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
 def test_mt5_base_inference(inference_tester: MT5Tester):
@@ -58,8 +59,8 @@ def test_mt5_base_inference(inference_tester: MT5Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
