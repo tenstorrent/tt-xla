@@ -88,7 +88,8 @@ class XLAExecutor:
         output = self.module(*args)
         # This tells torch-xla to cut the graph at only what is required to
         # compute all tensors in the `output` list.
-        torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        torch_xla.sync()
+        # torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         return output
 
 
