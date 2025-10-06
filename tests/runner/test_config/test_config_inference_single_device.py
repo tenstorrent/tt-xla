@@ -2442,11 +2442,6 @@ test_config = {
         "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
-    "bevformer/pytorch-single_device-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "loc('dynamic-update-slice.212'): error: failed to legalize operation 'stablehlo.dynamic_update_slice'",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
     "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
@@ -2593,5 +2588,23 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7157331705093384. Required: pcc=0.99.",
+    },
+    "yolov11/pytorch-yolo11s-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "yolov11/pytorch-yolo11n-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "yolov11/pytorch-yolo11s-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "yolov11/pytorch-yolo11m-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "yolov11/pytorch-yolo11l-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "yolov11/pytorch-yolo11x-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
 }
