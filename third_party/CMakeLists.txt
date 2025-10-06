@@ -95,17 +95,10 @@ else()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-    # Copy install directory immediately after tt-mlir completes (after install step)
-    # This ensures headers are available before tt-xla compilation starts
-    ExternalProject_Add_Step(tt-mlir copy_install
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${TTMLIR_LIB_DIR} ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install
-        DEPENDEES install
-        COMMENT "Copying tt-mlir install to third_party/tt-mlir/install"
-    )
-
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
     # Expose all tt-mlir .so files as shared imported libraries.
+    # Also export TTMLIR_LIB_DIR so other targets can find headers/libs directly from install location
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")
