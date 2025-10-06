@@ -101,6 +101,10 @@ def test_silu():
 
 
 @pytest.mark.push
+@pytest.mark.xfail(
+    strict=True,
+    reason="type of return operand 0 ('tensor<32x32xbf16>') doesn't match function result type ('tensor<32x32xf32>') in function @main - https://github.com/tenstorrent/tt-xla/issues/1580",
+)
 def test_silu_with_dtype_promotion():
     class Silu(torch.nn.Module):
         def forward(self, x):
