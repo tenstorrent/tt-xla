@@ -2503,4 +2503,49 @@ test_config = {
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "maptr/pytorch-tiny_r50_24e_av2-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer_t4-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_110e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_t4-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-nano_r18_110e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevpool-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_fusion_24e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
 }
