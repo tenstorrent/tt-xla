@@ -150,30 +150,44 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   // [James] fillPJRTOutputLists with device tensors instead of prefilled host
   // tensors
+  DLOG_F(LOG_DEBUG, "[JAMES] Fill pjrt output list with device tensors");
   size_t n_prog_output_tensors = output_tensors.size();
   for (size_t output_index = 0; output_index < n_prog_output_tensors;
        output_index++) {
     for (int device_index = 0; device_index < args->num_devices;
          ++device_index) {
 
-      tt::runtime::Tensor outputTensor = output_tensors[output_index];
+      tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
       auto expected_output_data_types = m_executable_image->getOutputTypes();
 
       // replicated case - repeat
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              outputTensor, std::move(output_shape),
+              outputDeviceTensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index]);
+      DLOG_F(
+          LOG_DEBUG,
+          "--[JAMES] filled at output index %d device index %d with shape %s",
+          output_index, device_index, output_buffer->toShapeStr().c_str());
+
+      output_buffer->markAsDataReady();
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+      args->output_lists[device_index][output_index] = *output_buffer.release();
     }
   }
 
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
-  }
+  // oops - this will cause segfault.
+  // for (size_t output_index = 0; output_index < output_tensors.size();
+  //      ++output_index) {
+  //   tt::runtime::deallocateTensor(output_tensors[output_index],
+  //   /*force=*/true);
+  // }
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
