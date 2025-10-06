@@ -72,7 +72,7 @@ def test_all_models(
                 succeeded = True
 
         except Exception as e:
-            err = capteesys.readouterr().err
+            err = "" # capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
