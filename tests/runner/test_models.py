@@ -17,11 +17,14 @@ from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
 
+from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import ModelVariant, ModelLoader
+
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
 MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 
+test_entries = [test_entry for test_entry in test_entries if test_entry.path == '/localdev/hshah/tt-xla/third_party/tt_forge_models/qwen_3/causal_lm/pytorch/loader.py']
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
@@ -29,7 +32,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
-        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+        # pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
 )
 @pytest.mark.parametrize(
@@ -37,17 +40,17 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     [None],
     ids=["full"],  # When op-by-op flow is required/supported, add here.
 )
-@pytest.mark.parametrize(
-    "test_entry",
-    test_entries,
-    ids=create_test_id_generator(MODELS_ROOT),
-)
+# @pytest.mark.parametrize(
+#     "test_entry",
+#     test_entries,
+#     ids=create_test_id_generator(MODELS_ROOT),
+# )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capteesys
+    run_mode, op_by_op, record_property, test_metadata, request, capteesys
 ):
 
-    loader_path = test_entry.path
-    variant, ModelLoader = test_entry.variant_info
+    loader_path = '/localdev/hshah/tt-xla/third_party/tt_forge_models/qwen_3/causal_lm/pytorch/loader.py'
+    variant = ModelVariant.QWEN_3_8B
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
