@@ -274,14 +274,39 @@ jobs:
         COLLECTED_OUTPUT=$(python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }})
         echo "$COLLECTED_OUTPUT"
 
-        ESTIMATED_DURATION=$(echo "$COLLECTED_OUTPUT" | grep "estimated duration:")
-        ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/' | awk '{print int($1)}')
-        # multiply the estimate with 3 until estimates are more precise
-        ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
+        # Extract test names from the collected output
+        COLLECTED_TESTS=$(echo "$COLLECTED_OUTPUT" | grep -E "^<[A-Za-z]+ '?tests/.*'?>$" | sed -E "s/^<[A-Za-z]+ '?(tests\/[^'>\s]+).*>$/\1/")
 
-        MIN_TEST_DURATION=30
-        if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
-          ESTIMATED_DURATION=$MIN_TEST_DURATION
+        # Check if any collected tests are missing from .test_durations file
+        MISSING_TESTS=""
+        if [ -f ".test_durations" ]; then
+          for test in $COLLECTED_TESTS; do
+            # Check if the test path exists in the JSON file
+            if ! grep -q "\"$test" .test_durations 2>/dev/null; then
+              echo "Warning: Test '$test' not found in .test_durations file"
+              MISSING_TESTS="yes"
+            fi
+          done
+        else
+          echo "Warning: .test_durations file not found"
+          MISSING_TESTS="yes"
+        fi
+
+        if [ -n "$MISSING_TESTS" ]; then
+          # If any test is missing from durations, use 4 hour timeout
+          echo "Some tests not found in .test_durations, using 4 hour timeout"
+          ESTIMATED_DURATION=240
+        else
+          # All tests found, use the estimated duration from pytest output
+          ESTIMATED_DURATION=$(echo "$COLLECTED_OUTPUT" | grep "estimated duration:")
+          ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/' | awk '{print int($1)}')
+          # multiply the estimate with 3 until estimates are more precise
+          ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
+
+          MIN_TEST_DURATION=30
+          if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
+            ESTIMATED_DURATION=$MIN_TEST_DURATION
+          fi
         fi
 
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
