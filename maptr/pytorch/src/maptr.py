@@ -36,58 +36,2365 @@ SOFTWARE.
 # ============================================================================
 
 import copy
+import functools
+import inspect
 import math
+import os.path as osp
+import re
 import sys
+import warnings
+from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import List, Tuple
+from functools import partial
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn
+from addict import Dict
+from torch import Tensor, distributed as dist
 from torch.nn import init
 from torch.nn.init import normal_
 from torch.nn.modules.utils import _pair
 from torch.nn.parameter import Parameter
-
-from mmcv import ConfigDict
-from mmcv.cnn import (
-    CONV_LAYERS,
-    Linear,
-    MODELS as MMCV_MODELS,
-    build_conv_layer,
-    build_norm_layer,
-    constant_init,
-    xavier_init,
-)
-from mmcv.cnn.bricks.registry import (
-    ATTENTION,
-    TRANSFORMER_LAYER,
-    TRANSFORMER_LAYER_SEQUENCE,
-)
-from mmcv.cnn.bricks.transformer import (
-    TransformerLayerSequence,
-    build_attention,
-    build_feedforward_network,
-    build_transformer_layer_sequence,
-)
-from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
-from mmcv.runner.base_module import BaseModule, ModuleList
-from mmcv.utils import Registry
-
-from mmdet.core.bbox import BaseBBoxCoder, build_bbox_coder
-from mmdet.core.bbox.builder import BBOX_CODERS
-from mmdet.core.bbox.transforms import bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh
-from mmdet.models import DETECTORS, HEADS
-from mmdet.models.backbones.resnet import BasicBlock
-from mmdet.models.builder import BACKBONES, NECKS
-from mmdet.models.dense_heads import DETRHead
-from mmdet.models.detectors import BaseDetector
-from mmdet.models.utils.builder import TRANSFORMER
-from mmdet.models.utils.transformer import inverse_sigmoid
+from torch.optim import Optimizer
+from loguru import logger
 
 from third_party.tt_forge_models.pointpillars.pytorch.src.utils import hard_voxelize
+
+# ============================================================================
+# MMCV UTILS
+# ============================================================================
+
+
+def is_seq_of(seq, expected_type, seq_type=None):
+    if seq_type is None:
+        exp_seq_type = abc.Sequence
+    else:
+        assert isinstance(seq_type, type)
+        exp_seq_type = seq_type
+    if not isinstance(seq, exp_seq_type):
+        return False
+    for item in seq:
+        if not isinstance(item, expected_type):
+            return False
+    return True
+
+
+class Registry:
+    def __init__(self, name, build_func=None, parent=None, scope=None):
+        self._name = name
+        self._module_dict = dict()
+        self._children = dict()
+        self._scope = self.infer_scope() if scope is None else scope
+        if build_func is None:
+            if parent is not None:
+                self.build_func = parent.build_func
+            else:
+                self.build_func = build_from_cfg
+        else:
+            self.build_func = build_func
+        if parent is not None:
+            assert isinstance(parent, Registry)
+            parent._add_children(self)
+            self.parent = parent
+        else:
+            self.parent = None
+
+    def __len__(self):
+        return len(self._module_dict)
+
+    def __contains__(self, key):
+        return self.get(key) is not None
+
+    @staticmethod
+    def infer_scope():
+        frame = inspect.currentframe()
+        infer_scope_caller = frame.f_back.f_back
+        filename = inspect.getmodule(infer_scope_caller).__name__
+        split_filename = filename.split(".")
+        return split_filename[0]
+
+    @staticmethod
+    def split_scope_key(key):
+
+        split_index = key.find(".")
+        if split_index != -1:
+            return key[:split_index], key[split_index + 1 :]
+        else:
+            return None, key
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def scope(self):
+        return self._scope
+
+    @property
+    def module_dict(self):
+        return self._module_dict
+
+    @property
+    def children(self):
+        return self._children
+
+    def get(self, key):
+
+        scope, real_key = self.split_scope_key(key)
+        if scope is None or scope == self._scope:
+            if real_key in self._module_dict:
+                return self._module_dict[real_key]
+        else:
+            if scope in self._children:
+                return self._children[scope].get(real_key)
+            else:
+                parent = self.parent
+                while parent.parent is not None:
+                    parent = parent.parent
+                return parent.get(key)
+
+    def build(self, *args, **kwargs):
+        return self.build_func(*args, **kwargs, registry=self)
+
+    def _add_children(self, registry):
+
+        assert isinstance(registry, Registry)
+        assert registry.scope is not None
+        assert (
+            registry.scope not in self.children
+        ), f"scope {registry.scope} exists in {self.name} registry"
+        self.children[registry.scope] = registry
+
+    def _register_module(self, module, module_name=None, force=False):
+        if not inspect.isclass(module) and not inspect.isfunction(module):
+            raise TypeError(
+                "module must be a class or a function, " f"but got {type(module)}"
+            )
+
+        if module_name is None:
+            module_name = module.__name__
+        if isinstance(module_name, str):
+            module_name = [module_name]
+        for name in module_name:
+            if not force and name in self._module_dict:
+                raise KeyError(f"{name} is already registered " f"in {self.name}")
+            self._module_dict[name] = module
+
+    def deprecated_register_module(self, cls=None, force=False):
+        warnings.warn(
+            "The old API of register_module(module, force=False) "
+            "is deprecated and will be removed, please use the new API "
+            "register_module(name=None, force=False, module=None) instead.",
+            DeprecationWarning,
+        )
+        if cls is None:
+            return partial(self.deprecated_register_module, force=force)
+        self._register_module(cls, force=force)
+        return cls
+
+    def register_module(self, name=None, force=False, module=None):
+        if not isinstance(force, bool):
+            raise TypeError(f"force must be a boolean, but got {type(force)}")
+        if isinstance(name, type):
+            return self.deprecated_register_module(name, force=force)
+
+        if not (name is None or isinstance(name, str) or is_seq_of(name, str)):
+            raise TypeError(
+                "name must be either of None, an instance of str or a sequence"
+                f"  of str, but got {type(name)}"
+            )
+
+        if module is not None:
+            self._register_module(module=module, module_name=name, force=force)
+            return module
+
+        def _register(module):
+            self._register_module(module=module, module_name=name, force=force)
+            return module
+
+        return _register
+
+
+class CheckpointLoader:
+    _schemes: dict = {}
+
+    @classmethod
+    def _register_scheme(
+        cls, prefixes: Union[str, List, Tuple], loader: Callable, force: bool = False
+    ) -> None:
+        if isinstance(prefixes, str):
+            prefixes = [prefixes]
+        else:
+            assert isinstance(prefixes, (list, tuple))
+        for prefix in prefixes:
+            if (prefix not in cls._schemes) or force:
+                cls._schemes[prefix] = loader
+            else:
+                raise KeyError(
+                    f"{prefix} is already registered as a loader backend, "
+                    'add "force=True" if you want to override it'
+                )
+        cls._schemes = OrderedDict(
+            sorted(cls._schemes.items(), key=lambda t: t[0], reverse=True)
+        )
+
+    @classmethod
+    def register_scheme(
+        cls,
+        prefixes: Union[str, List[str], Tuple[str, ...]],
+        loader: Optional[Callable] = None,
+        force: bool = False,
+    ) -> Callable:
+
+        if loader is not None:
+            cls._register_scheme(prefixes, loader, force=force)
+            return
+
+        def _register(loader_cls):
+            cls._register_scheme(prefixes, loader_cls, force=force)
+            return loader_cls
+
+        return _register
+
+    @classmethod
+    def _get_checkpoint_loader(cls, path: str):
+        for p in cls._schemes:
+            if re.match(p, path) is not None:
+                return cls._schemes[p]
+
+    @classmethod
+    def load_checkpoint(
+        cls,
+        filename: str,
+        map_location: Union[str, Callable, None] = None,
+    ) -> Union[dict, OrderedDict]:
+        checkpoint_loader = cls._get_checkpoint_loader(filename)
+        class_name = checkpoint_loader.__name__
+        logger.info(f"load checkpoint from {class_name[10:]} path: {filename}")
+        return checkpoint_loader(filename, map_location)
+
+
+@CheckpointLoader.register_scheme(prefixes="")
+def load_from_local(
+    filename: str,
+    map_location: Union[str, Callable, None] = None,
+) -> Union[dict, OrderedDict]:
+
+    filename = osp.expanduser(filename)
+    if not osp.isfile(filename):
+        raise FileNotFoundError(f"{filename} can not be found.")
+    checkpoint = torch.load(filename, map_location=map_location)
+    return checkpoint
+
+
+def is_module_wrapper(module: nn.Module) -> bool:
+    def is_module_in_wrapper(module, module_wrapper):
+        module_wrappers = tuple(module_wrapper.module_dict.values())
+        if isinstance(module, module_wrappers):
+            return True
+        for child in module_wrapper.children.values():
+            if is_module_in_wrapper(module, child):
+                return True
+        return False
+
+    return is_module_in_wrapper(module, MODULE_WRAPPERS)
+
+
+def load_state_dict(
+    module: nn.Module,
+    state_dict: Union[dict, OrderedDict],
+    strict: bool = False,
+) -> None:
+
+    unexpected_keys: List[str] = []
+    all_missing_keys: List[str] = []
+    err_msg: List[str] = []
+
+    metadata = getattr(state_dict, "_metadata", None)
+    state_dict = state_dict.copy()
+    if metadata is not None:
+        state_dict._metadata = metadata
+
+    def load(module, prefix=""):
+        if is_module_wrapper(module):
+            module = module.module
+        local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+        module._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            True,
+            all_missing_keys,
+            unexpected_keys,
+            err_msg,
+        )
+        for name, child in module._modules.items():
+            if child is not None:
+                load(child, prefix + name + ".")
+
+    load(module)
+    load = None
+    missing_keys = [key for key in all_missing_keys if "num_batches_tracked" not in key]
+
+    if unexpected_keys:
+        err_msg.append(
+            "unexpected key in source " f'state_dict: {", ".join(unexpected_keys)}\n'
+        )
+    if missing_keys:
+        err_msg.append(
+            f'missing keys in source state_dict: {", ".join(missing_keys)}\n'
+        )
+
+    rank, _ = get_dist_info()
+    if len(err_msg) > 0 and rank == 0:
+        err_msg.insert(0, "The model and loaded state dict do not match exactly\n")
+        err_msg = "\n".join(err_msg)
+        if strict:
+            raise RuntimeError(err_msg)
+        elif logger is not None:
+            logger.warning(err_msg)
+        else:
+            print(err_msg)
+
+
+def _load_checkpoint(
+    filename: str,
+    map_location: Union[str, Callable, None] = None,
+) -> Union[dict, OrderedDict]:
+    return CheckpointLoader.load_checkpoint(filename, map_location)
+
+
+def load_checkpoint(
+    model: torch.nn.Module,
+    filename: str,
+    map_location: Union[str, Callable, None] = None,
+    strict: bool = False,
+    revise_keys: list = [(r"^module\.", "")],
+) -> Union[dict, OrderedDict]:
+
+    checkpoint = _load_checkpoint(filename, map_location)
+    if not isinstance(checkpoint, dict):
+        raise RuntimeError(f"No state_dict found in checkpoint file {filename}")
+    if "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+    else:
+        state_dict = checkpoint
+    metadata = getattr(state_dict, "_metadata", OrderedDict())
+    for p, r in revise_keys:
+        state_dict = OrderedDict({re.sub(p, r, k): v for k, v in state_dict.items()})
+    state_dict._metadata = metadata
+    load_state_dict(model, state_dict, strict)
+    return checkpoint
+
+
+class BaseRunner(metaclass=ABCMeta):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        batch_processor: Optional[Callable] = None,
+        optimizer: Union[Dict, torch.optim.Optimizer, None] = None,
+        work_dir: Optional[str] = None,
+        meta: Optional[Dict] = None,
+        max_iters: Optional[int] = None,
+        max_epochs: Optional[int] = None,
+    ) -> None:
+
+        if isinstance(optimizer, dict):
+            for name, optim in optimizer.items():
+                if not isinstance(optim, Optimizer):
+                    raise TypeError(
+                        f"optimizer must be a dict of torch.optim.Optimizers, "
+                        f'but optimizer["{name}"] is a {type(optim)}'
+                    )
+        elif not isinstance(optimizer, Optimizer) and optimizer is not None:
+            raise TypeError(
+                f"optimizer must be a torch.optim.Optimizer object "
+                f"or dict or None, but got {type(optimizer)}"
+            )
+        if meta is not None and not isinstance(meta, dict):
+            raise TypeError(f"meta must be a dict or None, but got {type(meta)}")
+
+        self.model = model
+        self.batch_processor = batch_processor
+        self.optimizer = optimizer
+        self.meta = meta
+        if isinstance(work_dir, str):
+            self.work_dir: Optional[str] = osp.abspath(work_dir)
+            mmcv.mkdir_or_exist(self.work_dir)
+        elif work_dir is None:
+            self.work_dir = None
+        else:
+            raise TypeError('"work_dir" must be a str or None')
+
+        if hasattr(self.model, "module"):
+            self._model_name = self.model.module.__class__.__name__
+        else:
+            self._model_name = self.model.__class__.__name__
+
+        self._rank, self._world_size = get_dist_info()
+        self.mode: Optional[str] = None
+        self._epoch = 0
+        self._iter = 0
+        self._inner_iter = 0
+
+        if max_epochs is not None and max_iters is not None:
+            raise ValueError("Only one of `max_epochs` or `max_iters` can be set.")
+
+        self._max_epochs = max_epochs
+        self._max_iters = max_iters
+
+    def load_checkpoint(
+        self,
+        filename: str,
+        map_location: Union[str, Callable] = "cpu",
+        strict: bool = False,
+        revise_keys: List = [(r"^module.", "")],
+    ) -> Union[Dict, OrderedDict]:
+        return load_checkpoint(
+            self.model, filename, map_location, strict, revise_keys=revise_keys
+        )
+
+
+class ConfigDict(Dict):
+    def __missing__(self, name):
+        raise KeyError(name)
+
+    def __getattr__(self, name):
+        try:
+            value = super().__getattr__(name)
+        except KeyError:
+            ex = AttributeError(
+                f"'{self.__class__.__name__}' object has no " f"attribute '{name}'"
+            )
+        except Exception as e:
+            ex = e
+        else:
+            return value
+        raise ex
+
+
+def build_from_cfg(
+    cfg: Dict, registry: "Registry", default_args: Optional[Dict] = None
+) -> Any:
+
+    if not isinstance(cfg, dict):
+        raise TypeError(f"cfg must be a dict, but got {type(cfg)}")
+    if "type" not in cfg:
+        if default_args is None or "type" not in default_args:
+            raise KeyError(
+                '`cfg` or `default_args` must contain the key "type", '
+                f"but got {cfg}\n{default_args}"
+            )
+    if not isinstance(registry, Registry):
+        raise TypeError(
+            "registry must be an mmcv.Registry object, " f"but got {type(registry)}"
+        )
+    if not (isinstance(default_args, dict) or default_args is None):
+        raise TypeError(
+            "default_args must be a dict or None, " f"but got {type(default_args)}"
+        )
+
+    args = cfg.copy()
+
+    if default_args is not None:
+        for name, value in default_args.items():
+            args.setdefault(name, value)
+
+    obj_type = args.pop("type")
+    if isinstance(obj_type, str):
+        obj_cls = registry.get(obj_type)
+        if obj_cls is None:
+            raise KeyError(f"{obj_type} is not in the {registry.name} registry")
+    elif inspect.isclass(obj_type) or inspect.isfunction(obj_type):
+        obj_cls = obj_type
+    else:
+        raise TypeError(f"type must be a str or valid type, but got {type(obj_type)}")
+    try:
+        return obj_cls(**args)
+    except Exception as e:
+        raise type(e)(f"{obj_cls.__name__}: {e}")
+
+
+CONV_LAYERS = Registry("conv layer")
+MMCV_MODELS = Registry("models")
+NORM_LAYERS = Registry("norm layer")
+ATTENTION = Registry("attention")
+TRANSFORMER_LAYER = Registry("transformerLayer")
+TRANSFORMER_LAYER_SEQUENCE = Registry("transformer-layers sequence")
+FEEDFORWARD_NETWORK = Registry("feed-forward Network")
+ACTIVATION_LAYERS = Registry("activation layer")
+DROPOUT_LAYERS = Registry("drop out layers")
+PLUGIN_LAYERS = Registry("plugin layer")
+POSITIONAL_ENCODING = Registry("position encoding")
+MODULE_WRAPPERS = Registry("module wrapper")
+
+NORM_LAYERS.register_module("LN", module=nn.LayerNorm)
+ACTIVATION_LAYERS.register_module(module=nn.ReLU)
+CONV_LAYERS.register_module("Conv2d", module=nn.Conv2d)
+NORM_LAYERS.register_module("BN", module=nn.BatchNorm2d)
+NORM_LAYERS.register_module("BN1d", module=nn.BatchNorm1d)
+
+if torch.__version__ == "parrots":
+    TORCH_VERSION = torch.__version__
+else:
+    TORCH_VERSION = tuple(int(x) for x in torch.__version__.split(".")[:2])
+
+
+def obsolete_torch_version(torch_version, version_threshold) -> bool:
+    return torch_version == "parrots" or torch_version <= version_threshold
+
+
+class NewEmptyTensorOp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, new_shape: tuple) -> torch.Tensor:
+        ctx.shape = x.shape
+        return x.new_empty(new_shape)
+
+    @staticmethod
+    def backward(ctx, grad: torch.Tensor) -> tuple:
+        shape = ctx.shape
+        return NewEmptyTensorOp.apply(grad, shape), None
+
+
+class Linear(torch.nn.Linear):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.numel() == 0 and obsolete_torch_version(TORCH_VERSION, (1, 5)):
+            out_shape = [x.shape[0], self.out_features]
+            empty = NewEmptyTensorOp.apply(x, out_shape)
+            if self.training:
+                dummy = sum(x.view(-1)[0] for x in self.parameters()) * 0.0
+                return empty + dummy
+            else:
+                return empty
+
+        return super().forward(x)
+
+
+def build_conv_layer(cfg: Optional[Dict], *args, **kwargs) -> nn.Module:
+
+    if cfg is None:
+        cfg_ = dict(type="Conv2d")
+    else:
+        if not isinstance(cfg, dict):
+            raise TypeError("cfg must be a dict")
+        if "type" not in cfg:
+            raise KeyError('the cfg dict must contain the key "type"')
+        cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop("type")
+    if layer_type not in CONV_LAYERS:
+        raise KeyError(f"Unrecognized layer type {layer_type}")
+    else:
+        conv_layer = CONV_LAYERS.get(layer_type)
+
+    layer = conv_layer(*args, **kwargs, **cfg_)
+
+    return layer
+
+
+def _get_norm():
+    if TORCH_VERSION == "parrots":
+        from parrots.nn.modules.batchnorm import _BatchNorm, _InstanceNorm
+
+        SyncBatchNorm_ = torch.nn.SyncBatchNorm2d
+    else:
+        from torch.nn.modules.batchnorm import _BatchNorm
+        from torch.nn.modules.instancenorm import _InstanceNorm
+
+        SyncBatchNorm_ = torch.nn.SyncBatchNorm
+    return _BatchNorm, _InstanceNorm, SyncBatchNorm_
+
+
+_BatchNorm, _InstanceNorm, SyncBatchNorm_ = _get_norm()
+
+
+def infer_abbr(class_type):
+
+    if not inspect.isclass(class_type):
+        raise TypeError(f"class_type must be a type, but got {type(class_type)}")
+    if hasattr(class_type, "_abbr_"):
+        return class_type._abbr_
+    if issubclass(class_type, _InstanceNorm):
+        return "in"
+    elif issubclass(class_type, _BatchNorm):
+        return "bn"
+    elif issubclass(class_type, nn.GroupNorm):
+        return "gn"
+    elif issubclass(class_type, nn.LayerNorm):
+        return "ln"
+    else:
+        class_name = class_type.__name__.lower()
+        if "batch" in class_name:
+            return "bn"
+        elif "group" in class_name:
+            return "gn"
+        elif "layer" in class_name:
+            return "ln"
+        elif "instance" in class_name:
+            return "in"
+        else:
+            return "norm_layer"
+
+
+def build_norm_layer(
+    cfg: Dict, num_features: int, postfix: Union[int, str] = ""
+) -> Tuple[str, nn.Module]:
+
+    if not isinstance(cfg, dict):
+        raise TypeError("cfg must be a dict")
+    if "type" not in cfg:
+        raise KeyError('the cfg dict must contain the key "type"')
+    cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop("type")
+    if layer_type not in NORM_LAYERS:
+        raise KeyError(f"Unrecognized norm type {layer_type}")
+
+    norm_layer = NORM_LAYERS.get(layer_type)
+    abbr = infer_abbr(norm_layer)
+
+    assert isinstance(postfix, (int, str))
+    name = abbr + str(postfix)
+
+    requires_grad = cfg_.pop("requires_grad", True)
+    cfg_.setdefault("eps", 1e-5)
+    if layer_type != "GN":
+        layer = norm_layer(num_features, **cfg_)
+        if layer_type == "SyncBN" and hasattr(layer, "_specify_ddp_gpu_num"):
+            layer._specify_ddp_gpu_num(1)
+    else:
+        assert "num_groups" in cfg_
+        layer = norm_layer(num_channels=num_features, **cfg_)
+
+    for param in layer.parameters():
+        param.requires_grad = requires_grad
+
+    return name, layer
+
+
+def kaiming_init(
+    module: nn.Module,
+    a: float = 0,
+    mode: str = "fan_out",
+    nonlinearity: str = "relu",
+    bias: float = 0,
+    distribution: str = "normal",
+) -> None:
+    assert distribution in ["uniform", "normal"]
+    if hasattr(module, "weight") and module.weight is not None:
+        if distribution == "uniform":
+            nn.init.kaiming_uniform_(
+                module.weight, a=a, mode=mode, nonlinearity=nonlinearity
+            )
+        else:
+            nn.init.kaiming_normal_(
+                module.weight, a=a, mode=mode, nonlinearity=nonlinearity
+            )
+    if hasattr(module, "bias") and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def constant_init(module: nn.Module, val: float, bias: float = 0) -> None:
+    if hasattr(module, "weight") and module.weight is not None:
+        nn.init.constant_(module.weight, val)
+    if hasattr(module, "bias") and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def xavier_init(
+    module: nn.Module, gain: float = 1, bias: float = 0, distribution: str = "normal"
+) -> None:
+    assert distribution in ["uniform", "normal"]
+    if hasattr(module, "weight") and module.weight is not None:
+        if distribution == "uniform":
+            nn.init.xavier_uniform_(module.weight, gain=gain)
+        else:
+            nn.init.xavier_normal_(module.weight, gain=gain)
+    if hasattr(module, "bias") and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def build_transformer_layer(cfg, default_args=None):
+    return build_from_cfg(cfg, TRANSFORMER_LAYER, default_args)
+
+
+def get_dist_info() -> Tuple[int, int]:
+    if dist.is_available() and dist.is_initialized():
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+    else:
+        rank = 0
+        world_size = 1
+    return rank, world_size
+
+
+@DROPOUT_LAYERS.register_module()
+class Dropout(nn.Dropout):
+    def __init__(self, drop_prob: float = 0.5, inplace: bool = False):
+        super().__init__(p=drop_prob, inplace=inplace)
+
+
+def build_dropout(cfg: Dict, default_args: Optional[Dict] = None) -> Any:
+    return build_from_cfg(cfg, DROPOUT_LAYERS, default_args)
+
+
+def master_only(func: Callable) -> Callable:
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        rank, _ = get_dist_info()
+        if rank == 0:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
+class BaseModule(nn.Module, metaclass=ABCMeta):
+    def __init__(self, init_cfg: Optional[dict] = None):
+        super().__init__()
+        self._is_init = False
+
+        self.init_cfg = copy.deepcopy(init_cfg)
+
+    @property
+    def is_init(self) -> bool:
+        return self._is_init
+
+
+class Sequential(BaseModule, nn.Sequential):
+    def __init__(self, *args, init_cfg: Optional[dict] = None):
+        BaseModule.__init__(self, init_cfg)
+        nn.Sequential.__init__(self, *args)
+
+
+class ModuleList(BaseModule, nn.ModuleList):
+    def __init__(
+        self, modules: Optional[Iterable] = None, init_cfg: Optional[dict] = None
+    ):
+        BaseModule.__init__(self, init_cfg)
+        nn.ModuleList.__init__(self, modules)
+
+
+class ModuleDict(BaseModule, nn.ModuleDict):
+    def __init__(self, modules: Optional[dict] = None, init_cfg: Optional[dict] = None):
+        BaseModule.__init__(self, init_cfg)
+        nn.ModuleDict.__init__(self, modules)
+
+
+@TRANSFORMER_LAYER_SEQUENCE.register_module()
+class TransformerLayerSequence(BaseModule):
+    def __init__(self, transformerlayers=None, num_layers=None, init_cfg=None):
+        super().__init__(init_cfg)
+        if isinstance(transformerlayers, dict):
+            transformerlayers = [
+                copy.deepcopy(transformerlayers) for _ in range(num_layers)
+            ]
+        else:
+            assert (
+                isinstance(transformerlayers, list)
+                and len(transformerlayers) == num_layers
+            )
+        self.num_layers = num_layers
+        self.layers = ModuleList()
+        for i in range(num_layers):
+            self.layers.append(build_transformer_layer(transformerlayers[i]))
+        self.embed_dims = self.layers[0].embed_dims
+        self.pre_norm = self.layers[0].pre_norm
+
+    def forward(
+        self,
+        query,
+        key,
+        value,
+        query_pos=None,
+        key_pos=None,
+        attn_masks=None,
+        query_key_padding_mask=None,
+        key_padding_mask=None,
+        **kwargs,
+    ):
+        for layer in self.layers:
+            query = layer(
+                query,
+                key,
+                value,
+                query_pos=query_pos,
+                key_pos=key_pos,
+                attn_masks=attn_masks,
+                query_key_padding_mask=query_key_padding_mask,
+                key_padding_mask=key_padding_mask,
+                **kwargs,
+            )
+        return query
+
+
+def build_dropout(cfg: Dict, default_args: Optional[Dict] = None) -> Any:
+    return build_from_cfg(cfg, DROPOUT_LAYERS, default_args)
+
+
+def build_attention(cfg, default_args=None):
+    return build_from_cfg(cfg, ATTENTION, default_args)
+
+
+def build_feedforward_network(cfg, default_args=None):
+    return build_from_cfg(cfg, FEEDFORWARD_NETWORK, default_args)
+
+
+def build_transformer_layer_sequence(cfg, default_args=None):
+    return build_from_cfg(cfg, TRANSFORMER_LAYER_SEQUENCE, default_args)
+
+
+def build_activation_layer(cfg: Dict) -> nn.Module:
+    return build_from_cfg(cfg, ACTIVATION_LAYERS)
+
+
+@FEEDFORWARD_NETWORK.register_module()
+class FFN(BaseModule):
+    def __init__(
+        self,
+        embed_dims=256,
+        feedforward_channels=1024,
+        num_fcs=2,
+        act_cfg=dict(type="ReLU", inplace=True),
+        ffn_drop=0.0,
+        dropout_layer=None,
+        add_identity=True,
+        init_cfg=None,
+        **kwargs,
+    ):
+        super().__init__(init_cfg)
+        assert num_fcs >= 2, "num_fcs should be no less " f"than 2. got {num_fcs}."
+        self.embed_dims = embed_dims
+        self.feedforward_channels = feedforward_channels
+        self.num_fcs = num_fcs
+        self.act_cfg = act_cfg
+        self.activate = build_activation_layer(act_cfg)
+
+        layers = []
+        in_channels = embed_dims
+        for _ in range(num_fcs - 1):
+            layers.append(
+                Sequential(
+                    Linear(in_channels, feedforward_channels),
+                    self.activate,
+                    nn.Dropout(ffn_drop),
+                )
+            )
+            in_channels = feedforward_channels
+        layers.append(Linear(feedforward_channels, embed_dims))
+        layers.append(nn.Dropout(ffn_drop))
+        self.layers = Sequential(*layers)
+        self.dropout_layer = (
+            build_dropout(dropout_layer) if dropout_layer else torch.nn.Identity()
+        )
+        self.add_identity = add_identity
+
+    def forward(self, x, identity=None):
+        out = self.layers(x)
+        if not self.add_identity:
+            return self.dropout_layer(out)
+        if identity is None:
+            identity = x
+        return identity + self.dropout_layer(out)
+
+
+@TRANSFORMER_LAYER.register_module()
+class BaseTransformerLayer(BaseModule):
+    def __init__(
+        self,
+        attn_cfgs=None,
+        ffn_cfgs=dict(
+            type="FFN",
+            embed_dims=256,
+            feedforward_channels=1024,
+            num_fcs=2,
+            ffn_drop=0.0,
+            act_cfg=dict(type="ReLU", inplace=True),
+        ),
+        operation_order=None,
+        norm_cfg=dict(type="LN"),
+        init_cfg=None,
+        batch_first=False,
+        **kwargs,
+    ):
+
+        deprecated_args = dict(
+            feedforward_channels="feedforward_channels",
+            ffn_dropout="ffn_drop",
+            ffn_num_fcs="num_fcs",
+        )
+        for ori_name, new_name in deprecated_args.items():
+            if ori_name in kwargs:
+                warnings.warn(
+                    f"The arguments `{ori_name}` in BaseTransformerLayer "
+                    f"has been deprecated, now you should set `{new_name}` "
+                    f"and other FFN related arguments "
+                    f"to a dict named `ffn_cfgs`. ",
+                    DeprecationWarning,
+                )
+                ffn_cfgs[new_name] = kwargs[ori_name]
+
+        super().__init__(init_cfg)
+
+        self.batch_first = batch_first
+
+        assert set(operation_order) & {"self_attn", "norm", "ffn", "cross_attn"} == set(
+            operation_order
+        ), (
+            f"The operation_order of"
+            f" {self.__class__.__name__} should "
+            f"contains all four operation type "
+            f"{['self_attn', 'norm', 'ffn', 'cross_attn']}"
+        )
+
+        num_attn = operation_order.count("self_attn") + operation_order.count(
+            "cross_attn"
+        )
+        if isinstance(attn_cfgs, dict):
+            attn_cfgs = [copy.deepcopy(attn_cfgs) for _ in range(num_attn)]
+        else:
+            assert num_attn == len(attn_cfgs), (
+                f"The length "
+                f"of attn_cfg {num_attn} is "
+                f"not consistent with the number of attention"
+                f"in operation_order {operation_order}."
+            )
+
+        self.num_attn = num_attn
+        self.operation_order = operation_order
+        self.norm_cfg = norm_cfg
+        self.pre_norm = operation_order[0] == "norm"
+        self.attentions = ModuleList()
+
+        index = 0
+        for operation_name in operation_order:
+            if operation_name in ["self_attn", "cross_attn"]:
+                if "batch_first" in attn_cfgs[index]:
+                    assert self.batch_first == attn_cfgs[index]["batch_first"]
+                else:
+                    attn_cfgs[index]["batch_first"] = self.batch_first
+                attention = build_attention(attn_cfgs[index])
+                attention.operation_name = operation_name
+                self.attentions.append(attention)
+                index += 1
+
+        self.embed_dims = self.attentions[0].embed_dims
+
+        self.ffns = ModuleList()
+        num_ffns = operation_order.count("ffn")
+        if isinstance(ffn_cfgs, dict):
+            ffn_cfgs = ConfigDict(ffn_cfgs)
+        if isinstance(ffn_cfgs, dict):
+            ffn_cfgs = [copy.deepcopy(ffn_cfgs) for _ in range(num_ffns)]
+        assert len(ffn_cfgs) == num_ffns
+        for ffn_index in range(num_ffns):
+            if "embed_dims" not in ffn_cfgs[ffn_index]:
+                ffn_cfgs[ffn_index]["embed_dims"] = self.embed_dims
+            else:
+                assert ffn_cfgs[ffn_index]["embed_dims"] == self.embed_dims
+            self.ffns.append(
+                build_feedforward_network(ffn_cfgs[ffn_index], dict(type="FFN"))
+            )
+
+        self.norms = ModuleList()
+        num_norms = operation_order.count("norm")
+        for _ in range(num_norms):
+            self.norms.append(build_norm_layer(norm_cfg, self.embed_dims)[1])
+
+    def forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        query_pos=None,
+        key_pos=None,
+        attn_masks=None,
+        query_key_padding_mask=None,
+        key_padding_mask=None,
+        **kwargs,
+    ):
+
+        norm_index = 0
+        attn_index = 0
+        ffn_index = 0
+        identity = query
+        if attn_masks is None:
+            attn_masks = [None for _ in range(self.num_attn)]
+        elif isinstance(attn_masks, torch.Tensor):
+            attn_masks = [copy.deepcopy(attn_masks) for _ in range(self.num_attn)]
+            warnings.warn(
+                f"Use same attn_mask in all attentions in "
+                f"{self.__class__.__name__} "
+            )
+        else:
+            assert len(attn_masks) == self.num_attn, (
+                f"The length of "
+                f"attn_masks {len(attn_masks)} must be equal "
+                f"to the number of attention in "
+                f"operation_order {self.num_attn}"
+            )
+
+        for layer in self.operation_order:
+            if layer == "self_attn":
+                temp_key = temp_value = query
+                query = self.attentions[attn_index](
+                    query,
+                    temp_key,
+                    temp_value,
+                    identity if self.pre_norm else None,
+                    query_pos=query_pos,
+                    key_pos=query_pos,
+                    attn_mask=attn_masks[attn_index],
+                    key_padding_mask=query_key_padding_mask,
+                    **kwargs,
+                )
+                attn_index += 1
+                identity = query
+
+            elif layer == "norm":
+                query = self.norms[norm_index](query)
+                norm_index += 1
+
+            elif layer == "cross_attn":
+                query = self.attentions[attn_index](
+                    query,
+                    key,
+                    value,
+                    identity if self.pre_norm else None,
+                    query_pos=query_pos,
+                    key_pos=key_pos,
+                    attn_mask=attn_masks[attn_index],
+                    key_padding_mask=key_padding_mask,
+                    **kwargs,
+                )
+                attn_index += 1
+                identity = query
+
+            elif layer == "ffn":
+                query = self.ffns[ffn_index](query, identity if self.pre_norm else None)
+                ffn_index += 1
+
+        return query
+
+
+@ATTENTION.register_module()
+class MultiheadAttention(BaseModule):
+    def __init__(
+        self,
+        embed_dims,
+        num_heads,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        dropout_layer=dict(type="Dropout", drop_prob=0.0),
+        init_cfg=None,
+        batch_first=False,
+        **kwargs,
+    ):
+        super().__init__(init_cfg)
+        if "dropout" in kwargs:
+            warnings.warn(
+                "The arguments `dropout` in MultiheadAttention "
+                "has been deprecated, now you can separately "
+                "set `attn_drop`(float), proj_drop(float), "
+                "and `dropout_layer`(dict) ",
+                DeprecationWarning,
+            )
+            attn_drop = kwargs["dropout"]
+            dropout_layer["drop_prob"] = kwargs.pop("dropout")
+
+        self.embed_dims = embed_dims
+        self.num_heads = num_heads
+        self.batch_first = batch_first
+
+        self.attn = nn.MultiheadAttention(embed_dims, num_heads, attn_drop, **kwargs)
+
+        self.proj_drop = nn.Dropout(proj_drop)
+        self.dropout_layer = (
+            build_dropout(dropout_layer) if dropout_layer else nn.Identity()
+        )
+
+    def forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        identity=None,
+        query_pos=None,
+        key_pos=None,
+        attn_mask=None,
+        key_padding_mask=None,
+        **kwargs,
+    ):
+
+        if key is None:
+            key = query
+        if value is None:
+            value = key
+        if identity is None:
+            identity = query
+        if key_pos is None:
+            if query_pos is not None:
+                if query_pos.shape == key.shape:
+                    key_pos = query_pos
+                else:
+                    warnings.warn(
+                        f"position encoding of key is"
+                        f"missing in {self.__class__.__name__}."
+                    )
+        if query_pos is not None:
+            query = query + query_pos
+        if key_pos is not None:
+            key = key + key_pos
+        if self.batch_first:
+            query = query.transpose(0, 1)
+            key = key.transpose(0, 1)
+            value = value.transpose(0, 1)
+
+        out = self.attn(
+            query=query,
+            key=key,
+            value=value,
+            attn_mask=attn_mask,
+            key_padding_mask=key_padding_mask,
+        )[0]
+
+        if self.batch_first:
+            out = out.transpose(0, 1)
+
+        return identity + self.dropout_layer(self.proj_drop(out))
+
+
+def multi_scale_deformable_attn_pytorch(
+    value: torch.Tensor,
+    value_spatial_shapes: torch.Tensor,
+    sampling_locations: torch.Tensor,
+    attention_weights: torch.Tensor,
+) -> torch.Tensor:
+
+    bs, _, num_heads, embed_dims = value.shape
+    _, num_queries, num_heads, num_levels, num_points, _ = sampling_locations.shape
+    value_list = value.split([H_ * W_ for H_, W_ in value_spatial_shapes], dim=1)
+    sampling_grids = 2 * sampling_locations - 1
+    sampling_value_list = []
+    for level, (H_, W_) in enumerate(value_spatial_shapes):
+        value_l_ = (
+            value_list[level]
+            .flatten(2)
+            .transpose(1, 2)
+            .reshape(bs * num_heads, embed_dims, H_, W_)
+        )
+        sampling_grid_l_ = sampling_grids[:, :, :, level].transpose(1, 2).flatten(0, 1)
+        sampling_value_l_ = F.grid_sample(
+            value_l_,
+            sampling_grid_l_,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=False,
+        )
+        sampling_value_list.append(sampling_value_l_)
+    attention_weights = attention_weights.transpose(1, 2).reshape(
+        bs * num_heads, 1, num_queries, num_levels * num_points
+    )
+    output = (
+        (torch.stack(sampling_value_list, dim=-2).flatten(-2) * attention_weights)
+        .sum(-1)
+        .view(bs, num_heads * embed_dims, num_queries)
+    )
+    return output.transpose(1, 2).contiguous()
+
+
+@PLUGIN_LAYERS.register_module()
+class ConvModule(nn.Module):
+
+    _abbr_ = "conv_block"
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Union[int, Tuple[int, int]],
+        stride: Union[int, Tuple[int, int]] = 1,
+        padding: Union[int, Tuple[int, int]] = 0,
+        dilation: Union[int, Tuple[int, int]] = 1,
+        groups: int = 1,
+        bias: Union[bool, str] = "auto",
+        conv_cfg: Optional[Dict] = None,
+        norm_cfg: Optional[Dict] = None,
+        act_cfg: Optional[Dict] = dict(type="ReLU"),
+        inplace: bool = True,
+        with_spectral_norm: bool = False,
+        padding_mode: str = "zeros",
+        order: tuple = ("conv", "norm", "act"),
+    ):
+        super().__init__()
+        assert conv_cfg is None or isinstance(conv_cfg, dict)
+        assert norm_cfg is None or isinstance(norm_cfg, dict)
+        assert act_cfg is None or isinstance(act_cfg, dict)
+        official_padding_mode = ["zeros", "circular"]
+        self.conv_cfg = conv_cfg
+        self.norm_cfg = norm_cfg
+        self.act_cfg = act_cfg
+        self.inplace = inplace
+        self.with_spectral_norm = with_spectral_norm
+        self.with_explicit_padding = padding_mode not in official_padding_mode
+        self.order = order
+        assert isinstance(self.order, tuple) and len(self.order) == 3
+        assert set(order) == {"conv", "norm", "act"}
+
+        self.with_norm = norm_cfg is not None
+        self.with_activation = act_cfg is not None
+        if bias == "auto":
+            bias = not self.with_norm
+        self.with_bias = bias
+
+        if self.with_explicit_padding:
+            pad_cfg = dict(type=padding_mode)
+            self.padding_layer = build_padding_layer(pad_cfg, padding)
+
+        conv_padding = 0 if self.with_explicit_padding else padding
+        self.conv = build_conv_layer(
+            conv_cfg,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=conv_padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+        )
+        self.in_channels = self.conv.in_channels
+        self.out_channels = self.conv.out_channels
+        self.kernel_size = self.conv.kernel_size
+        self.stride = self.conv.stride
+        self.padding = padding
+        self.dilation = self.conv.dilation
+        self.transposed = self.conv.transposed
+        self.output_padding = self.conv.output_padding
+        self.groups = self.conv.groups
+
+        if self.with_spectral_norm:
+            self.conv = nn.utils.spectral_norm(self.conv)
+
+        if self.with_norm:
+            if order.index("norm") > order.index("conv"):
+                norm_channels = out_channels
+            else:
+                norm_channels = in_channels
+            self.norm_name, norm = build_norm_layer(norm_cfg, norm_channels)
+            self.add_module(self.norm_name, norm)
+            if self.with_bias:
+                if isinstance(norm, (_BatchNorm, _InstanceNorm)):
+                    warnings.warn("Unnecessary conv bias before batch/instance norm")
+        else:
+            self.norm_name = None
+
+        if self.with_activation:
+            act_cfg_ = act_cfg.copy()
+            if act_cfg_["type"] not in [
+                "Tanh",
+                "PReLU",
+                "Sigmoid",
+                "HSigmoid",
+                "Swish",
+                "GELU",
+            ]:
+                act_cfg_.setdefault("inplace", inplace)
+            self.activate = build_activation_layer(act_cfg_)
+
+        self.init_weights()
+
+    @property
+    def norm(self):
+        if self.norm_name:
+            return getattr(self, self.norm_name)
+        else:
+            return None
+
+    def init_weights(self):
+        if not hasattr(self.conv, "init_weights"):
+            if self.with_activation and self.act_cfg["type"] == "LeakyReLU":
+                nonlinearity = "leaky_relu"
+                a = self.act_cfg.get("negative_slope", 0.01)
+            else:
+                nonlinearity = "relu"
+                a = 0
+            kaiming_init(self.conv, a=a, nonlinearity=nonlinearity)
+        if self.with_norm:
+            constant_init(self.norm, 1, bias=0)
+
+    def forward(
+        self, x: torch.Tensor, activate: bool = True, norm: bool = True
+    ) -> torch.Tensor:
+        for layer in self.order:
+            if layer == "conv":
+                if self.with_explicit_padding:
+                    x = self.padding_layer(x)
+                x = self.conv(x)
+            elif layer == "norm" and norm and self.with_norm:
+                x = self.norm(x)
+            elif layer == "act" and activate and self.with_activation:
+                x = self.activate(x)
+        return x
+
+
+# ============================================================================
+# MMDET UTILS
+# ============================================================================
+
+BBOX_CODERS = Registry("bbox_coder")
+HEADS = MMCV_MODELS
+DETECTORS = MMCV_MODELS
+NECKS = MMCV_MODELS
+BACKBONES = MMCV_MODELS
+LOSSES = MMCV_MODELS
+TRANSFORMER = Registry("Transformer")
+
+
+@TRANSFORMER_LAYER.register_module()
+class DetrTransformerDecoderLayer(BaseTransformerLayer):
+    def __init__(
+        self,
+        attn_cfgs,
+        feedforward_channels,
+        ffn_dropout=0.0,
+        operation_order=None,
+        act_cfg=dict(type="ReLU", inplace=True),
+        norm_cfg=dict(type="LN"),
+        ffn_num_fcs=2,
+        **kwargs,
+    ):
+        super(DetrTransformerDecoderLayer, self).__init__(
+            attn_cfgs=attn_cfgs,
+            feedforward_channels=feedforward_channels,
+            ffn_dropout=ffn_dropout,
+            operation_order=operation_order,
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg,
+            ffn_num_fcs=ffn_num_fcs,
+            **kwargs,
+        )
+        assert len(operation_order) == 6
+        assert set(operation_order) == set(["self_attn", "norm", "cross_attn", "ffn"])
+
+
+class BaseBBoxCoder(metaclass=ABCMeta):
+    def __init__(self, **kwargs):
+        pass
+
+    @abstractmethod
+    def encode(self, bboxes, gt_bboxes):
+        pass
+
+    @abstractmethod
+    def decode(self, bboxes, bboxes_pred):
+        pass
+
+
+def build_bbox_coder(cfg, **default_args):
+    return build_from_cfg(cfg, BBOX_CODERS, default_args)
+
+
+def bbox_cxcywh_to_xyxy(bbox):
+    cx, cy, w, h = bbox.split((1, 1, 1, 1), dim=-1)
+    bbox_new = [(cx - 0.5 * w), (cy - 0.5 * h), (cx + 0.5 * w), (cy + 0.5 * h)]
+    return torch.cat(bbox_new, dim=-1)
+
+
+def bbox_xyxy_to_cxcywh(bbox):
+    x1, y1, x2, y2 = bbox.split((1, 1, 1, 1), dim=-1)
+    bbox_new = [(x1 + x2) / 2, (y1 + y2) / 2, (x2 - x1), (y2 - y1)]
+    return torch.cat(bbox_new, dim=-1)
+
+
+class BasicBlock(BaseModule):
+    expansion = 1
+
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        style="pytorch",
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        dcn=None,
+        plugins=None,
+        init_cfg=None,
+    ):
+        super(BasicBlock, self).__init__(init_cfg)
+        assert dcn is None, "Not implemented yet."
+        assert plugins is None, "Not implemented yet."
+
+        self.norm1_name, norm1 = build_norm_layer(norm_cfg, planes, postfix=1)
+        self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
+
+        self.conv1 = build_conv_layer(
+            conv_cfg,
+            inplanes,
+            planes,
+            3,
+            stride=stride,
+            padding=dilation,
+            dilation=dilation,
+            bias=False,
+        )
+        self.add_module(self.norm1_name, norm1)
+        self.conv2 = build_conv_layer(
+            conv_cfg, planes, planes, 3, padding=1, bias=False
+        )
+        self.add_module(self.norm2_name, norm2)
+
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+        self.dilation = dilation
+        self.with_cp = with_cp
+
+    @property
+    def norm1(self):
+        return getattr(self, self.norm1_name)
+
+    @property
+    def norm2(self):
+        return getattr(self, self.norm2_name)
+
+    def forward(self, x):
+        def _inner_forward(x):
+            identity = x
+
+            out = self.conv1(x)
+            out = self.norm1(out)
+            out = self.relu(out)
+
+            out = self.conv2(out)
+            out = self.norm2(out)
+
+            if self.downsample is not None:
+                identity = self.downsample(x)
+
+            out += identity
+
+            return out
+
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
+        out = self.relu(out)
+
+        return out
+
+
+def build_transformer(cfg, default_args=None):
+    return build_from_cfg(cfg, TRANSFORMER, default_args)
+
+
+def inverse_sigmoid(x, eps=1e-5):
+    x = x.clamp(min=0, max=1)
+    x1 = x.clamp(min=eps)
+    x2 = (1 - x).clamp(min=eps)
+    return torch.log(x1 / x2)
+
+
+class BaseDetector(BaseModule, metaclass=ABCMeta):
+    def __init__(self, init_cfg=None):
+        super(BaseDetector, self).__init__(init_cfg)
+        self.fp16_enabled = False
+
+
+def build_loss(cfg):
+    return LOSSES.build(cfg)
+
+
+def build_positional_encoding(cfg, default_args=None):
+    return build_from_cfg(cfg, POSITIONAL_ENCODING, default_args)
+
+
+@LOSSES.register_module()
+class FocalLoss(nn.Module):
+    def __init__(
+        self,
+        use_sigmoid=True,
+        gamma=2.0,
+        alpha=0.25,
+        reduction="mean",
+        loss_weight=1.0,
+        activated=False,
+    ):
+        super(FocalLoss, self).__init__()
+        assert use_sigmoid is True, "Only sigmoid focal loss supported now."
+        self.use_sigmoid = use_sigmoid
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+        self.loss_weight = loss_weight
+        self.activated = activated
+
+
+@HEADS.register_module()
+class DETRHead(nn.Module):
+
+    _version = 2
+
+    def __init__(
+        self,
+        num_classes,
+        in_channels,
+        num_query=100,
+        num_reg_fcs=2,
+        transformer=None,
+        sync_cls_avg_factor=False,
+        positional_encoding=dict(
+            type="SinePositionalEncoding", num_feats=128, normalize=True
+        ),
+        loss_cls=dict(
+            type="CrossEntropyLoss",
+            bg_cls_weight=0.1,
+            use_sigmoid=False,
+            loss_weight=1.0,
+            class_weight=1.0,
+        ),
+        loss_bbox=dict(type="L1Loss", loss_weight=5.0),
+        loss_iou=dict(type="GIoULoss", loss_weight=2.0),
+        train_cfg=dict(
+            assigner=dict(
+                type="HungarianAssigner",
+                cls_cost=dict(type="ClassificationCost", weight=1.0),
+                reg_cost=dict(type="BBoxL1Cost", weight=5.0),
+                iou_cost=dict(type="IoUCost", iou_mode="giou", weight=2.0),
+            )
+        ),
+        test_cfg=dict(max_per_img=100),
+        init_cfg=None,
+        **kwargs,
+    ):
+        super(DETRHead, self).__init__()
+        self.bg_cls_weight = 0
+        self.sync_cls_avg_factor = sync_cls_avg_factor
+        class_weight = loss_cls.get("class_weight", None)
+        if class_weight is not None and (self.__class__ is DETRHead):
+            assert isinstance(class_weight, float), (
+                "Expected "
+                "class_weight to have type float. Found "
+                f"{type(class_weight)}."
+            )
+            bg_cls_weight = loss_cls.get("bg_cls_weight", class_weight)
+            assert isinstance(bg_cls_weight, float), (
+                "Expected "
+                "bg_cls_weight to have type float. Found "
+                f"{type(bg_cls_weight)}."
+            )
+            class_weight = torch.ones(num_classes + 1) * class_weight
+            class_weight[num_classes] = bg_cls_weight
+            loss_cls.update({"class_weight": class_weight})
+            if "bg_cls_weight" in loss_cls:
+                loss_cls.pop("bg_cls_weight")
+            self.bg_cls_weight = bg_cls_weight
+
+        self.num_query = num_query
+        self.num_classes = num_classes
+        self.in_channels = in_channels
+        self.num_reg_fcs = num_reg_fcs
+        self.train_cfg = train_cfg
+        self.test_cfg = test_cfg
+        self.fp16_enabled = False
+        self.loss_cls = build_loss(loss_cls)
+
+        if self.loss_cls.use_sigmoid:
+            self.cls_out_channels = num_classes
+        else:
+            self.cls_out_channels = num_classes + 1
+        self.act_cfg = transformer.get("act_cfg", dict(type="ReLU", inplace=True))
+        self.activate = build_activation_layer(self.act_cfg)
+        self.positional_encoding = build_positional_encoding(positional_encoding)
+        self.transformer = build_transformer(transformer)
+        self.embed_dims = self.transformer.embed_dims
+        assert "num_feats" in positional_encoding
+        num_feats = positional_encoding["num_feats"]
+        assert num_feats * 2 == self.embed_dims, (
+            "embed_dims should"
+            f" be exactly 2 times of num_feats. Found {self.embed_dims}"
+            f" and {num_feats}."
+        )
+        self._init_layers()
+
+    def _init_layers(self):
+        self.input_proj = Conv2d(self.in_channels, self.embed_dims, kernel_size=1)
+        self.fc_cls = Linear(self.embed_dims, self.cls_out_channels)
+        self.reg_ffn = FFN(
+            self.embed_dims,
+            self.embed_dims,
+            self.num_reg_fcs,
+            self.act_cfg,
+            dropout=0.0,
+            add_residual=False,
+        )
+        self.fc_reg = Linear(self.embed_dims, 4)
+        self.query_embedding = nn.Embedding(self.num_query, self.embed_dims)
+
+    def init_weights(self):
+        self.transformer.init_weights()
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        version = local_metadata.get("version", None)
+        if (version is None or version < 2) and self.__class__ is DETRHead:
+            convert_dict = {
+                ".self_attn.": ".attentions.0.",
+                ".ffn.": ".ffns.0.",
+                ".multihead_attn.": ".attentions.1.",
+                ".decoder.norm.": ".decoder.post_norm.",
+            }
+            state_dict_keys = list(state_dict.keys())
+            for k in state_dict_keys:
+                for ori_key, convert_key in convert_dict.items():
+                    if ori_key in k:
+                        convert_key = k.replace(ori_key, convert_key)
+                        state_dict[convert_key] = state_dict[k]
+                        del state_dict[k]
+
+        super(DETRHead, self)._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
+
+@POSITIONAL_ENCODING.register_module()
+class LearnedPositionalEncoding(BaseModule):
+    def __init__(
+        self,
+        num_feats,
+        row_num_embed=50,
+        col_num_embed=50,
+        init_cfg=dict(type="Uniform", layer="Embedding"),
+    ):
+        super(LearnedPositionalEncoding, self).__init__(init_cfg)
+        self.row_embed = nn.Embedding(row_num_embed, num_feats)
+        self.col_embed = nn.Embedding(col_num_embed, num_feats)
+        self.num_feats = num_feats
+        self.row_num_embed = row_num_embed
+        self.col_num_embed = col_num_embed
+
+    def forward(self, mask):
+        h, w = mask.shape[-2:]
+        x = torch.arange(w, device=mask.device)
+        y = torch.arange(h, device=mask.device)
+        x_embed = self.col_embed(x)
+        y_embed = self.row_embed(y)
+        pos = (
+            torch.cat(
+                (
+                    x_embed.unsqueeze(0).repeat(h, 1, 1),
+                    y_embed.unsqueeze(1).repeat(1, w, 1),
+                ),
+                dim=-1,
+            )
+            .permute(2, 0, 1)
+            .unsqueeze(0)
+            .repeat(mask.shape[0], 1, 1, 1)
+        )
+        return pos
+
+
+class ResLayer(Sequential):
+    def __init__(
+        self,
+        block,
+        inplanes,
+        planes,
+        num_blocks,
+        stride=1,
+        avg_down=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        downsample_first=True,
+        **kwargs,
+    ):
+        self.block = block
+
+        downsample = None
+        if stride != 1 or inplanes != planes * block.expansion:
+            downsample = []
+            conv_stride = stride
+            if avg_down:
+                conv_stride = 1
+                downsample.append(
+                    nn.AvgPool2d(
+                        kernel_size=stride,
+                        stride=stride,
+                        ceil_mode=True,
+                        count_include_pad=False,
+                    )
+                )
+            downsample.extend(
+                [
+                    build_conv_layer(
+                        conv_cfg,
+                        inplanes,
+                        planes * block.expansion,
+                        kernel_size=1,
+                        stride=conv_stride,
+                        bias=False,
+                    ),
+                    build_norm_layer(norm_cfg, planes * block.expansion)[1],
+                ]
+            )
+            downsample = nn.Sequential(*downsample)
+
+        layers = []
+        if downsample_first:
+            layers.append(
+                block(
+                    inplanes=inplanes,
+                    planes=planes,
+                    stride=stride,
+                    downsample=downsample,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    **kwargs,
+                )
+            )
+            inplanes = planes * block.expansion
+            for _ in range(1, num_blocks):
+                layers.append(
+                    block(
+                        inplanes=inplanes,
+                        planes=planes,
+                        stride=1,
+                        conv_cfg=conv_cfg,
+                        norm_cfg=norm_cfg,
+                        **kwargs,
+                    )
+                )
+
+        else:
+            for _ in range(num_blocks - 1):
+                layers.append(
+                    block(
+                        inplanes=inplanes,
+                        planes=inplanes,
+                        stride=1,
+                        conv_cfg=conv_cfg,
+                        norm_cfg=norm_cfg,
+                        **kwargs,
+                    )
+                )
+            layers.append(
+                block(
+                    inplanes=inplanes,
+                    planes=planes,
+                    stride=stride,
+                    downsample=downsample,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    **kwargs,
+                )
+            )
+        super(ResLayer, self).__init__(*layers)
+
+
+class Bottleneck(BaseModule):
+    expansion = 4
+
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        style="pytorch",
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        dcn=None,
+        plugins=None,
+        init_cfg=None,
+    ):
+        super(Bottleneck, self).__init__(init_cfg)
+        assert style in ["pytorch", "caffe"]
+        assert dcn is None or isinstance(dcn, dict)
+        assert plugins is None or isinstance(plugins, list)
+        if plugins is not None:
+            allowed_position = ["after_conv1", "after_conv2", "after_conv3"]
+            assert all(p["position"] in allowed_position for p in plugins)
+
+        self.inplanes = inplanes
+        self.planes = planes
+        self.stride = stride
+        self.dilation = dilation
+        self.style = style
+        self.with_cp = with_cp
+        self.conv_cfg = conv_cfg
+        self.norm_cfg = norm_cfg
+        self.dcn = dcn
+        self.with_dcn = dcn is not None
+        self.plugins = plugins
+        self.with_plugins = plugins is not None
+
+        if self.with_plugins:
+            self.after_conv1_plugins = [
+                plugin["cfg"]
+                for plugin in plugins
+                if plugin["position"] == "after_conv1"
+            ]
+            self.after_conv2_plugins = [
+                plugin["cfg"]
+                for plugin in plugins
+                if plugin["position"] == "after_conv2"
+            ]
+            self.after_conv3_plugins = [
+                plugin["cfg"]
+                for plugin in plugins
+                if plugin["position"] == "after_conv3"
+            ]
+
+        if self.style == "pytorch":
+            self.conv1_stride = 1
+            self.conv2_stride = stride
+        else:
+            self.conv1_stride = stride
+            self.conv2_stride = 1
+
+        self.norm1_name, norm1 = build_norm_layer(norm_cfg, planes, postfix=1)
+        self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
+        self.norm3_name, norm3 = build_norm_layer(
+            norm_cfg, planes * self.expansion, postfix=3
+        )
+
+        self.conv1 = build_conv_layer(
+            conv_cfg,
+            inplanes,
+            planes,
+            kernel_size=1,
+            stride=self.conv1_stride,
+            bias=False,
+        )
+        self.add_module(self.norm1_name, norm1)
+        fallback_on_stride = False
+        if self.with_dcn:
+            fallback_on_stride = dcn.pop("fallback_on_stride", False)
+        if not self.with_dcn or fallback_on_stride:
+            self.conv2 = build_conv_layer(
+                conv_cfg,
+                planes,
+                planes,
+                kernel_size=3,
+                stride=self.conv2_stride,
+                padding=dilation,
+                dilation=dilation,
+                bias=False,
+            )
+        else:
+            assert self.conv_cfg is None, "conv_cfg must be None for DCN"
+            self.conv2 = build_conv_layer(
+                dcn,
+                planes,
+                planes,
+                kernel_size=3,
+                stride=self.conv2_stride,
+                padding=dilation,
+                dilation=dilation,
+                bias=False,
+            )
+
+        self.add_module(self.norm2_name, norm2)
+        self.conv3 = build_conv_layer(
+            conv_cfg, planes, planes * self.expansion, kernel_size=1, bias=False
+        )
+        self.add_module(self.norm3_name, norm3)
+
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+
+        if self.with_plugins:
+            self.after_conv1_plugin_names = self.make_block_plugins(
+                planes, self.after_conv1_plugins
+            )
+            self.after_conv2_plugin_names = self.make_block_plugins(
+                planes, self.after_conv2_plugins
+            )
+            self.after_conv3_plugin_names = self.make_block_plugins(
+                planes * self.expansion, self.after_conv3_plugins
+            )
+
+    def make_block_plugins(self, in_channels, plugins):
+        assert isinstance(plugins, list)
+        plugin_names = []
+        for plugin in plugins:
+            plugin = plugin.copy()
+            name, layer = build_plugin_layer(
+                plugin, in_channels=in_channels, postfix=plugin.pop("postfix", "")
+            )
+            assert not hasattr(self, name), f"duplicate plugin {name}"
+            self.add_module(name, layer)
+            plugin_names.append(name)
+        return plugin_names
+
+    def forward_plugin(self, x, plugin_names):
+        out = x
+        for name in plugin_names:
+            out = getattr(self, name)(out)
+        return out
+
+    @property
+    def norm1(self):
+        return getattr(self, self.norm1_name)
+
+    @property
+    def norm2(self):
+        return getattr(self, self.norm2_name)
+
+    @property
+    def norm3(self):
+        return getattr(self, self.norm3_name)
+
+    def forward(self, x):
+        def _inner_forward(x):
+            identity = x
+            out = self.conv1(x)
+            out = self.norm1(out)
+            out = self.relu(out)
+
+            if self.with_plugins:
+                out = self.forward_plugin(out, self.after_conv1_plugin_names)
+
+            out = self.conv2(out)
+            out = self.norm2(out)
+            out = self.relu(out)
+
+            if self.with_plugins:
+                out = self.forward_plugin(out, self.after_conv2_plugin_names)
+
+            out = self.conv3(out)
+            out = self.norm3(out)
+
+            if self.with_plugins:
+                out = self.forward_plugin(out, self.after_conv3_plugin_names)
+
+            if self.downsample is not None:
+                identity = self.downsample(x)
+
+            out += identity
+
+            return out
+
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
+        out = self.relu(out)
+
+        return out
+
+
+@BACKBONES.register_module()
+class ResNet(BaseModule):
+
+    arch_settings = {
+        18: (BasicBlock, (2, 2, 2, 2)),
+        34: (BasicBlock, (3, 4, 6, 3)),
+        50: (Bottleneck, (3, 4, 6, 3)),
+        101: (Bottleneck, (3, 4, 23, 3)),
+        152: (Bottleneck, (3, 8, 36, 3)),
+    }
+
+    def __init__(
+        self,
+        depth,
+        in_channels=3,
+        stem_channels=None,
+        base_channels=64,
+        num_stages=4,
+        strides=(1, 2, 2, 2),
+        dilations=(1, 1, 1, 1),
+        out_indices=(0, 1, 2, 3),
+        style="pytorch",
+        deep_stem=False,
+        avg_down=False,
+        frozen_stages=-1,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN", requires_grad=True),
+        norm_eval=True,
+        dcn=None,
+        stage_with_dcn=(False, False, False, False),
+        plugins=None,
+        with_cp=False,
+        zero_init_residual=True,
+        pretrained=None,
+        init_cfg=None,
+    ):
+        super(ResNet, self).__init__(init_cfg)
+        self.zero_init_residual = zero_init_residual
+        if depth not in self.arch_settings:
+            raise KeyError(f"invalid depth {depth} for resnet")
+
+        block_init_cfg = None
+        assert not (
+            init_cfg and pretrained
+        ), "init_cfg and pretrained cannot be specified at the same time"
+        if isinstance(pretrained, str):
+            warnings.warn(
+                "DeprecationWarning: pretrained is deprecated, "
+                'please use "init_cfg" instead'
+            )
+            self.init_cfg = dict(type="Pretrained", checkpoint=pretrained)
+        elif pretrained is None:
+            if init_cfg is None:
+                self.init_cfg = [
+                    dict(type="Kaiming", layer="Conv2d"),
+                    dict(type="Constant", val=1, layer=["_BatchNorm", "GroupNorm"]),
+                ]
+                block = self.arch_settings[depth][0]
+                if self.zero_init_residual:
+                    if block is BasicBlock:
+                        block_init_cfg = dict(
+                            type="Constant", val=0, override=dict(name="norm2")
+                        )
+                    elif block is Bottleneck:
+                        block_init_cfg = dict(
+                            type="Constant", val=0, override=dict(name="norm3")
+                        )
+        else:
+            raise TypeError("pretrained must be a str or None")
+
+        self.depth = depth
+        if stem_channels is None:
+            stem_channels = base_channels
+        self.stem_channels = stem_channels
+        self.base_channels = base_channels
+        self.num_stages = num_stages
+        assert num_stages >= 1 and num_stages <= 4
+        self.strides = strides
+        self.dilations = dilations
+        assert len(strides) == len(dilations) == num_stages
+        self.out_indices = out_indices
+        assert max(out_indices) < num_stages
+        self.style = style
+        self.deep_stem = deep_stem
+        self.avg_down = avg_down
+        self.frozen_stages = frozen_stages
+        self.conv_cfg = conv_cfg
+        self.norm_cfg = norm_cfg
+        self.with_cp = with_cp
+        self.norm_eval = norm_eval
+        self.dcn = dcn
+        self.stage_with_dcn = stage_with_dcn
+        if dcn is not None:
+            assert len(stage_with_dcn) == num_stages
+        self.plugins = plugins
+        self.block, stage_blocks = self.arch_settings[depth]
+        self.stage_blocks = stage_blocks[:num_stages]
+        self.inplanes = stem_channels
+
+        self._make_stem_layer(in_channels, stem_channels)
+
+        self.res_layers = []
+        for i, num_blocks in enumerate(self.stage_blocks):
+            stride = strides[i]
+            dilation = dilations[i]
+            dcn = self.dcn if self.stage_with_dcn[i] else None
+            if plugins is not None:
+                stage_plugins = self.make_stage_plugins(plugins, i)
+            else:
+                stage_plugins = None
+            planes = base_channels * 2**i
+            res_layer = self.make_res_layer(
+                block=self.block,
+                inplanes=self.inplanes,
+                planes=planes,
+                num_blocks=num_blocks,
+                stride=stride,
+                dilation=dilation,
+                style=self.style,
+                avg_down=self.avg_down,
+                with_cp=with_cp,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                dcn=dcn,
+                plugins=stage_plugins,
+                init_cfg=block_init_cfg,
+            )
+            self.inplanes = planes * self.block.expansion
+            layer_name = f"layer{i + 1}"
+            self.add_module(layer_name, res_layer)
+            self.res_layers.append(layer_name)
+
+        self._freeze_stages()
+
+        self.feat_dim = (
+            self.block.expansion * base_channels * 2 ** (len(self.stage_blocks) - 1)
+        )
+
+    def make_stage_plugins(self, plugins, stage_idx):
+        stage_plugins = []
+        for plugin in plugins:
+            plugin = plugin.copy()
+            stages = plugin.pop("stages", None)
+            assert stages is None or len(stages) == self.num_stages
+            if stages is None or stages[stage_idx]:
+                stage_plugins.append(plugin)
+
+        return stage_plugins
+
+    def make_res_layer(self, **kwargs):
+        return ResLayer(**kwargs)
+
+    @property
+    def norm1(self):
+        return getattr(self, self.norm1_name)
+
+    def _make_stem_layer(self, in_channels, stem_channels):
+        if self.deep_stem:
+            self.stem = nn.Sequential(
+                build_conv_layer(
+                    self.conv_cfg,
+                    in_channels,
+                    stem_channels // 2,
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    bias=False,
+                ),
+                build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
+                nn.ReLU(inplace=True),
+                build_conv_layer(
+                    self.conv_cfg,
+                    stem_channels // 2,
+                    stem_channels // 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=False,
+                ),
+                build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
+                nn.ReLU(inplace=True),
+                build_conv_layer(
+                    self.conv_cfg,
+                    stem_channels // 2,
+                    stem_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=False,
+                ),
+                build_norm_layer(self.norm_cfg, stem_channels)[1],
+                nn.ReLU(inplace=True),
+            )
+        else:
+            self.conv1 = build_conv_layer(
+                self.conv_cfg,
+                in_channels,
+                stem_channels,
+                kernel_size=7,
+                stride=2,
+                padding=3,
+                bias=False,
+            )
+            self.norm1_name, norm1 = build_norm_layer(
+                self.norm_cfg, stem_channels, postfix=1
+            )
+            self.add_module(self.norm1_name, norm1)
+            self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def _freeze_stages(self):
+        if self.frozen_stages >= 0:
+            if self.deep_stem:
+                self.stem.eval()
+                for param in self.stem.parameters():
+                    param.requires_grad = False
+            else:
+                self.norm1.eval()
+                for m in [self.conv1, self.norm1]:
+                    for param in m.parameters():
+                        param.requires_grad = False
+
+        for i in range(1, self.frozen_stages + 1):
+            m = getattr(self, f"layer{i}")
+            m.eval()
+            for param in m.parameters():
+                param.requires_grad = False
+
+    def forward(self, x):
+        if self.deep_stem:
+            x = self.stem(x)
+        else:
+            x = self.conv1(x)
+            x = self.norm1(x)
+            x = self.relu(x)
+        x = self.maxpool(x)
+        outs = []
+        for i, layer_name in enumerate(self.res_layers):
+            res_layer = getattr(self, layer_name)
+            x = res_layer(x)
+            if i in self.out_indices:
+                outs.append(x)
+        return tuple(outs)
+
+    def train(self, mode=True):
+        super(ResNet, self).train(mode)
+        self._freeze_stages()
+        if mode and self.norm_eval:
+            for m in self.modules():
+                if isinstance(m, _BatchNorm):
+                    m.eval()
+
+
+@NECKS.register_module()
+class FPN(BaseModule):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        num_outs,
+        start_level=0,
+        end_level=-1,
+        add_extra_convs=False,
+        relu_before_extra_convs=False,
+        no_norm_on_lateral=False,
+        conv_cfg=None,
+        norm_cfg=None,
+        act_cfg=None,
+        upsample_cfg=dict(mode="nearest"),
+        init_cfg=dict(type="Xavier", layer="Conv2d", distribution="uniform"),
+    ):
+        super(FPN, self).__init__(init_cfg)
+        assert isinstance(in_channels, list)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.num_ins = len(in_channels)
+        self.num_outs = num_outs
+        self.relu_before_extra_convs = relu_before_extra_convs
+        self.no_norm_on_lateral = no_norm_on_lateral
+        self.fp16_enabled = False
+        self.upsample_cfg = upsample_cfg.copy()
+
+        if end_level == -1 or end_level == self.num_ins - 1:
+            self.backbone_end_level = self.num_ins
+            assert num_outs >= self.num_ins - start_level
+        else:
+            self.backbone_end_level = end_level + 1
+            assert end_level < self.num_ins
+            assert num_outs == end_level - start_level + 1
+        self.start_level = start_level
+        self.end_level = end_level
+        self.add_extra_convs = add_extra_convs
+        assert isinstance(add_extra_convs, (str, bool))
+        if isinstance(add_extra_convs, str):
+            assert add_extra_convs in ("on_input", "on_lateral", "on_output")
+        elif add_extra_convs:
+            self.add_extra_convs = "on_input"
+
+        self.lateral_convs = nn.ModuleList()
+        self.fpn_convs = nn.ModuleList()
+
+        for i in range(self.start_level, self.backbone_end_level):
+            l_conv = ConvModule(
+                in_channels[i],
+                out_channels,
+                1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg if not self.no_norm_on_lateral else None,
+                act_cfg=act_cfg,
+                inplace=False,
+            )
+            fpn_conv = ConvModule(
+                out_channels,
+                out_channels,
+                3,
+                padding=1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg,
+                inplace=False,
+            )
+
+            self.lateral_convs.append(l_conv)
+            self.fpn_convs.append(fpn_conv)
+
+        extra_levels = num_outs - self.backbone_end_level + self.start_level
+        if self.add_extra_convs and extra_levels >= 1:
+            for i in range(extra_levels):
+                if i == 0 and self.add_extra_convs == "on_input":
+                    in_channels = self.in_channels[self.backbone_end_level - 1]
+                else:
+                    in_channels = out_channels
+                extra_fpn_conv = ConvModule(
+                    in_channels,
+                    out_channels,
+                    3,
+                    stride=2,
+                    padding=1,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    act_cfg=act_cfg,
+                    inplace=False,
+                )
+                self.fpn_convs.append(extra_fpn_conv)
+
+    def forward(self, inputs):
+        assert len(inputs) == len(self.in_channels)
+        laterals = [
+            lateral_conv(inputs[i + self.start_level])
+            for i, lateral_conv in enumerate(self.lateral_convs)
+        ]
+
+        used_backbone_levels = len(laterals)
+        for i in range(used_backbone_levels - 1, 0, -1):
+            if "scale_factor" in self.upsample_cfg:
+                laterals[i - 1] = laterals[i - 1] + F.interpolate(
+                    laterals[i], **self.upsample_cfg
+                )
+            else:
+                prev_shape = laterals[i - 1].shape[2:]
+                laterals[i - 1] = laterals[i - 1] + F.interpolate(
+                    laterals[i], size=prev_shape, **self.upsample_cfg
+                )
+
+        outs = [self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)]
+        if self.num_outs > len(outs):
+            if not self.add_extra_convs:
+                for i in range(self.num_outs - used_backbone_levels):
+                    outs.append(F.max_pool2d(outs[-1], 1, stride=2))
+            else:
+                if self.add_extra_convs == "on_input":
+                    extra_source = inputs[self.backbone_end_level - 1]
+                elif self.add_extra_convs == "on_lateral":
+                    extra_source = laterals[-1]
+                elif self.add_extra_convs == "on_output":
+                    extra_source = outs[-1]
+                else:
+                    raise NotImplementedError
+                outs.append(self.fpn_convs[used_backbone_levels](extra_source))
+                for i in range(used_backbone_levels + 1, self.num_outs):
+                    if self.relu_before_extra_convs:
+                        outs.append(self.fpn_convs[i](F.relu(outs[-1])))
+                    else:
+                        outs.append(self.fpn_convs[i](outs[-1]))
+        return tuple(outs)
+
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -3652,7 +5959,7 @@ class MapTRHead(DETRHead):
 
         self.with_box_refine = with_box_refine
         self.as_two_stage = as_two_stage
-        self.bev_encoder_type = transformer.encoder.type
+        self.bev_encoder_type = transformer["encoder"]["type"]
         if self.as_two_stage:
             transformer["as_two_stage"] = self.as_two_stage
         if "code_size" in kwargs:
