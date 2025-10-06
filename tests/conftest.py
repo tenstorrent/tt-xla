@@ -306,6 +306,21 @@ CACHE_DIRECTORIES = [
     Path.home() / ".cache" / "lfcache",
     Path.home() / ".cache" / "url_cache",
     Path("/mnt/dockercache/huggingface"),
+    # HuggingFace model caches (these can be HUGE for large models)
+    Path.home() / ".cache" / "huggingface",
+    Path("/tmp") / "huggingface",
+    # JAX compilation caches
+    Path.home() / ".cache" / "jax",
+    Path.home() / ".cache" / "jaxlib",
+    # XLA caches
+    Path("/tmp") / "xla_cache",
+    Path("/tmp") / "ttmlir_cache",
+    # Torch/Triton caches
+    Path.home() / ".cache" / "torch",
+    Path.home() / ".triton",
+    Path("/tmp") / "triton",
+    # Torch inductor cache
+    Path("/tmp") / f"torchinductor_{os.environ.get('USER', '')}",
 ]
 
 
@@ -325,6 +340,27 @@ def cleanup_cache():
             logger.debug(f"Cleaned up cache directory: {cache_dir}")
         except Exception as e:
             logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+
+    # Also clean up /tmp directories matching certain patterns
+    try:
+        tmp_path = Path("/tmp")
+        # Clean XLA/JAX temporary files
+        for pattern in ["xla_*", "jax_*", "tmp*", "hf_*", "transformers_*"]:
+            for tmp_file in tmp_path.glob(pattern):
+                if tmp_file.is_dir():
+                    try:
+                        shutil.rmtree(tmp_file)
+                        logger.debug(f"Cleaned up temporary directory: {tmp_file}")
+                    except Exception as e:
+                        logger.debug(f"Failed to clean {tmp_file}: {e}")
+                elif tmp_file.is_file():
+                    try:
+                        tmp_file.unlink()
+                        logger.debug(f"Cleaned up temporary file: {tmp_file}")
+                    except Exception as e:
+                        logger.debug(f"Failed to clean {tmp_file}: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to clean /tmp directories: {e}")
 
 
 @pytest.fixture(autouse=True)
