@@ -41,6 +41,11 @@ struct CompileOptions {
   // fixed.
   bool enable_fusing_conv2d_with_multiply_pattern = false;
 
+  // Flag for pjrt client is running in SPMD mode. This is used to set the
+  // proper sdy.mesh attribute on the module if fully replicated graph is
+  // provided in SPMD mode.
+  bool is_spmd_mode = false;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };

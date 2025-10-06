@@ -41,6 +41,11 @@ class CompilerConfig:
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
     enable_fusing_conv2d_with_multiply_pattern: bool = False
 
+    # Flag for pjrt client is running in SPMD mode. This is used to set the
+    # proper sdy.mesh attribute on the module if fully replicated graph is
+    # provided in SPMD mode.
+    is_spmd_mode: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
