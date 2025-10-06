@@ -330,6 +330,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
          size_t runtime_tensor_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
+          tt::runtime::toHost(runtime_tensor, /*untilize=*/true); 
+
           tt::runtime::memcpy(
               host_buffer, runtime_tensor,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(

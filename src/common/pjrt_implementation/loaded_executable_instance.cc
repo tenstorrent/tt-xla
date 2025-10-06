@@ -137,15 +137,35 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
-  untilized_output_tensors.reserve(output_tensors.size());
-  status = untilizeToHost(output_tensors, args->num_devices,
-                          untilized_output_tensors);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return status;
+  // untilized_output_tensors.reserve(output_tensors.size());
+  // status = untilizeToHost(output_tensors, args->num_devices,
+  //                         untilized_output_tensors);
+  // if (!tt_pjrt_status_is_ok(status)) {
+  //   return status;
+  // }
+
+  // fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
+  //                     args->output_lists, m_executable_image->getOutputTypes());
+
+  // [James] fillPJRTOutputLists with device tensors instead of prefilled host tensors
+  size_t n_prog_output_tensors = output_tensors.size();
+  for(size_t output_index =0; output_index < n_prog_output_tensors; output_index++){
+    for (int device_index = 0; device_index < args->num_devices; ++device_index) {
+
+      tt::runtime::Tensor outputTensor = output_tensors[output_index];
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+      auto expected_output_data_types = m_executable_image->getOutputTypes();
+
+      // replicated case - repeat 
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              outputTensor, std::move(output_shape),
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index]);
+    }
   }
 
-  fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists, m_executable_image->getOutputTypes());
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
