@@ -275,10 +275,29 @@ jobs:
         echo "$COLLECTED_OUTPUT"
 
         # Get list of test IDs in a simpler format using pytest -q
-        # Remove conflicting flags (-vv, --forked, --log-memory, --durations) for collection
+        # Reconstruct command without conflicting flags for collection
         echo "Getting test list..."
-        COLLECT_CMD=$(echo "${{ env.BASE_PYTEST_CMD }}" | sed 's/--forked//g; s/--log-memory//g; s/--durations=[0-9]*//g; s/-vv//g; s/-sv//g')
-        TEST_LIST=$(python -m pytest --collect-only -q $COLLECT_CMD 2>/dev/null | grep "::" | grep "^tests/" || true)
+        # Build clean command from matrix variables directly
+        TEST_DIR="${{ matrix.build.dir }}"
+        MARKS="${{ matrix.build.test-mark }}"
+        ARGS="${{ matrix.build.args }}"
+        CONTAINS="${{ matrix.build.contains }}"
+        SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} --group ${{ matrix.build.group-id || 1}} --splitting-algorithm least_duration"
+
+        # Build collection command without conflicting flags
+        echo "Collecting from: $TEST_DIR with marks: $MARKS"
+        if [ -n "$CONTAINS" ]; then
+          echo "Filter contains: $CONTAINS"
+          TEST_LIST=$(python -m pytest --collect-only -q $TEST_DIR -m "$MARKS" $ARGS -k "$CONTAINS" $SPLITS 2>/dev/null | grep "::" | grep "^tests/" || true)
+        else
+          TEST_LIST=$(python -m pytest --collect-only -q $TEST_DIR -m "$MARKS" $ARGS $SPLITS 2>/dev/null | grep "::" | grep "^tests/" || true)
+        fi
+
+        if [ -z "$TEST_LIST" ]; then
+          echo "No tests found matching criteria"
+        else
+          echo "Found $(echo "$TEST_LIST" | wc -l) tests"
+        fi
 
         # Check if we have .test_durations file
         USE_DEFAULT_TIMEOUT=false
