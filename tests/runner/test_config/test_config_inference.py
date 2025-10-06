@@ -105,9 +105,6 @@ PLACEHOLDER_MODELS = {
     "uniad": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "maptr": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "MiniMaxAI/MiniMax-Text-01": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2505,5 +2502,50 @@ test_config = {
     "bge_m3/encode/pytorch-base-full-inference": {
         # This model has a hand written test, don't run via test_models.py
         "status": ModelTestStatus.EXCLUDE_MODEL,
+    },
+    "maptr/pytorch-tiny_r50_24e_av2-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer_t4-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_110e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_t4-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-nano_r18_110e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevpool-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "maptr/pytorch-tiny_fusion_24e-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
 }
