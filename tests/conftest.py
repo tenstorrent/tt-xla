@@ -302,29 +302,44 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-@pytest.fixture(autouse=True)
+CACHE_DIRECTORIES = [
+    Path.home() / ".cache" / "lfcache",
+    Path.home() / ".cache" / "url_cache",
+    Path("/mnt/dockercache/huggingface"),
+]
+
+
 def cleanup_cache():
     """
-    Pytest fixture that cleans up cache directories after each test.
-    Only runs if we are running on CIv2.
+    Cleans up cache directories if we are running on CIv2.
     """
-    yield
     if not _is_on_CIv2():
         return
 
-    cache_dirs = [
-        Path.home().joinpath(".cache", "lfcache"),
-        Path.home().joinpath(".cache", "url_cache"),
-        Path("/mnt/dockercache/huggingface"),
-    ]
+    for cache_dir in CACHE_DIRECTORIES:
+        if not cache_dir.exists():
+            continue
 
-    for cache_dir in cache_dirs:
-        if cache_dir.exists():
-            try:
-                shutil.rmtree(cache_dir)
-                logger.debug(f"Cleaned up cache directory: {cache_dir}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+        try:
+            shutil.rmtree(cache_dir)
+            logger.debug(f"Cleaned up cache directory: {cache_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+
+
+@pytest.fixture(autouse=True)
+def cleanup_cache_fixture():
+    """
+    Pytest fixture that cleans up cache directories before and after each test.
+    Only runs if we are running on CIv2.
+    """
+    # Cleanup before test
+    cleanup_cache()
+
+    yield
+
+    # Cleanup after test
+    cleanup_cache()
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
