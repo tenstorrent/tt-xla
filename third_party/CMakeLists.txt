@@ -73,7 +73,7 @@ else()
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
         BUILD_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
-        INSTALL_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
+        INSTALL_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component explorer
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
@@ -94,6 +94,14 @@ else()
     )
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+    # Copy install directory immediately after tt-mlir completes (after install step)
+    # This ensures headers are available before tt-xla compilation starts
+    ExternalProject_Add_Step(tt-mlir copy_install
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${TTMLIR_LIB_DIR} ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install
+        DEPENDEES install
+        COMMENT "Copying tt-mlir install to third_party/tt-mlir/install"
+    )
 
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
