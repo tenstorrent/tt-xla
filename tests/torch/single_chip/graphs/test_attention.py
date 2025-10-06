@@ -197,7 +197,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024])  # 4096 causes OOM on CPU
+@pytest.mark.parametrize("seq_len", [1024]) 
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -282,6 +282,9 @@ def test_llama_sdpa(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config):
+    if "qwq_32b" in str(variant):
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    
     xr.set_device_type("TT")
 
     loader = QwenModelLoader(variant=variant)
@@ -324,6 +327,9 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config):
+    if "qwq_32b" in str(variant):
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+
     xr.set_device_type("TT")
 
     loader = QwenModelLoader(variant=variant)
@@ -382,6 +388,9 @@ def test_qwen3_attention_decode(variant, variant_config):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_concat_heads(variant, variant_config, seq_len):
+    if "qwq_32b" in str(variant):
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+
     xr.set_device_type("TT")
 
     def concat_heads(attn_output, input_shape):
@@ -422,10 +431,12 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_create_heads(variant, variant_config, seq_len):
-    """Test Qwen3's normalized query/key head creation"""
+    if "qwq_32b" in str(variant):
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+
     xr.set_device_type("TT")
 
-    def create_normalized_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm):
+    def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm):
         # Key difference from Llama - Q/K normalization
         query_states = q_norm(q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
         key_states = k_norm(k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
@@ -454,10 +465,10 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     q_norm = attention.q_norm
     k_norm = attention.k_norm
 
-    golden = create_normalized_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm)
+    golden = create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm)
 
     device = torch_xla.device()
-    compiled_fn = torch.compile(create_normalized_heads, backend="tt")
+    compiled_fn = torch.compile(create_heads, backend="tt")
 
     output = compiled_fn(
         hidden_states.to(device),
@@ -479,13 +490,16 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024])  # 4096 causes OOM on CPU
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_sdpa(variant, variant_config, seq_len):
+    if "qwq_32b" in str(variant):
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+        
     xr.set_device_type("TT")
 
     def sdpa(
