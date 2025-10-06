@@ -274,12 +274,19 @@ jobs:
         COLLECTED_OUTPUT=$(python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }})
         echo "$COLLECTED_OUTPUT"
 
+        DEFAULT_TEST_DURATION=360
+        MIN_TEST_DURATION=30
+
         ESTIMATED_DURATION=$(echo "$COLLECTED_OUTPUT" | grep "estimated duration:")
+        if [ -z "$ESTIMATED_DURATION" ]; then
+          echo "timeout-minutes=$DEFAULT_TEST_DURATION" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
         ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/' | awk '{print int($1)}')
         # multiply the estimate with 3 until estimates are more precise
         ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
 
-        MIN_TEST_DURATION=30
         if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
           ESTIMATED_DURATION=$MIN_TEST_DURATION
         fi
