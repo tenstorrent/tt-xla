@@ -2390,7 +2390,7 @@ test_config = {
         },
     },
     "llava/pytorch-1_5_7b-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "loc('aten__masked_scatter'): error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>> - https://github.com/tenstorrent/tt-xla/issues/1477",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
