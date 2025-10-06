@@ -275,8 +275,10 @@ jobs:
         echo "$COLLECTED_OUTPUT"
 
         # Get list of test IDs in a simpler format using pytest -q
+        # Remove conflicting flags (-vv, --forked, --log-memory, --durations) for collection
         echo "Getting test list..."
-        TEST_LIST=$(python -m pytest --collect-only -q ${{ env.BASE_PYTEST_CMD }} 2>/dev/null | grep "::" | grep "^tests/" || true)
+        COLLECT_CMD=$(echo "${{ env.BASE_PYTEST_CMD }}" | sed 's/--forked//g; s/--log-memory//g; s/--durations=[0-9]*//g; s/-vv//g; s/-sv//g')
+        TEST_LIST=$(python -m pytest --collect-only -q $COLLECT_CMD 2>/dev/null | grep "::" | grep "^tests/" || true)
 
         # Check if we have .test_durations file
         USE_DEFAULT_TIMEOUT=false
@@ -284,7 +286,8 @@ jobs:
           echo "Warning: .test_durations file not found, using 4 hour timeout"
           USE_DEFAULT_TIMEOUT=true
         elif [ -z "$TEST_LIST" ]; then
-          echo "Warning: Could not extract test list, using estimated duration if available"
+          echo "Warning: Could not extract test list, using 4 hour timeout as fallback"
+          USE_DEFAULT_TIMEOUT=true
         else
           # Check each test against .test_durations
           echo "Checking tests against .test_durations..."
