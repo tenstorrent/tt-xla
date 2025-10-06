@@ -145,18 +145,22 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   // }
 
   // fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-  //                     args->output_lists, m_executable_image->getOutputTypes());
+  //                     args->output_lists,
+  //                     m_executable_image->getOutputTypes());
 
-  // [James] fillPJRTOutputLists with device tensors instead of prefilled host tensors
+  // [James] fillPJRTOutputLists with device tensors instead of prefilled host
+  // tensors
   size_t n_prog_output_tensors = output_tensors.size();
-  for(size_t output_index =0; output_index < n_prog_output_tensors; output_index++){
-    for (int device_index = 0; device_index < args->num_devices; ++device_index) {
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    for (int device_index = 0; device_index < args->num_devices;
+         ++device_index) {
 
       tt::runtime::Tensor outputTensor = output_tensors[output_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
       auto expected_output_data_types = m_executable_image->getOutputTypes();
 
-      // replicated case - repeat 
+      // replicated case - repeat
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               outputTensor, std::move(output_shape),
@@ -165,7 +169,6 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
               expected_output_data_types[output_index]);
     }
   }
-
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
@@ -425,6 +428,11 @@ tt::runtime::Tensor LoadedExecutableInstance::convertTensorLayout(
 tt_pjrt_status LoadedExecutableInstance::untilizeToHost(
     const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
+  DLOG_F(LOG_DEBUG, "untilizeToHost called");
+  DLOG_F(LOG_DEBUG,
+         "untilizeToHost: Expected %zu outputs, %zu devices available",
+         output_tensors.size(), num_devices);
+
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
     std::vector<tt::runtime::Tensor> untilized_output =
@@ -461,6 +469,11 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t num_outputs = untilized_output_tensors.size();
 
+  DLOG_F(LOG_DEBUG, "fillPJRTOutputLists called");
+  DLOG_F(LOG_DEBUG,
+         "fillPJRTOutputLists: Processing %zu outputs for %zu devices",
+         num_outputs, num_devices);
+
   for (int device_index = 0; device_index < num_devices; ++device_index) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
       tt::runtime::Tensor output_tensor =
@@ -473,6 +486,11 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index]);
+
+      DLOG_F(LOG_DEBUG,
+             "fillPJRTOutputLists: Device %d, Output %zu, BufferInstance "
+             "shape: %s",
+             device_index, output_index, output_buffer->toShapeStr().c_str());
 
       output_buffer->markAsDataReady();
 
