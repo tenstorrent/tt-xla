@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Callable, Optional
 
 from infra.comparators import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
-from infra.utilities import Framework, Model, Tensor
+from infra.utilities import Framework, Model, Tensor, ShardSpec, Mesh
 from infra.workloads import Workload
 
 from ...base_tester import BaseTester
@@ -63,6 +63,14 @@ class ModelTester(BaseTester, ABC):
         self._configure_model()
         # Cache model inputs.
         self._cache_model_inputs()
+
+    def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
+        """Optional: returns shard specs function if required; otherwise None."""
+        return None
+
+    def _get_mesh(self) -> Optional[Mesh]:
+        """Optional: returns mesh if required; otherwise None."""
+        return None
 
     @abstractmethod
     def _get_model(self) -> Model:

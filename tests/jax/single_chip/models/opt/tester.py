@@ -5,8 +5,10 @@
 from typing import Dict
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from transformers import AutoTokenizer, FlaxOPTForCausalLM, FlaxPreTrainedModel
+
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.opt.causal_lm.jax import ModelLoader, ModelVariant
 
 
 class OPTTester(JaxModelTester):
@@ -14,21 +16,17 @@ class OPTTester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        model = FlaxOPTForCausalLM.from_pretrained(self._model_path)
-        model.params = model.to_bf16(model.params)
-        return model
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer("Hello there fellow traveler", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()

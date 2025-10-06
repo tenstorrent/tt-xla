@@ -99,12 +99,6 @@ PLACEHOLDER_MODELS = {
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "bevdepth": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
-    "bevformer": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -274,32 +268,22 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
+        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+                "reason": " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497",
+                "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
             },
         },
     },
@@ -1850,17 +1834,16 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "gemma/pytorch-google/gemma-1.1-7b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
         "arch_overrides": {
             "p150": {
-                "assert_pcc": False,
-                "status": ModelTestStatus.EXPECTED_PASSING,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
             },
-            "n150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97",
             },
         },
     },
@@ -1900,6 +1883,28 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99",
             },
+            "n150": {
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
+    },
+    "phi4/seq_cls/pytorch-microsoft/phi-4-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "n150": {
+                # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
+                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+                "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
+                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            },
+        },
+    },
+    "phi4/token_cls/pytorch-microsoft/phi-4-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
             "n150": {
                 # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
                 "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2395,21 +2400,17 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
-            },
-        },
     },
     "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip",
+        "reason": "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
+        "supported_archs": ["p150", "n300-llmbox"],
         "arch_overrides": {
             "p150": {
                 "assert_pcc": False,
@@ -2417,10 +2418,8 @@ test_config = {
                 "bringup_status": BringupStatus.INCORRECT_RESULT,
                 "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475",
             },
-            "n150": {
-                "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-                "reason": "Too large for single chip",
-                "bringup_status": BringupStatus.FAILED_RUNTIME,
+            "n300-llmbox": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
             },
         },
     },
@@ -2450,11 +2449,58 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "hrnet/pytorch-hrnetv2_w48_osmr-full-inference": {
+        "required_pcc": 0.985,  # https://github.com/tenstorrent/tt-xla/issues/1491
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "n150": {
-                "required_pcc": 0.985,  # Decreased Sept 26th - https://github.com/tenstorrent/tt-xla/issues/1491
-            },
-        },
+    },
+    "centernet/pytorch-hourglass_coco-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+    },
+    "centernet/pytorch-resnet18_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "centernet/pytorch-resnet101_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "centernet/pytorch-dla1x_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "centernet/pytorch-dla2x_coco-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "bevformer/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('dynamic-update-slice.212'): error: failed to legalize operation 'stablehlo.dynamic_update_slice'",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }

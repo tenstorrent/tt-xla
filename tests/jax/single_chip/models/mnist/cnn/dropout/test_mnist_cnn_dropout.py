@@ -71,8 +71,13 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
+<<<<<<< HEAD
         "error: failed to legalize operation 'stablehlo.bitcast_convert'"
         "https://github.com/tenstorrent/tt-mlir/issues/979"
+=======
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4794"
+>>>>>>> main
     )
 )
 def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
