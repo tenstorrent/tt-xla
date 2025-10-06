@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -116,6 +117,9 @@ public:
   // size. This function will calculate the converted runtime tensor size to be
   // tensor_volume * expected_host_data_type_element_size
   size_t getConvertedRuntimeTensorSize() const;
+
+  // Returns a string representation of the buffer's shape in the format [d1,d2,d3,...].
+  std::string toShapeStr() const;
 
   // Returns true if the buffer data was deleted, i.e. its underlying tensor was
   // deallocated.

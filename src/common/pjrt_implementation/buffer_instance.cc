@@ -116,6 +116,18 @@ size_t BufferInstance::getConvertedRuntimeTensorSize() const {
   return static_cast<size_t>(runtime_tensor_size);
 }
 
+std::string BufferInstance::toShapeStr() const {
+  std::string result = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0) {
+      result += ",";
+    }
+    result += std::to_string(m_dimensions[i]);
+  }
+  result += "]";
+  return result;
+}
+
 bool BufferInstance::isDataDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   return m_data_deleted;
