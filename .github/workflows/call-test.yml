@@ -274,25 +274,33 @@ jobs:
         COLLECTED_OUTPUT=$(python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }})
         echo "$COLLECTED_OUTPUT"
 
-        # Extract test names from the collected output
-        COLLECTED_TESTS=$(echo "$COLLECTED_OUTPUT" | grep -E "^<[A-Za-z]+ '?tests/.*'?>$" | sed -E "s/^<[A-Za-z]+ '?(tests\/[^'>\s]+).*>$/\1/")
+        # Get list of test IDs in a simpler format using pytest -q
+        echo "Getting test list..."
+        TEST_LIST=$(python -m pytest --collect-only -q ${{ env.BASE_PYTEST_CMD }} 2>/dev/null | grep "::" | grep "^tests/" || true)
 
-        # Check if any collected tests are missing from .test_durations file
-        MISSING_TESTS=""
-        if [ -f ".test_durations" ]; then
-          for test in $COLLECTED_TESTS; do
-            # Check if the test path exists in the JSON file
-            if ! grep -q "\"$test" .test_durations 2>/dev/null; then
-              echo "Warning: Test '$test' not found in .test_durations file"
-              MISSING_TESTS="yes"
-            fi
-          done
+        # Check if we have .test_durations file
+        USE_DEFAULT_TIMEOUT=false
+        if [ ! -f ".test_durations" ]; then
+          echo "Warning: .test_durations file not found, using 4 hour timeout"
+          USE_DEFAULT_TIMEOUT=true
+        elif [ -z "$TEST_LIST" ]; then
+          echo "Warning: Could not extract test list, using estimated duration if available"
         else
-          echo "Warning: .test_durations file not found"
-          MISSING_TESTS="yes"
+          # Check each test against .test_durations
+          echo "Checking tests against .test_durations..."
+          while IFS= read -r test; do
+            if [ -n "$test" ]; then
+              # Remove any trailing whitespace and test parameters
+              test_path=$(echo "$test" | sed 's/\[.*\]$//' | xargs)
+              if ! grep -qF "\"$test_path" .test_durations 2>/dev/null; then
+                echo "Warning: Test '$test_path' not found in .test_durations file"
+                USE_DEFAULT_TIMEOUT=true
+              fi
+            fi
+          done <<< "$TEST_LIST"
         fi
 
-        if [ -n "$MISSING_TESTS" ]; then
+        if [ "$USE_DEFAULT_TIMEOUT" = true ]; then
           # If any test is missing from durations, use 4 hour timeout
           echo "Some tests not found in .test_durations, using 4 hour timeout"
           ESTIMATED_DURATION=240
