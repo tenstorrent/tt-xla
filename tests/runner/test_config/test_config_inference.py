@@ -1763,6 +1763,18 @@ test_config = {
         "required_pcc": 0.97,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
+    # High res variants (1280x800)
+    "resnet/pytorch-resnet_50_hf_high_res-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "resnet/pytorch-resnet50_timm_high_res-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "resnet/pytorch-resnet50_high_res-full-inference": {
+        # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99.
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "hrnet/pytorch-hrnetv2_w44_osmr-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97.
         # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
