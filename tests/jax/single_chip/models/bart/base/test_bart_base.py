@@ -36,7 +36,7 @@ def inference_tester() -> FlaxBartForCausalLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_VARIANT, RunMode.TRAINING)
+    return FlaxBartForCausalLMTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -61,6 +61,6 @@ def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+
 def test_flax_bart_base_training(training_tester: FlaxBartForCausalLMTester):
     training_tester.test()

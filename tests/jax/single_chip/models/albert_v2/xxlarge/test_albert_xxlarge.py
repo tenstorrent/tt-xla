@@ -8,11 +8,13 @@ from utils import (
     BringupStatus,
     Category,
     Framework,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
     incorrect_result,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import AlbertV2Tester
@@ -38,7 +40,7 @@ def inference_tester() -> AlbertV2Tester:
 
 @pytest.fixture
 def training_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(VARIANT_NAME, RunMode.TRAINING)
+    return AlbertV2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -68,7 +70,14 @@ def test_flax_albert_v2_xxlarge_inference(inference_tester: AlbertV2Tester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter'"
+        "https://github.com/tenstorrent/tt-mlir/issues/5091"
+    )
+)
 def test_flax_albert_v2_xxlarge_training(training_tester: AlbertV2Tester):
     training_tester.test()

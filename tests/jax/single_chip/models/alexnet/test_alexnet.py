@@ -66,6 +66,11 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.pad'"
+        "https://github.com/tenstorrent/tt-xla/issues/360"
+    )
+)
 def test_alexnet_training(training_tester: AlexNetTester):
     training_tester.test()
