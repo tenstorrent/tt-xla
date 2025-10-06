@@ -231,8 +231,10 @@ class TTAttentionBackendImpl(AttentionImpl):
             value = v_cache
             kv_cache.copy_(new_kv_cache)
 
-        return (
-            torch.nn.functional.scaled_dot_product_attention(
+        if query.shape[-2] == 1:
+            query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
+            cur_pos_tensor = attn_metadata.context_lens[:1].to(query.device)
+            out = torch.ops.tt.scaled_dot_product_attention_decode(
                 query,
                 key,
                 value,
