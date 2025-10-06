@@ -2503,4 +2503,34 @@ test_config = {
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "yolov11/pytorch-yolo11s-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues//proj_sw/user_dev/mramanathan/bgdlab19_sep10_xla/tt-xla/tests/runner/test_config/test_config_inference.py1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "yolov11/pytorch-yolo11n-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "yolov11/pytorch-yolo11s-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "yolov11/pytorch-yolo11m-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "yolov11/pytorch-yolo11l-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "yolov11/pytorch-yolo11x-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "loc('aten__upsample_nearest2d'): error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1577",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }
