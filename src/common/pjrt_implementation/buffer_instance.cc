@@ -46,20 +46,22 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
-    const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
-    DeviceInstance *device, MemoryInstance *memory,
-    PJRT_Buffer_Type data_type) {
+    const tt::runtime::Tensor &device_tensor,
+    std::vector<std::uint32_t> &&dimensions, DeviceInstance *device,
+    MemoryInstance *memory, PJRT_Buffer_Type data_type) {
   struct make_unique_enabler : public BufferInstance {
-    make_unique_enabler(const tt::runtime::Tensor &tensor,
-                        std::vector<std::uint32_t> &&dimensions,
+    make_unique_enabler(std::vector<std::uint32_t> &&dimensions,
                         DeviceInstance *device, MemoryInstance *memory,
-                        PJRT_Buffer_Type data_type)
-        : BufferInstance(tensor, std::move(dimensions), device, memory,
-                         data_type) {}
+                        PJRT_Buffer_Type data_type,
+                        const std::optional<tt::runtime::Tensor> &host_tensor,
+                        const std::optional<tt::runtime::Tensor> &device_tensor)
+        : BufferInstance(std::move(dimensions), device, memory, data_type,
+                         host_tensor, device_tensor) {}
   };
 
-  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device, memory, data_type);
+  return std::make_unique<make_unique_enabler>(std::move(dimensions), device,
+                                               memory, data_type, std::nullopt,
+                                               device_tensor);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
@@ -71,18 +73,21 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
       m_prepared_runtime_tensor(std::nullopt) {}
 
-BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
-                               const std::vector<std::uint32_t> &dimensions,
-                               DeviceInstance *device, MemoryInstance *memory,
-                               PJRT_Buffer_Type data_type)
+BufferInstance::BufferInstance(
+    const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
+    MemoryInstance *memory, PJRT_Buffer_Type data_type,
+    const std::optional<tt::runtime::Tensor> &host_tensor,
+    const std::optional<tt::runtime::Tensor> &device_tensor)
     : m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_memory(memory), m_host_runtime_tensor(tensor), m_data_ready(false),
+      m_memory(memory), m_host_runtime_tensor(host_tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
+      m_data_deleted(false), m_prepared_runtime_tensor(device_tensor) {
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
-  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+  if (m_host_runtime_tensor.has_value()) {
+    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+  }
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }
@@ -105,24 +110,13 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::getConvertedRuntimeTensorSize(
-    const std::optional<tt::runtime::Tensor> &runtime_tensor_opt) const {
-  const tt::runtime::Tensor *tensor_ptr = nullptr;
-  if (runtime_tensor_opt.has_value()) {
-    tensor_ptr = &runtime_tensor_opt.value();
-  } else {
-    assert(m_host_runtime_tensor.has_value() &&
-           "Trying to get runtime tensor size of uninitialized tensor");
-    tensor_ptr = &m_host_runtime_tensor.value();
-  }
-  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(*tensor_ptr);
+size_t
+BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
+                                              PJRT_Buffer_Type data_type) {
+  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(tensor);
   std::uint32_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
-      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
+      data_type_utils::convertPJRTToRuntimeDataType(data_type));
   std::uint32_t runtime_tensor_size = tensor_volume * dtype_element_size;
-  DLOG_F(LOG_DEBUG,
-         "BufferInstance::getConvertedRuntimeTensorSize: volume=%u, "
-         "dtype_element_size=%u, total_size=%u",
-         tensor_volume, dtype_element_size, runtime_tensor_size);
   return static_cast<size_t>(runtime_tensor_size);
 }
 
@@ -312,8 +306,8 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
-  assert(m_host_runtime_tensor.has_value() &&
-         "Trying to copy from uninitialized tensor");
+  assert(m_prepared_runtime_tensor.has_value() &&
+         "Trying to copy from uninitialized device tensor");
 
   // Wait if there is a copy already in progress.
   if (m_copy_to_host_thread) {
@@ -337,22 +331,26 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           // Making sure that the host buffer size is greater than or equal to
           // the runtime tensor size.
 
-          // size_t runtime_tensor_size =
-          // getConvertedRuntimeTensorSize(first_host_runtime_tensor); if
-          // (runtime_tensor_size > host_buffer_size) {
-          //   DLOG_F(ERROR,
-          //         "Tried to copy device buffer to the host buffer with
-          //         smaller size " "than required (device buffer size: %zu,
-          //         host buffer size: %zu)", runtime_tensor_size,
-          //         host_buffer_size);
-          //   out_copy_done_event = nullptr;
-          //   return tt_pjrt_status::kFailedPrecondition;
-          // }
+          size_t runtime_tensor_size =
+              BufferInstance::getConvertedRuntimeTensorSize(
+                  first_host_runtime_tensor, data_type);
+          if (runtime_tensor_size > host_buffer_size) {
+            DLOG_F(ERROR,
+                   "Tried to copy device buffer to the host buffer with "
+                   "smaller size "
+                   "than required (device buffer size: %zu, host buffer size: "
+                   "%zu)",
+                   runtime_tensor_size, host_buffer_size);
+            event->markAsReady(tt_pjrt_status::kFailedPrecondition);
+            return;
+          }
 
           tt::runtime::memcpy(
               host_buffer, first_host_runtime_tensor,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
                   data_type));
+
+          tt::runtime::deallocateTensor(runtime_tensor, /*force=*/true);
 
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
@@ -361,7 +359,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, *m_host_runtime_tensor, event.get(), m_data_type,
+      host_buffer, *m_prepared_runtime_tensor, event.get(), m_data_type,
       host_buffer_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is
@@ -491,8 +489,10 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    args->dst_size =
-        buffer->getConvertedRuntimeTensorSize(buffer->getHostRuntimeTensor());
+    assert(buffer->getHostRuntimeTensor().has_value() &&
+           "Host tensor not initialized");
+    args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
+        buffer->getHostRuntimeTensor().value(), buffer->getDataType());
     return nullptr;
   }
 

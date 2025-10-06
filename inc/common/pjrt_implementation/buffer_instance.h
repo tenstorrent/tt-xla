@@ -56,7 +56,7 @@ public:
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
-  createOutputBufferInstance(const tt::runtime::Tensor &tensor,
+  createOutputBufferInstance(const tt::runtime::Tensor &device_tensor,
                              std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
                              PJRT_Buffer_Type data_type);
@@ -116,9 +116,8 @@ public:
   // expected data type when copying to host, possibly leading to a different
   // size. This function will calculate the converted runtime tensor size to be
   // tensor_volume * expected_host_data_type_element_size
-  size_t getConvertedRuntimeTensorSize(
-      const std::optional<tt::runtime::Tensor> &runtime_tensor_opt =
-          std::nullopt) const;
+  static size_t getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
+                                              PJRT_Buffer_Type data_type);
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
@@ -167,10 +166,11 @@ private:
                  MemoryInstance *memory);
 
   // Constructor used for the output buffers.
-  BufferInstance(const tt::runtime::Tensor &tensor,
-                 const std::vector<std::uint32_t> &dimensions,
-                 DeviceInstance *device, MemoryInstance *memory,
-                 PJRT_Buffer_Type expected_data_type);
+  BufferInstance(
+      const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
+      MemoryInstance *memory, PJRT_Buffer_Type data_type,
+      const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
+      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);
