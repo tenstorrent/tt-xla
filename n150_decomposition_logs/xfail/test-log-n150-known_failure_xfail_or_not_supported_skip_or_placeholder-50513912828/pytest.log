@@ -1,0 +1,385 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+Using TT-Metal from wheel package: /__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/pjrt_plugin_tt/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0 -- /__w/tt-xla/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /__w/tt-xla/tt-xla
+configfile: pytest.ini
+plugins: split-0.10.0, forked-1.6.0, jaxtyping-0.3.2
+collecting ... Workaround to exclude model: suryaocr from discovery. Issue #1166
+
+
+[pytest-split] Splitting tests with algorithm: least_duration
+[pytest-split] Running group 2/3 (estimated duration: 5897.39s)
+
+collected 537 items / 491 deselected / 46 selected
+
+tests/runner/test_models.py::test_all_models[stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference] XFAILl initialization
+failed)
+tests/runner/test_models.py::test_all_models[mistral/pytorch-7b_instruct_v03-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference] SKIPPEDer' - https://github.com/tenstorrent/tt-
+xla/issues/1266)
+tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference] XFAIL the following
+scalar types: Long, Int; but got CPUBFloat16Type instead)
+tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference] XFAIL the following
+scalar types: Long, Int; but got CPUBFloat16Type instead)
+tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[d_fine/pytorch-large-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[stable_diffusion_3_5/pytorch-large-full-inference] SKIPPED)
+tests/runner/test_models.py::test_all_models[gliner/pytorch-urchade/gliner_multi-v2.1-full-inference] XFAILd')
+tests/runner/test_models.py::test_all_models[deepseek/deepseek_math/pytorch-7b_instruct-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-1.1-7b-it-full-inference] XFAIL DRAM buffer across 12 banks)
+tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-2b-it-full-inference] XFAILy=7)] grow to 2148032 B which is beyond max
+L1 size of 1499136 B - https://github.com/tenstorrent/tt-
+xla/issues/1244)
+tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-9b-it-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_2_5_coder/pytorch-7b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-30b_a3b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-qwq_32b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference] SKIPPED9)
+tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference] XFAIL fake tensors - https://github.com/tenstorrent/tt-
+xla/issues/1243)
+tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_l-full-inference] XFAIL fake tensors - https://github.com/tenstorrent/tt-
+xla/issues/1243)
+tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_x-full-inference] XFAIL fake tensors - https://github.com/tenstorrent/tt-
+xla/issues/1243)
+tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference] XFAIL1 buffer across 64 banks)
+tests/runner/test_models.py::test_all_models[yolov5/pytorch-yolov5l-full-inference] XFAILbut 7 were given -
+https://github.com/tenstorrent/tt-forge-models/issues/136)
+tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_70b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-full-inference] SKIPPED
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-huggyllama_7b-full-inference] SKIPPED
+tests/runner/test_models.py::test_placeholder_models[Qwen/Qwen2.5-VL-72B-Instruct] PASSED
+tests/runner/test_models.py::test_placeholder_models[meta-llama/Llama-4-Maverick-17B-128E-Instruct] PASSED
+tests/runner/test_models.py::test_placeholder_models[deepseek-ai/DeepSeek-V3] PASSED
+tests/runner/test_models.py::test_placeholder_models[panoptic deeplab] PASSED
+tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Small-3.1-24B-Instruct-2503] PASSED
+tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Large-Instruct-2411] PASSED
+tests/runner/test_models.py::test_placeholder_models[openai/gpt-oss-120b] PASSED
+tests/runner/test_models.py::test_placeholder_models[KLA Klassify] PASSED
+tests/runner/test_models.py::test_placeholder_models[bevdepth] PASSED
+tests/runner/test_models.py::test_placeholder_models[uniad] PASSED
+tests/runner/test_models.py::test_placeholder_models[maptr] PASSED
+tests/runner/test_models.py::test_placeholder_models[mistralai/Pixtral-12B-2409] PASSED
+tests/runner/test_models.py::test_placeholder_models[Gaussian Splatting] PASSED
+tests/runner/test_models.py::test_placeholder_models[Open VLA] PASSED
+============================================================
+DECOMPOSITION OPERATIONS LOG
+============================================================
+=== MODEL: stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference ===
+
+=== MODEL: mistral/pytorch-7b_instruct_v03-full-inference ===
+
+=== MODEL: phi3/phi_3_5_moe/pytorch-instruct-full-inference ===
+
+=== MODEL: phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference ===
+
+=== MODEL: phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference ===
+
+=== MODEL: d_fine/pytorch-nano-full-inference ===
+
+=== MODEL: d_fine/pytorch-large-full-inference ===
+
+=== MODEL: stable_diffusion_3_5/pytorch-large-full-inference ===
+
+=== MODEL: gliner/pytorch-urchade/gliner_multi-v2.1-full-inference ===
+
+=== MODEL: deepseek/deepseek_math/pytorch-7b_instruct-full-inference ===
+
+=== MODEL: gemma/pytorch-google/gemma-1.1-7b-it-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.type_as.default
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: slice_scatter.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: gemma/pytorch-google/gemma-2-2b-it-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_core_aten: aten.type_as.default
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_default: slice_scatter.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten.ones_like.default
+decomposition_core_aten: aten.tril.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: gemma/pytorch-google/gemma-2-9b-it-full-inference ===
+
+=== MODEL: qwen_2_5_coder/pytorch-7b-full-inference ===
+
+=== MODEL: qwen_3/causal_lm/pytorch-30b_a3b-full-inference ===
+
+=== MODEL: qwen_3/causal_lm/pytorch-qwq_32b-full-inference ===
+
+=== MODEL: falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference ===
+
+=== MODEL: qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference ===
+
+=== MODEL: qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference ===
+
+=== MODEL: qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference ===
+
+=== MODEL: perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference ===
+
+=== MODEL: yolox/pytorch-yolox_m-full-inference ===
+
+=== MODEL: yolox/pytorch-yolox_l-full-inference ===
+
+=== MODEL: yolox/pytorch-yolox_x-full-inference ===
+
+=== MODEL: glpn_kitti/pytorch-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_custom: upsample_bilinear2d.vec
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_core_aten: aten.divide.Tensor
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_core_aten: aten.squeeze.dim
+decomposition_default: squeeze.dims
+decomposition_custom: squeeze.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: yolov5/pytorch-yolov5l-full-inference ===
+
+=== MODEL: llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference ===
+
+=== MODEL: llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference ===
+
+=== MODEL: llama/sequence_classification/pytorch-llama_3_1_70b-full-inference ===
+
+=== MODEL: llama/causal_lm/pytorch-llama_3_8b-full-inference ===
+
+=== MODEL: llama/causal_lm/pytorch-llama_3_1_8b-full-inference ===
+
+=== MODEL: llama/causal_lm/pytorch-huggyllama_7b-full-inference ===
+
+=== MODEL: Qwen/Qwen2.5-VL-72B-Instruct ===
+
+=== MODEL: meta-llama/Llama-4-Maverick-17B-128E-Instruct ===
+
+=== MODEL: deepseek-ai/DeepSeek-V3 ===
+
+=== MODEL: panoptic deeplab ===
+
+=== MODEL: mistralai/Mistral-Small-3.1-24B-Instruct-2503 ===
+
+=== MODEL: mistralai/Mistral-Large-Instruct-2411 ===
+
+=== MODEL: openai/gpt-oss-120b ===
+
+=== MODEL: KLA Klassify ===
+
+=== MODEL: bevdepth ===
+
+=== MODEL: uniad ===
+
+=== MODEL: maptr ===
+
+=== MODEL: mistralai/Pixtral-12B-2409 ===
+
+=== MODEL: Gaussian Splatting ===
+
+=== MODEL: Open VLA ===
+============================================================
+
+
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+-------- generated xml file: /__w/tt-xla/tt-xla/report_50513912828.xml ---------
+============================== slowest durations ===============================
+643.85s call     tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]
+567.41s call     tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-1.1-7b-it-full-inference]
+235.90s call     tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-2b-it-full-inference]
+70.83s call     tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_x-full-inference]
+61.05s call     tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_l-full-inference]
+54.19s call     tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference]
+29.58s call     tests/runner/test_models.py::test_all_models[stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference]
+19.19s call     tests/runner/test_models.py::test_all_models[gliner/pytorch-urchade/gliner_multi-v2.1-full-inference]
+16.32s call     tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference]
+16.24s call     tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference]
+4.77s call     tests/runner/test_models.py::test_all_models[yolov5/pytorch-yolov5l-full-inference]
+2.68s teardown tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-1.1-7b-it-full-inference]
+1.66s teardown tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-2b-it-full-inference]
+1.36s teardown tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference]
+1.23s teardown tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]
+1.08s teardown tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_l-full-inference]
+0.98s teardown tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference]
+0.92s teardown tests/runner/test_models.py::test_all_models[stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference]
+0.80s teardown tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_x-full-inference]
+0.79s teardown tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference]
+0.69s teardown tests/runner/test_models.py::test_all_models[gliner/pytorch-urchade/gliner_multi-v2.1-full-inference]
+0.54s teardown tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]
+0.53s teardown tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference]
+0.53s teardown tests/runner/test_models.py::test_all_models[mistral/pytorch-7b_instruct_v03-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[yolov5/pytorch-yolov5l-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[d_fine/pytorch-large-full-inference]
+0.52s teardown tests/runner/test_models.py::test_placeholder_models[Open VLA]
+0.52s teardown tests/runner/test_models.py::test_all_models[deepseek/deepseek_math/pytorch-7b_instruct-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[stable_diffusion_3_5/pytorch-large-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-9b-it-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference]
+0.52s teardown tests/runner/test_models.py::test_placeholder_models[panoptic deeplab]
+0.52s teardown tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-qwq_32b-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference]
+0.52s teardown tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference]
+0.51s teardown tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-30b_a3b-full-inference]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[Qwen/Qwen2.5-VL-72B-Instruct]
+0.51s teardown tests/runner/test_models.py::test_all_models[qwen_2_5_coder/pytorch-7b-full-inference]
+0.51s teardown tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Large-Instruct-2411]
+0.51s teardown tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-full-inference]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[meta-llama/Llama-4-Maverick-17B-128E-Instruct]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[maptr]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[deepseek-ai/DeepSeek-V3]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[openai/gpt-oss-120b]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[mistralai/Pixtral-12B-2409]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[KLA Klassify]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Small-3.1-24B-Instruct-2503]
+0.51s teardown tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-huggyllama_7b-full-inference]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[Gaussian Splatting]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[bevdepth]
+0.51s teardown tests/runner/test_models.py::test_placeholder_models[uniad]
+0.51s teardown tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference]
+0.51s teardown tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-full-inference]
+0.51s teardown tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference]
+0.50s teardown tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_70b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-2b-it-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[mistral/pytorch-7b_instruct_v03-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-huggyllama_7b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[Qwen/Qwen2.5-VL-72B-Instruct]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_l-full-inference]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[meta-llama/Llama-4-Maverick-17B-128E-Instruct]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[panoptic deeplab]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[deepseek-ai/DeepSeek-V3]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Small-3.1-24B-Instruct-2503]
+0.01s setup    tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-9b-it-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-30b_a3b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-1.1-7b-it-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_2_5_coder/pytorch-7b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[glpn_kitti/pytorch-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-qwq_32b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_x-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[deepseek/deepseek_math/pytorch-7b_instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolox/pytorch-yolox_m-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_70b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[stable_diffusion_3_5/pytorch-large-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[gliner/pytorch-urchade/gliner_multi-v2.1-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolov5/pytorch-yolov5l-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[d_fine/pytorch-large-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[Gaussian Splatting]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[KLA Klassify]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[mistralai/Pixtral-12B-2409]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[uniad]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[openai/gpt-oss-120b]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[bevdepth]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[Open VLA]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Large-Instruct-2411]
+0.01s setup    tests/runner/test_models.py::test_placeholder_models[maptr]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-7b_instruct_1m-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_2_5_coder/pytorch-7b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[stable_diffusion_3_5/pytorch-large-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[deepseek/deepseek_math/pytorch-7b_instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-30b_a3b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[d_fine/pytorch-nano-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[phi3/phi_3_5_moe/pytorch-instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[mistral/pytorch-7b_instruct_v03-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b_instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_70b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[gemma/pytorch-google/gemma-2-9b-it-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-huggyllama_7b-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[d_fine/pytorch-large-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_2_5/casual_lm/pytorch-14b_instruct-full-inference]
+0.00s call     tests/runner/test_models.py::test_all_models[qwen_3/causal_lm/pytorch-qwq_32b-full-inference]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[bevdepth]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[maptr]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[Gaussian Splatting]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[Open VLA]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[uniad]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Large-Instruct-2411]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[mistralai/Pixtral-12B-2409]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[KLA Klassify]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[meta-llama/Llama-4-Maverick-17B-128E-Instruct]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[Qwen/Qwen2.5-VL-72B-Instruct]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[panoptic deeplab]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[mistralai/Mistral-Small-3.1-24B-Instruct-2503]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[deepseek-ai/DeepSeek-V3]
+0.00s call     tests/runner/test_models.py::test_placeholder_models[openai/gpt-oss-120b]
+= 14 passed, 21 skipped, 491 deselected, 11 xfailed, 2 warnings in 1762.93s (0:29:22) =

@@ -1,0 +1,4 @@
+[
+    { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "expected_passing", "parallel-groups": 7 },
+    { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "known_failure_xfail or not_supported_skip or placeholder", "parallel-groups": 2 }
+]

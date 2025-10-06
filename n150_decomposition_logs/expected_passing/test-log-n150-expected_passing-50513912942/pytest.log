@@ -1,0 +1,903 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+Using TT-Metal from wheel package: /__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/pjrt_plugin_tt/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0 -- /__w/tt-xla/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /__w/tt-xla/tt-xla
+configfile: pytest.ini
+plugins: split-0.10.0, forked-1.6.0, jaxtyping-0.3.2
+collecting ... Workaround to exclude model: suryaocr from discovery. Issue #1166
+
+
+[pytest-split] Splitting tests with algorithm: least_duration
+[pytest-split] Running group 10/10 (estimated duration: 3919.42s)
+
+collected 537 items / 502 deselected / 35 selected
+
+tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[fuyu/pytorch-adept/fuyu-8b-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[vit/pytorch-large-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[vit/pytorch-vit_b_16-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[unet/pytorch-carvana_unet-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-swin_v2_s-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-370m-hf-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-790m-hf-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-mono-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-nl-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w30-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w32-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w40-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[albert/masked_lm/pytorch-large_v2-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[deit/pytorch-base_distilled-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[deit/pytorch-small-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_no_pt_640x192-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[resnext/pytorch-resnext50_32x4d-full-inference] PASSED
+tests/runner/test_models.py::test_all_models[distilbert/masked_lm/pytorch-distilbert-base-uncased-full-inference] PASSED
+============================================================
+DECOMPOSITION OPERATIONS LOG
+============================================================
+=== MODEL: phi1/causal_lm/pytorch-microsoft/phi-1-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: slice_scatter.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: fuyu/pytorch-adept/fuyu-8b-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.square.default
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: vit/pytorch-large-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: vit/pytorch-vit_b_16-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.scaled_dot_product_attention.default
+decomposition_core_aten: aten._scaled_dot_product_attention_math.default
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: aten.squeeze.dim
+decomposition_default: squeeze.dims
+decomposition_custom: squeeze.default
+decomposition_core_aten: aten._safe_softmax.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.all.dim
+decomposition_core_aten: aten.zeros_like.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: unet/pytorch-carvana_unet-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_core_aten: aten.conv_transpose2d.input
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.pad.default
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.adaptive_avg_pool1d.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: aten.roll.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.zeros.default
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_default: slice_scatter.default
+decomposition_core_aten: aten.floor_divide.default
+decomposition_core_aten: aten.ones.default
+decomposition_core_aten: aten._unsafe_masked_index.default
+decomposition_default: _unsafe_index.Tensor
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_core_aten: aten.squeeze.dim
+decomposition_default: squeeze.dims
+decomposition_custom: squeeze.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: swin/image_classification/pytorch-swin_v2_s-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.pad.default
+decomposition_core_aten: aten.softmax.int
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: aten.zero.default
+decomposition_core_aten: aten.zeros_like.default
+decomposition_default: slice_scatter.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.floor_divide.default
+decomposition_core_aten: aten.ones.default
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten._unsafe_masked_index.default
+decomposition_default: _unsafe_index.Tensor
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: norm.ScalarOpt_dim
+decomposition_core_aten: aten.clamp_min.default
+decomposition_core_aten: aten.roll.default
+decomposition_core_aten: aten.new_zeros.default
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: wide_resnet/pytorch-wide_resnet50_2-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: mlp_mixer/pytorch-mixer_b16_224-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: mamba/pytorch-mamba-370m-hf-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.conv1d.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.zeros.default
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.silu.default
+decomposition_core_aten: aten.softplus.default
+decomposition_core_aten: aten.stack.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: mamba/pytorch-mamba-790m-hf-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.conv1d.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.zeros.default
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.silu.default
+decomposition_core_aten: aten.softplus.default
+decomposition_core_aten: aten.stack.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: codegen/pytorch-Salesforce/codegen-350M-mono-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.repeat_interleave.self_int
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: slice_scatter.default
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.stack.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: codegen/pytorch-Salesforce/codegen-350M-nl-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.repeat_interleave.self_int
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: slice_scatter.default
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.stack.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_custom: upsample_bilinear2d.vec
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_core_aten: aten.divide.Tensor
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: hrnet/pytorch-hrnet_w30-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: hrnet/pytorch-hrnet_w32-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: hrnet/pytorch-hrnet_w40-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: hrnet/pytorch-hrnetv2_w44_osmr-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: googlenet/pytorch-googlenet-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: albert/masked_lm/pytorch-large_v2-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: yolov6/pytorch-yolov6m-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.conv_transpose2d.input
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.silu.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.ones.default
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.triu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.where.ScalarOther
+decomposition_default: _to_copy.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: slice_scatter.default
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: split.Tensor
+decomposition_custom: split_with_sizes.default
+decomposition_core_aten: aten.squeeze.dim
+decomposition_default: squeeze.dims
+decomposition_custom: squeeze.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: deit/pytorch-base_distilled-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: deit/pytorch-small-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.transpose.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: monodepth2/pytorch-mono_640x192-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_core_aten: aten.pad.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.reflection_pad2d.default
+decomposition_core_aten: aten.arange.start
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: _unsafe_index.Tensor
+decomposition_core_aten: aten.elu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: monodepth2/pytorch-mono_no_pt_640x192-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_core_aten: aten.pad.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.reflection_pad2d.default
+decomposition_core_aten: aten.arange.start
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_default: _unsafe_index.Tensor
+decomposition_core_aten: aten.elu.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: resnet/pytorch-resnet50-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: yolov3/pytorch-base-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_custom: upsample_nearest2d.vec
+decomposition_core_aten: aten.one_hot.default
+decomposition_core_aten: aten.matmul.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.arange.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: xglm/pytorch-xglm-1.7B-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.max.other
+decomposition_core_aten: aten.softmax.int
+decomposition_core_aten: aten.arange.start
+decomposition_default: full.default
+decomposition_core_aten: aten.fill.Scalar
+decomposition_core_aten: aten.arange.default
+decomposition_default: masked_fill.Scalar
+decomposition_core_aten: aten.where.ScalarSelf
+decomposition_default: _to_copy.default
+decomposition_core_aten: aten.rsub.Scalar
+decomposition_core_aten: aten.squeeze.dim
+decomposition_default: squeeze.dims
+decomposition_custom: squeeze.default
+decomposition_core_aten: aten.detach.default
+decomposition_default: native_layer_norm.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: resnext/pytorch-resnext50_32x4d-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.conv2d.default
+decomposition_core_aten: aten._propagate_xla_data.default
+decomposition_core_aten: aten.max_pool2d.default
+decomposition_custom: adaptive_avg_pool2d.default
+decomposition_core_aten: aten.linear.default
+decomposition_default: _native_batch_norm_legit_no_training.default
+decomposition_default: _native_batch_norm_legit.default
+decomposition_default: _to_copy.default
+decomposition_default: _adaptive_avg_pool2d.default
+decomposition_custom: avg_pool2d.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_default: addmm.default
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+
+=== MODEL: distilbert/masked_lm/pytorch-distilbert-base-uncased-full-inference ===
+decomposition_core_aten: profiler._record_function_enter_new.default
+decomposition_core_aten: aten.layer_norm.default
+decomposition_core_aten: aten.var_mean.dim
+decomposition_core_aten: aten.linear.default
+decomposition_core_aten: aten.matmul.default
+decomposition_core_aten: aten.softmax.int
+decomposition_default: native_layer_norm.default
+decomposition_default: _to_copy.default
+decomposition_default: t.default
+decomposition_core_aten: aten.transpose.int
+decomposition_core_aten: aten._unsafe_view.default
+decomposition_custom: masked_fill.Tensor
+decomposition_core_aten: profiler._record_function_exit._RecordFunction
+============================================================
+
+
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+-------- generated xml file: /__w/tt-xla/tt-xla/report_50513912942.xml ---------
+============================== slowest durations ===============================
+485.01s call     tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference]
+472.51s call     tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w40-full-inference]
+467.18s call     tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w30-full-inference]
+465.15s call     tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference]
+439.88s call     tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-swin_v2_s-full-inference]
+436.56s call     tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w32-full-inference]
+387.88s call     tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-790m-hf-full-inference]
+355.75s call     tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference]
+355.75s call     tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-inference]
+354.21s call     tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-370m-hf-full-inference]
+332.70s call     tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_no_pt_640x192-full-inference]
+271.72s call     tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference]
+261.83s call     tests/runner/test_models.py::test_all_models[segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-full-inference]
+211.70s call     tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-inference]
+188.84s call     tests/runner/test_models.py::test_all_models[opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference]
+185.46s call     tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-inference]
+182.39s call     tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference]
+157.37s call     tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-mono-full-inference]
+149.27s call     tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference]
+145.87s call     tests/runner/test_models.py::test_all_models[unet/pytorch-carvana_unet-full-inference]
+145.08s call     tests/runner/test_models.py::test_all_models[resnext/pytorch-resnext50_32x4d-full-inference]
+144.10s call     tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50-full-inference]
+132.27s call     tests/runner/test_models.py::test_all_models[bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-full-inference]
+128.72s call     tests/runner/test_models.py::test_all_models[vit/pytorch-large-full-inference]
+128.58s call     tests/runner/test_models.py::test_all_models[albert/masked_lm/pytorch-large_v2-full-inference]
+127.92s call     tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-nl-full-inference]
+122.42s call     tests/runner/test_models.py::test_all_models[fuyu/pytorch-adept/fuyu-8b-full-inference]
+113.15s call     tests/runner/test_models.py::test_all_models[vit/pytorch-vit_b_16-full-inference]
+98.78s call     tests/runner/test_models.py::test_all_models[deit/pytorch-base_distilled-full-inference]
+95.24s call     tests/runner/test_models.py::test_all_models[deit/pytorch-small-full-inference]
+88.50s call     tests/runner/test_models.py::test_all_models[bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-full-inference]
+82.37s call     tests/runner/test_models.py::test_all_models[distilbert/masked_lm/pytorch-distilbert-base-uncased-full-inference]
+82.17s call     tests/runner/test_models.py::test_all_models[dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-full-inference]
+75.86s call     tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224-full-inference]
+65.43s call     tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference]
+2.72s teardown tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference]
+2.70s teardown tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-370m-hf-full-inference]
+2.68s teardown tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-790m-hf-full-inference]
+2.51s teardown tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w32-full-inference]
+1.88s teardown tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-swin_v2_s-full-inference]
+1.70s teardown tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w30-full-inference]
+1.66s teardown tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-inference]
+1.61s teardown tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w40-full-inference]
+1.48s teardown tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-inference]
+1.27s teardown tests/runner/test_models.py::test_all_models[dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-full-inference]
+1.19s teardown tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference]
+1.15s teardown tests/runner/test_models.py::test_all_models[bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-full-inference]
+1.11s teardown tests/runner/test_models.py::test_all_models[opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference]
+1.09s teardown tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-nl-full-inference]
+1.06s teardown tests/runner/test_models.py::test_all_models[vit/pytorch-large-full-inference]
+1.05s teardown tests/runner/test_models.py::test_all_models[vit/pytorch-vit_b_16-full-inference]
+1.04s teardown tests/runner/test_models.py::test_all_models[fuyu/pytorch-adept/fuyu-8b-full-inference]
+0.98s teardown tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-mono-full-inference]
+0.93s teardown tests/runner/test_models.py::test_all_models[albert/masked_lm/pytorch-large_v2-full-inference]
+0.92s teardown tests/runner/test_models.py::test_all_models[deit/pytorch-small-full-inference]
+0.89s teardown tests/runner/test_models.py::test_all_models[segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-full-inference]
+0.89s teardown tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-inference]
+0.86s teardown tests/runner/test_models.py::test_all_models[distilbert/masked_lm/pytorch-distilbert-base-uncased-full-inference]
+0.85s teardown tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference]
+0.78s teardown tests/runner/test_models.py::test_all_models[deit/pytorch-base_distilled-full-inference]
+0.72s teardown tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference]
+0.67s teardown tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference]
+0.63s teardown tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_no_pt_640x192-full-inference]
+0.57s teardown tests/runner/test_models.py::test_all_models[bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-full-inference]
+0.56s teardown tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50-full-inference]
+0.56s teardown tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224-full-inference]
+0.53s teardown tests/runner/test_models.py::test_all_models[resnext/pytorch-resnext50_32x4d-full-inference]
+0.51s teardown tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference]
+0.45s teardown tests/runner/test_models.py::test_all_models[unet/pytorch-carvana_unet-full-inference]
+0.42s teardown tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w40-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolov6/pytorch-yolov6m-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[vit/pytorch-large-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w32-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnetv2_w44_osmr-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[resnext/pytorch-resnext50_32x4d-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[opt/causal_lm/pytorch-facebook/opt-1.3b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[googlenet/pytorch-googlenet-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[albert/masked_lm/pytorch-large_v2-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[fuyu/pytorch-adept/fuyu-8b-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[deit/pytorch-base_distilled-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[phi1/causal_lm/pytorch-microsoft/phi-1-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[xglm/pytorch-xglm-1.7B-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[unet/pytorch-carvana_unet-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_no_pt_640x192-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-790m-hf-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-nl-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[wide_resnet/pytorch-wide_resnet50_2-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224_in21k-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[hrnet/pytorch-hrnet_w30-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[deit/pytorch-small-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[codegen/pytorch-Salesforce/codegen-350M-mono-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[monodepth2/pytorch-mono_640x192-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[distilbert/masked_lm/pytorch-distilbert-base-uncased-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[resnet/pytorch-resnet50-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[swin/image_classification/pytorch-swin_v2_s-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[mamba/pytorch-mamba-370m-hf-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[mlp_mixer/pytorch-mixer_b16_224-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[yolov3/pytorch-base-full-inference]
+0.01s setup    tests/runner/test_models.py::test_all_models[vit/pytorch-vit_b_16-full-inference]
+========= 35 passed, 502 deselected, 2 warnings in 7985.73s (2:13:05) ==========
