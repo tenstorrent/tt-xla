@@ -105,14 +105,24 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::getConvertedRuntimeTensorSize() const {
-  assert(m_host_runtime_tensor.has_value() &&
-         "Trying to get runtime tensor size of uninitialized tensor");
-  std::uint32_t runtime_tensor_size =
-      tt::runtime::getTensorVolume(*m_host_runtime_tensor) *
-      tt::runtime::utils::dataTypeElementSize(
-          data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
-
+size_t BufferInstance::getConvertedRuntimeTensorSize(
+    const std::optional<tt::runtime::Tensor> &runtime_tensor_opt) const {
+  const tt::runtime::Tensor *tensor_ptr = nullptr;
+  if (runtime_tensor_opt.has_value()) {
+    tensor_ptr = &runtime_tensor_opt.value();
+  } else {
+    assert(m_host_runtime_tensor.has_value() &&
+           "Trying to get runtime tensor size of uninitialized tensor");
+    tensor_ptr = &m_host_runtime_tensor.value();
+  }
+  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(*tensor_ptr);
+  std::uint32_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
+      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
+  std::uint32_t runtime_tensor_size = tensor_volume * dtype_element_size;
+  DLOG_F(LOG_DEBUG,
+         "BufferInstance::getConvertedRuntimeTensorSize: volume=%u, "
+         "dtype_element_size=%u, total_size=%u",
+         tensor_volume, dtype_element_size, runtime_tensor_size);
   return static_cast<size_t>(runtime_tensor_size);
 }
 
@@ -304,17 +314,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           EventInstance **out_copy_done_event) {
   assert(m_host_runtime_tensor.has_value() &&
          "Trying to copy from uninitialized tensor");
-  // Making sure that the host buffer size is greater than or equal to the
-  // runtime tensor size.
-  size_t runtime_tensor_size = getConvertedRuntimeTensorSize();
-  if (runtime_tensor_size > host_buffer_size) {
-    DLOG_F(ERROR,
-           "Tried to copy device buffer to the host buffer with smaller size "
-           "than required (device buffer size: %zu, host buffer size: %zu)",
-           runtime_tensor_size, host_buffer_size);
-    out_copy_done_event = nullptr;
-    return tt_pjrt_status::kFailedPrecondition;
-  }
 
   // Wait if there is a copy already in progress.
   if (m_copy_to_host_thread) {
@@ -327,13 +326,31 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
          EventInstance *event, PJRT_Buffer_Type data_type,
-         size_t runtime_tensor_size) {
+         size_t host_buffer_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-          tt::runtime::toHost(runtime_tensor, /*untilize=*/true); 
+          std::vector<tt::runtime::Tensor> host_runtime_tensors =
+              tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
+          tt::runtime::Tensor first_host_runtime_tensor =
+              host_runtime_tensors[0];
+
+          // Making sure that the host buffer size is greater than or equal to
+          // the runtime tensor size.
+
+          // size_t runtime_tensor_size =
+          // getConvertedRuntimeTensorSize(first_host_runtime_tensor); if
+          // (runtime_tensor_size > host_buffer_size) {
+          //   DLOG_F(ERROR,
+          //         "Tried to copy device buffer to the host buffer with
+          //         smaller size " "than required (device buffer size: %zu,
+          //         host buffer size: %zu)", runtime_tensor_size,
+          //         host_buffer_size);
+          //   out_copy_done_event = nullptr;
+          //   return tt_pjrt_status::kFailedPrecondition;
+          // }
 
           tt::runtime::memcpy(
-              host_buffer, runtime_tensor,
+              host_buffer, first_host_runtime_tensor,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
                   data_type));
 
@@ -345,7 +362,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         event->markAsReady(copy_status);
       },
       host_buffer, *m_host_runtime_tensor, event.get(), m_data_type,
-      runtime_tensor_size);
+      host_buffer_size);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
@@ -474,7 +491,8 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    args->dst_size = buffer->getConvertedRuntimeTensorSize();
+    args->dst_size =
+        buffer->getConvertedRuntimeTensorSize(buffer->getHostRuntimeTensor());
     return nullptr;
   }
 

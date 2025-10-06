@@ -162,6 +162,10 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
       auto expected_output_data_types = m_executable_image->getOutputTypes();
 
+      // Convert to host tensor!
+      // tt::runtime::Tensor outputHostTensor =
+      // tt::runtime::toHost(outputDeviceTensor, /*untilize=*/true)[0];
+
       // replicated case - repeat
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
@@ -171,7 +175,7 @@ LoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
               expected_output_data_types[output_index]);
       DLOG_F(
           LOG_DEBUG,
-          "--[JAMES] filled at output index %d device index %d with shape %s",
+          "--[JAMES] filled at output index %zu device index %d with shape %s",
           output_index, device_index, output_buffer->toShapeStr().c_str());
 
       output_buffer->markAsDataReady();
