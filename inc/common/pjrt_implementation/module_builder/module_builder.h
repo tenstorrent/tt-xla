@@ -174,6 +174,13 @@ private:
   tt_pjrt_status
   runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
+  // In SPMD mode, a fully replicated graph may default to a degenerate mesh
+  // [1,1], which is not what we want—every device should run with the same
+  // inputs/weights. This function detects that case and rewrites the mesh to
+  // [1, num_devices] so fully replicated graphs execute as intended.
+  tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const;
+
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
   convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
