@@ -96,6 +96,7 @@ class TorchModelTester(ModelTester):
         if has_shard_specs and is_multichip:
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             xr.use_spmd()
+            torch_xla.set_custom_compile_options({"is_spmd_mode": True})
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
