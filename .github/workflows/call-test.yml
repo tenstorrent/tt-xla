@@ -92,6 +92,9 @@ jobs:
         git config --global --add safe.directory /__w/tt-xla/tt-xla
         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
+    - name: Log disk space
+      run: df -h
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
