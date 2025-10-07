@@ -13,12 +13,12 @@ on:
         options:
           - 'basic-test.json'
           - 'basic-test-nightly.json'
-          - 'basic-and-models-push.json'
           - 'model-test-push.json'
           - 'model-test-full.json'
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
+          - 'custom-basic-and-models-push.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
