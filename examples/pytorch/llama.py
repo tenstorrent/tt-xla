@@ -134,12 +134,12 @@ def llama():
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
-    model.compile(backend="tt")
+    compiled_model = torch.compile(model, backend="tt")
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
         for step in range(tokens_to_generate):
-            output: CausalLMOutputWithPast = model(**input_args)
+            output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
             output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
