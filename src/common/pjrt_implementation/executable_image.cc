@@ -13,21 +13,16 @@
 // c++ standard library includes
 #include <cassert>
 #include <functional>
-#include <memory>
 #include <sstream>
 #include <string>
 
 // tt-xla includes
 #include "common/pjrt_implementation/data_type_utils.h"
-#include "common/pjrt_implementation/flatbuffer_loaded_executable_instance.h"
-#include "common/pjrt_implementation/loaded_executable_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
-#include "common/pjrt_implementation/so_loaded_executable_instance.h"
 
 namespace tt::pjrt {
 
-std::shared_ptr<FlatbufferExecutableImage>
-FlatbufferExecutableImage::createInstance(
+std::shared_ptr<ExecutableImage> ExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
     std::string &&original_mlir_code, std::string &&ttir_mlir_code,
     std::string &&ttnn_mlir_code, std::string &&executable_name,
@@ -40,10 +35,10 @@ FlatbufferExecutableImage::createInstance(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-    std::vector<const char *> output_memory_kinds,
-    std::vector<size_t> output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
-  struct make_shared_enabler : public FlatbufferExecutableImage {
+    std::vector<const char *> &&output_memory_kinds,
+    std::vector<size_t> &&output_memory_kinds_sizes,
+    module_builder::CompileOptions &&compile_options) {
+  struct make_shared_enabler : public ExecutableImage {
     make_shared_enabler(
         const tt::runtime::Binary &flatbuffer_binary,
         std::string &&original_mlir_code, std::string &&ttir_mlir_code,
@@ -62,18 +57,18 @@ FlatbufferExecutableImage::createInstance(
         const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
         std::vector<const char *> &&output_memory_kinds,
         std::vector<size_t> &&output_memory_kinds_sizes,
-        CompileOptions &&compile_options)
-        : FlatbufferExecutableImage(
-              flatbuffer_binary, std::move(original_mlir_code),
-              std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
-              std::move(executable_name), num_inputs, num_outputs,
-              std::move(output_dimensions), std::move(output_ranks),
-              std::move(output_dimensions_flat), num_partitions, num_replicas,
-              num_devices_to_utilize, devices_mesh_shape, input_sharding,
-              output_sharding, expected_output_data_types,
-              std::move(output_memory_kinds),
-              std::move(output_memory_kinds_sizes),
-              std::move(compile_options)) {}
+        module_builder::CompileOptions &&compile_options)
+        : ExecutableImage(flatbuffer_binary, std::move(original_mlir_code),
+                          std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
+                          std::move(executable_name), num_inputs, num_outputs,
+                          std::move(output_dimensions), std::move(output_ranks),
+                          std::move(output_dimensions_flat), num_partitions,
+                          num_replicas, num_devices_to_utilize,
+                          devices_mesh_shape, input_sharding, output_sharding,
+                          expected_output_data_types,
+                          std::move(output_memory_kinds),
+                          std::move(output_memory_kinds_sizes),
+                          std::move(compile_options)) {}
   };
 
   return std::make_shared<make_shared_enabler>(
@@ -89,6 +84,7 @@ FlatbufferExecutableImage::createInstance(
 }
 
 ExecutableImage::ExecutableImage(
+    const tt::runtime::Binary &flatbuffer_binary,
     std::string &&original_mlir_code, std::string &&ttir_mlir_code,
     std::string &&ttnn_mlir_code, std::string &&executable_name,
     size_t num_inputs, size_t num_outputs,
@@ -102,8 +98,9 @@ ExecutableImage::ExecutableImage(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options)
-    : m_original_mlir_code(std::move(original_mlir_code)),
+    module_builder::CompileOptions &&compile_options)
+    : m_flatbuffer_binary(flatbuffer_binary),
+      m_original_mlir_code(std::move(original_mlir_code)),
       m_ttir_mlir(std::move(ttir_mlir_code)),
       m_ttnn_mlir(std::move(ttnn_mlir_code)),
       m_executable_name(std::move(executable_name)), m_num_inputs(num_inputs),
@@ -120,99 +117,43 @@ ExecutableImage::ExecutableImage(
       m_output_memory_kinds_sizes(std::move(output_memory_kinds_sizes)),
       m_compile_options(std::move(compile_options)) {
 
-  assert(m_num_inputs == m_input_sharding.size());
-  assert(m_num_outputs == m_output_sharding.size());
-}
-
-FlatbufferExecutableImage::FlatbufferExecutableImage(
-    const tt::runtime::Binary &flatbuffer_binary,
-    std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-    std::string &&ttnn_mlir_code, std::string &&executable_name,
-    size_t num_inputs, size_t num_outputs,
-    std::vector<std::vector<std::uint32_t>> output_dimensions,
-    std::vector<size_t> output_ranks,
-    std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
-    size_t num_replicas, size_t num_devices_to_utilize,
-    const std::vector<std::uint32_t> &devices_mesh_shape,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-    std::vector<const char *> &&output_memory_kinds,
-    std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options)
-    : m_flatbuffer_binary(flatbuffer_binary),
-      ExecutableImage(
-          std::move(original_mlir_code), std::move(ttir_mlir_code),
-          std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
-          num_outputs, std::move(output_dimensions), std::move(output_ranks),
-          std::move(output_dimensions_flat), num_partitions, num_replicas,
-          num_devices_to_utilize, devices_mesh_shape, input_sharding,
-          output_sharding, expected_output_data_types,
-          std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(compile_options)) {
+  // Generate fingerprint after all dependencies are initialized
+  m_fingerprint = generateFingerprint();
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
-  assert(this->getNumInputs() ==
+  assert(m_num_inputs ==
          m_flatbuffer_binary.getProgramInputs(program_index).size());
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_flatbuffer_binary.getProgramOutputs(program_index);
-  assert(this->getNumOutputs() == output_specs.size());
+  assert(m_num_outputs == output_specs.size());
+
+  assert(m_num_inputs == m_input_sharding.size());
+  assert(m_num_outputs == m_output_sharding.size());
 
   int output_dims_so_far = 0;
-  for (size_t output_index = 0; output_index < getNumOutputs();
-       ++output_index) {
-    assert(getOutputDimensions()[output_index] ==
+  for (size_t output_index = 0; output_index < m_num_outputs; ++output_index) {
+    assert(m_output_dimensions[output_index] ==
                output_specs[output_index].shape &&
            "Output shape from flatbuffer binary does not match the one "
            "collected from the MLIR module");
 
-    assert(getOutputRanks()[output_index] ==
-               getOutputDimensions()[output_index].size() &&
+    assert(m_output_ranks[output_index] ==
+               m_output_dimensions[output_index].size() &&
            "Output rank from flatbuffer binary does not match the one "
            "collected from the MLIR module");
 
     for (auto dim_index = 0;
-         dim_index < getOutputDimensions()[output_index].size(); dim_index++) {
-      assert(getOutputDimensionsFlat()[output_dims_so_far + dim_index] ==
+         dim_index < m_output_dimensions[output_index].size(); dim_index++) {
+      assert(m_output_dimensions_flat[output_dims_so_far + dim_index] ==
                  static_cast<std::int64_t>(
-                     getOutputDimensions()[output_index][dim_index]) &&
+                     m_output_dimensions[output_index][dim_index]) &&
              "Output flat dimension from flatbuffer binary does not match the "
              "one collected from the MLIR module");
     }
 
-    output_dims_so_far += getOutputDimensions()[output_index].size();
+    output_dims_so_far += m_output_dimensions[output_index].size();
   }
-
-  // Generate fingerprint after all dependencies are initialized
-  m_fingerprint = generateFingerprint();
-}
-
-SOExecutableImage::SOExecutableImage(
-    std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-    std::string &&ttnn_mlir_code, std::string &&executable_name,
-    size_t num_inputs, size_t num_outputs,
-    std::vector<std::vector<std::uint32_t>> output_dimensions,
-    std::vector<size_t> output_ranks,
-    std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
-    size_t num_replicas, size_t num_devices_to_utilize,
-    const std::vector<std::uint32_t> &devices_mesh_shape,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_sharding,
-    const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-    std::vector<const char *> &&output_memory_kinds,
-    std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options)
-    : ExecutableImage(
-          std::move(original_mlir_code), std::move(ttir_mlir_code),
-          std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
-          num_outputs, std::move(output_dimensions), std::move(output_ranks),
-          std::move(output_dimensions_flat), num_partitions, num_replicas,
-          num_devices_to_utilize, devices_mesh_shape, input_sharding,
-          output_sharding, expected_output_data_types,
-          std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(compile_options)) {
-  m_fingerprint = generateFingerprint();
 }
 
 const std::vector<std::uint32_t> &
@@ -254,16 +195,7 @@ std::string ExecutableImage::generateFingerprint() const {
                << m_compile_options.enable_fusing_conv2d_with_multiply_pattern
                << "\n";
 
-  return data_to_hash.str();
-}
-
-std::string FlatbufferExecutableImage::generateFingerprint() const {
-  std::stringstream data_to_hash;
-
-  // Get base fingerprint data
-  data_to_hash << ExecutableImage::generateFingerprint();
-
-  // 3. Add compiler version (specific to flatbuffer)
+  // 3. Add compiler version
   data_to_hash << "ttmlir_version:" << m_flatbuffer_binary.getVersion() << "\n";
 
   // 4. Generate hash using std::hash
@@ -274,39 +206,6 @@ std::string FlatbufferExecutableImage::generateFingerprint() const {
   std::stringstream hex_ss;
   hex_ss << std::hex << hash_value;
   return hex_ss.str();
-}
-
-std::string SOExecutableImage::generateFingerprint() const {
-  std::stringstream data_to_hash;
-
-  // Get base fingerprint data
-  data_to_hash << ExecutableImage::generateFingerprint();
-
-  // 4. Generate hash using std::hash
-  std::hash<std::string> hasher;
-  size_t hash_value = hasher(data_to_hash.str());
-
-  // Convert to hex string
-  std::stringstream hex_ss;
-  hex_ss << std::hex << hash_value;
-  return hex_ss.str();
-}
-
-std::unique_ptr<LoadedExecutableInstance>
-FlatbufferExecutableImage::toExecutableInstance(
-    std::vector<DeviceInstance *> &&addressable_devices,
-    ClientInstance *client_instance) {
-
-  return FlatbufferLoadedExecutableInstance::createInstance(
-      shared_from_this(), std::move(addressable_devices), client_instance);
-}
-
-std::unique_ptr<LoadedExecutableInstance>
-SOExecutableImage::toExecutableInstance(
-    std::vector<DeviceInstance *> &&addressable_devices,
-    ClientInstance *client_instance) {
-  return SOLoadedExecutableInstance::createInstance(
-      shared_from_this(), std::move(addressable_devices), client_instance);
 }
 
 } // namespace tt::pjrt
