@@ -87,9 +87,15 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
 
     device = torch_xla.device()
     compiled_fn = torch.compile(attention.to(device), backend="tt")
-    position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+    position_embeddings = (
+        position_embeddings[0].to(device),
+        position_embeddings[1].to(device),
+    )
     output = compiled_fn(
-        hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+        hidden_states.to(device),
+        position_embeddings,
+        attention_mask.to(device),
+        past_key_states,
     )
 
     comparator = TorchComparator(
@@ -142,9 +148,15 @@ def test_llama_attention_decode(variant, variant_config):
         past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
         past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
         compiled_fn = torch.compile(attention.to(device), backend="tt")
-        position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+        position_embeddings = (
+            position_embeddings[0].to(device),
+            position_embeddings[1].to(device),
+        )
         output = compiled_fn(
-            hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+            hidden_states.to(device),
+            position_embeddings,
+            attention_mask.to(device),
+            past_key_states,
         )
 
     comparator = TorchComparator(
@@ -254,7 +266,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024]) 
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -351,7 +363,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
 
 
 """Qwen3 attention tests"""
-# TODO: Only create heads is different from Llama, consider merging the two.
+
 
 @pytest.mark.nightly
 @pytest.mark.parametrize("seq_len", [1024])
@@ -363,7 +375,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
 def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     if "qwq_32b" in str(variant):
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-    
+
     xr.set_device_type("TT")
 
     loader = QwenModelLoader(variant=variant)
@@ -384,9 +396,15 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
 
     device = torch_xla.device()
     compiled_fn = torch.compile(attention.to(device), backend="tt")
-    position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+    position_embeddings = (
+        position_embeddings[0].to(device),
+        position_embeddings[1].to(device),
+    )
     output = compiled_fn(
-        hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+        hidden_states.to(device),
+        position_embeddings,
+        attention_mask.to(device),
+        past_key_states,
     )
 
     comparator = TorchComparator(
@@ -394,7 +412,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
             pcc=PccConfig(required_pcc=0.99),
         )
     )
-    
+
     comparator.compare(output[0].cpu(), golden[0])
     comparator.compare(output[1].cpu(), golden[1])
 
@@ -444,9 +462,15 @@ def test_qwen3_attention_decode(variant, variant_config):
         past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
         past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
         compiled_fn = torch.compile(attention.to(device), backend="tt")
-        position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+        position_embeddings = (
+            position_embeddings[0].to(device),
+            position_embeddings[1].to(device),
+        )
         output = compiled_fn(
-            hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+            hidden_states.to(device),
+            position_embeddings,
+            attention_mask.to(device),
+            past_key_states,
         )
 
     comparator = TorchComparator(
@@ -456,7 +480,6 @@ def test_qwen3_attention_decode(variant, variant_config):
     )
     comparator.compare(output[0].cpu(), golden[0])
     comparator.compare(output[1].cpu(), golden[1])
-    
 
 
 @pytest.mark.nightly
@@ -515,7 +538,9 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
     xr.set_device_type("TT")
 
-    def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm):
+    def create_heads(
+        hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
+    ):
         # Key difference from Llama - Q/K normalization
         query_states = q_norm(q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
         key_states = k_norm(k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
@@ -544,7 +569,9 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     q_norm = attention.q_norm
     k_norm = attention.k_norm
 
-    golden = create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm)
+    golden = create_heads(
+        hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
+    )
 
     device = torch_xla.device()
     compiled_fn = torch.compile(create_heads, backend="tt")
@@ -578,7 +605,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 def test_qwen3_sdpa(variant, variant_config, seq_len):
     if "qwq_32b" in str(variant):
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-        
+
     xr.set_device_type("TT")
 
     def sdpa(
@@ -604,7 +631,9 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
             attention_mask,
             dropout=dropout,
             scaling=scaling,
-            sliding_window=getattr(attention_module, 'sliding_window', None),  # Qwen3 specific
+            sliding_window=getattr(
+                attention_module, "sliding_window", None
+            ),  # Qwen3 specific
         )
         return attn_output, attn_weights
 
