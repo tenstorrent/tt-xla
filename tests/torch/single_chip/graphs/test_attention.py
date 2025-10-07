@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import torch
 import torch_xla
 import torch_xla.runtime as xr
@@ -161,6 +162,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     xr.set_device_type("TT")
 
     def concat_heads(attn_output, input_shape):
+        attn_output = attn_output.transpose(1, 2).contiguous()
         return attn_output.reshape(*input_shape, -1).contiguous()
 
     loader = LlamaModelLoader(variant=variant)
