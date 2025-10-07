@@ -34,6 +34,8 @@ class ModelTestStatus(Enum):
     NOT_SUPPORTED_SKIP = "not_supported_skip"
     # New model, awaiting triage
     UNSPECIFIED = "unspecified"
+    # Avoid import and auto discovery. Can be used if model test is hand written.
+    EXCLUDE_MODEL = "exclude_model"
 
 
 class ModelTestConfig:
