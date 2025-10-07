@@ -28,6 +28,9 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as QwenModelLoader,
 )
+from third_party.tt_forge_models.bge_m3.pytorch.loader import (
+    ModelLoader as BgeModelLoader,
+)
 
 # To see all available models and variants, run:
 # pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants
@@ -35,6 +38,7 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
     "qwen3": QwenModelLoader,
+    "bge_m3": BgeModelLoader,
 }
 
 
@@ -282,8 +286,10 @@ def test_llama_sdpa(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config):
-    if "qwq_32b" in str(variant):
+    if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
@@ -333,8 +339,10 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config):
-    if "qwq_32b" in str(variant):
+    if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
@@ -399,8 +407,10 @@ def test_qwen3_attention_decode(variant, variant_config):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_concat_heads(variant, variant_config, seq_len):
-    if "qwq_32b" in str(variant):
+    if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
@@ -442,8 +452,10 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_create_heads(variant, variant_config, seq_len):
-    if "qwq_32b" in str(variant):
+    if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
@@ -512,8 +524,10 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_sdpa(variant, variant_config, seq_len):
-    if "qwq_32b" in str(variant):
+    if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
