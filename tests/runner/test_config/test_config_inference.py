@@ -2498,4 +2498,9 @@ test_config = {
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "pointpillars/pytorch-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
 }
