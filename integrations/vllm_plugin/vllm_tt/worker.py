@@ -35,6 +35,11 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
 
+import torch_xla.core.xla_model as xm
+import torch_xla.debug.profiler as xp
+import torch_xla.runtime as xr
+from .model_runner import TTModelRunner
+from .pooling_runner import TTPoolingModelRunner
 from .attention import TT_HEAD_SIZE_ALIGNMENT
 from .model_runner import TTModelRunner
 
@@ -152,7 +157,11 @@ class TTWorker:
             xr.initialize_cache(per_rank_path, readonly=False)
 
         # Init ModelRunner here, so that we have access to self.device.
-        self.model_runner = TTModelRunner(
+        ModelRunnerClass = TTModelRunner
+        if self.model_config.runner_type == "pooling":
+            ModelRunnerClass = TTPoolingModelRunner
+
+        self.model_runner = ModelRunnerClass(
             self.vllm_config, self.device, self.original_parallel_config
         )
 
@@ -161,6 +170,8 @@ class TTWorker:
             report_usage_stats(self.vllm_config)
 
     def determine_available_memory(self) -> int:
+        if self.model_config.runner_type == "pooling":
+            return int(11596411699)
         kv_caches: dict[str, torch.Tensor] = {}
         kv_cache_spec = self.model_runner.get_kv_cache_spec()
         for layer_name, layer_spec in kv_cache_spec.items():
