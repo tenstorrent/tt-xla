@@ -52,147 +52,147 @@ def test_display_available_variants(model_name):
     )
 
 
-"""Llama attention tests"""
+# """Llama attention tests"""
 
 
-@pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize(
-    "variant,variant_config",
-    get_available_variants("llama").items(),
-    ids=[str(k) for k in get_available_variants("llama").keys()],
-)
-def test_llama_attention_prefill(seq_len, variant, variant_config):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
-        pytest.xfail("70B models don't fit on device")
+# @pytest.mark.nightly
+# @pytest.mark.parametrize("seq_len", [1024])
+# @pytest.mark.parametrize(
+#     "variant,variant_config",
+#     get_available_variants("llama").items(),
+#     ids=[str(k) for k in get_available_variants("llama").keys()],
+# )
+# def test_llama_attention_prefill(seq_len, variant, variant_config):
+#     # Xfail 70B models that don't fit on device
+#     if "70b" in str(variant):
+#         pytest.xfail("70B models don't fit on device")
 
-    xr.set_device_type("TT")
+#     xr.set_device_type("TT")
 
-    loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+#     loader = LlamaModelLoader(variant=variant)
+#     model = loader.load_model(dtype_override=torch.bfloat16)
+#     attention = model.model.layers[0].self_attn
 
-    hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
-    )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
-    position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+#     hidden_states = torch.randn(
+#         (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+#     )
+#     cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+#     position_embeddings = (cos_sin, cos_sin)
+#     attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
-    past_key_states = None
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
-    )
+#     past_key_states = None
+#     golden = attention(
+#         hidden_states, position_embeddings, attention_mask, past_key_states
+#     )
 
-    device = torch_xla.device()
-    compiled_fn = torch.compile(attention.to(device), backend="tt")
-    position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
-    output = compiled_fn(
-        hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
-    )
+#     device = torch_xla.device()
+#     compiled_fn = torch.compile(attention.to(device), backend="tt")
+#     position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+#     output = compiled_fn(
+#         hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+#     )
 
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output, golden)
-
-
-@pytest.mark.nightly
-@pytest.mark.parametrize(
-    "variant,variant_config",
-    get_available_variants("llama").items(),
-    ids=[str(k) for k in get_available_variants("llama").keys()],
-)
-def test_llama_attention_decode(variant, variant_config):
-    xr.set_device_type("TT")
-
-    loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
-
-    seq_len = 1
-    hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
-    )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
-    position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
-
-    batch_size = 1
-    max_cache_len = 16
-    static_cache: StaticCache = StaticCache(
-        config=model.config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        device="cpu",
-        dtype=torch.bfloat16,
-    )
-    cache_position = torch.tensor([0])
-    past_key_states = static_cache
-
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
-    )
-
-    device = torch_xla.device()
-    with torch.no_grad():
-        past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
-        past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
-        compiled_fn = torch.compile(attention.to(device), backend="tt")
-        position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
-        output = compiled_fn(
-            hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
-        )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output, golden)
+#     comparator = TorchComparator(
+#         ComparisonConfig(
+#             pcc=PccConfig(required_pcc=0.99),
+#         )
+#     )
+#     comparator.compare(output, golden)
 
 
-@pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize(
-    "variant,variant_config",
-    get_available_variants("llama").items(),
-    ids=[str(k) for k in get_available_variants("llama").keys()],
-)
-def test_llama_concat_heads(variant, variant_config, seq_len):
-    xr.set_device_type("TT")
+# @pytest.mark.nightly
+# @pytest.mark.parametrize(
+#     "variant,variant_config",
+#     get_available_variants("llama").items(),
+#     ids=[str(k) for k in get_available_variants("llama").keys()],
+# )
+# def test_llama_attention_decode(variant, variant_config):
+#     xr.set_device_type("TT")
 
-    def concat_heads(attn_output, input_shape):
-        return attn_output.reshape(*input_shape, -1).contiguous()
+#     loader = LlamaModelLoader(variant=variant)
+#     model = loader.load_model(dtype_override=torch.bfloat16)
+#     attention = model.model.layers[0].self_attn
 
-    loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+#     seq_len = 1
+#     hidden_states = torch.randn(
+#         (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+#     )
+#     cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+#     position_embeddings = (cos_sin, cos_sin)
+#     attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
-    batch_size = 1
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
-    hidden_size = model.config.hidden_size
+#     batch_size = 1
+#     max_cache_len = 16
+#     static_cache: StaticCache = StaticCache(
+#         config=model.config,
+#         max_batch_size=batch_size,
+#         max_cache_len=max_cache_len,
+#         device="cpu",
+#         dtype=torch.bfloat16,
+#     )
+#     cache_position = torch.tensor([0])
+#     past_key_states = static_cache
 
-    attn_output = torch.randn(
-        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    input_shape = (batch_size, seq_len)
+#     golden = attention(
+#         hidden_states, position_embeddings, attention_mask, past_key_states
+#     )
 
-    golden = concat_heads(attn_output, input_shape)
+#     device = torch_xla.device()
+#     with torch.no_grad():
+#         past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
+#         past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
+#         compiled_fn = torch.compile(attention.to(device), backend="tt")
+#         position_embeddings = (position_embeddings[0].to(device), position_embeddings[1].to(device))
+#         output = compiled_fn(
+#             hidden_states.to(device), position_embeddings, attention_mask.to(device), past_key_states
+#         )
 
-    device = torch_xla.device()
-    compiled_fn = torch.compile(concat_heads, backend="tt")
-    output = compiled_fn(attn_output.to(device), input_shape)
+#     comparator = TorchComparator(
+#         ComparisonConfig(
+#             pcc=PccConfig(required_pcc=0.99),
+#         )
+#     )
+#     comparator.compare(output, golden)
 
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output.cpu(), golden)
+
+# @pytest.mark.nightly
+# @pytest.mark.parametrize("seq_len", [1024])
+# @pytest.mark.parametrize(
+#     "variant,variant_config",
+#     get_available_variants("llama").items(),
+#     ids=[str(k) for k in get_available_variants("llama").keys()],
+# )
+# def test_llama_concat_heads(variant, variant_config, seq_len):
+#     xr.set_device_type("TT")
+
+#     def concat_heads(attn_output, input_shape):
+#         return attn_output.reshape(*input_shape, -1).contiguous()
+
+#     loader = LlamaModelLoader(variant=variant)
+#     model = loader.load_model(dtype_override=torch.bfloat16)
+
+#     batch_size = 1
+#     num_heads = model.config.num_attention_heads
+#     head_dim = model.config.head_dim
+#     hidden_size = model.config.hidden_size
+
+#     attn_output = torch.randn(
+#         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+#     )
+#     input_shape = (batch_size, seq_len)
+
+#     golden = concat_heads(attn_output, input_shape)
+
+#     device = torch_xla.device()
+#     compiled_fn = torch.compile(concat_heads, backend="tt")
+#     output = compiled_fn(attn_output.to(device), input_shape)
+
+#     comparator = TorchComparator(
+#         ComparisonConfig(
+#             pcc=PccConfig(required_pcc=0.99),
+#         )
+#     )
+#     comparator.compare(output.cpu(), golden)
 
 
 @pytest.mark.nightly

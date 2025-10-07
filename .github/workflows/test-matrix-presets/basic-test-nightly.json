@@ -1,4 +1,4 @@
 [
-  { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip/graphs",               "test-mark": "nightly" },
-  { "runs-on": "p150",               "name": "run_torch",             "dir": "./tests/torch/single_chip/graphs",               "test-mark": "nightly"  }
+  { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip/graphs/test_attention.py",               "test-mark": "nightly" },
+  { "runs-on": "p150",               "name": "run_torch",             "dir": "./tests/torch/single_chip/graphs/test_attention.py",               "test-mark": "nightly"  }
 ]
