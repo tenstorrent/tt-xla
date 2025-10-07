@@ -53,7 +53,7 @@ def test_llama_step(run_mode):
     # Set up config variables.
     model_hidden_layers: int = 28
     batch_size: int = 1
-    max_cache_len: int = 32
+    max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Llama-3.2-3B"
 
