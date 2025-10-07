@@ -7,6 +7,8 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -37,7 +39,7 @@ def inference_tester() -> ResNetTester:
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
+    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -64,8 +66,15 @@ def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.RED,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.pad'"
+        "NO_ISSUE"
+    )
+)
 def test_resnet_v1_5_50_training(training_tester: ResNetTester):
     training_tester.test()

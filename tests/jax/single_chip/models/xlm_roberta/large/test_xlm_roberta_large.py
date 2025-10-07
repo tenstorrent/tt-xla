@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -65,8 +66,14 @@ def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
+)
 def test_xlm_roberta_large_training(training_tester: XLMRobertaTester):
     training_tester.test()

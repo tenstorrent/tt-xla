@@ -12,6 +12,8 @@ from utils import (
     ModelTask,
     build_model_name,
     incorrect_result,
+    ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import BloomTester
@@ -62,8 +64,14 @@ def test_bloom_3b_inference(inference_tester: BloomTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_bloom_3b_training(training_tester: BloomTester):
     training_tester.test()

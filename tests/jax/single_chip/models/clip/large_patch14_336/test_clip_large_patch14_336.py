@@ -7,11 +7,13 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
     incorrect_result,
+    failed_ttmlir_compilation,
 )
 from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
@@ -37,7 +39,7 @@ def inference_tester() -> FlaxCLIPTester:
 
 @pytest.fixture
 def training_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxCLIPTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -67,7 +69,14 @@ def test_clip_large_patch14_336_inference(inference_tester: FlaxCLIPTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_clip_large_patch14_336_training(training_tester: FlaxCLIPTester):
     training_tester.test()

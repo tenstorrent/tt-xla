@@ -27,7 +27,7 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 def inference_tester() -> BigBirdQATester:
     return BigBirdQATester(VARIANT_NAME)
 
-
+@pytest.fixture
 def training_tester() -> BigBirdQATester:
     return BigBirdQATester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -59,7 +59,14 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdQATester):
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/5091"
+    )
+)
 def test_bigbird_roberta_large_training(training_tester: BigBirdQATester):
     training_tester.test()

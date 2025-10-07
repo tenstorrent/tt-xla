@@ -34,7 +34,3 @@ class MBartTester(JaxModelTester):
         tokenizer = AutoTokenizer.from_pretrained(self._model_path)
         inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
         return inputs
-
-    # override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]

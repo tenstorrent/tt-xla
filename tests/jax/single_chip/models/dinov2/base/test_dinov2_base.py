@@ -7,6 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import Dinov2Tester
@@ -30,7 +32,7 @@ def inference_tester() -> Dinov2Tester:
 
 @pytest.fixture
 def training_tester() -> Dinov2Tester:
-    return Dinov2Tester(VARIANT_NAME, RunMode.TRAINING)
+    return Dinov2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,7 +56,14 @@ def test_dinov2_base_inference(inference_tester: Dinov2Tester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29)"
+        "NO_ISSUE"
+    )
+)
 def test_dinov2_base_training(training_tester: Dinov2Tester):
     training_tester.test()

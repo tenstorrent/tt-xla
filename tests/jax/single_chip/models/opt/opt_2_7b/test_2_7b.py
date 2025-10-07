@@ -58,8 +58,13 @@ def test_opt_2_7b_inference(inference_tester: OPTTester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
+)
 def test_opt_2_7b_training(training_tester: OPTTester):
     training_tester.test()

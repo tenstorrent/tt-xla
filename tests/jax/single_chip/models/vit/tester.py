@@ -33,7 +33,3 @@ class ViTTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> jax.Array:
         return self._model_loader.load_inputs()
-
-    # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]

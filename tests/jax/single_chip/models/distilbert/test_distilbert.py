@@ -64,7 +64,7 @@ def inference_tester() -> FlaxDistilBertForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -88,7 +88,14 @@ def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTe
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_flax_distilbert_training(training_tester: FlaxDistilBertForMaskedLMTester):
     training_tester.test()

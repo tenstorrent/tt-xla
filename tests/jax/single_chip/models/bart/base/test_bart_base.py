@@ -7,10 +7,12 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import FlaxBartForCausalLMTester
@@ -60,7 +62,14 @@ def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter'"
+        "https://github.com/tenstorrent/tt-mlir/issues/5091"
+    )
+)
 def test_flax_bart_base_training(training_tester: FlaxBartForCausalLMTester):
     training_tester.test()

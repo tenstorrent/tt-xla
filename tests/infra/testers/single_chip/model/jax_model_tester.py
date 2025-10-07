@@ -140,7 +140,6 @@ class JaxModelTester(ModelTester):
                 **self._input_activations,
             }
 
-        # TODO: add support for training-specific kwargs for different types of models. https://github.com/tenstorrent/tt-xla/issues/1388
         return {}
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
@@ -178,6 +177,15 @@ class JaxModelTester(ModelTester):
             static_argnames=workload.static_argnames,
         )
 
+    def _wrapper_model(self, f, is_hf_model):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            if is_hf_model:
+                out = out.logits
+            return out
+
+        return model
+
     # @override
     def _test_training(self):
         """
@@ -193,15 +201,6 @@ class JaxModelTester(ModelTester):
 
         # Wrapper to convert kwargs to args and return logits if model is HF
         is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
-
-        def wrapper_model(f):
-            def model(args, kwargs):
-                out = f(*args, **kwargs)
-                if is_hf_model:
-                    out = out.logits
-                return out
-
-            return model
 
         # Create partial with static args
         partial_executable = jax.tree_util.Partial(
@@ -225,7 +224,7 @@ class JaxModelTester(ModelTester):
         train_fwd_cpu = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(training_workload.compiled_executable)
+                jax.vjp, self._wrapper_model(training_workload.compiled_executable, is_hf_model)
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
@@ -236,7 +235,7 @@ class JaxModelTester(ModelTester):
         train_fwd_tt = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
-                jax.vjp, wrapper_model(training_workload.compiled_executable)
+                jax.vjp, self._wrapper_model(training_workload.compiled_executable, is_hf_model)
             ),
             args=[training_workload.args, training_workload.kwargs],
         )

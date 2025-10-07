@@ -12,6 +12,8 @@ from jaxtyping import PyTree
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.config import Parallelism
@@ -62,7 +64,8 @@ class SqueezeBertTester(JaxModelTester):
         return {
             "variables": self._input_parameters,
             **self._input_activations,
-            "train": False,
+            "train": False if self._run_mode == RunMode.INFERENCE else True,
+            "rngs": {"dropout": jax.random.key(1)} if self._run_mode == RunMode.TRAINING else None,
         }
 
     # @override
@@ -104,7 +107,14 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.convolution' "
+        "NO_ISSUE"
+    )
+)
 def test_squeezebert_training(training_tester: SqueezeBertTester):
     training_tester.test()

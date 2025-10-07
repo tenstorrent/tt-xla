@@ -11,6 +11,8 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import ElectraTester
@@ -59,7 +61,14 @@ def test_electra_base_generator_inference(inference_tester: ElectraTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+   execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_electra_base_generator_training(training_tester: ElectraTester):
     training_tester.test()

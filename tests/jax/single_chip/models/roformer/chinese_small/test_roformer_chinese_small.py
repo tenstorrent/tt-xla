@@ -7,6 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import RoFormerTester
@@ -50,7 +52,14 @@ def test_roformer_chinese_small_inference(inference_tester: RoFormerTester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_roformer_chinese_small_training(training_tester: RoFormerTester):
     training_tester.test()

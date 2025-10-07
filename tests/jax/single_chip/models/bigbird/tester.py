@@ -36,8 +36,13 @@ class BigBirdQATester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]
+    def _wrapper_model(self, f, is_hf_model = True):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            out = out.end_logits
+            return out
+
+        return model
 
 
 class BigBirdCLMTester(JaxModelTester):
@@ -59,7 +64,3 @@ class BigBirdCLMTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
-
-    # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]

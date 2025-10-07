@@ -11,11 +11,13 @@ from jaxtyping import PyTree
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
     incorrect_result,
+    failed_ttmlir_compilation,
 )
 from third_party.tt_forge_models.mlp_mixer.image_classification.jax import (
     ModelLoader,
@@ -102,7 +104,14 @@ def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29)"
+        "NO_ISSUE"
+    )
+)
 def test_mlpmixer_training(training_tester: MlpMixerTester):
     training_tester.test()

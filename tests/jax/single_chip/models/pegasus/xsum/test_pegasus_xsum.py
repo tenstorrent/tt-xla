@@ -66,7 +66,14 @@ def test_pegasus_xsum_inference(inference_tester: PegasusTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
+    )
+)
 def test_pegasus_xsum_training(training_tester: PegasusTester):
     training_tester.test()

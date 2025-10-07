@@ -7,6 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
+    failed_runtime,
     incorrect_result,
 )
 
@@ -62,8 +64,16 @@ def test_mt5_xl_inference(inference_tester: MT5Tester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 160822400 B DRAM buffer "
+        "across 12 banks, where each bank needs to store 13404800 B "
+        "NO_ISSUE?"
+    )
+)
 def test_mt5_xl_training(training_tester: MT5Tester):
     training_tester.test()

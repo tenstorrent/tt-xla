@@ -7,11 +7,13 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
     incorrect_result,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import FlaxBeitForImageClassificationTester
@@ -37,7 +39,7 @@ def inference_tester() -> FlaxBeitForImageClassificationTester:
 
 @pytest.fixture
 def training_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -69,8 +71,15 @@ def test_flax_beit_large_inference(
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29)"
+        "NO_ISSUE"
+    )
+)
 def test_flax_beit_large_training(
     training_tester: FlaxBeitForImageClassificationTester,
 ):

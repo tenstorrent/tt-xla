@@ -40,17 +40,22 @@ class VisionTextDualEncoderTester(JaxModelTester):
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         model_config = ViTConfig.from_pretrained(self._vision_model_path)
         image_size = model_config.image_size
-        random_image = random_image(image_size)
+        random_image_gen = random_image(image_size)
 
         tokenizer = AutoTokenizer.from_pretrained(self._text_model_path)
         image_processor = AutoImageProcessor.from_pretrained(self._vision_model_path)
         processor = VisionTextDualEncoderProcessor(image_processor, tokenizer)
 
         inputs = processor(
-            text="Some random image", images=random_image, return_tensors="jax"
+            text="Some random image", images=random_image_gen, return_tensors="jax"
         )
         return inputs
 
     # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]
+    def _wrapper_model(self, f, is_hf_model = True):
+        def model(args, kwargs):
+            #TODO: Check if we need to support both image and text model output 
+            out = f(*args, **kwargs).text_model_output.pooler_output
+            return out
+
+        return model

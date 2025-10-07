@@ -68,8 +68,16 @@ def test_bloom_7b_inference(inference_tester: BloomTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 171270144 B "
+        "https://github.com/tenstorrent/tt-xla/issues/918"
+    )
+)
 def test_bloom_7b_training(training_tester: BloomTester):
     training_tester.test()

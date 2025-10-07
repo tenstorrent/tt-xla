@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -67,7 +68,14 @@ def test_marian_opus_mt_en_de_inference(inference_tester: MarianTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
+    )
+)
 def test_marian_opus_mt_en_de_training(training_tester: MarianTester):
     training_tester.test()

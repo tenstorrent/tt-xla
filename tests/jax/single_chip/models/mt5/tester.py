@@ -41,7 +41,3 @@ class MT5Tester(JaxModelTester):
             "params": self._input_parameters,
             **self._input_activations,
         }
-
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]

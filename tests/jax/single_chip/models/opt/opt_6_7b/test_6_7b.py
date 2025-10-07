@@ -7,6 +7,7 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     failed_runtime,
 )
 
@@ -59,8 +60,16 @@ def test_opt_6_7b_inference(inference_tester: OPTTester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 11186176 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+    )
+)
 def test_opt_6_7b_training(training_tester: OPTTester):
     training_tester.test()

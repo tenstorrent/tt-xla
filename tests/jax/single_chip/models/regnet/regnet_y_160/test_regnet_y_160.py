@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -68,7 +69,16 @@ def test_regnet_y_160_inference(inference_tester: RegNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 15259926528 B DRAM buffer "
+        "across 12 banks, where each bank needs to store 1271660544 B "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
+    )
+)
 def test_regnet_y_160_training(training_tester: RegNetTester):
     training_tester.test()

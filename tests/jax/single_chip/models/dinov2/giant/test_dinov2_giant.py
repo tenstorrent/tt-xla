@@ -64,8 +64,17 @@ def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Statically allocated circular buffers in program 1331 clash with "
+        "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
+        "L1 buffer allocated at 1069056 and static circular buffer region ends at 1117312"
+        "(https://github.com/tenstorrent/tt-xla/issues/1066)"
+    )
+)
 def test_dinov2_giant_training(training_tester: Dinov2Tester):
     training_tester.test()

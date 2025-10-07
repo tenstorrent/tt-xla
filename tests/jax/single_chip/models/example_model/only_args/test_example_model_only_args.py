@@ -72,7 +72,7 @@ def inference_tester() -> ExampleModelOnlyArgsTester:
 
 @pytest.fixture
 def training_tester() -> ExampleModelOnlyArgsTester:
-    return ExampleModelOnlyArgsTester(RunMode.TRAINING)
+    return ExampleModelOnlyArgsTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -84,6 +84,5 @@ def test_example_model_inference(inference_tester: ExampleModelOnlyArgsTester):
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyArgsTester):
     training_tester.test()

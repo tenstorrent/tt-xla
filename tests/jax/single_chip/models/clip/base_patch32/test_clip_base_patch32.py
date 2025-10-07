@@ -12,6 +12,7 @@ from utils import (
     ModelTask,
     build_model_name,
     failed_runtime,
+    ExecutionPass,
 )
 from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
@@ -68,7 +69,15 @@ def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2287616 B L1 buffer "
+        "across 2 banks, where each bank needs to store 1143808 B "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
+    )
+)
 def test_clip_base_patch32_training(training_tester: FlaxCLIPTester):
     training_tester.test()

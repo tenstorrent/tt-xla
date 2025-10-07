@@ -75,7 +75,7 @@ class MNISTCNNTester(JaxModelTester):
         forward_pass_method = getattr(self._model, forward_method_name)
 
 
-        if not self._is_dropout and self._run_mode == RunMode.TRAINING:
+        if self._run_mode == RunMode.TRAINING:
             forward_pass_method = lambda params, inputs, **kwargs: self._model.apply(params, inputs, mutable=['batch_stats'], **kwargs)[0]
         else:
             forward_pass_method = getattr(self._model, forward_method_name)

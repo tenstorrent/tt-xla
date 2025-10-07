@@ -8,6 +8,7 @@ from utils import (
     BringupStatus,
     Category,
     failed_ttmlir_compilation,
+    ExecutionPass,
 )
 from third_party.tt_forge_models.config import Parallelism
 from ..tester import BigBirdCLMTester
@@ -28,7 +29,7 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 def inference_tester() -> BigBirdCLMTester:
     return BigBirdCLMTester(VARIANT_NAME)
 
-
+@pytest.fixture
 def training_tester() -> BigBirdCLMTester:
     return BigBirdCLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -60,7 +61,14 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
+        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+    )
+)
 def test_bigbird_roberta_large_training(training_tester: BigBirdCLMTester):
     training_tester.test()

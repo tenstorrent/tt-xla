@@ -7,10 +7,12 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 
@@ -37,7 +39,7 @@ def inference_tester() -> RegNetTester:
 
 @pytest.fixture
 def training_tester() -> RegNetTester:
-    return RegNetTester(VARIANT_NAME, RunMode.TRAINING)
+    return RegNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -67,7 +69,14 @@ def test_regnet_y_040_inference(inference_tester: RegNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.pad'"
+        "NO_ISSUE"
+    )
+)
 def test_regnet_y_040_training(training_tester: RegNetTester):
     training_tester.test()

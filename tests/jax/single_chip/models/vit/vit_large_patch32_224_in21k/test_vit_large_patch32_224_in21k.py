@@ -8,6 +8,7 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     failed_runtime,
 )
 
@@ -32,7 +33,7 @@ def inference_tester() -> ViTTester:
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -65,7 +66,15 @@ def test_vit_large_patch32_224_in21k_inference(
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate  2287616 B L1 buffer across 2 banks, "
+        "where each bank needs to store 1143808 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+    )
+)
 def test_vit_large_patch32_224_in21k_training(training_tester: ViTTester):
     training_tester.test()
