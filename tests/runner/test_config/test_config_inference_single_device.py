@@ -2388,7 +2388,7 @@ test_config = {
     },
     "pointpillars/pytorch-pointpillars-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "reason": "error: 'ttir.batch_norm' op input tensor must be a 4D tensor' - https://github.com/tenstorrent/tt-xla/issues/1611",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "sam/pytorch-facebook/sam-vit-base-single_device-full-inference": {
@@ -2501,10 +2501,4 @@ test_config = {
         "reason": "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
-    "pointpillars/pytorch-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: 'ttir.batch_norm' op input tensor must be a 4D tensor' - https://github.com/tenstorrent/tt-xla/issues/1611",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
-    },
-
 }
