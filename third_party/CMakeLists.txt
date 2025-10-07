@@ -98,7 +98,6 @@ else()
     install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
     # Expose all tt-mlir .so files as shared imported libraries.
-    # Also export TTMLIR_LIB_DIR so other targets can find headers/libs directly from install location
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")
