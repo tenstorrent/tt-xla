@@ -323,14 +323,29 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
          size_t host_buffer_size) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
+
+          // What if there are multiple shards here? We should cache the first
+          // toHost result in the bufferInstance, maybe... how many shards do we
+          // get for an replicated result in a multidevice graph? We assumed it
+          // was one. how many shards do we get for a sharded result in a
+          // multidevice graph? We assumed it was as many shards as devices.
+          // -- How do we know here which of the shards to copy into the
+          // bufferIndex
+
+          // what if the tensor is already on host? - support multiple cached
+          // retrievals
+
+          // we assume that toHost returns runtime tensors in device-order
           std::vector<tt::runtime::Tensor> host_runtime_tensors =
               tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
+          DLOG_F(LOG_DEBUG,
+                 "Returning tensor to host; with host_runtime_tensors ct = %ld",
+                 host_runtime_tensors.size());
           tt::runtime::Tensor first_host_runtime_tensor =
               host_runtime_tensors[0];
 
           // Making sure that the host buffer size is greater than or equal to
           // the runtime tensor size.
-
           size_t runtime_tensor_size =
               BufferInstance::getConvertedRuntimeTensorSize(
                   first_host_runtime_tensor, data_type);
@@ -350,7 +365,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
                   data_type));
 
-          tt::runtime::deallocateTensor(runtime_tensor, /*force=*/true);
+          // Can we deallocate part of the tensor or not deallocate it at all?
+          // tt::runtime::deallocateTensor(runtime_tensor, /*force=*/true);
 
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
@@ -487,12 +503,23 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
+  // Print shape of buffer to return
+  DLOG_F(LOG_DEBUG, "Returning buffer of shape %s to host",
+         buffer->toShapeStr().c_str());
+
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    assert(buffer->getHostRuntimeTensor().has_value() &&
-           "Host tensor not initialized");
-    args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
-        buffer->getHostRuntimeTensor().value(), buffer->getDataType());
+    // For output buffers, use the prepared tensor; for input buffers, use host
+    // tensor
+    if (buffer->getPreparedTensor().has_value()) {
+      args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
+          buffer->getPreparedTensor().value(), buffer->getDataType());
+    } else {
+      assert(buffer->getHostRuntimeTensor().has_value() &&
+             "Neither host nor device tensor initialized");
+      args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
+          buffer->getHostRuntimeTensor().value(), buffer->getDataType());
+    }
     return nullptr;
   }
 
