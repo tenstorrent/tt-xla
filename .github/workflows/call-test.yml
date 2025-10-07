@@ -96,6 +96,7 @@ jobs:
       with:
         submodules: recursive
         sparse-checkout: |
+          .github/scripts
           .gitmodules
           .test_durations
           pytest.ini
