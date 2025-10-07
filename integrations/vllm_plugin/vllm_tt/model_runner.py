@@ -906,6 +906,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.dtype,
                 self.device,
             ),
+            is_causal=False,
             num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -1403,6 +1404,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.dtype,
                 self.device,
             ),
+            is_causal=False,
             num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
