@@ -619,3 +619,158 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
             out_tensor is not None and golden_tensor is not None
         ):  # attn_weights might be None
             comparator.compare(out_tensor.cpu(), golden_tensor)
+
+
+"""BGE-M3 attention (XLM-RoBERTa attention) tests"""
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+    attention = model.model.encoder.layer[0].attention
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
+    attention_mask = torch.zeros((batch_size, 1, 1, seq_len), dtype=torch.float32)
+
+    past_key_value = None
+    golden = attention(
+        hidden_states,
+        attention_mask=attention_mask,
+        past_key_value=past_key_value,
+    )
+
+    device = torch_xla.device()
+    compiled_fn = torch.compile(attention.to(device), backend="tt")
+    output = compiled_fn(
+        hidden_states.to(device),
+        attention_mask=attention_mask.to(device),
+        past_key_value=past_key_value,
+    )
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.99),
+        )
+    )
+    comparator.compare(output[0].cpu(), golden[0])
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_concat_heads(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    def concat_heads(context_layer, all_head_size):
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (all_head_size,)
+        context_layer = context_layer.view(new_context_layer_shape)
+        return context_layer
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+
+    batch_size = 1
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    all_head_size = model.config.hidden_size
+    context_layer = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.float32
+    )
+
+    golden = concat_heads(context_layer, all_head_size)
+
+    device = torch_xla.device()
+    compiled_fn = torch.compile(concat_heads, backend="tt")
+    output = compiled_fn(context_layer.to(device), all_head_size)
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.99),
+        )
+    )
+    comparator.compare(output.cpu(), golden)
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_create_heads(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    def create_heads(
+        hidden_states,
+        query_layer,
+        key_layer,
+        value_layer,
+        num_attention_heads,
+        attention_head_size,
+    ):
+        def transpose_for_scores(x):
+            new_x_shape = x.size()[:-1] + (num_attention_heads, attention_head_size)
+            x = x.view(new_x_shape)
+            return x.permute(0, 2, 1, 3)
+
+        query_states = transpose_for_scores(query_layer(hidden_states))
+        key_states = transpose_for_scores(key_layer(hidden_states))
+        value_states = transpose_for_scores(value_layer(hidden_states))
+
+        return query_states, key_states, value_states
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+    attention = model.model.encoder.layer[0].attention.self
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+
+    hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
+
+    query_layer = attention.query
+    key_layer = attention.key
+    value_layer = attention.value
+
+    golden = create_heads(
+        hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim
+    )
+
+    device = torch_xla.device()
+    compiled_fn = torch.compile(create_heads, backend="tt")
+
+    output = compiled_fn(
+        hidden_states.to(device),
+        query_layer.to(device),
+        key_layer.to(device),
+        value_layer.to(device),
+        num_heads,
+        head_dim,
+    )
+
+    comparator = TorchComparator(
+        ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.99),
+        )
+    )
+    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
+        comparator.compare(out_tensor.cpu(), golden_tensor)
