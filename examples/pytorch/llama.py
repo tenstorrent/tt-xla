@@ -60,10 +60,8 @@ def llama():
 
     # Set up config variables.
     tokens_to_generate: int = 16
-    output_tokens: List[str] = []
-    model_hidden_layers: int = 28  # model config default
     batch_size: int = 1
-    max_cache_len: int = 32
+    max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
 
     # Connect the device and create an xla mesh.
@@ -75,7 +73,6 @@ def llama():
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
-    model.config.num_hidden_layers = model_hidden_layers
     model = model.eval()
 
     # Instantiate tokenizer.
@@ -146,7 +143,6 @@ def llama():
             output_logits: torch.Tensor = output.logits.to("cpu")
             output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
-            output_tokens.append(output_text)
             print(output_text, end="")
 
             # Update inputs for next iteration
