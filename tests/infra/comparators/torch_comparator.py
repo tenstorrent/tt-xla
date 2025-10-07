@@ -72,6 +72,7 @@ class TorchComparator(Comparator):
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         pcc = min(flat_pccs)
+        print(f'[HET DEBUG] PCC: {float(pcc)}')
         return float(pcc)
 
     # @override
