@@ -60,11 +60,7 @@ class TTPlatform(Platform):
     ) -> str:
         if not use_v1:
             raise ValueError("TT backend only supports V1.")
-        ##print("Using Torch SDPA attention layer.", flush=True)
-        # return "vllm.v1.attention.backends.cpu_attn.TorchSDPABackend"
-
         logger.info("Using Pallas V1 backend.")
-        # print("print::Using Pallas V1 backend.", flush=True)
         return "vllm_tt.attention.TTAttentionBackend"
 
     @classmethod
