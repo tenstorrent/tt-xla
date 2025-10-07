@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from pytest import MonkeyPatch
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,
@@ -14,7 +15,7 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import ResNetTester
+from ..tester import CompilerConfig, ResNetTester
 from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
 VARIANT_NAME = ModelVariant.RESNET_50
@@ -33,6 +34,16 @@ MODEL_NAME = build_model_name(
 @pytest.fixture
 def inference_tester() -> ResNetTester:
     return ResNetTester(VARIANT_NAME)
+
+
+@pytest.fixture
+def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
+    # These need to be set before the tester is created
+    monkeypatch.setenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE", "1")
+    monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
+
+    cc = CompilerConfig(enable_optimizer=True, enable_trace=True)
+    return ResNetTester(VARIANT_NAME, compiler_config=cc)
 
 
 @pytest.fixture
@@ -55,6 +66,22 @@ def training_tester() -> ResNetTester:
 @pytest.mark.large
 def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
     inference_tester.test()
+
+
+@pytest.mark.push
+@pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name=MODEL_NAME,
+    model_group=ModelGroup.RED,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+@pytest.mark.large
+def test_resnet_v1_5_50_inference_trace(
+    trace_tester: ResNetTester,
+):
+    trace_tester.test()
 
 
 @pytest.mark.push

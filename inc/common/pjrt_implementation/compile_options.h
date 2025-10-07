@@ -57,6 +57,13 @@ struct CompileOptions {
   // Backend runtime which should be targeted for compilation and execution.
   BackendRuntime backend = BackendRuntime::TTNNFlatbuffer;
 
+  // Enables trace hoisting for TTNN pipeline.
+  // This is supported only when all non-consteval ops are on device.
+  // This is a performance optimization feature that will eliminate
+  // host overhead for creating and dispatching operations
+  // that are repeated multiple times.
+  bool enable_trace = false;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };
