@@ -97,7 +97,9 @@ def scaled_dot_product_attention(
 
     # The CPU implementation of this op will funtion correctly if this invariant is not satisfied.
     # However, this custom op is intended to exactly replicate the behavior of the ttnn op, so we will enforce this invariant.
-    assert query.shape[2] % 32 == 0, "query sequence length must be divisible by 32."
+    assert (
+        query.shape[2] % 32 == 0
+    ), f"query sequence length must be divisible by 32 but got {query.shape[2]}."
 
     # assert query.shape[0] == 1, "query must have dim 0 equal to 1."
     assert (
