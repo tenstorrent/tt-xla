@@ -130,30 +130,85 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(
       arg_buffers.push_back(buffer);
     }
 
-    mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
-        fillStrategyMapFromSharding(
-            m_executable_image->getInputSharding(arg_index), num_devices);
-    if (mlir::failed(strategy)) {
-      DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+    std::optional<tt::runtime::Tensor> prepared_tensor = prepareInputTensor(
+        arg_buffers, runtime_device, num_devices, program_index, arg_index);
+
+    if (!prepared_tensor.has_value()) {
+      // Error is reported in `prepareInputTensor`.
       return tt_pjrt_status::kInternal;
     }
 
-    tt::runtime::Tensor input_tensor =
-        getTensorFromStrategy(arg_buffers, *strategy);
-
-    tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-        input_tensor, program_index, arg_index, runtime_device);
-
-    // In case when new tensor was created, we want it to be automatically
-    // deallocated during runtime.
-    if (laid_out_tensor.data != input_tensor.data) {
-      tt::runtime::setTensorRetain(laid_out_tensor, /*retain=*/false);
-    }
-
-    input_tensors.push_back(laid_out_tensor);
+    input_tensors.push_back(*prepared_tensor);
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::optional<tt::runtime::Tensor>
+FlatbufferLoadedExecutableInstance::prepareInputTensor(
+    const std::vector<BufferInstance *> &arg_buffers,
+    tt::runtime::Device runtime_device, size_t num_devices,
+    std::uint32_t program_index, size_t arg_index) {
+  // Assert that all buffer instances have the same prepared tensor.
+  // NOTE: In case of sharded tensor we have multiple buffer instances on the
+  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
+  // multi-device tensor.
+  assert(!arg_buffers.empty());
+  std::optional<tt::runtime::Tensor> prepared_tensor =
+      arg_buffers[0]->getPreparedTensor();
+  for (size_t i = 1; i < arg_buffers.size(); ++i) {
+    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
+           prepared_tensor.has_value());
+    if (prepared_tensor.has_value()) {
+      assert(arg_buffers[i]->getPreparedTensor()->handle ==
+             prepared_tensor->handle);
+    }
+  }
+
+  FlatbufferExecutableImage *executable_image =
+      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+
+  // Check if we already have a prepared tensor corresponding to the buffer
+  // instance(s); i.e. a tensor with the layout which this executable is
+  // expecting. If so, we can just reuse this tensor.
+  tt::runtime::Layout expected_layout = tt::runtime::getLayout(
+      executable_image->getFlatbufferBinary(), program_index, arg_index);
+  if (prepared_tensor.has_value() &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
+    DLOG_F(LOG_DEBUG,
+           "Reusing already prepared input tensor for argument index %zu",
+           arg_index);
+    return *prepared_tensor;
+  }
+
+  // We don't have an already prepared tensor so we need to prepare it now.
+  // This involves two steps:
+  // 1) Create a multi-device tensor from the input buffer instances
+  //   according to the sharding strategy (if needed).
+  // 2) Convert the layout of the tensor to the layout expected by the
+  //  executable.
+  mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
+      FlatbufferLoadedExecutableInstance::fillStrategyMapFromSharding(
+          m_executable_image->getInputSharding(arg_index), num_devices);
+  if (mlir::failed(strategy)) {
+    DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+    return std::nullopt;
+  }
+
+  tt::runtime::Tensor input_tensor =
+      getTensorFromStrategy(arg_buffers, *strategy);
+
+  tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
+      input_tensor, program_index, arg_index, runtime_device);
+
+  // Save the prepared tensor (properly laid out tensor) inside of the buffer
+  // instance(s), so we can reuse it on subsequent executions of the same
+  // executable.
+  for (size_t i = 0; i < arg_buffers.size(); ++i) {
+    arg_buffers[i]->setPreparedTensor(laid_out_tensor);
+  }
+
+  return laid_out_tensor;
 }
 
 mlir::FailureOr<std::unordered_map<std::string, std::string>>
