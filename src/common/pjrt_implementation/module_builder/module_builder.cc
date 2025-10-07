@@ -58,7 +58,6 @@
 
 // tt-xla includes
 #include "common/pjrt_implementation/client_instance.h"
-#include "common/pjrt_implementation/compile_options.h"
 #include "common/pjrt_implementation/data_type_utils.h"
 #include "common/pjrt_implementation/executable_image.h"
 #include "common/pjrt_implementation/memory_instance.h"
@@ -163,12 +162,9 @@ ModuleBuilder::buildModule(
 
   NumDevicesResult num_devices_result =
       collectNumDevicesToUtilize(mlir_module, mesh_shape);
-
-  // Collect memory kinds for output buffers
-  std::vector<const char *> output_memory_kinds;
-  std::vector<size_t> output_memory_kinds_sizes;
-  collectMemoryKinds(num_arguments.num_outputs, output_memory_kinds,
-                     output_memory_kinds_sizes);
+  size_t num_partitions = num_devices_result.num_partitions;
+  size_t num_replicas = num_devices_result.num_replicas;
+  size_t num_devices_to_utilize = num_devices_result.num_devices_to_utilize;
 
   std::string ttnn_mlir;
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
@@ -178,38 +174,35 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  tt::runtime::Binary flatbuffer(nullptr);
+  status = createFlatbufferBinary(mlir_module, input_shardings,
+                                  output_shardings, flatbuffer);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  // Collect memory kinds for output buffers
+  std::vector<const char *> output_memory_kinds;
+  std::vector<size_t> output_memory_kinds_sizes;
+  collectMemoryKinds(num_arguments.num_outputs, output_memory_kinds,
+                     output_memory_kinds_sizes);
+
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
 
-  if (compile_options.backend == BackendRuntime::TTNNFlatbuffer) {
-    return buildModuleForTTNNRuntime(
-        mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
-        std::move(ttnn_mlir), std::move(executable_name),
-        std::move(num_arguments), num_devices_result, mesh_shape,
-        input_shardings, output_shardings, output_types,
-        std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
-  } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
-    return buildModuleForTTNNCodegenCpp(
-        mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
-        std::move(ttnn_mlir), std::move(executable_name),
-        std::move(num_arguments), num_devices_result, mesh_shape,
-        input_shardings, output_shardings, output_types,
-        std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
-  } else if (compile_options.backend == BackendRuntime::TTNNCodegenPy) {
-    return buildModuleForTTNNCodegenPy(
-        mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
-        std::move(ttnn_mlir), std::move(executable_name),
-        std::move(num_arguments), num_devices_result, mesh_shape,
-        input_shardings, output_shardings, output_types,
-        std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
-  } else {
-    DLOG_F(ERROR, "Unsupported backend option");
-    return {tt_pjrt_status::kInvalidArgument, nullptr};
-  }
+  return {tt_pjrt_status::kSuccess,
+          ExecutableImage::createInstance(
+              flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
+              std::move(ttnn_mlir), std::move(executable_name),
+              num_arguments.num_inputs, num_arguments.num_outputs,
+              std::move(num_arguments.output_dimensions),
+              std::move(num_arguments.output_ranks),
+              std::move(num_arguments.output_dimensions_flat), num_partitions,
+              num_replicas, num_devices_to_utilize, mesh_shape, input_shardings,
+              output_shardings, output_types, std::move(output_memory_kinds),
+              std::move(output_memory_kinds_sizes),
+              std::move(compile_options))};
 }
 
 tt_pjrt_status ModuleBuilder::createVHLOModule(
@@ -915,79 +908,6 @@ std::optional<mlir::sdy::MeshOp> ModuleBuilder::getFirstShardyMeshOp(
   }
 
   return found_mesh_op;
-}
-
-std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-ModuleBuilder::buildModuleForTTNNRuntime(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    std::string &&original_mlir_code, std::string &&ttir_mlir,
-    std::string &&ttnn_mlir, std::string &&executable_name,
-    NumArgumentsResult &&num_arguments,
-    const NumDevicesResult &num_devices_result,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
-    const std::vector<PJRT_Buffer_Type> &output_types,
-    std::vector<const char *> &&output_memory_kinds,
-    std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
-  tt::runtime::Binary flatbuffer(nullptr);
-  tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
-                                                 output_shardings, flatbuffer);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
-
-  return {
-      tt_pjrt_status::kSuccess,
-      FlatbufferExecutableImage::createInstance(
-          flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
-          std::move(ttnn_mlir), std::move(executable_name),
-          num_arguments.num_inputs, num_arguments.num_outputs,
-          std::move(num_arguments.output_dimensions),
-          std::move(num_arguments.output_ranks),
-          std::move(num_arguments.output_dimensions_flat),
-          num_devices_result.num_partitions, num_devices_result.num_replicas,
-          num_devices_result.num_devices_to_utilize, mesh_shape,
-          input_shardings, output_shardings, output_types,
-          std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(compile_options))};
-}
-
-std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-ModuleBuilder::buildModuleForTTNNCodegenCpp(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    std::string &&original_mlir_code, std::string &&ttir_mlir,
-    std::string &&ttnn_mlir, std::string &&executable_name,
-    NumArgumentsResult &&num_arguments,
-    const NumDevicesResult &num_devices_result,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
-    const std::vector<PJRT_Buffer_Type> &output_types,
-    std::vector<const char *> &&output_memory_kinds,
-    std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
-  DLOG_F(ERROR, "Codegen cpp backend is not supported yet.");
-  return {tt_pjrt_status::kUnimplemented, nullptr};
-}
-
-std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-ModuleBuilder::buildModuleForTTNNCodegenPy(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    std::string &&original_mlir_code, std::string &&ttir_mlir,
-    std::string &&ttnn_mlir, std::string &&executable_name,
-    NumArgumentsResult &&num_arguments,
-    const NumDevicesResult &num_devices_result,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
-    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
-    const std::vector<PJRT_Buffer_Type> &output_types,
-    std::vector<const char *> &&output_memory_kinds,
-    std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
-  DLOG_F(ERROR, "Codegen python backend is not supported yet.");
-  return {tt_pjrt_status::kUnimplemented, nullptr};
 }
 
 } // namespace tt::pjrt::module_builder

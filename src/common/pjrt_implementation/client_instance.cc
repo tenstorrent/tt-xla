@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <sstream>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -29,7 +30,6 @@
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/event_instance.h"
-#include "common/pjrt_implementation/executable_image.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/module_builder.h"
 #include "common/pjrt_implementation/utils.h"
@@ -187,7 +187,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
   auto executable_image =
       std::get<std::shared_ptr<ExecutableImage>>(compile_result);
-
   // TODO(mrakita): Currently there is no way to determine addressable devices
   // from the mlir code. XLA parses device assignment from the `compile_options`
   // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
@@ -201,8 +200,8 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           executable_image->getNumDevicesToUtilize());
 
   std::unique_ptr<LoadedExecutableInstance> executable =
-      executable_image->toExecutableInstance(std::move(addressable_devices),
-                                             this);
+      LoadedExecutableInstance::createInstance(
+          executable_image, std::move(addressable_devices), this);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
