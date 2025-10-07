@@ -462,7 +462,6 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     def create_heads(
         hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
     ):
-        # Key difference from Llama - Q/K normalization
         query_states = q_norm(q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
         key_states = k_norm(k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
         value_states = v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -554,9 +553,7 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
             attention_mask,
             dropout=dropout,
             scaling=scaling,
-            sliding_window=getattr(
-                attention_module, "sliding_window", None
-            ),  # Qwen3 specific
+            sliding_window=getattr(attention_module, "sliding_window", None),
         )
         return attn_output, attn_weights
 
