@@ -333,7 +333,7 @@ def cleanup_cache():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_cache_fixture():
+def cleanup_cache_fixture(request):
     """
     Pytest fixture that cleans up cache directories before and after each test.
     Only runs if we are running on CIv2.
@@ -345,6 +345,48 @@ def cleanup_cache_fixture():
 
     # Cleanup after test
     cleanup_cache()
+
+    # Extra aggressive cleanup for known large model tests
+    if _is_on_CIv2():
+        test_name = request.node.name if hasattr(request.node, 'name') else ""
+        large_models = ['gpt_j_6b', 'opt_2_7b', 'gpt_neo_2_7b', 'mistral_7b']
+
+        if any(model in test_name.lower() for model in large_models):
+            # Find and remove ANY large files that might have been created
+            logger.info(f"Performing aggressive cleanup after large model test: {test_name}")
+
+            # Clean all possible model cache locations
+            import subprocess
+            try:
+                # Find and delete files larger than 1GB in common cache locations
+                cache_paths = [
+                    "/mnt/dockercache",
+                    str(Path.home() / ".cache"),
+                    "/tmp",
+                    "/var/tmp"
+                ]
+
+                for path in cache_paths:
+                    if Path(path).exists():
+                        # Remove files larger than 1GB
+                        result = subprocess.run(
+                            f"find {path} -type f -size +1G -delete 2>/dev/null",
+                            shell=True,
+                            capture_output=True,
+                            text=True
+                        )
+
+                        # Also remove any directories with model names
+                        for model in ['gpt-j', 'opt-', 'gpt-neo', 'mistral']:
+                            subprocess.run(
+                                f"find {path} -type d -name '*{model}*' -exec rm -rf {{}} + 2>/dev/null",
+                                shell=True
+                            )
+
+                logger.info(f"Completed aggressive cleanup after {test_name}")
+
+            except Exception as e:
+                logger.warning(f"Aggressive cleanup failed: {e}")
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
