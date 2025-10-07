@@ -28,11 +28,13 @@ from tests.infra.comparators.comparison_config import (
 from typing import List
 import pytest
 from enum import Enum
+import copy
 
 
 class LLMRunMode(Enum):
     PREFILL = "prefill"
     DECODE = "decode"
+    GENERATE = "generate"  # prefill + multiple decode steps over tokens_to_generate
 
 
 @pytest.mark.push
@@ -43,7 +45,9 @@ class LLMRunMode(Enum):
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.parametrize("run_mode", [LLMRunMode.PREFILL, LLMRunMode.DECODE])
+@pytest.mark.parametrize(
+    "run_mode", [LLMRunMode.PREFILL, LLMRunMode.DECODE, LLMRunMode.GENERATE]
+)
 def test_llama_step(run_mode):
 
     # Must be called at start of program.
@@ -53,6 +57,7 @@ def test_llama_step(run_mode):
     # Set up config variables.
     model_hidden_layers: int = 28
     batch_size: int = 1
+    tokens_to_generate = 16 if run_mode is LLMRunMode.GENERATE else 1
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Llama-3.2-3B"
@@ -105,12 +110,19 @@ def test_llama_step(run_mode):
 
     # CPU comparison for validation
     cpu_output_logits: List[torch.Tensor] = []
+    cpu_input_args = copy.deepcopy(input_args)
     with torch.no_grad():
-        cpu_output: CausalLMOutputWithPast = model(**input_args)
-        cpu_logits = cpu_output.logits
-        cpu_output_logits.append(cpu_logits)
-        cpu_tok = tokenizer.decode(cpu_logits[:, -1].argmax(dim=-1))
-        print("Cpu tok: ", cpu_tok)
+        for _ in range(tokens_to_generate):
+            cpu_output: CausalLMOutputWithPast = model(**cpu_input_args)
+            cpu_logits = cpu_output.logits
+            cpu_output_logits.append(cpu_logits)
+            cpu_tok = tokenizer.decode(cpu_logits[:, -1].argmax(dim=-1))
+
+            cpu_input_args["input_ids"] = cpu_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
+            cpu_input_args["cache_position"] = torch.tensor(
+                [cpu_input_args["cache_position"][-1] + 1]
+            )
+            print("Cpu tok: ", cpu_tok)
 
     # Move model and inputs to device.
     static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
@@ -151,31 +163,32 @@ def test_llama_step(run_mode):
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
-        output: CausalLMOutputWithPast = model(**input_args)
-        output_logits: torch.Tensor = output.logits.to("cpu")
-        generated_output_logits.append(output_logits)
-        output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
+        for _ in range(tokens_to_generate):
+            output: CausalLMOutputWithPast = model(**input_args)
+            output_logits: torch.Tensor = output.logits.to("cpu")
+            generated_output_logits.append(output_logits)
+            output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
 
-        output_tokens.append(output_text)
-        print("Generated token:", output_text)
+            output_tokens.append(output_text)
+            print("Generated token:", output_text)
 
-        # Update inputs for next iteration
-        next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
-        input_args["input_ids"] = next_token.to(device)
+            # Update inputs for next iteration
+            next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
+            input_args["input_ids"] = next_token.to(device)
 
-        host_cache_pos = input_args["cache_position"].to("cpu")
-        host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
-        input_args["cache_position"] = host_cache_pos.to(device)
+            host_cache_pos = input_args["cache_position"].to("cpu")
+            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
+            input_args["cache_position"] = host_cache_pos.to(device)
 
-        # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
-        for i, (key, value) in enumerate(
-            zip(
-                input_args["past_key_values"].key_cache,
-                input_args["past_key_values"].value_cache,
-            )
-        ):
-            xs.mark_sharding(key, mesh, (None, "model", None, None))
-            xs.mark_sharding(value, mesh, (None, "model", None, None))
+            # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
+            for i, (key, value) in enumerate(
+                zip(
+                    input_args["past_key_values"].key_cache,
+                    input_args["past_key_values"].value_cache,
+                )
+            ):
+                xs.mark_sharding(key, mesh, (None, "model", None, None))
+                xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     # Compare outputs for validation
     comparator = TorchComparator(
