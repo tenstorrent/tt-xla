@@ -59,6 +59,16 @@ def parse_compiled_artifacts_from_cache(cache_path: str):
     return parse_executable(executable_io)
 
 
+def get_cache_dir() -> str:
+    """
+    Get the PyTorch cache directory.
+
+    Returns:
+        str: Path to the default persistent cache directory
+    """
+    return f"{os.getcwd()}/tmp/"
+
+
 def parse_compiled_artifacts_from_cache_to_disk(cache_path: str, output_prefix: str):
     """
     Load a serialized executable from PyTorch persistent cache and save components to disk.

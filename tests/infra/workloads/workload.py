@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from infra.connectors import TorchDeviceConnector
 from infra.utilities import Framework, Model
 from tt_jax import serialize_compiled_artifacts_to_disk
-from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+from tt_torch import get_cache_dir, parse_compiled_artifacts_from_cache_to_disk
 
 
 class Workload:
@@ -99,7 +99,7 @@ class Workload:
                 **self.kwargs,
             )
         elif self.is_torch:
-            cache_dir = TorchDeviceConnector.get_cache_dir()
+            cache_dir = get_cache_dir()
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
