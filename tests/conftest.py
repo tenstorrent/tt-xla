@@ -313,6 +313,21 @@ CACHE_DIRECTORIES = [
     Path("/tmp") / f"torchinductor_{os.environ.get('USER', '')}",
 ]
 
+# Additional test artifact directories that should be cleaned
+TEST_ARTIFACT_DIRECTORIES = [
+    "results",
+    "output",
+    "outputs",
+    "artifacts",
+    "orbax",
+    "model_outputs",
+    "checkpoints",
+    "tmp",
+    "temp",
+    "test_outputs",
+    "test_results",
+]
+
 
 def cleanup_cache():
     """
@@ -321,6 +336,9 @@ def cleanup_cache():
     if not _is_on_CIv2():
         return
 
+    import subprocess
+
+    # Clean standard cache directories
     for cache_dir in CACHE_DIRECTORIES:
         if not cache_dir.exists():
             continue
@@ -331,6 +349,139 @@ def cleanup_cache():
         except Exception as e:
             logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
 
+    # Aggressive cleanup - remove everything in cache/tmp locations
+    aggressive_cleanup_paths = [
+        "/mnt/dockercache",
+        str(Path.home() / ".cache"),
+        "/tmp",
+        "/var/tmp",
+        "/__w/tt-xla/tt-xla/.pytest_cache",
+        "/__w/tt-xla/tt-xla/build",
+    ]
+
+    for path in aggressive_cleanup_paths:
+        if Path(path).exists():
+            try:
+                subprocess.run(f"rm -rf {path}/* 2>/dev/null", shell=True)
+                logger.debug(f"Aggressively cleaned: {path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean {path}: {e}")
+
+    # Clean up workspace artifacts
+    try:
+        subprocess.run("find /__w -name '*.onnx' -o -name '*.safetensors' -o -name '*.bin' -o -name 'core*' | xargs rm -f 2>/dev/null", shell=True)
+        subprocess.run("find /__w -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null", shell=True)
+        subprocess.run("find /__w -name '*.pyc' -o -name '*.pyo' -delete 2>/dev/null", shell=True)
+    except Exception as e:
+        logger.warning(f"Failed to clean workspace artifacts: {e}")
+
+
+def cleanup_test_artifacts():
+    """
+    Cleans up test artifact directories and files if we are running on CIv2.
+    """
+    if not _is_on_CIv2():
+        return
+
+    import glob
+    import subprocess
+
+    # Get the test directory path
+    test_dir = Path(__file__).parent
+    project_root = test_dir.parent
+
+    # Clean up test artifact directories in both test dir and project root
+    for base_dir in [test_dir, project_root]:
+        for artifact_dir in TEST_ARTIFACT_DIRECTORIES:
+            dir_path = base_dir / artifact_dir
+            if dir_path.exists() and dir_path.is_dir():
+                try:
+                    shutil.rmtree(dir_path)
+                    logger.debug(f"Cleaned up test artifact directory: {dir_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up test artifact directory {dir_path}: {e}")
+
+    # Clean up Python cache directories
+    for base_dir in [test_dir, project_root]:
+        # Find and remove __pycache__ directories
+        try:
+            result = subprocess.run(
+                f'find "{base_dir}" -type d -name "__pycache__" -exec rm -rf {{}} + 2>/dev/null',
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.debug(f"Cleaned up __pycache__ directories in {base_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up __pycache__ directories: {e}")
+
+        # Remove .pyc and .pyo files
+        try:
+            subprocess.run(
+                f'find "{base_dir}" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null',
+                shell=True
+            )
+        except Exception as e:
+            logger.warning(f"Failed to clean up Python compiled files: {e}")
+
+    # Clean up core dump files (can be very large)
+    # Core files can appear in various locations
+    core_patterns = [
+        str(project_root / "core"),
+        str(project_root / "core.*"),
+        str(test_dir / "core"),
+        str(test_dir / "core.*"),
+        "/tmp/core",
+        "/tmp/core.*",
+        str(Path.cwd() / "core"),
+        str(Path.cwd() / "core.*"),
+    ]
+
+    for pattern in core_patterns:
+        for core_file in glob.glob(pattern):
+            try:
+                # Get file size before deleting for logging
+                file_size_mb = os.path.getsize(core_file) / (1024*1024)
+                os.remove(core_file)
+                logger.info(f"Cleaned up core dump file: {core_file} (size: {file_size_mb:.2f} MB)")
+            except FileNotFoundError:
+                pass  # File was already deleted
+            except Exception as e:
+                logger.warning(f"Failed to clean up core file {core_file}: {e}")
+
+    # Clean up temporary directories and files in /tmp
+    tmp_patterns = [
+        "/tmp/pytest-*",
+        "/tmp/tt_xla_*",
+        "/tmp/test_*",
+        "/tmp/model_*",
+        "/tmp/*.onnx",
+        "/tmp/*.pt",
+        "/tmp/*.pth",
+        "/tmp/*.safetensors",
+        "/tmp/tmp*",
+    ]
+
+    for pattern in tmp_patterns:
+        for path in glob.glob(pattern):
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                logger.debug(f"Cleaned up temp path: {path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp path {path}: {e}")
+
+    # Clean up any .log files in the project root
+    for log_file in project_root.glob("*.log"):
+        try:
+            os.remove(log_file)
+            logger.debug(f"Cleaned up log file: {log_file}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up log file {log_file}: {e}")
+
 
 @pytest.fixture(autouse=True)
 def cleanup_cache_fixture(request):
@@ -340,53 +491,13 @@ def cleanup_cache_fixture(request):
     """
     # Cleanup before test
     cleanup_cache()
+    cleanup_test_artifacts()
 
     yield
 
     # Cleanup after test
     cleanup_cache()
-
-    # Extra aggressive cleanup for known large model tests
-    if _is_on_CIv2():
-        test_name = request.node.name if hasattr(request.node, 'name') else ""
-        large_models = ['gpt_j_6b', 'opt_2_7b', 'gpt_neo_2_7b', 'mistral_7b']
-
-        if any(model in test_name.lower() for model in large_models):
-            # Find and remove ANY large files that might have been created
-            logger.info(f"Performing aggressive cleanup after large model test: {test_name}")
-
-            # Clean all possible model cache locations
-            import subprocess
-            try:
-                # Find and delete files larger than 1GB in common cache locations
-                cache_paths = [
-                    "/mnt/dockercache",
-                    str(Path.home() / ".cache"),
-                    "/tmp",
-                    "/var/tmp"
-                ]
-
-                for path in cache_paths:
-                    if Path(path).exists():
-                        # Remove files larger than 1GB
-                        result = subprocess.run(
-                            f"find {path} -type f -size +1G -delete 2>/dev/null",
-                            shell=True,
-                            capture_output=True,
-                            text=True
-                        )
-
-                        # Also remove any directories with model names
-                        for model in ['gpt-j', 'opt-', 'gpt-neo', 'mistral']:
-                            subprocess.run(
-                                f"find {path} -type d -name '*{model}*' -exec rm -rf {{}} + 2>/dev/null",
-                                shell=True
-                            )
-
-                logger.info(f"Completed aggressive cleanup after {test_name}")
-
-            except Exception as e:
-                logger.warning(f"Aggressive cleanup failed: {e}")
+    cleanup_test_artifacts()
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
