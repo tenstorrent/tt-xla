@@ -219,7 +219,7 @@ jobs:
         if [[ -n "$PYTEST_FORKED" ]]; then
           VERBOSITY="-vv"
         else
-          VERBOSITY="-v --capture=tee-sys"
+          VERBOSITY="-v"
         fi
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config.py
