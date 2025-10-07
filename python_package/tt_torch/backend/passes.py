@@ -3,6 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 from torch.export.graph_signature import InputKind, OutputKind
+from tt_torch import composite_ops
+
+
+def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
+    """
+    Replaces torch ops with composite ops if we have a proper replacement.
+
+    This must be done before graph decompositions because we are replacing
+    torch operations directly.
+    """
+    for node in gm.graph.nodes:
+        if node.target in composite_ops.replacements:
+            node.target = composite_ops.replacements[node.target]
 
 
 def insert_argument_type_markers(
