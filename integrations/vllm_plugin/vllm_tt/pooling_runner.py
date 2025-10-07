@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+# SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
+
 import bisect
 import gc
 import time
@@ -27,7 +29,7 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.forward_context import set_forward_context, get_forward_context
+from vllm.forward_context import set_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
@@ -103,7 +105,6 @@ def add_kv_sharing_layers_to_kv_cache_groups(
             from the KV cache of `shared_kv_cache_layers[layer_name]`.
         kv_cache_groups: The KV cache groups of the model.
     """
-    return
     layer_to_kv_cache_group: dict[str, KVCacheGroupSpec] = {}
     for kv_cache_group in kv_cache_groups:
         for layer_name in kv_cache_group.layer_names:
@@ -254,14 +255,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         assert (
             scheduler_config.max_num_seqs == 1
-        ), f"The TT plugin only supports max_num_seqs == 1 currently, recieved: max_num_seqs: {scheduler_config.max_num_seqs}"
+        ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=1,
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
-
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
         self.max_num_tokens = self.num_tokens_paddings[-1]
@@ -411,7 +411,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        self.sample_from_logits_func = self.sample_from_logits
+        if not self.use_spmd:
+            self.sample_from_logits_func = torch.compile(
+                self.sample_from_logits,
+                backend="tt",
+                fullgraph=True,
+                dynamic=False,
+            )
+        else:
+            self.sample_from_logits_func = self.sample_from_logits
 
     def _update_num_xla_graphs(self, case_str):
         check_comp = self.check_recompilation and not self.enforce_eager
@@ -493,8 +501,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         req_ids_to_add: list[str] = []
         # Add new requests to the cached states.
         for new_req_data in scheduler_output.scheduled_new_reqs:
-            # assert new_req_data.sampling_params is not None,\
-            #   "Pooling is not supported in TPU yet"
             req_id = new_req_data.req_id
             sampling_params = new_req_data.sampling_params
             pooling_params = new_req_data.pooling_params
@@ -504,8 +510,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 prompt_token_ids=new_req_data.prompt_token_ids,
                 mm_kwargs=new_req_data.mm_kwargs,
                 mm_positions=new_req_data.mm_positions,
-                # mm_hashes=new_req_data.mm_hashes,
-                sampling_params=None,  # sampling_params,
+                sampling_params=sampling_params,
                 pooling_params=pooling_params,
                 generator=None,
                 block_ids=new_req_data.block_ids,
@@ -884,14 +889,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
             num_kv_update_slices=None,
-            attn_mask=generate_attn_mask(
-                seq_lens,
-                self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                self.dtype,
-                self.device,
-            ),
+            attn_mask=None,
+            is_causal=True,
             num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
@@ -1004,13 +1003,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
-            mm_positions = req_state.mm_positions
-            mm_hashes = req_state.mm_hashes
             # TODO unroll loop and assume/enforce --disable_chunked_mm_input
             # NOTE (NickLucche) here we diverge from logic in other runners, as
             # we assume to only have whole mm items to process. Hence we avoid
             # the intrinsic dynamism that `gather_mm_placeholders` introduces.
-            for i, pos_info in enumerate(mm_positions):
+            for mm_feature in req_state.mm_features:
+                pos_info = mm_feature.mm_position
                 start_pos = pos_info.offset
                 num_encoder_tokens = pos_info.length
 
@@ -1025,8 +1023,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # The encoder output is already processed and stored
                     # in the decoder's KV cache.
                     continue
-
-                mm_hash = mm_hashes[i]
+                mm_hash = mm_feature.identifier
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
                 assert pos_info.is_embed is None, (
@@ -1093,9 +1090,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
 
-            # Forward pass
+            # Run the decoder
             with set_forward_context(
-                # None,
                 attn_metadata,
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
@@ -1109,11 +1105,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Select states according to indices
             hidden_states = hidden_states[:num_scheduled_tokens]
-            """hidden_states = hidden_states[:num_scheduled_tokens]
-            pooling_metadata = self.input_batch.get_pooling_metadata()
-            pooling_metadata.build_pooling_cursor(num_scheduled_tokens_np.tolist(),
-                                              device=hidden_states.device)
-            seq_lens_cpu = self.seq_lens.cpu[:self.input_batch.num_reqs]"""
             # Pooling
             if hasattr(self.model, "pooler") and callable(
                 getattr(self.model, "pooler")
@@ -1171,7 +1162,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             setattr(self, config_name, new_config)
 
     def load_model(self) -> None:
-        logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
@@ -1191,7 +1181,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             try:
                 if self.use_spmd:
-                    logger.info("Loading model with TPUModelLoader...")
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1199,13 +1188,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
-                    ).eval()
+                    )
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
-                    ).eval()
+                    )
+
                 model = model.to("xla")
             except RuntimeError as e:
                 raise RuntimeError(
@@ -1215,16 +1205,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     "or sharding the weights on more chips. "
                     f"See the detailed error: {e}"
                 ) from e
-        # model = model.eval()
         if self.lora_config is not None:
-            logger.info("Loading lora model...")
             model = self.load_lora_model(
                 model,
                 self.model_config,
                 self.scheduler_config,
                 self.lora_config,
                 self.device,
-            ).eval()
+            )
             replace_set_lora(model)
 
         # Sync all pending XLA execution during model initialization and weight
@@ -1233,7 +1221,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.wait_device_ops()
         if not hasattr(self, "model"):
             self.model = model
-        self.model.compile(backend="tt", fullgraph=False, dynamic=False)
+        self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
 
     def reload_weights(self) -> None:
@@ -1267,14 +1255,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
-            attn_mask=generate_attn_mask(
-                seq_lens,
-                self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                self.dtype,
-                self.device,
-            ),
+            attn_mask=None,
+            is_causal=True,
+            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1301,7 +1284,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.mark_step()  # Captures metadata updates
 
     def _precompile_mm_encoder(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         if not self.supports_mm_inputs:
             return
 
@@ -1377,7 +1359,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
     def _precompile_backbone(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
@@ -1397,7 +1378,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("model backbone")
 
     def _precompile_select_hidden_states(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         # Compile hidden state selection function for bucketed
         # n_tokens x max_num_reqs. Graph is really small so this is fine.
         logger.info("Compiling select_hidden_states with different input shapes.")
@@ -1407,10 +1387,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dummy_hidden = torch.zeros(
                 (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
             )
-            # torch._dynamo.mark_dynamic(dummy_hidden, 0)
             for num_reqs in self.num_reqs_paddings:
                 indices = torch.zeros(num_reqs, dtype=torch.int32, device=self.device)
-                # torch._dynamo.mark_dynamic(indices, 0)
                 self.select_hidden_states(dummy_hidden, indices)
                 logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
                 # Requests can't be more than tokens. But do compile for the
@@ -1423,7 +1401,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("select_hidden_states")
 
     def _precompile_compute_logits(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling compute_logits with different input shapes.")
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
@@ -1431,7 +1408,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dummy_hidden = torch.zeros(
                 (num_reqs, hsize), device=self.device, dtype=self._hidden_states_dtype
             )
-            # torch._dynamo.mark_dynamic(dummy_hidden, 0)
             self.compute_logits(dummy_hidden)
             logger.info("  -- num_seqs: %d", num_reqs)
         xm.wait_device_ops()
@@ -1440,7 +1416,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("compute_logits")
 
     def _precompile_structured_decoding(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling structured_decoding with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1470,7 +1445,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("structured_decoding")
 
     def _precompile_sample_from_logits(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling sample_from_logits with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1501,7 +1475,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("sample_from_logits")
 
     def _precompile_gather_logprobs(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1531,7 +1504,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
             if self.model_config.multimodal_config.skip_mm_profiling:
@@ -1593,7 +1565,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.encoder_cache["tmp"] = dict(enumerate(dummy_encoder_outputs))
 
         # Trigger compilation for general shape.
-        torch._dynamo.config.dynamic_shapes = False
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
@@ -1618,7 +1589,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Add layers that re-use KV cache to KV cache group of its target layer.
         Mapping of KV cache tensors happens in `initialize_kv_cache_tensors()`
         """
-        return
         if not self.shared_kv_cache_layers:
             # No cross-layer KV sharing, return
             return
@@ -1634,21 +1604,18 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def initialize_kv_cache(self, kv_cache_config: KVCacheConfig) -> None:
         """
-        Pooling models are not using kv_cache.
+        Pooling models do not use kv_cache.
         Args:
             kv_cache_config: Configuration for the KV cache, including the KV
             cache size of each layer
         """
         return
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        device = hidden_states.device
-        indices_do_sample = indices_do_sample.to("cpu")
-        hidden_states = hidden_states.to("cpu")
-        return hidden_states[indices_do_sample].to(device)
+        return hidden_states[indices_do_sample]
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         return self.model.compute_logits(sample_hidden_states, None)
 
@@ -1674,7 +1641,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         of logprobs as an alternative to having multiple pre-compiled graphs.
         Select the number of logprobs actually demanded by each request on CPU.
         """
-        torch._dynamo.config.dynamic_shapes = False
         device = logits.device
         logprobs = self.sampler.compute_logprobs(logits.to("cpu"))
         logprobTensors = self.sampler.gather_logprobs(
@@ -1683,20 +1649,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             token_ids=sampled_tokens.to("cpu").squeeze(-1),
         )
 
-        #     robs + 1]
-        # logprob_token_ids: torch.Tensor
-        # # [num_reqs, max_num_logprobs + 1]
-        # logprobs: torch.Tensor
-        # # [num_reqs]
-        # selected_token_ranks: torch.Tensor
-
         return LogprobsTensors(
             logprob_token_ids=logprobTensors.logprob_token_ids.to(device),
             logprobs=logprobTensors.logprobs.to(device),
             selected_token_ranks=logprobTensors.selected_token_ranks.to(device),
         )
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def structured_decode(
         self,
         require_struct_decoding: torch.Tensor,
@@ -1843,7 +1802,10 @@ def _get_token_paddings(
             paddings.append(num)
             if num >= max_token_size:
                 break
-            num *= 2
+            if num == 1:
+                num = 32
+            else:
+                num *= 2
     else:
         logger.info("Using incremental token paddings:")
         while num <= padding_gap:
@@ -1900,6 +1862,28 @@ def _swap_out_tpu_blocks(
     cpu_cache[cpu_block_indices] = tpu_cache[tpu_block_indices].cpu()
 
 
+def _get_num_slices_per_kv_cache_update_block(page_size_bytes: int) -> int:
+    """Find the optimum number of slices to copy per Pallas program instance.
+
+    Increasing the number of slices copied in one instance of the kernel program
+    will increase HBM bandwidth utilization via more in-flight DMAs.
+
+    However, it will also use more VMEM, and experimentally, we observed
+    performance regression at 128 slices on v6e, likely due to running
+    out of scalar registers. Thus this function will limit the number of
+    slices to 64.
+    """
+    # The default vmem_limit_bytes of a pallas kernel is 32MB. Here we
+    # calculate num_slices_per_block based on 16MB in case any register spills.
+    vmem_limit = 16 * 1024 * 1024
+    num_slices_per_block = vmem_limit // page_size_bytes
+    assert num_slices_per_block > 0, "Number of slices should be positive"
+    num_slices_per_block = prev_power_of_2(num_slices_per_block)
+    if num_slices_per_block > 64:
+        num_slices_per_block = 64
+    return num_slices_per_block
+
+
 def replace_set_lora(model):
     def _tpu_set_lora(
         self,
@@ -1925,25 +1909,3 @@ def replace_set_lora(model):
             module._original_reset_lora = module.reset_lora
             module.set_lora = _tpu_set_lora.__get__(module, module.__class__)
             module.reset_lora = _tpu_reset_lora.__get__(module, module.__class__)
-
-
-def _get_num_slices_per_kv_cache_update_block(page_size_bytes: int) -> int:
-    """Find the optimum number of slices to copy per Pallas program instance.
-
-    Increasing the number of slices copied in one instance of the kernel program
-    will increase HBM bandwidth utilization via more in-flight DMAs.
-
-    However, it will also use more VMEM, and experimentally, we observed
-    performance regression at 128 slices on v6e, likely due to running
-    out of scalar registers. Thus this function will limit the number of
-    slices to 64.
-    """
-    # The default vmem_limit_bytes of a pallas kernel is 32MB. Here we
-    # calculate num_slices_per_block based on 16MB in case any register spills.
-    vmem_limit = 16 * 1024 * 1024
-    num_slices_per_block = vmem_limit // page_size_bytes
-    assert num_slices_per_block > 0, "Number of slices should be positive"
-    num_slices_per_block = prev_power_of_2(num_slices_per_block)
-    if num_slices_per_block > 64:
-        num_slices_per_block = 64
-    return num_slices_per_block
