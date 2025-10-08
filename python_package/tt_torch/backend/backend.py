@@ -11,6 +11,7 @@ from .decompositions import (
 )
 import os
 from .passes import (
+    handle_composite_ops,
     bypass_redundant_getitem,
     bypass_dtype_promotion_and_redundant_cast,
     insert_argument_type_markers,
@@ -30,6 +31,9 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
 ) -> torch.fx.GraphModule:
+
+    handle_composite_ops(gm)
+
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 

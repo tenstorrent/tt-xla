@@ -16,7 +16,6 @@
 // tt-xla includes
 #include "common/pjrt_implementation/buffer_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
-#include "common/pjrt_implementation/module_builder/module_builder.h"
 
 namespace tt::pjrt {
 
@@ -32,20 +31,15 @@ SerializedExecutableInstance::createInstance(
 
 SerializedExecutableInstance::SerializedExecutableInstance(
     const ExecutableImage *executable_image) {
+  const tt::runtime::Binary &flatbuffer_binary =
+      executable_image->getFlatbufferBinary();
   const std::string &ttir_code = executable_image->getTTIRMlirCode();
   const std::string &ttnn_code = executable_image->getTTNNMlirCode();
+
   std::vector<std::byte> flatbuffer_data;
-  if (executable_image->getCompileOptions().backend ==
-      BackendRuntime::TTNNFlatbuffer) {
-    const tt::runtime::Binary &flatbuffer_binary =
-        static_cast<const FlatbufferExecutableImage *>(executable_image)
-            ->getFlatbufferBinary();
-    // TODO(sgligorijevic): We could avoid double copy if storeToMemory took a
-    // span. Issue: https://github.com/tenstorrent/tt-mlir/issues/4822
-    flatbuffer_binary.storeToMemory(flatbuffer_data);
-  } else {
-    flatbuffer_data.resize(0);
-  }
+  // TODO(sgligorijevic): We could avoid double copy if storeToMemory took a
+  // span. Issue: https://github.com/tenstorrent/tt-mlir/issues/4822
+  flatbuffer_binary.storeToMemory(flatbuffer_data);
 
   SerializationHeader header(ttir_code, ttnn_code, flatbuffer_data);
   m_payload.resize(header.getPayloadSize());

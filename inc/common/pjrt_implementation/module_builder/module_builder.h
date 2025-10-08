@@ -31,13 +31,13 @@
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
-#include "common/pjrt_implementation/compile_options.h"
+#include "common/pjrt_implementation/executable_image.h"
 #include "common/status.h"
+#include "compile_options.h"
 
 namespace tt::pjrt {
 class ClientInstance;
-class ExecutableImage;
-} // namespace tt::pjrt
+}
 
 namespace tt::pjrt::module_builder {
 
@@ -226,62 +226,6 @@ private:
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
   static std::optional<mlir::sdy::MeshOp>
   getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Builds module for TTNN Flatbuffer backend runtime.
-  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-  buildModuleForTTNNRuntime(
-      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-      std::string &&original_mlir_code, std::string &&ttir_mlir,
-      std::string &&ttnn_mlir, std::string &&executable_name,
-      NumArgumentsResult &&num_arguments,
-      const NumDevicesResult &num_devices_result,
-      const std::vector<std::uint32_t> &mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &input_shardings,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings,
-      const std::vector<PJRT_Buffer_Type> &output_types,
-      std::vector<const char *> &&output_memory_kinds,
-      std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
-
-  // Builds module for TTNN Codegen C++ backend runtime (currently
-  // unimplemented).
-  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-  buildModuleForTTNNCodegenCpp(
-      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-      std::string &&original_mlir_code, std::string &&ttir_mlir,
-      std::string &&ttnn_mlir, std::string &&executable_name,
-      NumArgumentsResult &&num_arguments,
-      const NumDevicesResult &num_devices_result,
-      const std::vector<std::uint32_t> &mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &input_shardings,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings,
-      const std::vector<PJRT_Buffer_Type> &output_types,
-      std::vector<const char *> &&output_memory_kinds,
-      std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
-
-  // Builds module for TTNN Codegen Python backend runtime (currently
-  // unimplemented).
-  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-  buildModuleForTTNNCodegenPy(
-      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-      std::string &&original_mlir_code, std::string &&ttir_mlir,
-      std::string &&ttnn_mlir, std::string &&executable_name,
-      NumArgumentsResult &&num_arguments,
-      const NumDevicesResult &num_devices_result,
-      const std::vector<std::uint32_t> &mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &input_shardings,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings,
-      const std::vector<PJRT_Buffer_Type> &output_types,
-      std::vector<const char *> &&output_memory_kinds,
-      std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
