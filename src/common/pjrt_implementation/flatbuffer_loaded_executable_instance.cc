@@ -343,7 +343,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
               output_tensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index]);
+              expected_output_data_types[output_index], device_index);
 
       output_buffer->markAsDataReady();
 
@@ -483,7 +483,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
               outputDeviceTensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index]);
+              expected_output_data_types[output_index], device_index);
       DLOG_F(
           LOG_DEBUG,
           "--[JAMES] filled at output index %zu device index %d with shape %s",
