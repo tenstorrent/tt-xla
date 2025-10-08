@@ -18,7 +18,7 @@ import os
 import numpy as np
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.spmd as xs
-from infra.utilities.xla_multichip_utils import enable_spmd, get_mesh
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from infra.comparators.torch_comparator import TorchComparator
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
