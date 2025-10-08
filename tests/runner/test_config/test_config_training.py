@@ -7,24 +7,13 @@ from tests.utils import BringupStatus
 
 
 test_config = {
-    # "mnist/pytorch-full-training": {
-    #     "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-    #     "reason": "error: failed to legalize operation 'stablehlo.rng_bit_generator' "
-    #     "https://github.com/tenstorrent/tt-mlir/issues/4793",
-    #     "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
-    #     "markers": ["push"],
-    # },
-    # "autoencoder/pytorch-linear-full-training": {
-    #     "status": ModelTestStatus.EXPECTED_PASSING,
-    #     "markers": ["push"],
-    # },
     "efficientnet/pytorch-efficientnet_b0-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "phi4/seq_cls/pytorch-microsoft/phi-4-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -40,15 +29,15 @@ test_config = {
     },
     "alexnet/pytorch-alexnet-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "autoencoder/pytorch-linear-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "resnet/pytorch-resnet18-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -56,7 +45,7 @@ test_config = {
     },
     "unet/pytorch-unet_cityscapes-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "pointpillars/pytorch-pointpillars-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -64,11 +53,11 @@ test_config = {
     },
     "bloom/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "mlp_mixer/pytorch-mixer_s32_224-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -76,11 +65,11 @@ test_config = {
     },
     "squeezebert/pytorch-squeezebert-mnli-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "monodepth2/pytorch-mono_640x192-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "bevformer/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -88,7 +77,7 @@ test_config = {
     },
     "nbeats/pytorch-generic_basis-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "rmbg/pytorch-2_0-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -96,11 +85,11 @@ test_config = {
     },
     "segformer/pytorch-mit_b0-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "densenet/pytorch-densenet121-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "fpn/pytorch-resnet50_fpn_v2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -116,55 +105,55 @@ test_config = {
     },
     "swin/image_classification/pytorch-swin_s-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "mobilenetv3/pytorch-mobilenet_v3_small-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "qwen_2_5_coder/pytorch-0_5b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "qwen_1_5/causal_lm/pytorch-0_5b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "qwen_2_5_coder/pytorch-0_5b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "dla/pytorch-dla34-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "mnist/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "clip/pytorch-openai/clip-vit-base-patch32-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "albert/masked_lm/pytorch-base_v1-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "resnext/pytorch-resnext50_32x4d-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "stereo/pytorch-small-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "dpr/reader/pytorch-facebook/dpr-reader-multiset-base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "d_fine/pytorch-nano-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -172,7 +161,7 @@ test_config = {
     },
     "regnet/pytorch-regnet_y_040-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "ssd300_vgg16/pytorch-ssd300_vgg16-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -184,7 +173,7 @@ test_config = {
     },
     "llava/pytorch-1_5_7b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "qwen_2/token_classification/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -196,15 +185,15 @@ test_config = {
     },
     "phi1_5/causal_lm/pytorch-microsoft/phi-1_5-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "vgg19_unet/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "vovnet/pytorch-vovnet27s-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "huggyllama/pytorch-llama_7b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -216,7 +205,7 @@ test_config = {
     },
     "musicgen_small/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "yolov3/pytorch-base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -232,31 +221,31 @@ test_config = {
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "phi1/causal_lm/pytorch-microsoft/phi-1-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "roberta/masked_lm/pytorch-xlm_base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "glpn_kitti/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "wide_resnet/pytorch-wide_resnet50_2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "inception/pytorch-inception_v4-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "detr3d/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -276,23 +265,23 @@ test_config = {
     },
     "stable_diffusion_unet/pytorch-base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "xglm/pytorch-xglm-564M-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "mobilenetv1/pytorch-mobilenet_v1-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "mistral/pytorch-ministral_3b_instruct-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "t5/pytorch-t5-small-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "retinanet/pytorch-retinanet_rn18fpn-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -304,7 +293,7 @@ test_config = {
     },
     "perceiver/pytorch-deepmind/language-perceiver-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "oft/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -316,11 +305,11 @@ test_config = {
     },
     "deepcogito/pytorch-v1_preview_llama_3b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "codegen/pytorch-Salesforce/codegen-350M-mono-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "mobilenetv2/pytorch-mobilenet_v2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -336,7 +325,7 @@ test_config = {
     },
     "nanogpt/pytorch-FinancialSupport/NanoGPT-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "stable_diffusion_1_4/pytorch-base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -348,7 +337,7 @@ test_config = {
     },
     "vit/pytorch-vit_b_16-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "hippynn/pytorch-Hippynn-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -360,7 +349,7 @@ test_config = {
     },
     "qwen_3/causal_lm/pytorch-0_6b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "hardnet/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -376,19 +365,19 @@ test_config = {
     },
     "vgg/pytorch-vgg11-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "ghostnet/pytorch-ghostnet_100-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "openpose/v2/pytorch-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "googlenet/pytorch-googlenet-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "yolox/pytorch-yolox_nano-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -404,11 +393,11 @@ test_config = {
     },
     "xception/pytorch-xception41-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "bart/pytorch-large-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "vilt/masked_lm/pytorch-mlm-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -416,34 +405,34 @@ test_config = {
     },
     "gpt2/pytorch-gpt2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "gpt_neo/causal_lm/pytorch-gpt_neo_125M-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "beit/pytorch-base-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "bert/masked_lm/pytorch-bert-base-uncased-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "batch_norm_fails"],
     },
     "hrnet/pytorch-hrnet_w18_small_v2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "mamba/pytorch-mamba-370m-hf-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "fuyu/pytorch-adept/fuyu-8b-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
     "phi2/causal_lm/pytorch-microsoft/phi-2-full-training": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "markers": ["push"],
+        "markers": ["push", "random_fail"],
     },
 }
