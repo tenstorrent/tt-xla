@@ -182,17 +182,11 @@ def apply_tensor_parallel_sharding_mnist_linear(model: nn.Module, mesh, *, move_
     # fc1: weight [hidden, input] -> shard rows (out_features)
     xs.mark_sharding(model.fc1.weight, mesh, ("model", None))
     shard_bias(model.fc1.bias, mesh)
-    # _shard_bias_or_replicate(model.fc1.bias, mesh, strict=strict_bias, override="model")
 
     # fc2: weight [hidden, hidden] -> shard rows (out_features)
     xs.mark_sharding(model.fc2.weight, mesh, (None, "model"))
     replicate_bias(model.fc2.bias, mesh)
-    # _shard_bias_or_replicate(model.fc2.bias, mesh, strict=strict_bias, override="batch")
 
-    # # fc3: weight [num_classes, hidden] -> shard rows (out_features)
-    xs.mark_sharding(model.fc3.weight, mesh, ("model", None))
-    shard_bias(model.fc3.bias, mesh)
-    # _shard_bias_or_replicate(model.fc3.bias, mesh, strict=strict_bias, override="model")
 
 
 # Functional & method pass-through allowlists (extend as needed)
