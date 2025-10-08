@@ -23,7 +23,9 @@ from tests.jax.single_chip.models.mnist.mlp.tester import (
     create_mnist_random_input_image,
 )
 
-from .model_implementation import MNISTMLPMultichipModel
+from third_party.tt_forge_models.mnist.image_classification.jax import (
+    MNISTMLPMultichipModel,
+)
 
 
 class MnistMLPMultichipTester(JaxMultichipModelTester):

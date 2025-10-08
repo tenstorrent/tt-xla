@@ -24,12 +24,16 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester(request) -> MnistMLPMultichipTester:
-    return MnistMLPMultichipTester(request.param, run_mode=RunMode.INFERENCE)
+    return MnistMLPMultichipTester(
+        request.param, run_mode=RunMode.INFERENCE, num_devices=8
+    )
 
 
 @pytest.fixture
 def training_tester(request) -> MnistMLPMultichipTester:
-    return MnistMLPMultichipTester(request.param, run_mode=RunMode.TRAINING)
+    return MnistMLPMultichipTester(
+        request.param, run_mode=RunMode.TRAINING, num_devices=8
+    )
 
 
 # ----- Tests -----
