@@ -70,13 +70,13 @@ jobs:
     runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
-      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
+      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.shared-runners) && '' || '/mnt/dockercache' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      image: ${{ (inputs.use-shared-runners || matrix.build.shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
