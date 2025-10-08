@@ -60,7 +60,7 @@ public:
   createOutputBufferInstance(const tt::runtime::Tensor &device_tensor,
                              std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
-                             PJRT_Buffer_Type data_type);
+                             PJRT_Buffer_Type data_type, int device_id);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -163,6 +163,10 @@ public:
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
 
+  // Returns buffer's device id relative to mesh on which a output shard resides
+  int getDeviceId() const { return m_device_id; }
+  void setDeviceId(int device_id) { m_device_id = device_id;}
+
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
@@ -174,7 +178,8 @@ private:
       const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
       MemoryInstance *memory, PJRT_Buffer_Type data_type,
       const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
-      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt);
+      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt,
+      int device_id=-1);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);
@@ -207,6 +212,9 @@ private:
 
   // Device instance on which this buffer resides.
   DeviceInstance *m_device;
+
+  // Device index relative to mesh on which a output shard resides
+  int m_device_id;
 
   // Memory on which this buffer resides, Can be nullptr if buffer is created
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
