@@ -71,6 +71,12 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options,
       tt::pjrt::ClientInstance *client_instance);
 
+  // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
+  // Could be used to extract mesh attribute from the module so we can use it as
+  // a utility function.
+  static std::optional<mlir::sdy::MeshOp>
+  getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
 private:
   // Creates VHLO module from the input program code.
   tt_pjrt_status
@@ -222,10 +228,6 @@ private:
   // Gets all public functions from the module.
   static std::vector<mlir::func::FuncOp>
   getPublicFuncOps(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
-  static std::optional<mlir::sdy::MeshOp>
-  getFirstShardyMeshOp(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Builds module for TTNN Flatbuffer backend runtime.
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
