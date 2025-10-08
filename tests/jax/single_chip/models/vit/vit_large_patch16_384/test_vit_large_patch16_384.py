@@ -11,8 +11,6 @@ from utils import (
     ExecutionPass,
     failed_ttmlir_compilation,
 )
-
-
 from ..tester import ViTTester
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.vit.image_classification.jax import (
