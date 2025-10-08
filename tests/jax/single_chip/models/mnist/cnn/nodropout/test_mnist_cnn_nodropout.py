@@ -12,7 +12,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
     failed_ttmlir_compilation,
 )
 

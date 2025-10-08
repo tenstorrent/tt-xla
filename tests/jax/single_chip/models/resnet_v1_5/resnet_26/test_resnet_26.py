@@ -9,13 +9,13 @@ from utils import (
     BringupStatus,
     Category,
     ExecutionPass,
-    failed_ttmlir_compilation,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
+    failed_ttmlir_compilation,
     failed_runtime,
+    incorrect_result,
 )
 
 from ..tester import ResNetTester

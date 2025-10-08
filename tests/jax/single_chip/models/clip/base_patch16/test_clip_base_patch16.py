@@ -7,13 +7,13 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
-    ExecutionPass,
     failed_ttmlir_compilation,
+    incorrect_result,
 )
 from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
@@ -76,7 +76,7 @@ def test_clip_base_patch16_inference(inference_tester: FlaxCLIPTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

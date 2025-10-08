@@ -8,11 +8,11 @@ from utils import (
     BringupStatus,
     Category,
     ExecutionPass,
-    failed_ttmlir_compilation,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 

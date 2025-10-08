@@ -7,11 +7,11 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    ExecutionPass,
     failed_ttmlir_compilation,
 )
 
@@ -66,7 +66,7 @@ def test_electra_base_generator_inference(inference_tester: ElectraTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

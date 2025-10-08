@@ -7,13 +7,13 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
-    ExecutionPass,
     failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from ..tester import BloomTester
@@ -74,7 +74,7 @@ def test_bloom_560m_inference(inference_tester: BloomTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

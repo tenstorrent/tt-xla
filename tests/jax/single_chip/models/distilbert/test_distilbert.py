@@ -9,10 +9,12 @@ import pytest
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
 )
 
 from infra import Framework, JaxModelTester, RunMode, Model, ComparisonConfig
@@ -93,7 +95,7 @@ def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTe
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

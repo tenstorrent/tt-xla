@@ -16,8 +16,8 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
     failed_ttmlir_compilation,
+    incorrect_result,
 )
 from third_party.tt_forge_models.mlp_mixer.image_classification.jax import (
     ModelLoader,

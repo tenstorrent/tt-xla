@@ -7,6 +7,7 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     failed_runtime,
 )
 
@@ -58,6 +59,7 @@ def test_opt_2_7b_inference(inference_tester: OPTTester):
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large

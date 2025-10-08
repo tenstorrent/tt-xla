@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -68,6 +69,7 @@ def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BV02Tester
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large

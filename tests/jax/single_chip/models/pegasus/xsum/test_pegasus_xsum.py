@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -71,7 +72,7 @@ def test_pegasus_xsum_inference(inference_tester: PegasusTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )

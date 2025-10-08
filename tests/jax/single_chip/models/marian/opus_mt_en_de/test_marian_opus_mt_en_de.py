@@ -73,7 +73,7 @@ def test_marian_opus_mt_en_de_inference(inference_tester: MarianTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
+        "Failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )

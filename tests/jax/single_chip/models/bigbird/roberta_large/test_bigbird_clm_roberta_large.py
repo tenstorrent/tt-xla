@@ -7,8 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    failed_ttmlir_compilation,
     ExecutionPass,
+    failed_ttmlir_compilation,
 )
 from third_party.tt_forge_models.config import Parallelism
 from ..tester import BigBirdCLMTester

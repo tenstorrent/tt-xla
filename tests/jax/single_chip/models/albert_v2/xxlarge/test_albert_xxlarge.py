@@ -13,8 +13,8 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
     failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from ..tester import AlbertV2Tester

@@ -39,6 +39,7 @@ class BigBirdQATester(JaxModelTester):
     def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
+            # NOTE: This is a hack to get the end logits from the model output.
             out = out.end_logits
             return out
 

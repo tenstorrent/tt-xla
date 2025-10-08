@@ -7,8 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    failed_ttmlir_compilation,
     ExecutionPass,
+    failed_ttmlir_compilation,
 )
 
 from ..tester import BlenderBotTester
@@ -66,7 +66,7 @@ def test_blenderbot_400m_distill_inference(inference_tester: BlenderBotTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )

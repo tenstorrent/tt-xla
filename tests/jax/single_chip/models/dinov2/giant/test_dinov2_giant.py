@@ -7,6 +7,7 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     failed_runtime,
 )
 
@@ -70,7 +71,7 @@ def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "Statically allocated circular buffers in program 1331 clash with "
+        "Statically allocated circular buffers in program 2669 clash with "
         "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
         "L1 buffer allocated at 1069056 and static circular buffer region ends at 1117312"
         "(https://github.com/tenstorrent/tt-xla/issues/1066)"

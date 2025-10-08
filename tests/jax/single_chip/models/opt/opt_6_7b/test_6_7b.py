@@ -67,7 +67,7 @@ def test_opt_6_7b_inference(inference_tester: OPTTester):
 @pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, "
-        "where each bank needs to store 11186176 B "
+        "where each bank needs to store 11186176 B"
         "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )

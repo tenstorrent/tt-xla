@@ -6,8 +6,8 @@ import pytest
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,
-    ExecutionPass,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -66,7 +66,7 @@ def test_electra_small_discriminator_inference(inference_tester: ElectraTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter'"
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

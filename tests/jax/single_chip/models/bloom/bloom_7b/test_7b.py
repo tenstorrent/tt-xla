@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -75,7 +76,7 @@ def test_bloom_7b_inference(inference_tester: BloomTester):
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, "
-        "where each bank needs to store 171270144 B "
+        "where each bank needs to store 171270144 B"
         "https://github.com/tenstorrent/tt-xla/issues/918"
     )
 )
