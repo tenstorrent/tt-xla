@@ -5,8 +5,10 @@
 import ctypes
 from contextlib import contextmanager
 import gc
+import json
 import os
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -18,7 +20,7 @@ from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 from pathlib import Path
 from third_party.tt_forge_models.config import ModelInfo
-from typing import Any
+from typing import Any, Dict
 
 
 def pytest_configure(config: pytest.Config):
@@ -314,6 +316,90 @@ CACHE_DIRECTORIES = [
 ]
 
 
+def get_disk_usage(path: Path, max_depth: int = 3) -> Dict[str, Any]:
+    """
+    Get disk usage for a directory and its subdirectories up to max_depth.
+    Returns a dictionary with path, size in bytes, and subdirectories.
+    """
+    if not path.exists():
+        return {"path": str(path), "size": 0, "error": "Path does not exist"}
+
+    try:
+        # Use du command to get disk usage
+        cmd = ["du", "-b", "--max-depth", str(max_depth), str(path)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode != 0:
+            return {"path": str(path), "size": 0, "error": result.stderr}
+
+        usage_data = {}
+        lines = result.stdout.strip().split('\n')
+
+        for line in lines:
+            if line:
+                parts = line.split('\t')
+                if len(parts) == 2:
+                    size_bytes = int(parts[0])
+                    dir_path = parts[1]
+                    # Calculate depth relative to the starting path
+                    rel_depth = len(Path(dir_path).relative_to(path).parts) if dir_path != str(path) else 0
+                    if rel_depth <= max_depth:
+                        usage_data[dir_path] = {
+                            "size_bytes": size_bytes,
+                            "size_mb": size_bytes / (1024 * 1024),
+                            "size_gb": size_bytes / (1024 * 1024 * 1024),
+                            "depth": rel_depth
+                        }
+
+        return {"path": str(path), "usage": usage_data}
+
+    except subprocess.TimeoutExpired:
+        return {"path": str(path), "size": 0, "error": "Timeout while calculating disk usage"}
+    except Exception as e:
+        return {"path": str(path), "size": 0, "error": str(e)}
+
+
+def write_disk_usage_report():
+    """
+    Collect disk usage information for the home directory and write to a file.
+    Only runs on CIv2.
+    """
+    if not _is_on_CIv2():
+        return
+
+    home_path = Path.home()
+    report_path = Path("/tmp/disk_usage_report.json")
+
+    logger.info(f"Collecting disk usage for {home_path} (depth=3)...")
+
+    # Collect disk usage with depth 3
+    usage_data = get_disk_usage(home_path, max_depth=3)
+
+    # Add timestamp and metadata
+    report = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "home_directory": str(home_path),
+        "max_depth": 3,
+        "disk_usage": usage_data
+    }
+
+    # Also add cache directories info
+    cache_usage = {}
+    for cache_dir in CACHE_DIRECTORIES:
+        if cache_dir.exists():
+            cache_usage[str(cache_dir)] = get_disk_usage(cache_dir, max_depth=1)
+
+    report["cache_directories"] = cache_usage
+
+    # Write to JSON file
+    try:
+        with open(report_path, 'w') as f:
+            json.dump(report, f, indent=2)
+        logger.info(f"Disk usage report written to {report_path}")
+    except Exception as e:
+        logger.error(f"Failed to write disk usage report: {e}")
+
+
 def cleanup_cache():
     """
     Cleans up cache directories if we are running on CIv2.
@@ -336,8 +422,12 @@ def cleanup_cache():
 def cleanup_cache_fixture():
     """
     Pytest fixture that cleans up cache directories before and after each test.
+    Also writes disk usage information to a file for CI artifact collection.
     Only runs if we are running on CIv2.
     """
+    # Write disk usage report before cleanup
+    write_disk_usage_report()
+
     # Cleanup before test
     cleanup_cache()
 
