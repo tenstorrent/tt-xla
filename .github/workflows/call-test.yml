@@ -350,9 +350,24 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        # Log initial folder sizes before tests
+        python .github/scripts/log_folder_sizes.py \
+               --test-name "BEFORE_TESTS_${{ matrix.build.name }}" \
+               --output folder_sizes_summary.json \
+               --find-large-files \
+               --min-file-size 100
+
         python -m pytest ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
+
+        # Log final folder sizes after all tests
+        python .github/scripts/log_folder_sizes.py \
+               --test-name "AFTER_TESTS_${{ matrix.build.name }}" \
+               --output folder_sizes_summary.json \
+               --append \
+               --find-large-files \
+               --min-file-size 100
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -376,6 +391,22 @@ jobs:
       with:
         name: test-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Upload Folder Size Logs (Per Test)
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: folder-sizes-per-test-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: folder_sizes_per_test.json
+        if-no-files-found: ignore
+
+    - name: Upload Folder Size Summary
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: folder-sizes-summary-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: folder_sizes_summary.json
+        if-no-files-found: ignore
 
     - name: Show Test Report
       continue-on-error: true

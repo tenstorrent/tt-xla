@@ -495,6 +495,29 @@ def cleanup_cache_fixture(request):
 
     yield
 
+    # Log folder sizes after each test if running in CI
+    if _is_on_CIv2():
+        try:
+            import subprocess
+            test_name = request.node.nodeid
+            # Run the folder size logging script
+            subprocess.run(
+                [
+                    "python",
+                    ".github/scripts/log_folder_sizes.py",
+                    "--test-name", test_name,
+                    "--output", "folder_sizes_per_test.json",
+                    "--append",
+                    "--find-large-files",
+                    "--min-file-size", "50"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log folder sizes: {e}")
+
     # Cleanup after test
     cleanup_cache()
     cleanup_test_artifacts()
