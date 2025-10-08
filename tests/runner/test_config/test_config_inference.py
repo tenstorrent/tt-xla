@@ -1581,14 +1581,9 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "unet/pytorch-unet_cityscapes-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434",
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-            },
-        },
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434",
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "unet/pytorch-torchhub_brain_unet-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -2390,9 +2385,9 @@ test_config = {
         },
     },
     "llava/pytorch-1_5_7b-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "loc('aten__masked_scatter'): error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>> - https://github.com/tenstorrent/tt-xla/issues/1477",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Running the test CRASHED with signal 9 - uses too much memory need higher memory host.",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "qwen_2_5/casual_lm/pytorch-72b_instruct-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,

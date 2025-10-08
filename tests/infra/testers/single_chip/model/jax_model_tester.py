@@ -137,10 +137,11 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, FlaxPreTrainedModel):
             return {
                 "params": self._input_parameters,
+                "train": False if self._run_mode == RunMode.INFERENCE else True,
                 **self._input_activations,
             }
 
-        return {}
+        return {"train": False if self._run_mode == RunMode.INFERENCE else True}
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """
