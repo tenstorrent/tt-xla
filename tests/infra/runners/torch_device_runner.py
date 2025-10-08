@@ -91,8 +91,15 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
-        kwargs_on_device = tree_map(lambda x: to_device(x, device), workload.kwargs)
+        def attempt_to_device(x):
+            if hasattr(x, "to"):
+                x = x.to(device)
+                if device.type != "cpu":
+                    xs.mark_sharding(x, workload.mesh, ("batch", None))
+            return x
+
+        args_on_device = tree_map(attempt_to_device, workload.args)
+        kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
 
         if workload.model is not None:
             workload.model = workload.model.to(device)
