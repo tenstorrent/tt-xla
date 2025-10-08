@@ -18,7 +18,7 @@ from third_party.tt_forge_models.alexnet.jax import (
     ModelLoader,
 )
 
-VARIANT_NAME = ModelVariant.CUSTOM
+VARIANT_NAME = ModelVariant.CUSTOM_1X8
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
