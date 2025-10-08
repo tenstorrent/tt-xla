@@ -157,6 +157,9 @@ ModuleBuilder::buildModule(
   }
   mlir_module->print(file_stream, mlir::OpPrintingFlags().enableDebugInfo());
 
+  file_stream.flush();
+  exit(0);
+
   status = runCompilerStableHLOPipeline(mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
