@@ -36,7 +36,7 @@ class BigBirdQATester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _wrapper_model(self, f, is_hf_model=True):
+    def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
             out = out.end_logits

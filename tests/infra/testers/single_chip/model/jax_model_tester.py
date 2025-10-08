@@ -177,10 +177,10 @@ class JaxModelTester(ModelTester):
             static_argnames=workload.static_argnames,
         )
 
-    def _wrapper_model(self, f, is_hf_model):
+    def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
-            if is_hf_model:
+            if isinstance(self._model, FlaxPreTrainedModel):
                 out = out.logits
             return out
 
@@ -225,7 +225,7 @@ class JaxModelTester(ModelTester):
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp,
-                self._wrapper_model(training_workload.compiled_executable, is_hf_model),
+                self._wrapper_model(training_workload.compiled_executable),
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
@@ -237,7 +237,7 @@ class JaxModelTester(ModelTester):
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp,
-                self._wrapper_model(training_workload.compiled_executable, is_hf_model),
+                self._wrapper_model(training_workload.compiled_executable),
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
