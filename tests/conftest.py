@@ -10,6 +10,7 @@ import shutil
 import sys
 import threading
 import time
+import subprocess
 
 import torch
 import psutil
@@ -198,6 +199,23 @@ def _is_on_CIv2() -> bool:
     return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
 
 
+def _log_df_for_cache_dir(cache_dir: Path, when: str) -> None:
+    """
+    Log disk usage for the given cache directory using `df -h`.
+
+    If the directory does not exist, log df for its parent directory instead.
+    """
+    try:
+        df_target = cache_dir if cache_dir.exists() else cache_dir.parent
+        result = subprocess.run(["df", "-h", str(df_target)], capture_output=True, text=True, check=False)
+        if result.stdout:
+            logger.info(f"Disk usage {when} cleanup for {cache_dir}:\n{result.stdout}")
+        if result.stderr:
+            logger.warning(f"df stderr ({when}) for {cache_dir}: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Failed to run df {when} cleanup for {cache_dir}: {e}")
+
+
 @contextmanager
 def newline_logger():
     """
@@ -300,6 +318,8 @@ def cleanup_cache():
     if not _is_on_CIv2():
         return
 
+    logger.info("Cleaning up cache directories")
+
     cache_dirs = [
         Path.home().joinpath(".cache", "lfcache"),
         Path.home().joinpath(".cache", "url_cache"),
@@ -307,12 +327,17 @@ def cleanup_cache():
     ]
 
     for cache_dir in cache_dirs:
+        _log_df_for_cache_dir(cache_dir, "before")
+
+        # Perform cleanup if directory exists
         if cache_dir.exists():
             try:
                 shutil.rmtree(cache_dir)
-                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+                logger.info(f"Cleaned up cache directory: {cache_dir}")
             except Exception as e:
                 logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+
+        _log_df_for_cache_dir(cache_dir, "after")
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
