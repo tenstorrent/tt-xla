@@ -54,7 +54,7 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdQATester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

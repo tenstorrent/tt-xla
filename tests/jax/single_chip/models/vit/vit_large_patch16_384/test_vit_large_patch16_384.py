@@ -53,7 +53,7 @@ def test_vit_large_patch16_384_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

@@ -69,7 +69,7 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
@@ -87,7 +87,7 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
     training_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

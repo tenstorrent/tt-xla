@@ -47,7 +47,7 @@ def test_opt_350m_inference(inference_tester: OPTTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

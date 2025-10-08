@@ -60,7 +60,7 @@ def test_wav2vec2_large_lv60_inference(inference_tester: Wav2Vec2Tester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

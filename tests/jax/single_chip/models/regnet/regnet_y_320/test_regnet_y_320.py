@@ -64,7 +64,7 @@ def test_regnet_y_320_inference(inference_tester: RegNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

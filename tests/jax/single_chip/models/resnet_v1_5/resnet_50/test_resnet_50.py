@@ -60,7 +60,7 @@ def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

@@ -60,7 +60,7 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

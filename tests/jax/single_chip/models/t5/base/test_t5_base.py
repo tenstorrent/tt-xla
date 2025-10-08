@@ -63,7 +63,7 @@ def test_t5_base_inference(inference_tester: T5Tester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

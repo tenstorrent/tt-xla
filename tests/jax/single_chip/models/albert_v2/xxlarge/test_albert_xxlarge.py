@@ -64,7 +64,7 @@ def test_flax_albert_v2_xxlarge_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
