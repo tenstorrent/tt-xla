@@ -41,6 +41,9 @@ class CompilerConfig:
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
     enable_fusing_conv2d_with_multiply_pattern: bool = False
 
+    # Enables trace hoisting for TTNN pipeline.
+    enable_trace: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -64,6 +67,9 @@ class CompilerConfig:
 
         if self.enable_fusing_conv2d_with_multiply_pattern:
             options["enable_fusing_conv2d_with_multiply_pattern"] = "true"
+
+        if self.enable_trace:
+            options["enable_trace"] = "true"
 
         return options
 
