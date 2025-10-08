@@ -316,7 +316,10 @@ def cleanup_cache():
     """
     yield
     if not _is_on_CIv2():
+        logger.info("Not running on CIv2, skipping cache cleanup")
         return
+    else:
+        logger.info("Running on CIv2, cleaning up cache directories")
 
     logger.info("Cleaning up cache directories")
 
