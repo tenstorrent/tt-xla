@@ -17,7 +17,8 @@ from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
 
-from third_party.tt_forge_models.mistral.pytorch.loader import ModelVariant, ModelLoader
+# from third_party.tt_forge_models.mistral.pytorch.loader import ModelVariant, ModelLoader
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import ModelVariant, ModelLoader
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -47,13 +48,13 @@ def test_all_models(
     run_mode, op_by_op, record_property, test_metadata, request, capteesys
 ):
 
-    loader_path = '/localdev/hshah/tt-xla/third_party/tt_forge_models/mistral/pytorch/loader.py'
+    loader_path = '/localdev/hshah/tt-xla/third_party/tt_forge_models/qwen_2_5/casual_lm/pytorch/loader.py'
     # variant = ModelVariant.QWEN_3_8B # PCC: 0.78
     # variant = ModelVariant.QWEN_3_14B # PCC: 0.72
-    # variant = ModelVariant.QWEN_2_5_7B_INSTRUCT # Failure due to invalid reshape
-    # variant = ModelVariant.QWEN_2_5_14B_INSTRUCT # Failure due to invalid reshape
+    variant = ModelVariant.QWEN_2_5_7B_INSTRUCT # Failure
+    # variant = ModelVariant.QWEN_2_5_14B_INSTRUCT # Failure
     # variant = ModelVariant.MISTRAL_7B_INSTRUCT_V03 # Passed with high PCC: 0.998
-    variant = ModelVariant.MINISTRAL_8B # Passed with low PCC: 0.23
+    # variant = ModelVariant.MINISTRAL_8B # Passed with low PCC: 0.23
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
