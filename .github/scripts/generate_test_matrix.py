@@ -51,6 +51,19 @@ def expand_parallel_entry(entry, expanded_matrix):
         expanded_matrix.append(entry)
 
 
+def read_preset_test_entries(file_path):
+    """
+    Read JSON preset file and return only test entries (excluding metadata).
+    """
+    with open(file_path, "r") as f:
+        matrix = json.load(f)
+
+    if not isinstance(matrix, list):
+        raise ValueError("Expected JSON file to contain an array at the root level")
+
+    return [entry for entry in matrix if "_metadata" not in entry]
+
+
 def process_test_matrix(matrix_file_path):
     """
     Process test matrix by expanding parallel groups and mapping shared runners.
@@ -62,12 +75,7 @@ def process_test_matrix(matrix_file_path):
     corresponding shared runner equivalents.
     """
 
-    # Read the input JSON file
-    with open(matrix_file_path, "r") as f:
-        matrix = json.load(f)
-
-    if not isinstance(matrix, list):
-        raise ValueError("Expected JSON file to contain an array at the root level")
+    matrix = read_preset_test_entries(matrix_file_path)
 
     expanded_matrix = []
 
