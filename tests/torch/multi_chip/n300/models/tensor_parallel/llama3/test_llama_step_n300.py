@@ -1,33 +1,31 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from tests.infra.testers.single_chip.model.model_tester import RunMode
-from tests.utils import BringupStatus, ModelGroup
+import os
+from enum import Enum
+from typing import List
+
+import numpy as np
+import pytest
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    PreTrainedTokenizer,
-)
+from infra.comparators.torch_comparator import TorchComparator
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
+from torch_xla.distributed.spmd import Mesh
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-import os
-import numpy as np
-from torch_xla.distributed.spmd import Mesh
-import torch_xla.distributed.spmd as xs
-from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
-from infra.comparators.torch_comparator import TorchComparator
+
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
     ComparisonConfig,
     PccConfig,
 )
-from typing import List
-import pytest
-from enum import Enum
+from tests.infra.testers.single_chip.model.model_tester import RunMode
+from tests.utils import BringupStatus, ModelGroup
 
 
 class LLMRunMode(Enum):
@@ -186,4 +184,3 @@ def test_llama_step(run_mode):
     )
 
     comparator.compare(generated_output_logits, cpu_output_logits)
-    print("output tokens:", output_tokens)
