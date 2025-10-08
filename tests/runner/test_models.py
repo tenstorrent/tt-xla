@@ -16,6 +16,7 @@ from tests.runner.requirements import RequirementsManager
 from infra import RunMode
 from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
+from third_party.tt_forge_models.config import Parallelism
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -38,12 +39,39 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=["full"],  # When op-by-op flow is required/supported, add here.
 )
 @pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
     "test_entry",
     test_entries,
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capteesys
+    test_entry,
+    run_mode,
+    op_by_op,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    capteesys,
 ):
 
     loader_path = test_entry.path
@@ -66,6 +94,7 @@ def test_all_models(
                     run_mode,
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
+                    parallelism=parallelism,
                 )
 
                 tester.test()
@@ -86,6 +115,7 @@ def test_all_models(
                 test_metadata=test_metadata,
                 run_mode=run_mode,
                 test_passed=succeeded,
+                parallelism=parallelism,
             )
 
 
@@ -132,4 +162,5 @@ def test_placeholder_models(model_name, record_property, request):
         model_info=model_info,
         test_metadata=test_metadata,
         run_mode=RunMode.INFERENCE,
+        parallelism=Parallelism.SINGLE_DEVICE,
     )
