@@ -29,6 +29,9 @@ def map_shared_runner(entry):
         runs_on = entry.get("runs-on")
         if runs_on in shared_runner_mapping:
             entry["runs-on"] = shared_runner_mapping[runs_on]
+        else:
+            print(f"Error: Runner architecture '{runs_on}' not found", file=sys.stderr)
+            sys.exit(1)
     return entry
 
 
