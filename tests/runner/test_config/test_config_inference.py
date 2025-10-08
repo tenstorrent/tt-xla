@@ -2500,7 +2500,7 @@ test_config = {
     },
     "pointpillars/pytorch-pointpillars-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266",
+        "reason": "error: 'ttir.batch_norm' op input tensor must be a 4D tensor' - https://github.com/tenstorrent/tt-xla/issues/1611",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
 }
