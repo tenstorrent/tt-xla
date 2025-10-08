@@ -59,9 +59,23 @@ jobs:
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
 
+  # Debug job to print matrix.build.shared-runners before running tests
+  print-shared-runners:
+    needs: generate-matrix-test
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Print shared-runners value
+      run: |
+        echo "matrix.build.shared-runners: ${{ matrix.build.shared-runners }}"
+        echo "matrix.build.runs-on: ${{ matrix.build.runs-on }}"
+
   # Run tests on TT hardware
   run-tests:
-    needs: generate-matrix-test
+    needs: [generate-matrix-test, print-shared-runners]
     strategy:
       fail-fast: false
       matrix:
