@@ -212,7 +212,7 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models_torch; do
+        for n in run_torch run_large_jax_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -222,7 +222,7 @@ jobs:
         if [[ -n "$PYTEST_FORKED" ]]; then
           VERBOSITY="-vv"
         else
-          VERBOSITY="-sv"
+          VERBOSITY="-svv"
         fi
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config.py
