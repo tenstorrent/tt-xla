@@ -363,6 +363,13 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           DLOG_F(LOG_DEBUG,
                  "Returning tensor to host; with host_runtime_tensors ct = %ld from device %d",
                  host_runtime_tensors.size(), device_id);
+
+          // If device_id is -1, we are returning an input buffer instance to host (eg. cache position for update)
+          // this means we can pull back the 0th BI since it's replicated
+          if (device_id == -1){
+            device_id = 0;
+          }
+          
           tt::runtime::Tensor host_shard_runtime_tensor =
               host_runtime_tensors[device_id];
 
