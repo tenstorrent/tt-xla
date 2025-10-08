@@ -48,7 +48,7 @@ def training_tester() -> GPTJTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks, "
         "where each bank needs to store 22372352 B "
