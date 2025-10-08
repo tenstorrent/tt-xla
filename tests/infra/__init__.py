@@ -5,7 +5,7 @@
 """Exposes only what is really needed to write tests, nothing else."""
 
 from .comparators import ComparisonConfig
-from .connectors import DeviceConnectorFactory, JaxDeviceConnector
+from .connectors import DeviceConnectorFactory, JaxDeviceConnector, TorchDeviceConnector
 from .testers import (
     JaxModelTester,
     JaxMultichipModelTester,

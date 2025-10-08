@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 import pytest
+from tests.infra import TorchDeviceConnector
 from tests.infra import TorchModelTester, RunMode
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -10,7 +11,6 @@ import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import numpy as np
-
 
 class TorchMultichipUnaryModelTester(TorchModelTester):
     def __init__(
@@ -55,17 +55,11 @@ def setup_mesh(mesh_shape, axis_names):
 
 @pytest.mark.nightly
 @pytest.mark.push
-@pytest.mark.parametrize(
-    "mesh",
-    [
-        setup_mesh(
-            mesh_shape=(xr.global_runtime_device_count(), 1), axis_names=("x", "y")
-        )
-    ],
-)
+@pytest.mark.parametrize("mesh_shape", [(1, 2)])
+@pytest.mark.parametrize("axis_names", [("x", "y")])
 @pytest.mark.parametrize("input_shape", [(32, 32)])
 @pytest.mark.parametrize("sharding_mode", ["fully_replicated", "partially_sharded"])
-def test_linear(mesh, input_shape, sharding_mode):
+def test_linear(mesh_shape, axis_names, input_shape, sharding_mode):
     class LinearModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -77,11 +71,12 @@ def test_linear(mesh, input_shape, sharding_mode):
     def shard_spec_function(model):
         if sharding_mode == "partially_sharded":
             # Shard weight matrix along output dimension (dim 0)
-            return {model.linear.weight: ("x", None)}
+            return {model.linear.weight: ("y", None)}
         else:
             # Do not shard anything, fully replicated
             return {}
-
+        
+    mesh = setup_mesh(mesh_shape, axis_names)
     model_tester = TorchMultichipUnaryModelTester(
         model=LinearModel(),
         input_shape=input_shape,
