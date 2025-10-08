@@ -252,8 +252,9 @@ class TTAttentionBackendImpl(AttentionImpl):
                     query,
                     key,
                     value,
-                    is_causal=False,
-                    attn_mask=attn_metadata.attn_mask,
+                    is_causal=True,
+                    attn_mask=None,
+                    # attn_mask=attn_metadata.attn_mask,
                 )
                 .transpose(-3, -2)
                 .reshape(num_tokens, hidden_size)

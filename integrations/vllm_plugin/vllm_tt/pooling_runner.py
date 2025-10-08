@@ -1092,6 +1092,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
+            print(f"input_ids: {input_ids.shape}", flush=True)
 
             # Forward pass
             with set_forward_context(
