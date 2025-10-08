@@ -9,16 +9,16 @@
 
 # Here is the dependency graph to easily keep track of components involved:
 #
-# pjrt_plugin_tt.so (TTPJRTTTDylib) # src/tt/CMakeLists.txt
+# pjrt_plugin_tt.so (TTPJRTTTDylib) # pjrt_implementation/src/CMakeLists.txt
 # |                                 # This is the final product of the build, a dynamic
 # |                                 # lib imported by JAX as a plugin
 # │
-# ├── TTPJRTTT  # src/tt/CMakeLists.txt
-# │   └── TTPJRTCommon  # src/common/CMakeLists.txt
-# │       ├── TTPJRTCommonDylibPlatform   # src/common/CMakeLists.txt
+# ├── TTPJRTBindings  # pjrt_implementation/src/CMakeLists.txt
+# │   └── TTPJRTApi  # pjrt_implementation/src/api/CMakeLists.txt
 # │       ├── TTMLIRCompiler (tt-mlir dynamic lib, product of tt-mlir build)
 # │       ├── TTMLIRRuntime (tt-mlir dynamic lib, product of tt-mlir build)
-# │       └── loguru
+# │       └── TTPJRTUtils  # pjrt_implementation/src/utils/CMakeLists.txt
+# │           └── loguru
 # │
 # └── coverage_config   # CMakeLists.txt
 
@@ -75,6 +75,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
 
-add_subdirectory(src)
+add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
