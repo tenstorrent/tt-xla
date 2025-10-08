@@ -462,21 +462,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
-  untilized_output_tensors.reserve(output_tensors.size());
-  status = untilizeToHost(output_tensors, args->num_devices,
-                          untilized_output_tensors);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return status;
-  }
-
-  fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists, m_executable_image->getOutputTypes());
-
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
-  }
+  // [James] TODO fill PJRT output lists with device tensors, inserting into prepared_tensor
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
