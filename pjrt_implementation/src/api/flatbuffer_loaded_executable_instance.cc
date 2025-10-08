@@ -467,7 +467,41 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  // [James] TODO fill PJRT output lists with device tensors, inserting into prepared_tensor
+
+  DLOG_F(LOG_DEBUG, "[JAMES] Fill pjrt output list with device tensors instead of host tensors");
+  size_t n_prog_output_tensors = output_tensors.size();
+
+  // iterate over the available tensors and devices, filling in the PJRT Buffer outputs
+  // The output bufferInstance is initialized with a device tensor instead of a host tensor.
+
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    for (int device_index = 0; device_index < args->num_devices;
+         ++device_index) {
+
+      tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+      auto expected_output_data_types = m_executable_image->getOutputTypes();
+            // replicated case - repeat
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              outputDeviceTensor, std::move(output_shape),
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index]);
+      DLOG_F(
+          LOG_DEBUG,
+          "--[JAMES] filled at output index %zu device index %d with shape %s",
+          output_index, device_index, output_buffer->toShapeStr().c_str());
+
+      output_buffer->markAsDataReady();
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+      args->output_lists[device_index][output_index] = *output_buffer.release();
+    }
+  }
+
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
