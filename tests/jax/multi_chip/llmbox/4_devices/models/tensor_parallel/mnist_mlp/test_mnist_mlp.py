@@ -14,11 +14,11 @@ from tests.jax.multi_chip.n300.models.tensor_parallel.mnist_mlp.tester import (
     MnistMLPMultichipTester,
 )
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
+    ModelVariant,
     ModelLoader,
 )
 
-VARIANT_NAME = ModelArchitecture.MLP
+VARIANT_NAME = ModelVariant.MLP_CUSTOM_1X4
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
