@@ -63,6 +63,7 @@
 #include "common/pjrt_implementation/executable_image.h"
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.h"
+#include "common/pjrt_implementation/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "common/status.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -574,6 +575,12 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
   DLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
   printModule(mlir_module);
+
+  if (!tt_pjrt_status_is_ok(
+          frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
+    DLOG_F(ERROR, "Failed to set proper sdy.mesh attribute in SPMD mode");
+    return tt_pjrt_status::kInternal;
+  }
 
   return tt_pjrt_status::kSuccess;
 }
