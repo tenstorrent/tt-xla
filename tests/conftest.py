@@ -315,6 +315,12 @@ def cleanup_cache():
     Only runs if we are running on CIv2.
     """
     yield
+
+    # Print all env-vars:
+    logger.info("Environment variables:")
+    for key, value in os.environ.items():
+        logger.info(f"{key}: {value}")
+
     if not _is_on_CIv2():
         logger.info("Not running on CIv2, skipping cache cleanup")
         return
