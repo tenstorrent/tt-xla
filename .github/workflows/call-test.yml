@@ -102,6 +102,7 @@ jobs:
           python_package/requirements.txt
           tests
           venv
+          .github/scripts
 
     - name: Fetch job id
       id: fetch-job-id

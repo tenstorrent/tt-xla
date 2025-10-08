@@ -500,21 +500,36 @@ def cleanup_cache_fixture(request):
         try:
             import subprocess
             test_name = request.node.nodeid
-            # Run the folder size logging script
-            subprocess.run(
-                [
-                    "python",
-                    ".github/scripts/log_folder_sizes.py",
-                    "--test-name", test_name,
-                    "--output", "folder_sizes_per_test.json",
-                    "--append",
-                    "--find-large-files",
-                    "--min-file-size", "50"
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Find the script path - look for it relative to the project root
+            script_path = None
+            potential_paths = [
+                Path(__file__).parent.parent / ".github" / "scripts" / "log_folder_sizes.py",
+                Path("/__w/tt-xla/tt-xla/.github/scripts/log_folder_sizes.py"),
+                Path(".github/scripts/log_folder_sizes.py"),
+            ]
+            for path in potential_paths:
+                if path.exists():
+                    script_path = str(path)
+                    break
+
+            if script_path:
+                # Run the folder size logging script
+                subprocess.run(
+                    [
+                        "python",
+                        script_path,
+                        "--test-name", test_name,
+                        "--output", "folder_sizes_per_test.json",
+                        "--append",
+                        "--find-large-files",
+                        "--min-file-size", "50"
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+            else:
+                logger.debug("Folder size logging script not found")
         except Exception as e:
             logger.warning(f"Failed to log folder sizes: {e}")
 
