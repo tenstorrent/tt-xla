@@ -13,14 +13,12 @@ from pathlib import Path
 import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
-import pytest
-import transformers
-from transformers import PreTrainedTokenizer
-
 import mistral_nnx
 import mistral_nnx.generate
+import pytest
+import transformers
 from mistral_nnx.util import timer
-
+from transformers import PreTrainedTokenizer
 
 MODEL = "mistralai/Mistral-Small-24B-Instruct-2501"
 

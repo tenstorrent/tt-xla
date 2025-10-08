@@ -7,9 +7,9 @@ Example demonstrating the compiler configuration options for TT-XLA with PyTorch
 """
 
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-import torch_xla
 
 from tests.torch.single_chip.models.mnist.cnn.dropout.model_implementation import (
     MNISTCNNDropoutModel,

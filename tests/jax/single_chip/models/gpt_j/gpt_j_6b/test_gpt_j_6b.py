@@ -15,6 +15,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.gpt_j.causal_lm.jax import ModelVariant
+
 from ..tester import GPTJTester
 
 MODEL_VARIANT = ModelVariant._6B

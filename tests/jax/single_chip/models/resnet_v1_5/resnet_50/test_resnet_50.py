@@ -18,6 +18,7 @@ from utils import (
 from ..tester import CompilerConfig, ResNetTester
 from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
+
 VARIANT_NAME = ModelVariant.RESNET_50
 MODEL_NAME = build_model_name(
     Framework.JAX,

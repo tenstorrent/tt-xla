@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+from typing import Optional, Union
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax.sharding import PartitionSpec as P
 from jax.sharding import NamedSharding
-from typing import Union, Optional
-from pathlib import Path
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-from model.model_falcon3 import FlaxFalcon3ForCausalLM
+from jax.sharding import PartitionSpec as P
 from model.jax_config import (
-    shard_params,
     create_device_mesh,
+    shard_params,
     with_named_sharding_constraint,
 )
-from model.jax_config import with_named_sharding_constraint
+from model.model_falcon3 import FlaxFalcon3ForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from utils.flax_utils import *
 
 MODEL_NAME = "tiiuae/Falcon3-7B-Instruct"
@@ -59,7 +59,7 @@ def main(model_name: str, prompt: str):
     # input_ids = with_named_sharding_constraint(input_ids, device_mesh, P('dp', None))
     # attention_mask = with_named_sharding_constraint(attention_mask, device_mesh, P('dp', None))
     # position_ids = with_named_sharding_constraint(position_ids, device_mesh, P('dp', None))
-    from flax.core import unfreeze, freeze
+    from flax.core import freeze, unfreeze
 
     flax_params = unfreeze(flax_params)
     generated_ids = run_flax_model(

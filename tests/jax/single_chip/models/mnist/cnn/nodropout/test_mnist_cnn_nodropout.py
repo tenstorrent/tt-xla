@@ -15,8 +15,9 @@ from utils import (
     failed_fe_compilation,
 )
 
-from ..tester import MNISTCNNTester
 from third_party.tt_forge_models.mnist.image_classification.jax import ModelArchitecture
+
+from ..tester import MNISTCNNTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,

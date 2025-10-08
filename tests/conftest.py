@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-from contextlib import contextmanager
 import gc
 import os
 import shutil
 import sys
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
-import torch
 import psutil
 import pytest
+import torch
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
-from pathlib import Path
+
 from third_party.tt_forge_models.config import ModelInfo
-from typing import Any
 
 
 def pytest_configure(config: pytest.Config):

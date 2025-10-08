@@ -1,15 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch
+from pathlib import Path
+from typing import Optional, Union
+
 import jax
 import jax.numpy as jnp
-
-from typing import Optional, Union
-from pathlib import Path
-
-from transformers import AutoTokenizer, AutoConfig
+import torch
 from model.model_falcon3 import FlaxFalcon3ForCausalLM
+from transformers import AutoConfig, AutoTokenizer
 
 
 def init_flax_model(

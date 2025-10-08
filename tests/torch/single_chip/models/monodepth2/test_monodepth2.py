@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 import os
 import shutil
+
+import pytest
 from infra import Framework, RunMode
 from utils import (
     BringupStatus,

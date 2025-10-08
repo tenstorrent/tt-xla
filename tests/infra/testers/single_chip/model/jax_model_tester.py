@@ -2,20 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 import jax
-import os
-import shutil
-
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Model, PyTree, random_tensor
 from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from .model_tester import ModelTester, RunMode
 

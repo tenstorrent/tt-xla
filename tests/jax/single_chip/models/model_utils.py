@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import flax.traverse_util
 import jax

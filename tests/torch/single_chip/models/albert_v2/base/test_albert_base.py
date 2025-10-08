@@ -15,6 +15,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.albert.masked_lm.pytorch import ModelVariant
+
 from ..tester import AlbertV2Tester
 
 VARIANT_NAME = ModelVariant.BASE_V2

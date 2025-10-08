@@ -1,17 +1,15 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import pytest
+import torch
 
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
     ComparisonConfig,
 )
-import torch
-import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-
-import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector

@@ -9,10 +9,11 @@ from typing import Callable, Sequence
 import jax
 import torch
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework, Tensor, random_tensor
 from infra.workloads import Workload
 from jax._src.typing import DTypeLike
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
 

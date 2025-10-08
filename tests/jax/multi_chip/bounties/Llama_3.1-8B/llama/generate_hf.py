@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+
 import numpy as np
+import torch
 from torch import autocast
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 
 def run():

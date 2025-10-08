@@ -15,9 +15,10 @@ from utils import (
     incorrect_result,
 )
 
-from .tester import ResnetTester
-from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.resnet.pytorch import ModelVariant
+
+from .tester import ResnetTester
 
 VARIANT_NAME = ModelVariant.RESNET_50_HF
 

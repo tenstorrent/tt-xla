@@ -3,17 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import os
 from typing import Any, Dict, Mapping, Sequence
 
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
 from infra.workloads import Workload
-import os
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from .model_tester import ModelTester, RunMode
 

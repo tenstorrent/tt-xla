@@ -13,8 +13,9 @@ from utils import (
     build_model_name,
 )
 
-from ..tester import AlbertV2Tester
 from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
+
+from ..tester import AlbertV2Tester
 
 VARIANT_NAME = ModelVariant.BASE_V2
 MODEL_NAME = build_model_name(

@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from singlechip.flaxmixtral import FlaxMixtralForCausalLM
-
 # from singlechip.flaxconfigmixtral import MixtralConfig
 import jax
 import jax.numpy as jnp
+from singlechip.flaxmixtral import FlaxMixtralForCausalLM
 
 
 def convert_weights(modelTorch, configTorch):

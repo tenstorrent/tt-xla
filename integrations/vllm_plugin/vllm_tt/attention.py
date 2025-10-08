@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 import torch
-
 from vllm.attention.backends.abstract import (
     AttentionBackend,
     AttentionImpl,

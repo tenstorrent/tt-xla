@@ -14,8 +14,9 @@ from utils import (
     failed_runtime,
 )
 
-from ..tester import RegNetTester
 from third_party.tt_forge_models.regnet.image_classification.jax import ModelVariant
+
+from ..tester import RegNetTester
 
 VARIANT_NAME = ModelVariant.REGNET_Y_160
 MODEL_NAME = build_model_name(

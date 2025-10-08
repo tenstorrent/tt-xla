@@ -13,9 +13,9 @@ from utils import (
     build_model_name,
 )
 
-from ..tester import ElectraTester
-
 from third_party.tt_forge_models.electra.causal_lm.jax import ModelVariant
+
+from ..tester import ElectraTester
 
 VARIANT_NAME = ModelVariant.LARGE_DISCRIMINATOR
 MODEL_NAME = build_model_name(

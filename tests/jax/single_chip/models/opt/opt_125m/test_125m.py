@@ -4,14 +4,12 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.opt.causal_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import OPTTester
-from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.opt.causal_lm.jax import ModelVariant, ModelLoader
 
 VARIANT_NAME = ModelVariant._125M
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

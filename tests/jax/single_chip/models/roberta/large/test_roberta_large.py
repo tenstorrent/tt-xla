@@ -4,14 +4,12 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.roberta.masked_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import FlaxRobertaForMaskedLMTester
-from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.roberta.masked_lm.jax import ModelVariant, ModelLoader
 
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

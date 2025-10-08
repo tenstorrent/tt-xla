@@ -2,16 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from pathlib import Path
+
+import fire
 import jax
 import jax.numpy as jnp
 import numpy as np
-import fire
-from flax.core.frozen_dict import freeze
-from model import FlaxLLaMAForCausalLM
 from convert_weights import convert_llama_weights
-from transformers import AutoTokenizer
+from flax.core.frozen_dict import freeze
 from generation import LLaMA
-from pathlib import Path
+from model import FlaxLLaMAForCausalLM
+from transformers import AutoTokenizer
 
 ROOT = Path(__file__).parent.parent
 

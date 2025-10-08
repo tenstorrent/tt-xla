@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
-from flax.core import unfreeze, freeze
 import numpy as np
 import torch
+from flax.core import freeze, unfreeze
 from transformers import AutoConfig
+from utils.data_utils import compare_results
 from utils.flax_utils import *
 from utils.torch_utils import *
-from utils.data_utils import compare_results
 
 
 def run_test(model_name: str, prompt: str):

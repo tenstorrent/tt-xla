@@ -15,6 +15,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.longt5.text_classification.jax import ModelVariant
+
 from ..tester import LongT5Tester
 
 MODEL_VARIANT = ModelVariant.LARGE_LOCAL

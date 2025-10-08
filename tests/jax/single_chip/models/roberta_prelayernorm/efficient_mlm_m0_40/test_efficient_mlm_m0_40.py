@@ -6,12 +6,8 @@ from typing import Dict
 
 import jax
 import pytest
-
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
