@@ -33,9 +33,9 @@ class FlaxCLIPTester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _wrapper_model(self, f, is_hf_model = True):
+    def _wrapper_model(self, f, is_hf_model=True):
         def model(args, kwargs):
-            #TODO: Check if we need to support both image and text model output 
+            # TODO: Check if we need to support both image and text model output
             out = f(*args, **kwargs).text_model_output.pooler_output
             return out
 

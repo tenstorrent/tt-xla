@@ -33,6 +33,7 @@ MODEL_NAME = build_model_name(
 def inference_tester() -> MBartTester:
     return MBartTester(MODEL_PATH)
 
+
 @pytest.fixture
 def training_tester() -> MBartTester:
     return MBartTester(MODEL_PATH, run_mode=RunMode.TRAINING)

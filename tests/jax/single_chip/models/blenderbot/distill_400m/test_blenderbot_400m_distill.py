@@ -69,6 +69,6 @@ def test_blenderbot_400m_distill_inference(inference_tester: BlenderBotTester):
         "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
-)  
+)
 def test_blenderbot_400m_distill_training(training_tester: BlenderBotTester):
     training_tester.test()

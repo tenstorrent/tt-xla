@@ -61,7 +61,7 @@ def test_electra_base_generator_inference(inference_tester: ElectraTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
-   execution_pass=ExecutionPass.BACKWARD,
+    execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(

@@ -33,6 +33,7 @@ MODEL_NAME = build_model_name(
 def inference_tester() -> Mistral7BTester:
     return Mistral7BTester(MODEL_PATH)
 
+
 @pytest.fixture
 def training_tester() -> Mistral7BTester:
     return Mistral7BTester(MODEL_PATH, run_mode=RunMode.TRAINING)

@@ -65,7 +65,11 @@ class SqueezeBertTester(JaxModelTester):
             "variables": self._input_parameters,
             **self._input_activations,
             "train": False if self._run_mode == RunMode.INFERENCE else True,
-            "rngs": {"dropout": jax.random.key(1)} if self._run_mode == RunMode.TRAINING else None,
+            "rngs": (
+                {"dropout": jax.random.key(1)}
+                if self._run_mode == RunMode.TRAINING
+                else None
+            ),
         }
 
     # @override
@@ -112,8 +116,7 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.convolution' "
-        "NO_ISSUE"
+        "error: failed to legalize operation 'ttir.convolution' " "NO_ISSUE"
     )
 )
 def test_squeezebert_training(training_tester: SqueezeBertTester):

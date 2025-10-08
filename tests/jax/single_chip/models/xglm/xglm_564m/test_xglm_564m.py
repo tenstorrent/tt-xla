@@ -66,6 +66,5 @@ def test_xglm_564m_inference(inference_tester: XGLMTester):
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
 )
-
 def test_xglm_564m_training(training_tester: XGLMTester):
     training_tester.test()

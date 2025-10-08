@@ -27,6 +27,7 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 def inference_tester() -> BigBirdQATester:
     return BigBirdQATester(VARIANT_NAME)
 
+
 @pytest.fixture
 def training_tester() -> BigBirdQATester:
     return BigBirdQATester(VARIANT_NAME, run_mode=RunMode.TRAINING)

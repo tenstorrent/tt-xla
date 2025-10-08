@@ -56,7 +56,9 @@ def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(
+        VARIANT_NAME, run_mode=RunMode.TRAINING
+    )
 
 
 # ----- Tests -----

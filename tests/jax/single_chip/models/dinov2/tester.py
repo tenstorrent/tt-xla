@@ -32,4 +32,3 @@ class Dinov2Tester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
-
