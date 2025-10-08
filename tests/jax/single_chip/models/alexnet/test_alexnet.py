@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -13,17 +15,18 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
+from third_party.tt_forge_models.config import Parallelism
 from .tester import AlexNetTester
 
+
+MODEL_PATH = "alexnet"
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "alexnet",
-    None,
+    "custom",
     ModelTask.CV_IMAGE_CLS,
     ModelSource.CUSTOM,
 )
-
 
 # ----- Fixtures -----
 
@@ -47,6 +50,7 @@ def training_tester() -> AlexNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
@@ -65,6 +69,7 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_alexnet_training(training_tester: AlexNetTester):
