@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     """Available AlexNet model variants."""
 
     CUSTOM = "custom"
+    CUSTOM_1X2 = "custom_1x2"
+    CUSTOM_1X4 = "custom_1x4"
+    CUSTOM_1X8 = "custom_1x8"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +37,15 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.CUSTOM: ModelConfig(
             pretrained_model_name="custom",
+        ),
+        ModelVariant.CUSTOM_1X2: ModelConfig(
+            pretrained_model_name="custom_1x2",
+        ),
+        ModelVariant.CUSTOM_1X4: ModelConfig(
+            pretrained_model_name="custom_1x4",
+        ),
+        ModelVariant.CUSTOM_1X8: ModelConfig(
+            pretrained_model_name="custom_1x8",
         ),
     }
 

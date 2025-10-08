@@ -25,10 +25,13 @@ from .cnn_batchnorm.model_implementation import MNISTCNNBatchNormModel
 from .cnn_dropout.model_implementation import MNISTCNNDropoutModel
 
 
-class ModelArchitecture(StrEnum):
+class ModelVariant(StrEnum):
     """Available MNIST model architectures."""
 
-    MLP = "mlp"
+    MLP_CUSTOM = "mlp_custom"
+    MLP_CUSTOM_1X2 = "mlp_custom_1x2"
+    MLP_CUSTOM_1X4 = "mlp_custom_1x4"
+    MLP_CUSTOM_1X8 = "mlp_custom_1x8"
     CNN_BATCHNORM = "cnn_batchnorm"
     CNN_DROPOUT = "cnn_dropout"
 
@@ -38,29 +41,38 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model configurations
     _VARIANTS = {
-        ModelArchitecture.MLP: ModelConfig(
+        ModelVariant.MLP_CUSTOM: ModelConfig(
             pretrained_model_name="mnist_mlp_custom",
         ),
-        ModelArchitecture.CNN_BATCHNORM: ModelConfig(
+        ModelVariant.MLP_CUSTOM_1X2: ModelConfig(
+            pretrained_model_name="mnist_mlp_custom_1x2",
+        ),
+        ModelVariant.MLP_CUSTOM_1X4: ModelConfig(
+            pretrained_model_name="mnist_mlp_custom_1x4",
+        ),
+        ModelVariant.MLP_CUSTOM_1X8: ModelConfig(
+            pretrained_model_name="mnist_mlp_custom_1x8",
+        ),
+        ModelVariant.CNN_BATCHNORM: ModelConfig(
             pretrained_model_name="mnist_cnn_batchnorm_custom",
         ),
-        ModelArchitecture.CNN_DROPOUT: ModelConfig(
+        ModelVariant.CNN_DROPOUT: ModelConfig(
             pretrained_model_name="mnist_cnn_dropout_custom",
         ),
     }
 
-    # Default architecture to use
-    DEFAULT_VARIANT = ModelArchitecture.MLP
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.MLP_CUSTOM
 
     def __init__(
         self,
-        variant: Optional[ModelArchitecture] = None,
+        variant: Optional[ModelVariant] = None,
         hidden_sizes: Sequence[int] = (256, 128, 64),
     ):
         """Initialize ModelLoader with specified variant and configuration.
 
         Args:
-            variant: Optional ModelArchitecture specifying which architecture to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
             hidden_sizes: Hidden layer sizes for MLP architecture.
         """
@@ -68,11 +80,11 @@ class ModelLoader(ForgeModel):
         self._hidden_sizes = tuple(hidden_sizes)
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelArchitecture] = None) -> ModelInfo:
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant.
 
         Args:
-            variant: Optional ModelArchitecture specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
 
         Returns:
@@ -98,14 +110,19 @@ class ModelLoader(ForgeModel):
             model: The loaded model instance
         """
 
-        if self._variant == ModelArchitecture.MLP:
+        if self._variant in [
+            ModelVariant.MLP_CUSTOM,
+            ModelVariant.MLP_CUSTOM_1X2,
+            ModelVariant.MLP_CUSTOM_1X4,
+            ModelVariant.MLP_CUSTOM_1X8,
+        ]:
             return MNISTMLPModel(self._hidden_sizes)
-        elif self._variant == ModelArchitecture.CNN_BATCHNORM:
+        elif self._variant == ModelVariant.CNN_BATCHNORM:
             return MNISTCNNBatchNormModel()
-        elif self._variant == ModelArchitecture.CNN_DROPOUT:
+        elif self._variant == ModelVariant.CNN_DROPOUT:
             return MNISTCNNDropoutModel()
         else:
-            raise ValueError(f"Unsupported architecture: {self._variant}")
+            raise ValueError(f"Unsupported variant: {self._variant}")
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the MNIST model.
@@ -146,7 +163,12 @@ class ModelLoader(ForgeModel):
         inputs = self.load_inputs(dtype_override)
 
         # Handle different model signatures
-        if self._variant == ModelArchitecture.MLP:
+        if self._variant in [
+            ModelVariant.MLP_CUSTOM,
+            ModelVariant.MLP_CUSTOM_1X2,
+            ModelVariant.MLP_CUSTOM_1X4,
+            ModelVariant.MLP_CUSTOM_1X8,
+        ]:
             return model.init(jax.random.PRNGKey(42), inputs)
         else:
             # CNN models require train argument
