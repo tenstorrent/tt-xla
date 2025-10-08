@@ -30,7 +30,7 @@ class MNISTLinear(nn.Module):
         # self.fc3 = nn.Linear(hidden_size, num_classes, bias=bias)
         
     def forward(self, x):
-        x = self.fc1(x)
+        x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         # x = self.fc3(x)
         return x
