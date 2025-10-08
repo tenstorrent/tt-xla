@@ -14,11 +14,12 @@ import numpy as np
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
-from torch_xla.distributed.spmd import Mesh
-
+from infra.utilities.torch_multichip_utils import get_mesh
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
-from infra.utilities.xla_multichip_utils import get_mesh
+import torch_xla.runtime as xr
+from torch_xla.distributed.spmd import Mesh
+import numpy as np
 
 
 @dataclass
