@@ -57,7 +57,7 @@ def test_llama_step(run_mode):
 
     # Connect the device and create mesh.
     device: torch.device = xm.xla_device()
-    mesh: Mesh = get_mesh((1, 2), ("batch", "model"))
+    mesh: Mesh = get_mesh((1, xr.global_runtime_device_count()), ("batch", "model"))
 
     # Instantiate model.
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(

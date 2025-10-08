@@ -33,7 +33,8 @@ class TTPlugin(DevicePlugin):
         # We rely on this for Codegen exporting.
         os.environ["XLA_HLO_DEBUG"] = "1"
         os.environ["XLA_IR_DEBUG"] = "1"
-        # In pytorch/xla this enables the ConvertStableHloToSdy pass which should run by default.
+        # In the pytorch-xla fork this enables the ConvertStableHloToSdy pass.
+        # The tt-mlir stablehlo compiler pipeline expects input shlo from pytorch/xla to contain shardy annotations.
         os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
         print(
