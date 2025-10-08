@@ -47,6 +47,13 @@ def training_tester() -> ViTTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 4718592 B L1 buffer across 6 banks, "
+        "where each bank needs to store 786432 B, but bank size is only 1364928 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+    )
+)
 def test_vit_large_patch16_384_inference(
     inference_tester: ViTTester,
 ):

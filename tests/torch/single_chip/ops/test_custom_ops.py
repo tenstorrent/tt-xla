@@ -7,8 +7,6 @@ import torch_xla.core.xla_model as xm
 
 import pytest
 from infra.utilities.types import Framework
-import tt_torch.custom_ops
-import tt_torch
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
 # TODO: Record superset properties for these tests.
