@@ -6,9 +6,11 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
+import torch
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Tensor
 from infra.workloads.workload import Workload
+from jax._src.typing import DTypeLike
 
 from ..op.op_tester import OpTester
 
@@ -43,10 +45,11 @@ def run_graph_test_with_random_inputs(
     input_shapes: Sequence[tuple],
     comparison_config: ComparisonConfig = ComparisonConfig(),
     framework: Framework = Framework.JAX,
+    dtype: str | DTypeLike | torch.dtype = "float32",
 ) -> None:
     """
     Tests `graph` with random inputs by running it on TT device and CPU and comparing
     the results based on `comparison_config`.
     """
     tester = GraphTester(comparison_config, framework)
-    tester.test_with_random_inputs(graph, input_shapes)
+    tester.test_with_random_inputs(graph, input_shapes, dtype=dtype)
