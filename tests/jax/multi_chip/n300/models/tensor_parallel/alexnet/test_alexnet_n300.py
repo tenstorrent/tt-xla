@@ -11,7 +11,7 @@ from utils import (
 from third_party.tt_forge_models.config import Parallelism
 
 from .tester import AlexNetMultichipTester
-from third_party.tt_forge_models.alexnet.jax import (
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelVariant,
     ModelLoader,
 )

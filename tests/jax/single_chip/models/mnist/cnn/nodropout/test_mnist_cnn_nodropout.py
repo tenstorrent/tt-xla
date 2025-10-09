@@ -16,7 +16,7 @@ from utils import (
 )
 
 from ..tester import MNISTCNNTester
-from third_party.tt_forge_models.mnist.image_classification.jax import ModelArchitecture
+from third_party.tt_forge_models.mnist.image_classification.jax import ModelVariant
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -32,12 +32,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM)
+    return MNISTCNNTester(ModelVariant.CNN_BATCHNORM)
 
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
+    return MNISTCNNTester(ModelVariant.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

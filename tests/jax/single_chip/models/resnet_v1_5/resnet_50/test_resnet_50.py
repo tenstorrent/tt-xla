@@ -4,24 +4,18 @@
 
 import pytest
 from pytest import MonkeyPatch
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    incorrect_result,
+    ModelGroup,
 )
 from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import CompilerConfig, ResNetTester
-from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
-
-VARIANT_NAME = ModelVariant.RESNET_50
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "50",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.resnet.image_classification.jax import (
+    ModelVariant,
+    ModelLoader,
 )
 
 VARIANT_NAME = ModelVariant.RESNET_50
@@ -71,9 +65,10 @@ def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
+    model_info=MODEL_INFO,
     model_group=ModelGroup.RED,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
