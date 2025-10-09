@@ -46,6 +46,7 @@ add_library(TTPJRTCommon
     "pjrt_implementation/memory_instance.cc"
     "pjrt_implementation/compile_options.cc"
     "pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.cc"
+    "pjrt_implementation/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.cc"
     "pjrt_implementation/module_builder/module_builder.cc"
     "pjrt_implementation/serialized_executable_instance.cc"
 )

@@ -1830,9 +1830,17 @@ test_config = {
     },
     "gemma/pytorch-google/gemma-1.1-7b-it-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Operand at index 0 has type x, but decomposition has type y - https://github.com/tenstorrent/tt-xla/issues/1616",
-        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "arch_overrides": {
+            "p150": {
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
+            },
+            "n300-llmbox": {
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97",
+            },
+        },
     },
     "stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -2388,9 +2396,7 @@ test_config = {
     },
     "gemma/pytorch-google/gemma-2-9b-it-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Operand at index 0 has type x, but decomposition has type y - https://github.com/tenstorrent/tt-xla/issues/1616",
-        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gemma/pytorch-google/gemma-2-27b-it-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
@@ -2400,9 +2406,17 @@ test_config = {
     },
     "falcon/pytorch-tiiuae/falcon-7b-instruct-full-inference": {
         "supported_archs": ["p150", "n300-llmbox"],
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": "Operand at index 0 has type x, but decomposition has type y - https://github.com/tenstorrent/tt-xla/issues/1616",
-        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "arch_overrides": {
+            "p150": {
+                "assert_pcc": False,
+                "status": ModelTestStatus.EXPECTED_PASSING,
+                "bringup_status": BringupStatus.INCORRECT_RESULT,
+                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475",
+            },
+            "n300-llmbox": {
+                "status": ModelTestStatus.EXPECTED_PASSING,
+            },
+        },
     },
     "d_fine/pytorch-nano-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2483,5 +2497,13 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bge_m3/pytorch-base-full-inference": {
+        # This model has a hand written test, don't run via test_models.py
+        "status": ModelTestStatus.EXCLUDE_MODEL,
+    },
+    "bge_m3/encode/pytorch-base-full-inference": {
+        # This model has a hand written test, don't run via test_models.py
+        "status": ModelTestStatus.EXCLUDE_MODEL,
     },
 }
