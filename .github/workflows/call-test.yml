@@ -99,6 +99,7 @@ jobs:
       with:
         submodules: recursive
         sparse-checkout: |
+          .github/scripts
           .gitmodules
           .test_durations
           pytest.ini
@@ -243,14 +244,16 @@ jobs:
             --splitting-algorithm least_duration"
         fi
 
-        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" ${{ matrix.build.args }} \
           -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
+
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
       if: ${{ matrix.build.name == 'run_forge_models_torch' }}
@@ -274,19 +277,17 @@ jobs:
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        COLLECTED_OUTPUT=$(python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }})
-        echo "$COLLECTED_OUTPUT"
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
 
-        ESTIMATED_DURATION=$(echo "$COLLECTED_OUTPUT" | grep "estimated duration:")
-        ESTIMATED_DURATION=$(echo "$ESTIMATED_DURATION" | sed 's/.*estimated duration: \([0-9.]*\)s.*/\1/' | awk '{print int($1)}')
-        # multiply the estimate with 3 until estimates are more precise
-        ESTIMATED_DURATION=$((ESTIMATED_DURATION * 3 / 60))
+        SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+          --collected-output collected_tests.txt \
+          --durations-file .test_durations \
+          --default-timeout 240)
+        echo "$SCRIPT_OUTPUT"
 
-        MIN_TEST_DURATION=30
-        if [ $ESTIMATED_DURATION -lt $MIN_TEST_DURATION ]; then
-          ESTIMATED_DURATION=$MIN_TEST_DURATION
-        fi
-
+        ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
     - name: Run tests
@@ -298,7 +299,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest ${{ env.BASE_PYTEST_CMD }} \
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 

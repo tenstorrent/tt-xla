@@ -40,9 +40,14 @@ def test_metadata(request) -> ModelTestConfig:
 
 
 def pytest_collection_modifyitems(config, items):
-    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config."""
+    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config.
+
+    Also deselect tests explicitly marked with EXCLUDE_MODEL so they do not run.
+    """
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
+
+    deselected = []
 
     for item in items:
         nodeid = item.nodeid
@@ -60,6 +65,11 @@ def pytest_collection_modifyitems(config, items):
         # Skip auto-marking if test already has the placeholder marker. This simplifies the running
         # on -m unspecified tests in experimental nightly, don't need to exclude placeholder
         if item.get_closest_marker("placeholder") is not None:
+            continue
+
+        # Ability to mark models we don't want to run via test_models.py.
+        if meta.status == ModelTestStatus.EXCLUDE_MODEL:
+            deselected.append(item)
             continue
 
         if meta.status == ModelTestStatus.EXPECTED_PASSING:
@@ -84,6 +94,10 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(getattr(pytest.mark, arch_marker))
             if "-" in arch_marker:
                 item.add_marker(getattr(pytest.mark, arch_marker.replace("-", "_")))
+
+    # Exclude deselected tests from the collected items.
+    if deselected:
+        items[:] = [i for i in items if i not in deselected]
 
     # If validating config, clear all items so no tests run
     if validate_config:

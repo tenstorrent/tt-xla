@@ -18,6 +18,7 @@ on:
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
+          - 'custom-basic-and-models-push.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
