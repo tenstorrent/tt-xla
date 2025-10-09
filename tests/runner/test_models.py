@@ -55,6 +55,8 @@ def test_all_models(
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
+        os.environ["MODEL_NAME"] = model_info.name
+        os.environ["DUMP_DIR"] = "dump"
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False

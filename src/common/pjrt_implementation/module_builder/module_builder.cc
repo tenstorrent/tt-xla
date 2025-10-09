@@ -69,6 +69,8 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
+int ModuleBuilder::model_counter = 0;
+
 ModuleBuilder::ModuleBuilder()
     : m_context(std::make_unique<mlir::MLIRContext>()) {
   // Register all the required dialects and passes.
@@ -190,7 +192,7 @@ ModuleBuilder::buildModule(
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
-
+  model_counter++;
   return {tt_pjrt_status::kSuccess,
           ExecutableImage::createInstance(
               flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
@@ -218,7 +220,7 @@ tt_pjrt_status ModuleBuilder::createVHLOModule(
   }
 
   DLOG_F(LOG_DEBUG, "VHLO Module:");
-  printModule(vhlo_module);
+  printModule(vhlo_module, "1_vhlo");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -237,7 +239,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module:");
-  printModule(mlir_module);
+  printModule(mlir_module, "2_shlo");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -249,7 +251,7 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
   DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
-  printModule(mlir_module);
+  printModule(mlir_module, "3_shlo_after_frontend_stablehlo");
 
   return status;
 }
@@ -566,7 +568,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   }
 
   DLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
-  printModule(mlir_module);
+  printModule(mlir_module, "4_shlo_after_stablehlo");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -593,7 +595,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   ttir_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTIR Module:");
-  printModule(mlir_module);
+  printModule(mlir_module, "5_ttir");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -741,7 +743,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   ttnn_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
-  printModule(mlir_module);
+  printModule(mlir_module, "6_ttnn");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -839,7 +841,19 @@ tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
 }
 
 void ModuleBuilder::printModule(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string &name) {
+      const char *full_model_name = std::getenv("MODEL_NAME");
+      const char *dump_dir = std::getenv("DUMP_DIR");
+    if (dump_dir && full_model_name) {
+      std::error_code ec;
+      // append timestamp to the model name
+      std::string model_name_with_timestamp = std::string(full_model_name) + "_" + std::to_string(model_counter) + "_" + std::string(name);
+      std::string dump_path = std::string(dump_dir) + "/" + std::string(model_name_with_timestamp) + ".mlir";
+      llvm::raw_fd_ostream os(dump_path, ec);
+      mlir::OpPrintingFlags flags;
+      mlir_module->print(os, flags);
+    }
+
   if (loguru::g_stderr_verbosity < LOG_DEBUG) {
     return;
   }

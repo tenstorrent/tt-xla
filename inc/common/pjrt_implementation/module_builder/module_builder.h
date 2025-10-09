@@ -60,6 +60,7 @@ struct NumDevicesResult {
 
 class ModuleBuilder {
 public:
+  static int model_counter;
   ModuleBuilder();
 
   // Compiles given mlir module code and returns produced executable image
@@ -162,7 +163,7 @@ private:
           &output_shardings);
 
   // Prints module to console for debug purposes.
-  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, const std::string &name);
 
   // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
