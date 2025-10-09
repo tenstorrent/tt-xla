@@ -1,17 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-)
+
 import torch
-import torch_xla
-import torch_xla.runtime as xr
 
 import pytest
-from infra.comparators.torch_comparator import TorchComparator
+from infra import run_graph_test, Framework
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -50,30 +44,7 @@ def test_llama_rotary_emb(seq_len, variant, variant_config):
     )
     position_ids = torch.arange(seq_len, dtype=torch.bfloat16).unsqueeze(0)
 
-    # CPU for golden
-    cos, sin = RoPE(query_states, position_ids)
-
-    # Compile RoPE module and run on device
-    xr.set_device_type("TT")
-    device = torch_xla.device()
-    compiled_RoPE = torch.compile(RoPE.to(device), backend="tt")
-
-    # Run on device
-    device_cos, device_sin = compiled_RoPE(
-        query_states.to(device), position_ids.to(device)
-    )
-
-    # Compare results
-    comparator = TorchComparator(
-        ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-
-    # Compare both cos and sin outputs
-    comparator.compare(device_cos, cos)
-    comparator.compare(device_sin, sin)
+    run_graph_test(RoPE, [query_states, position_ids], framework=Framework.TORCH)
 
 
 @pytest.mark.push
@@ -104,27 +75,4 @@ def test_qwen_3_rotary_emb(seq_len, variant, variant_config):
     )
     position_ids = torch.arange(seq_len, dtype=torch.bfloat16).unsqueeze(0)
 
-    # CPU for golden
-    cos, sin = RoPE(query_states, position_ids)
-
-    # Compile RoPE module and run on device
-    xr.set_device_type("TT")
-    device = torch_xla.device()
-    compiled_RoPE = torch.compile(RoPE.to(device), backend="tt")
-
-    # Run on device
-    device_cos, device_sin = compiled_RoPE(
-        query_states.to(device), position_ids.to(device)
-    )
-
-    # Compare results
-    comparator = TorchComparator(
-        ComparisonConfig(
-            # atol=AtolConfig(required_atol=0.02),
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-
-    # Compare both cos and sin outputs
-    comparator.compare(device_cos, cos)
-    comparator.compare(device_sin, sin)
+    run_graph_test(RoPE, [query_states, position_ids], framework=Framework.TORCH)
