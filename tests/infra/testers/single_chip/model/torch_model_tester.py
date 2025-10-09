@@ -11,11 +11,10 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
+from infra.utilities.torch_multichip_utils import enable_spmd
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from infra.utilities.torch_multichip_utils import enable_spmd
-import os
 
 from .model_tester import ModelTester, RunMode
 

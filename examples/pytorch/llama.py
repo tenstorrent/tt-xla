@@ -2,23 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+from typing import List
+
+import numpy as np
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    PreTrainedTokenizer,
-)
+import transformers
+from torch_xla.distributed.spmd import Mesh
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-import os
-import numpy as np
-from torch_xla.distributed.spmd import Mesh
-import torch_xla.distributed.spmd as xs
-from typing import List
-import transformers
 
 
 # --------------------------------

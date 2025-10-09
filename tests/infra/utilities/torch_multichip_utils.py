@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch_xla.runtime as xr
-from torch_xla.distributed.spmd import Mesh
-import numpy as np
 import os
 from typing import Tuple
+
+import numpy as np
+import torch_xla.runtime as xr
+from torch_xla.distributed.spmd import Mesh
 
 
 def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
