@@ -59,7 +59,7 @@ def test_whisper_base_inference(inference_tester: WhisperTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

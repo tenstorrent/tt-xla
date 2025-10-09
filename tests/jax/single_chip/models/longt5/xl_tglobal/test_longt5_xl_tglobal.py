@@ -73,8 +73,8 @@ def test_longt5_xl_tglobal_inference(inference_tester: LongT5Tester):
 )
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/580"
+        "Out of Memory: Not enough space to allocate 204800000 B DRAM buffer across 12 banks, where each bank needs to store 17088000 B, but bank size is only 1073741792 B"
+        "NO_ISSUE"
     )
 )
 @pytest.mark.large

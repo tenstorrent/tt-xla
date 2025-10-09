@@ -69,11 +69,5 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
-        "https://github.com/tenstorrent/tt-mlir/issues/4792"
-    )
-)
 def test_mbart50_large_many_to_many_training(training_tester: MBartTester):
     training_tester.test()

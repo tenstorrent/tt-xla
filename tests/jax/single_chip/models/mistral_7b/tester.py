@@ -37,6 +37,10 @@ class Mistral7BTester(JaxModelTester):
         inputs = tokenizer("Hello there fellow traveler", return_tensors="jax")
         return inputs
 
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]
+
 
 class Mistral7BV02Tester(Mistral7BTester):
     """Tester for Mistral-7B model v0.2 and later variants, with a language modeling
@@ -54,3 +58,7 @@ class Mistral7BV02Tester(Mistral7BTester):
         config = MistralConfig.from_pretrained(self._model_path)
         config.sliding_window = config.max_position_embeddings
         return FlaxMistralForCausalLM(config)
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]

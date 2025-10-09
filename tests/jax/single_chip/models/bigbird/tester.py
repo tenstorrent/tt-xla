@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Optional
 import jax
 from infra import ComparisonConfig, JaxModelTester, RunMode, Model
 from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
@@ -36,6 +36,18 @@ class BigBirdQATester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]
+
+    # @override
     def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
@@ -65,3 +77,16 @@ class BigBirdCLMTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["indices_rng"] = jax.random.key(1)
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]

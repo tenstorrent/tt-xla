@@ -5,6 +5,7 @@
 
 import jax
 import pytest
+from typing import Dict
 from flax import linen as nn
 from infra import ComparisonConfig, Framework, JaxModelTester, RunMode, Model
 from jaxtyping import PyTree
@@ -60,6 +61,10 @@ class MlpMixerTester(JaxModelTester):
     # @override
     def _get_input_parameters(self) -> PyTree:
         return self._model_loader.load_parameters()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
 
 
 # ----- Fixtures -----

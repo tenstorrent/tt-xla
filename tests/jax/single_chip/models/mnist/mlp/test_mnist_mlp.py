@@ -43,12 +43,13 @@ def training_tester(request) -> MNISTMLPTester:
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
     "inference_tester",

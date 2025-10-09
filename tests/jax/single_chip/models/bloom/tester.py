@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, RunMode, Model
@@ -28,3 +28,7 @@ class BloomTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs(dtype_override=jax.numpy.bfloat16)
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]

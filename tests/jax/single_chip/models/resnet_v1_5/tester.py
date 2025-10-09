@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Dict, Optional, Sequence
 import jax
 
 from infra import ComparisonConfig, JaxModelTester, RunMode, Model
@@ -33,3 +33,16 @@ class ResNetTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]
+
+    # @override
+    def _wrapper_model(self, f):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            out = out[0]
+            return out.logits
+
+        return model

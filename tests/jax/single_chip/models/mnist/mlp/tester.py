@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Sequence, Dict
 
 import jax
 from flax import linen as nn
@@ -51,3 +51,7 @@ class MNISTMLPTester(JaxModelTester):
     # @override
     def _get_input_parameters(self) -> PyTree:
         return self._model_loader.load_parameters()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
