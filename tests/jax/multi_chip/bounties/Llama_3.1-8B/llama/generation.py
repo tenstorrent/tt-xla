@@ -1,15 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import List, Optional
+
 import jax.numpy as jnp
-from model import FlaxLLaMAForCausalLM
-from transformers import AutoTokenizer
-from transformers.generation import GenerationConfig
+from flax import struct
 from jax.sharding import Mesh
 from jax.sharding import PartitionSpec as P
 from jaxtyping import PyTree
-from flax import struct
-from typing import List, Optional
+from model import FlaxLLaMAForCausalLM
+from transformers import AutoTokenizer
+from transformers.generation import GenerationConfig
 
 
 class LLaMA(struct.PyTreeNode):

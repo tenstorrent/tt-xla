@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 import pytest
-from infra import run_op_test, Framework
+import torch
+from infra import Framework, run_op_test
 from utils import Category
 
 

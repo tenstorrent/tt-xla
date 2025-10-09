@@ -2,20 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
+from typing import Callable
+
 import pytest
+import torch
+import torch_xla
+import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
+from infra.comparators.torch_comparator import TorchComparator
+from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
-from typing import Callable
 
-from infra import run_graph_test, Framework
+from tests.infra.comparators.comparison_config import (
+    AtolConfig,
+    ComparisonConfig,
+    PccConfig,
+)
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-
 
 # To see all available models and variants, run:
 # pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants

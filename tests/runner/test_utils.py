@@ -2,21 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import collections
+import importlib.util
+import inspect
 import os
 import sys
-import importlib.util
-import torch
-import inspect
-from enum import Enum
-import collections
 from dataclasses import dataclass
+from enum import Enum
+
+import numpy as np
+import torch
+import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from torch_xla.distributed.spmd import Mesh
+
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
-
-import torch_xla.runtime as xr
-from torch_xla.distributed.spmd import Mesh
-import numpy as np
 
 
 @dataclass

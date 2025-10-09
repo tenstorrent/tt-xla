@@ -3,14 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
-from torch.utils._pytree import tree_map
+import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
+from torch.utils._pytree import tree_map
 
 from .device_runner import DeviceRunner
-
-import torch_xla.distributed.spmd as xs
 
 
 class TorchDeviceRunner(DeviceRunner):

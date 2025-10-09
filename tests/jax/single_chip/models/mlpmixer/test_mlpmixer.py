@@ -6,7 +6,7 @@
 import jax
 import pytest
 from flax import linen as nn
-from infra import ComparisonConfig, Framework, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
 from utils import (
     BringupStatus,
@@ -17,6 +17,7 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+
 from third_party.tt_forge_models.mlp_mixer.image_classification.jax import (
     ModelLoader,
     ModelVariant,

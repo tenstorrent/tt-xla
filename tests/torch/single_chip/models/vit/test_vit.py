@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.vit.pytorch import ModelVariant
+
 from .tester import VITTester
 
 VARIANT_NAME = ModelVariant.LARGE

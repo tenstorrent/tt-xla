@@ -4,7 +4,7 @@
 
 import pytest
 import torch
-from infra import run_op_test_with_random_inputs, Framework
+from infra import Framework, run_op_test_with_random_inputs
 from utils import Category
 
 

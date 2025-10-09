@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
 import torch
 import torch_xla.core.xla_model as xm
-
-import pytest
 from infra.utilities.types import Framework
+
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
 # TODO: Record superset properties for these tests.

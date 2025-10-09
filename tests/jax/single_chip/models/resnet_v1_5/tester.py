@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict
-import jax
 
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+import jax
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 from infra.testers.compiler_config import CompilerConfig
+
 from third_party.tt_forge_models.resnet.image_classification.jax import (
     ModelLoader,
     ModelVariant,

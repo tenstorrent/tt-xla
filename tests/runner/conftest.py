@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import difflib
+
 import pytest
+
 from tests.runner.test_config import test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
-import difflib
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()

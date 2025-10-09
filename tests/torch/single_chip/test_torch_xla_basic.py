@@ -1,23 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-)
-import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
+import os
 
 import pytest
-
+import torch
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 
-import os
-
+from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
 # We would like to use the OpTester/GraphTester infra instead of manually

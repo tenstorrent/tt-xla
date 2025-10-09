@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from pytest import MonkeyPatch
 from infra import Framework, RunMode
+from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
     Category,
@@ -15,9 +15,10 @@ from utils import (
     incorrect_result,
 )
 
-from .tester import ResnetTester
-from third_party.tt_forge_models.resnet.pytorch import ModelVariant
 from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.resnet.pytorch import ModelVariant
+
+from .tester import ResnetTester
 
 VARIANT_NAME = ModelVariant.RESNET_50_HF
 

@@ -3,14 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict, Sequence
+
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
 from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
     ModelLoader as BigBirdCLMModelLoader,
+)
+from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
     ModelVariant as BigBirdCLMModelVariant,
 )
 from third_party.tt_forge_models.bigbird.question_answering.jax.loader import (
     ModelLoader as BigBirdQAModelLoader,
+)
+from third_party.tt_forge_models.bigbird.question_answering.jax.loader import (
     ModelVariant as BigBirdQAModelVariant,
 )
 

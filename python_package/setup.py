@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 

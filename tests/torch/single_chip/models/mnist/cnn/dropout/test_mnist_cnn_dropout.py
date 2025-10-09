@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import pytest
 from infra import Framework, RunMode
-from tests.infra.testers.compiler_config import CompilerConfig
 from utils import (
     BringupStatus,
     Category,
@@ -15,6 +14,8 @@ from utils import (
     ModelTask,
     build_model_name,
 )
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from ..tester import MNISTCNNTester
 from .model_implementation import MNISTCNNDropoutModel

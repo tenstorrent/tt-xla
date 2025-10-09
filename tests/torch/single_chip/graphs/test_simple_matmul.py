@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 import pytest
-from infra import run_graph_test_with_random_inputs, Framework
+import torch
+from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
 

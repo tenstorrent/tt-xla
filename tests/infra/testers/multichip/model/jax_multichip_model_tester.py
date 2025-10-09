@@ -17,8 +17,9 @@ from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
 
-from ...single_chip import JaxModelTester, RunMode
 from tests.infra.testers.compiler_config import CompilerConfig
+
+from ...single_chip import JaxModelTester, RunMode
 
 
 class JaxMultichipModelTester(JaxModelTester, ABC):

@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
-import torch
 import pytest
-from infra import run_op_test, run_op_test_with_random_inputs, Framework
+import torch
+from infra import Framework, run_op_test, run_op_test_with_random_inputs
 from utils import Category
+
+from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
 
 
 def run_unary_ops(op):

@@ -7,11 +7,12 @@ from typing import Dict, Sequence
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
+
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelLoader,
     ModelArchitecture,
+    ModelLoader,
 )
 
 

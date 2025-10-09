@@ -2,11 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 
 import pytest
-from infra import run_graph_test, Framework
+import torch
+import torch_xla
+import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
+from infra.comparators.torch_comparator import TorchComparator
 
+from tests.infra.comparators.comparison_config import (
+    AtolConfig,
+    ComparisonConfig,
+    PccConfig,
+)
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )

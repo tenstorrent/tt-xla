@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.squeezebert.pytorch import ModelVariant
+
 from .tester import SqueezeBertTester
 
 VARIANT_NAME = ModelVariant.MNLI

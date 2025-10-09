@@ -15,11 +15,12 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import MNISTCNNTester
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelLoader,
     ModelArchitecture,
+    ModelLoader,
 )
+
+from ..tester import MNISTCNNTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,

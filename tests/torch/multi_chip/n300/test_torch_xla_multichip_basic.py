@@ -1,15 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch
+import numpy as np
 import pytest
-from tests.infra import TorchModelTester, RunMode
+import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
-import numpy as np
+
+from tests.infra import RunMode, TorchModelTester
 
 
 class TorchMultichipUnaryModelTester(TorchModelTester):

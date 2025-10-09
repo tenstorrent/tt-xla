@@ -4,15 +4,13 @@
 
 import pytest
 from infra import RunMode
-from tests.infra.comparators.comparison_config import ComparisonConfig, PccConfig
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
 
-from ..tester import RoFormerTester
+from tests.infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.roformer.masked_lm.jax import ModelLoader, ModelVariant
+
+from ..tester import RoFormerTester
 
 VARIANT_NAME = ModelVariant.CHINESE_BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

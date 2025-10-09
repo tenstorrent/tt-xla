@@ -8,8 +8,8 @@ If any tests are missing from the durations file, use a default timeout of 4 hou
 If all tests are found, use the estimated duration multiplied by 3 for safety margin.
 """
 
-import json
 import argparse
+import json
 
 
 def parse_collected_tests(collected_output):

@@ -14,8 +14,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import PegasusTester
 from third_party.tt_forge_models.pegasus.summarization.jax import ModelVariant
+
+from ..tester import PegasusTester
 
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_NAME = build_model_name(
