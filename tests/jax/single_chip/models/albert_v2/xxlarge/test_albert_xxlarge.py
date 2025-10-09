@@ -7,26 +7,19 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    Framework,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     incorrect_result,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import AlbertV2Tester
-from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
-
-VARIANT_NAME = ModelVariant.XXLARGE_V2
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "albert_v2",
-    "xxlarge",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
+from third_party.tt_forge_models.albert.masked_lm.jax import (
+    ModelVariant,
+    ModelLoader,
 )
 
+VARIANT_NAME = ModelVariant.XXLARGE_V2
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -47,9 +40,9 @@ def training_tester() -> AlbertV2Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -65,9 +58,9 @@ def test_flax_albert_v2_xxlarge_inference(inference_tester: AlbertV2Tester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_flax_albert_v2_xxlarge_training(training_tester: AlbertV2Tester):
