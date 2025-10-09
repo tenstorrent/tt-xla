@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
@@ -14,8 +15,6 @@ from .comparison_config import (
     EqualConfig,
     PccConfig,
 )
-
-from dataclasses import dataclass
 
 
 @dataclass

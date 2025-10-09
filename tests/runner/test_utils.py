@@ -7,12 +7,6 @@ import importlib.util
 import inspect
 import os
 import sys
-import importlib.util
-from tests.infra.comparators import comparison_config
-import torch
-import inspect
-from enum import Enum
-import collections
 from dataclasses import dataclass
 from enum import Enum
 
@@ -23,6 +17,7 @@ from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
+from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 

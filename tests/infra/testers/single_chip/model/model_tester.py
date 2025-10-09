@@ -6,11 +6,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Mapping, Sequence, Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 
 from infra.comparators import ComparisonConfig, ComparisonResult
-from tests.infra.testers.compiler_config import CompilerConfig
-from infra.utilities import Framework, Model, Tensor, ShardSpec, Mesh
+from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig

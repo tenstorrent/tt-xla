@@ -5,7 +5,6 @@
 import collections
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
-from tests.infra.comparators.comparator import ComparisonResult
 import torch
 import torch_xla
 import torch_xla.runtime as xr
@@ -14,6 +13,7 @@ from infra.utilities import Framework
 from infra.utilities.torch_multichip_utils import enable_spmd
 from infra.workloads import Workload
 
+from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
