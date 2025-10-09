@@ -47,17 +47,18 @@ class TorchDeviceRunner(DeviceRunner):
                 return x.to(device)
             return x
 
-        args_on_device = tree_map(attempt_to_device, workload.args)
-        kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
+        workload.args = tree_map(attempt_to_device, workload.args)
+        workload.kwargs = tree_map(attempt_to_device, workload.kwargs)
 
         if workload.model is not None:
             workload.model = workload.model.to(device)
 
-        shard_specs = workload.shard_spec_fn and workload.shard_spec_fn(workload.model)
+        shard_specs = workload.shard_spec_fn and workload.shard_spec_fn(workload)
         is_multichip = workload.mesh and len(workload.mesh.device_ids) > 1
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
             for tensor, shard_spec in shard_specs.items():
+                breakpoint()
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
         if workload.compiled_executable is not None:
@@ -68,6 +69,6 @@ class TorchDeviceRunner(DeviceRunner):
             model=workload.model,  # Moved to device if not None.
             executable=workload.executable,  # Unchanged.
             compiled_executable=workload.compiled_executable,  # Unchanged.
-            args=args_on_device,
-            kwargs=kwargs_on_device,
+            args=workload.args,
+            kwargs=workload.kwargs,
         )
