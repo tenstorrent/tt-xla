@@ -1123,6 +1123,11 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
   ttir_file << ttir_mlir;
   ttir_file.close();
 
+  if (!m_tt_alchemist_handler.isInitialized()) {
+    DLOG_F(ERROR, "tt-alchemist library or functions not available");
+    return tt_pjrt_status::kInternal;
+  }
+
   void *instance = m_tt_alchemist_handler.getInstanceFunc()();
   if (!instance) {
     DLOG_F(ERROR, "Failed to get tt-alchemist instance");
