@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence, Optional
+from typing import Optional, Sequence
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
