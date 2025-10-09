@@ -12,11 +12,6 @@ on:
         required: false
         default: true
         type: boolean
-      use-shared-runners:
-        description: 'Use shared runners from Civ2'
-        required: false
-        default: false
-        type: boolean
       artifact_release_run_id:
         description: 'Run ID of the artifacts (release)'
         required: true
@@ -47,7 +42,6 @@ on:
         type: string
 
 env:
-  IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
 
@@ -70,13 +64,14 @@ jobs:
     runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
-      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
+      DOCKER_CACHE_ROOT: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && '' || '/mnt/dockercache' }}
+      IRD_LF_CACHE: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && vars.IRD_LF_CACHE || '' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      image: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
