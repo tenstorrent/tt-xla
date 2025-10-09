@@ -7,7 +7,6 @@ import os
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 from infra.utilities import Device
 
 from .device_connector import DeviceConnector, DeviceType
@@ -15,10 +14,6 @@ from .device_connector import DeviceConnector, DeviceType
 
 class TorchDeviceConnector(DeviceConnector):
     """Device connector used with torch."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        xr.runtime.set_device_type("TT")
 
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:

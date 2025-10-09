@@ -10,6 +10,7 @@ import tt_torch.custom_ops
 
 from .tools import mark_module_user_inputs
 from .serialization import (
+    get_cache_dir,
     parse_compiled_artifacts_from_cache,
     parse_compiled_artifacts_from_cache_to_disk,
 )

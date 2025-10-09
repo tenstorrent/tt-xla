@@ -8,6 +8,7 @@ from infra import (
     ShardingMode,
     make_partition_spec,
     run_jax_multichip_op_test_with_random_inputs,
+    serialize_jax_multichip_op_with_random_inputs,
 )
 from utils import failed_fe_compilation
 
@@ -46,6 +47,7 @@ def test_negative_op(
     mesh_shape: tuple,
     axis_names: tuple,
     sharding_mode: ShardingMode,
+    request,
 ):
     def fwd(a_block):
         b_block = jnp.negative(a_block)
@@ -64,3 +66,15 @@ def test_negative_op(
         use_shardy,
         sharding_mode,
     )
+
+    if request.config.getoption("--serialize", default=False):
+        serialize_jax_multichip_op_with_random_inputs(
+            fwd,
+            [input_shape],
+            test_name=request.node.name,
+            mesh_shape=mesh_shape,
+            axis_names=axis_names,
+            in_specs=in_specs,
+            out_specs=out_specs,
+            sharding_mode=sharding_mode,
+        )
