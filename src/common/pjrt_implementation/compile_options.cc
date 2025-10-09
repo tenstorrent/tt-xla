@@ -7,7 +7,6 @@
 
 // c++ standard library includes
 #include <algorithm>
-#include <optional>
 #include <string>
 
 namespace tt::pjrt {
@@ -95,12 +94,10 @@ std::optional<BackendRuntime> parseBackendOption(
 
 std::optional<std::string> parseStringOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name) {
-  if (auto it = compile_options.find(option_name);
-      it != compile_options.end()) {
-    return it->second;
-  }
-  return std::nullopt;
+    const std::string &option_name) {
+  auto it = compile_options.find(option_name);
+
+  return it == compile_options.end() ? std::nullopt : std::optional(it->second);
 }
 
 } // namespace internal

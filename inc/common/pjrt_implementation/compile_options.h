@@ -85,7 +85,7 @@ std::optional<BackendRuntime> parseBackendOption(
 
 std::optional<std::string> parseStringOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name);
+    const std::string &option_name);
 
 } // namespace internal
 

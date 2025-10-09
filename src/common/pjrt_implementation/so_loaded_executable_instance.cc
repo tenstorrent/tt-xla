@@ -6,6 +6,7 @@
 #include "common/pjrt_implementation/so_loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <mutex>
 
 // tt-mlir includes
@@ -68,8 +69,9 @@ void SOLoadedExecutableInstance::releaseResources() {
 
 tt_pjrt_status
 SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
-  DLOG_F("ERROR", "Standalone solution was successfully generated, "
-                  "unfortunately your program will now crash :( .");
+  std::cerr << "Standalone solution was successfully generated. Executing "
+               "codegen trough the frontend is not supported yet. "
+               "Unfortunately your program will now crash :( \n.";
   // TODO: Implement SO execution logic
   return tt_pjrt_status::kUnimplemented;
 }
