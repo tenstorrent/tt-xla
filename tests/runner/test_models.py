@@ -1,21 +1,23 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import pytest
 import os
+
+import pytest
+from infra import RunMode
+
+from tests.runner.requirements import RequirementsManager
+from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
-    ModelTestStatus,
     DynamicTorchModelTester,
-    setup_test_discovery,
+    ModelTestConfig,
+    ModelTestStatus,
     create_test_id_generator,
     record_model_test_properties,
+    setup_test_discovery,
     update_test_metadata_for_exception,
-    ModelTestConfig,
 )
-from tests.runner.requirements import RequirementsManager
-from infra import RunMode
 from tests.utils import BringupStatus
-from tests.runner.test_config import PLACEHOLDER_MODELS
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)

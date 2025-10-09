@@ -15,6 +15,7 @@ from utils import (
     failed_ttmlir_compilation,
     incorrect_result,
 )
+
 from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
 from ..tester import FlaxCLIPTester

@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict, Optional, Sequence
-import jax
 
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+import jax
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
 from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import ModelLoader, ModelVariant
 
 

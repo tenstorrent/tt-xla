@@ -3,15 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+import torch
+import torch_xla.core.xla_model as xm
+from infra.comparators.torch_comparator import TorchComparator
+from infra.utilities.types import Framework
+from torch.nn import functional as F
 from tt_torch.composite_ops import composite_gelu
 
-import torch
-from torch.nn import functional as F
-import torch_xla.core.xla_model as xm
-
-from infra.comparators.torch_comparator import TorchComparator
 from tests.infra.comparators.comparison_config import ComparisonConfig
-from infra.utilities.types import Framework
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
 
 

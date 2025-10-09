@@ -15,8 +15,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import ElectraTester
 from third_party.tt_forge_models.electra.causal_lm.jax import ModelVariant
+
+from ..tester import ElectraTester
 
 VARIANT_NAME = ModelVariant.BASE_DISCRIMINATOR
 MODEL_NAME = build_model_name(

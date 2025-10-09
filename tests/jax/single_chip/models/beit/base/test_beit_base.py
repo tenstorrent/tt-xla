@@ -16,8 +16,9 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import FlaxBeitForImageClassificationTester
 from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
+
+from ..tester import FlaxBeitForImageClassificationTester
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_NAME = build_model_name(

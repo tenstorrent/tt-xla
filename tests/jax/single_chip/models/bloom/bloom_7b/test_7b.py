@@ -15,8 +15,9 @@ from utils import (
     failed_runtime,
 )
 
-from ..tester import BloomTester
 from third_party.tt_forge_models.bloom.causal_lm.jax import ModelVariant
+
+from ..tester import BloomTester
 
 MODEL_VARIANT = ModelVariant.BLOOM_7B
 MODEL_NAME = build_model_name(

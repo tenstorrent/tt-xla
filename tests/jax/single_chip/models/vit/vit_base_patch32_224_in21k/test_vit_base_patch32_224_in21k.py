@@ -9,16 +9,17 @@ from utils import (
     BringupStatus,
     Category,
     ExecutionPass,
-    failed_ttmlir_compilation,
     failed_runtime,
+    failed_ttmlir_compilation,
 )
 
-from ..tester import ViTTester
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.vit.image_classification.jax import (
     ModelLoader,
     ModelVariant,
 )
+
+from ..tester import ViTTester
 
 VARIANT_NAME = ModelVariant.BASE_PATCH32_224_IN_21K
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

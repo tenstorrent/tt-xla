@@ -15,8 +15,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import FlaxBertForMaskedLMTester
 from third_party.tt_forge_models.bert.masked_lm.jax import ModelVariant
+
+from ..tester import FlaxBertForMaskedLMTester
 
 MODEL_VARIANT = ModelVariant.LARGE
 MODEL_NAME = build_model_name(

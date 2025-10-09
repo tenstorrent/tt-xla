@@ -10,6 +10,8 @@
 
 # Tests
 /tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+pytest.ini @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+.test_durations @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
 
 # Python package
 /python_package/ @ajakovljevicTT @mrakitaTT @pilkicTT @AleksKnezevic

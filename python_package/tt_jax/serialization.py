@@ -7,12 +7,13 @@ Serialization tools specific to JAX.
 """
 
 import io
-import jax
-from jax.experimental import serialize_executable
 import os
 import pickle
-from ttxla_tools import parse_executable
 from typing import Callable
+
+import jax
+from jax.experimental import serialize_executable
+from ttxla_tools import parse_executable
 
 
 def serialize_compiled_artifacts(func: Callable, *args, **kwargs):

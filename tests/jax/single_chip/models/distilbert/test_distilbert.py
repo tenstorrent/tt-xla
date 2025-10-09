@@ -6,6 +6,7 @@ from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
+from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
 from utils import (
     BringupStatus,
     Category,
@@ -17,7 +18,6 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from infra import Framework, JaxModelTester, RunMode, Model, ComparisonConfig
 from third_party.tt_forge_models.distilbert.masked_lm.jax import (
     ModelLoader,
     ModelVariant,

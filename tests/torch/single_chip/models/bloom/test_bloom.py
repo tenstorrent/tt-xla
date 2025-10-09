@@ -4,6 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
+from tester import BloomTester
 from utils import (
     BringupStatus,
     Category,
@@ -13,8 +14,6 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-
-from tester import BloomTester
 
 VARIANT_NAME = "bloom-1b1"
 

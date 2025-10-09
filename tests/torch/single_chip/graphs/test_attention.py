@@ -2,29 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Callable
+
+import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-import pytest
-from transformers.cache_utils import StaticCache
+from infra import Framework, run_graph_test
+from infra.comparators.torch_comparator import TorchComparator
 from transformers import CacheConfig
+from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
-from typing import Callable
-
 
 from tests.infra.comparators.comparison_config import (
-    ComparisonConfig,
     AtolConfig,
+    ComparisonConfig,
     PccConfig,
 )
-from infra.comparators.torch_comparator import TorchComparator
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-
 
 # To see all available models and variants, run:
 # pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants
@@ -63,8 +63,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
 
-    xr.set_device_type("TT")
-
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
@@ -77,23 +75,12 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
-    )
 
-    device = torch_xla.device()
-    compiled_fn = torch.compile(attention.to(device), backend="tt")
-
-    output = attention(
-        hidden_states.to(device), position_embeddings, attention_mask, past_key_states
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
     )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output, golden)
 
 
 @pytest.mark.nightly
@@ -103,7 +90,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention_decode(variant, variant_config):
-    xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -126,28 +112,13 @@ def test_llama_attention_decode(variant, variant_config):
         device="cpu",
         dtype=torch.bfloat16,
     )
-    cache_position = torch.tensor([0])
     past_key_states = static_cache
 
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
-    past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
-    compiled_fn = torch.compile(attention.to(device), backend="tt")
-
-    output = attention(
-        hidden_states.to(device), position_embeddings, attention_mask, past_key_states
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output, golden)
 
 
 @pytest.mark.nightly
@@ -158,9 +129,9 @@ def test_llama_attention_decode(variant, variant_config):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_concat_heads(variant, variant_config, seq_len):
-    xr.set_device_type("TT")
 
     def concat_heads(attn_output, input_shape):
+        attn_output = attn_output.transpose(1, 2).contiguous()
         return attn_output.reshape(*input_shape, -1).contiguous()
 
     loader = LlamaModelLoader(variant=variant)
@@ -176,18 +147,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     )
     input_shape = (batch_size, seq_len)
 
-    golden = concat_heads(attn_output, input_shape)
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(concat_heads, backend="tt")
-    output = compiled_fn(attn_output.to(device), input_shape)
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output.cpu(), golden)
+    run_graph_test(concat_heads, [attn_output, input_shape], framework=Framework.TORCH)
 
 
 @pytest.mark.nightly
@@ -198,7 +158,6 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_create_heads(variant, variant_config, seq_len):
-    xr.set_device_type("TT")
 
     def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj):
         query_states = q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -226,26 +185,11 @@ def test_llama_create_heads(variant, variant_config, seq_len):
     k_proj = attention.k_proj
     v_proj = attention.v_proj
 
-    golden = create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj)
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(create_heads, backend="tt")
-
-    output = compiled_fn(
-        hidden_states.to(device),
-        hidden_shape,
-        q_proj.to(device),
-        k_proj.to(device),
-        v_proj.to(device),
+    run_graph_test(
+        create_heads,
+        [hidden_states, hidden_shape, q_proj, k_proj, v_proj],
+        framework=Framework.TORCH,
     )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
-        comparator.compare(out_tensor.cpu(), golden_tensor)
 
 
 @pytest.mark.nightly
@@ -256,7 +200,6 @@ def test_llama_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_sdpa(variant, variant_config, seq_len):
-    xr.set_device_type("TT")
 
     def sdpa(
         attention_module,
@@ -309,37 +252,16 @@ def test_llama_sdpa(variant, variant_config, seq_len):
     dropout = 0.0
     scaling = attention.scaling
 
-    golden = sdpa(
-        attention,
-        query_states,
-        key_states,
-        value_states,
-        attention_mask,
-        dropout,
-        scaling,
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(sdpa, backend="tt")
-
-    output = compiled_fn(
-        attention.to(device),
-        query_states.to(device),
-        key_states.to(device),
-        value_states.to(device),
-        attention_mask.to(device),
-        dropout,
-        scaling,
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-
-    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
-        if (
-            out_tensor is not None and golden_tensor is not None
-        ):  # attn_weights might be None
-            comparator.compare(out_tensor.cpu(), golden_tensor)

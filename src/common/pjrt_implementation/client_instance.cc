@@ -420,9 +420,19 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
       std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) == "1";
 
+  // TODO(jnie-TT, #1485): This is a temporary way to set trace region size
+  // until we have a proper way for a user to pass device options. After that
+  // this should be removed. Issue for device options:
+  // https://github.com/tenstorrent/tt-xla/issues/1480
+  std::optional<size_t> traceRegionSize = std::nullopt;
+  if (std::getenv("TT_RUNTIME_TRACE_REGION_SIZE") != nullptr) {
+    traceRegionSize = std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
+  }
+
   tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
       .enableProgramCache = enableProgramCache,
       .meshShape = mesh_shape,
+      .traceRegionSize = traceRegionSize,
   };
 
   return tt::runtime::openMeshDevice(options);

@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from typing import Dict
+
 import jax
 import pytest
-from typing import Dict
 from flax import linen as nn
-from infra import ComparisonConfig, Framework, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
 from utils import (
     BringupStatus,
@@ -20,6 +21,7 @@ from utils import (
     failed_ttmlir_compilation,
     incorrect_result,
 )
+
 from third_party.tt_forge_models.mlp_mixer.image_classification.jax import (
     ModelLoader,
     ModelVariant,

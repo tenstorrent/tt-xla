@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Any, Sequence, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
 from third_party.tt_forge_models.beit.image_classification.jax import (
     ModelLoader,
     ModelVariant,

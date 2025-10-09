@@ -15,8 +15,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import GPTSw3Tester
 from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import ModelVariant
+
+from ..tester import GPTSw3Tester
 
 VARIANT_NAME = ModelVariant.INSTRUCT_1_3B
 MODEL_NAME = build_model_name(

@@ -5,9 +5,8 @@
 from typing import Dict, Optional, Sequence
 
 import jax
-from jaxtyping import PyTree
-
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from jaxtyping import PyTree
 
 from third_party.tt_forge_models.mt5.nlp_summarization.jax import (
     ModelLoader,

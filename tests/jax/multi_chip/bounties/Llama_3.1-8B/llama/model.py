@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import math
 from functools import partial
 from typing import Optional, Tuple, Union
 
@@ -8,23 +9,31 @@ import flax.linen as nn  # type: ignore
 import jax  # type: ignore
 import jax.numpy as jnp  # type: ignore
 import numpy as np  # type: ignore
+from config import LLaMAConfig
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze  # type: ignore
 from flax.linen import combine_masks, make_causal_mask  # type: ignore
+from flax.linen import partitioning as nn_partitioning  # type: ignore
 from flax.linen.attention import dot_product_attention_weights  # type: ignore
 from flax.traverse_util import flatten_dict, unflatten_dict  # type: ignore
-from jax import lax  # type: ignore
-from flax.linen import partitioning as nn_partitioning  # type: ignore
-from jax.sharding import Mesh, PartitionSpec as P  # type: ignore
 from jax import debug  # type: ignore
-from jax.sharding import Mesh, PartitionSpec  # type: ignore
+from jax import lax  # type: ignore
 from jax.experimental.shard_map import shard_map  # type: ignore
-
-from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLMOutput  # type: ignore
-from transformers.modeling_flax_utils import ACT2FN, FlaxPreTrainedModel, append_call_sample_docstring  # type: ignore
-from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging  # type: ignore
-
-from config import LLaMAConfig
-import math
+from jax.sharding import Mesh  # type: ignore
+from jax.sharding import PartitionSpec  # type: ignore
+from transformers.modeling_flax_outputs import (  # type: ignore
+    FlaxBaseModelOutput,
+    FlaxCausalLMOutput,
+)
+from transformers.modeling_flax_utils import (  # type: ignore
+    ACT2FN,
+    FlaxPreTrainedModel,
+    append_call_sample_docstring,
+)
+from transformers.utils import (  # type: ignore
+    add_start_docstrings,
+    add_start_docstrings_to_model_forward,
+    logging,
+)
 
 remat = nn_partitioning.remat
 

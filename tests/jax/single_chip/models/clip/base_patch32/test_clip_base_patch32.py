@@ -14,6 +14,7 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+
 from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
 
 from ..tester import FlaxCLIPTester

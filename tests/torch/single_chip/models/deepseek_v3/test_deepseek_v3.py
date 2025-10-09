@@ -54,8 +54,8 @@ def training_tester() -> DeepSeekV3Tester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.sort' "
-        "https://github.com/tenstorrent/tt-xla/issues/820"
+        "error: failed to legalize operation  'stablehlo.sort'"
+        "https://github.com/tenstorrent/tt-xla/issues/442"
     )
 )
 def test_torch_deepseek_v3_inference(inference_tester: DeepSeekV3Tester):

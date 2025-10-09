@@ -6,14 +6,8 @@ from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
-
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_ttmlir_compilation,
-)
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (

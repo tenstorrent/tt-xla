@@ -7,8 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    Framework,
     ExecutionPass,
+    Framework,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -17,8 +17,9 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import AlbertV2Tester
 from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
+
+from ..tester import AlbertV2Tester
 
 VARIANT_NAME = ModelVariant.XXLARGE_V2
 MODEL_NAME = build_model_name(

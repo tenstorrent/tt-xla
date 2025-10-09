@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-from contextlib import contextmanager
 import gc
 import os
 import shutil
 import sys
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
-import torch
 import psutil
 import pytest
+import torch
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
-from pathlib import Path
+
 from third_party.tt_forge_models.config import ModelInfo
-from typing import Any
 
 
 def pytest_configure(config: pytest.Config):
@@ -191,11 +192,16 @@ def pytest_addoption(parser):
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
 # TODO: Consider using a more explicit way to differentiate CIv2-specific environment
 # Issue: https://github.com/tenstorrent/github-ci-infra/issues/772
+# Users of IRD may not have DOCKER_CACHE_ROOT set locally, but do have IRD_ARCH_NAME
+# set so also consider that variable and expect it not to be set.
 def _is_on_CIv2() -> bool:
     """
     Check if we are on CIv2.
     """
-    return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
+    is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
+    is_user_ird = bool(os.environ.get("IRD_ARCH_NAME"))
+    is_on_civ2 = not is_on_civ1 and not is_user_ird
+    return is_on_civ2
 
 
 @contextmanager

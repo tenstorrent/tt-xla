@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Optional, Sequence
-import jax
 
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from typing import Dict, Optional, Sequence
+
+import jax
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
 from third_party.tt_forge_models.albert.masked_lm.jax import ModelLoader, ModelVariant
 
 

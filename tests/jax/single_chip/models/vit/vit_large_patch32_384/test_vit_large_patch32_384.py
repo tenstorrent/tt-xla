@@ -5,19 +5,15 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_runtime,
-)
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
-from ..tester import ViTTester
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.vit.image_classification.jax import (
     ModelLoader,
     ModelVariant,
 )
+
+from ..tester import ViTTester
 
 VARIANT_NAME = ModelVariant.LARGE_PATCH32_384
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

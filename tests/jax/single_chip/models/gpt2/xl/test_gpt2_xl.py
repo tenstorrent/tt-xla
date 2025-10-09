@@ -14,7 +14,9 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+
 from third_party.tt_forge_models.gpt2.causal_lm.jax import ModelVariant
+
 from ..tester import GPT2Tester
 
 MODEL_VARIANT = ModelVariant.XL

@@ -7,14 +7,9 @@ from typing import Dict
 import jax
 import pytest
 from flax import linen as nn
-from infra import JaxModelTester, RunMode, ComparisonConfig
+from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_ttmlir_compilation,
-)
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.squeezebert.masked_lm.jax import (

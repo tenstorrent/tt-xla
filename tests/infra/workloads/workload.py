@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
+
 from infra.utilities import Framework, Model
 
 

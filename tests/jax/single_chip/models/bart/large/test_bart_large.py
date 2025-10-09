@@ -7,8 +7,8 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    Framework,
     ExecutionPass,
+    Framework,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -17,8 +17,9 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import FlaxBartForCausalLMTester
 from third_party.tt_forge_models.bart.causal_lm.jax import ModelVariant
+
+from ..tester import FlaxBartForCausalLMTester
 
 MODEL_VARIANT = ModelVariant.LARGE
 MODEL_NAME = build_model_name(

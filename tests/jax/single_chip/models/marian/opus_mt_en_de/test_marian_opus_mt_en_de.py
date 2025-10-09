@@ -16,6 +16,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.marian_mt.text_classification.jax import ModelVariant
+
 from ..tester import MarianTester
 
 MODEL_VARIANT = ModelVariant.OPUS_MT_EN_DE

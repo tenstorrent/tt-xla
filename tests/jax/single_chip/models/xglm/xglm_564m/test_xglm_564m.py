@@ -14,7 +14,9 @@ from utils import (
     build_model_name,
     failed_runtime,
 )
+
 from third_party.tt_forge_models.xglm.causal_lm.jax.loader import ModelVariant
+
 from ..tester import XGLMTester
 
 VARIANT_NAME = ModelVariant._564M

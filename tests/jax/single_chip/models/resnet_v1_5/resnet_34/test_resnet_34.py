@@ -15,8 +15,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import ResNetTester
 from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
+
+from ..tester import ResNetTester
 
 VARIANT_NAME = ModelVariant.RESNET_34
 MODEL_NAME = build_model_name(

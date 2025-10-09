@@ -8,7 +8,6 @@ from typing import Any, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
-
 import vllm.envs as envs
 from vllm.config import VllmConfig
 from vllm.distributed import (
@@ -39,7 +38,6 @@ if not USE_TPU_COMMONS:
     import torch_xla.core.xla_model as xm
     import torch_xla.debug.profiler as xp
     import torch_xla.runtime as xr
-
     from vllm.v1.attention.backends.pallas import TPU_HEAD_SIZE_ALIGNMENT
     from vllm.v1.worker.tpu_model_runner import TPUModelRunner
 

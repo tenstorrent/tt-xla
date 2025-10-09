@@ -5,7 +5,6 @@
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
 
-
 test_config = {
     "mnist/pytorch-full-training": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,

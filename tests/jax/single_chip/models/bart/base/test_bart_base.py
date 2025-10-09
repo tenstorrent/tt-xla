@@ -15,8 +15,9 @@ from utils import (
     failed_ttmlir_compilation,
 )
 
-from ..tester import FlaxBartForCausalLMTester
 from third_party.tt_forge_models.bart.causal_lm.jax import ModelVariant
+
+from ..tester import FlaxBartForCausalLMTester
 
 MODEL_VARIANT = ModelVariant.BASE
 MODEL_NAME = build_model_name(

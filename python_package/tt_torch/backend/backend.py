@@ -1,27 +1,23 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Tuple
-import torch
-from torch.export import ExportedProgram
-
-
-from .decompositions import (
-    CUSTOM_DECOMPOSITION_TABLE,
-)
 import os
-from .passes import (
-    handle_composite_ops,
-    bypass_redundant_getitem,
-    bypass_dtype_promotion_and_redundant_cast,
-    insert_argument_type_markers,
-    bypass_assert_tensor_metadata,
-)
+from typing import Tuple
 
-from torch.export.graph_signature import InputKind
-from torch._dynamo import register_backend
-
+import torch
 import torch_xla
+from torch._dynamo import register_backend
+from torch.export import ExportedProgram
+from torch.export.graph_signature import InputKind
+
+from .decompositions import CUSTOM_DECOMPOSITION_TABLE
+from .passes import (
+    bypass_assert_tensor_metadata,
+    bypass_dtype_promotion_and_redundant_cast,
+    bypass_redundant_getitem,
+    handle_composite_ops,
+    insert_argument_type_markers,
+)
 
 
 # This function runs a series of passes on a torch GraphModule.
@@ -32,7 +28,10 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
 ) -> torch.fx.GraphModule:
 
-    handle_composite_ops(gm)
+    # Currently, handle_composite_ops causes regressions on multi-chip TP models:
+    # https://github.com/tenstorrent/tt-xla/issues/1616.
+    # TODO: Fix composite ops to support multi-chip models before uncommenting this.
+    # handle_composite_ops(gm)
 
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)

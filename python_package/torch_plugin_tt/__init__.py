@@ -2,16 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from logging import Logger
 import os
-
-from torch_xla.experimental.plugins import DevicePlugin
-from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+from logging import Logger
 
 import torch
-import tt_torch  # registers "tt" backend for torch.compile
-
 import torch_xla
+import tt_torch  # registers "tt" backend for torch.compile
+from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+from torch_xla.experimental.plugins import DevicePlugin
 
 
 class TTPlugin(DevicePlugin):

@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.distilbert.masked_lm.pytorch.loader import ModelVariant
+
 from .tester import DistilBertTester
 
 VARIANT_NAME = ModelVariant.DISTILBERT_BASE_CASED

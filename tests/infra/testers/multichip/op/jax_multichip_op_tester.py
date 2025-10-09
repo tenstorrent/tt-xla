@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Callable, Sequence, Dict
+from typing import Callable, Dict, Sequence
 
 import jax
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.connectors import JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
@@ -21,6 +20,8 @@ from infra.utilities import (
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
 

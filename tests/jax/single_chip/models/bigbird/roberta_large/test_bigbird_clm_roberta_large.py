@@ -4,19 +4,15 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_ttmlir_compilation,
-)
-from third_party.tt_forge_models.config import Parallelism
-from ..tester import BigBirdCLMTester
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
+
 from third_party.tt_forge_models.bigbird.causal_lm.jax.loader import (
     ModelLoader,
     ModelVariant,
 )
+from third_party.tt_forge_models.config import Parallelism
 
+from ..tester import BigBirdCLMTester
 
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

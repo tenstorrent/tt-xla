@@ -17,10 +17,10 @@ from typing import Any, Callable
 import jax
 import jax.lax
 import jax.nn
+from jax._src import random
 from jax.extend import core
 from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
-from jax._src import random
 
 
 def _is_module_imported(module_name: str) -> bool:

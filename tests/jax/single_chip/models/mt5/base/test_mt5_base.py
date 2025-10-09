@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-
 from infra import RunMode
 from utils import (
     BringupStatus,
@@ -13,12 +12,13 @@ from utils import (
     incorrect_result,
 )
 
-from ..tester import MT5Tester
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.mt5.nlp_summarization.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
+
+from ..tester import MT5Tester
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

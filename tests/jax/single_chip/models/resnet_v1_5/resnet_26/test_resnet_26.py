@@ -4,7 +4,6 @@
 
 import pytest
 from infra import Framework, RunMode
-from tests.infra.testers.compiler_config import CompilerConfig
 from utils import (
     BringupStatus,
     Category,
@@ -13,13 +12,15 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
     failed_runtime,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 
-from ..tester import ResNetTester
+from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
+
+from ..tester import ResNetTester
 
 VARIANT_NAME = ModelVariant.RESNET_26
 MODEL_NAME = build_model_name(

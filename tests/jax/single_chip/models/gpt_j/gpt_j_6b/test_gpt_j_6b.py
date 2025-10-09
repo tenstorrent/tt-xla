@@ -16,6 +16,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.gpt_j.causal_lm.jax import ModelVariant
+
 from ..tester import GPTJTester
 
 MODEL_VARIANT = ModelVariant._6B
@@ -49,7 +50,7 @@ def training_tester() -> GPTJTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks, "
         "where each bank needs to store 22372352 B "
