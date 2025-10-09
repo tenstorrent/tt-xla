@@ -11,8 +11,8 @@ from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
     ModelLoader,
+    ModelVariant,
 )
 
 
@@ -21,7 +21,7 @@ class MNISTCNNTester(JaxModelTester):
 
     def __init__(
         self,
-        variant: ModelArchitecture,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
