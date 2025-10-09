@@ -65,6 +65,7 @@ class ModelTask(StrEnum):
     MM_VIDEO_TTT = "mm_video_ttt"
     MM_MASKED_LM = "mm_masked_lm"
     MM_CAUSAL_LM = "mm_causal_lm"
+    MM_ACTION_PREDICTION = "mm_action_prediction"
     CONDITIONAL_GENERATION = "conditional_generation"
     ATOMIC_ML = "atomic_ml"
 
