@@ -65,7 +65,7 @@ struct CompileOptions {
   bool enable_trace = false;
 
   // Path that will contain the codegen solution and saved inputs.
-  std::optional<std::string> export_path = nullopt;
+  std::optional<std::string> export_path = std::nullopt;
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);

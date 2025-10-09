@@ -68,6 +68,8 @@ void SOLoadedExecutableInstance::releaseResources() {
 
 tt_pjrt_status
 SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
+  DLOG_F("ERROR", "Standalone solution was successfully generated, "
+                  "unfortunately your program will now crash :( .");
   // TODO: Implement SO execution logic
   return tt_pjrt_status::kUnimplemented;
 }

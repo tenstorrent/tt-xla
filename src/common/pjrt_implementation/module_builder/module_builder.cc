@@ -1056,7 +1056,12 @@ ModuleBuilder::buildModuleForTTNNCodegenPy(
 tt_pjrt_status
 ModuleBuilder::performCodegenCpp(std::string_view ttir_mlir,
                                  const CompileOptions &compile_options) {
-  std::string folder = compile_options.export_path;
+  if (!compile_options.export_path.has_value()) {
+    DLOG_F(ERROR, "export_path compile option is not set. This should not be "
+                  "able to happen.");
+    return tt_pjrt_status::kInternal;
+  }
+  std::string folder = compile_options.export_path.value();
   std::filesystem::create_directories(folder);
 
   std::ofstream ttir_file(folder + "/ttir.mlir");
@@ -1089,7 +1094,12 @@ ModuleBuilder::performCodegenCpp(std::string_view ttir_mlir,
 tt_pjrt_status
 ModuleBuilder::performCodegenPy(std::string_view ttir_mlir,
                                 const CompileOptions &compile_options) {
-  std::string folder = compile_options.export_path;
+  if (!compile_options.export_path.has_value()) {
+    DLOG_F(ERROR, "export_path compile option is not set. This should not be "
+                  "able to happen.");
+    return tt_pjrt_status::kInternal;
+  }
+  std::string folder = compile_options.export_path.value();
   std::filesystem::create_directories(folder);
 
   std::ofstream ttir_file(folder + "/ttir.mlir");
@@ -1108,7 +1118,7 @@ ModuleBuilder::performCodegenPy(std::string_view ttir_mlir,
   }
 
   std::string input_file = folder + "/ttir.mlir";
-  bool is_local = false;
+  bool is_local = true;
   bool python_result = m_tt_alchemist_handles->generate_python(
       instance, input_file.c_str(), folder.c_str(), is_local, "");
   if (!python_result) {
