@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
+
 import torch
 import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
@@ -47,13 +49,28 @@ class TorchDeviceRunner(DeviceRunner):
                 return x.to(device)
             return x
 
-        workload.args = tree_map(attempt_to_device, workload.args)
-        workload.kwargs = tree_map(attempt_to_device, workload.kwargs)
+        args_on_device = tree_map(attempt_to_device, workload.args)
+        kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
 
         if workload.model is not None:
             workload.model = workload.model.to(device)
 
-        shard_specs = workload.shard_spec_fn and workload.shard_spec_fn(workload)
+        shard_specs = None
+        if workload.shard_spec_fn:
+            sig = inspect.signature(workload.shard_spec_fn)
+            param_names = list(sig.parameters.keys())
+
+            # Check if function expects args and kwargs (data parallel)
+            if (
+                len(param_names) == 2
+                and "args" in param_names
+                and "kwargs" in param_names
+            ):
+                shard_specs = workload.shard_spec_fn(args_on_device, kwargs_on_device)
+            else:
+                # pass the model (tensor parallel)
+                shard_specs = workload.shard_spec_fn(workload.model)
+
         is_multichip = workload.mesh and len(workload.mesh.device_ids) > 1
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
@@ -69,6 +86,6 @@ class TorchDeviceRunner(DeviceRunner):
             model=workload.model,  # Moved to device if not None.
             executable=workload.executable,  # Unchanged.
             compiled_executable=workload.compiled_executable,  # Unchanged.
-            args=workload.args,
-            kwargs=workload.kwargs,
+            args=args_on_device,
+            kwargs=kwargs_on_device,
         )

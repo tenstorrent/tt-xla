@@ -295,14 +295,14 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_shard_specs_function(self):
         if self.parallelism == Parallelism.DATA_PARALLEL:
 
-            def load_shard_spec(workload):
+            def load_shard_spec(args, kwargs):
                 shard_specs = {}
-                for arg in workload.args:
+                for arg in args:
                     if isinstance(arg, torch.Tensor) and arg.dim() > 0:
                         shard_spec = [None] * len(arg.shape)
                         shard_spec[0] = "data"
                         shard_specs[arg] = tuple(shard_spec)
-                for kwarg_value in workload.kwargs.values():
+                for kwarg_value in kwargs.values():
                     if isinstance(kwarg_value, torch.Tensor) and kwarg_value.dim() > 0:
                         shard_spec = [None] * len(kwarg_value.shape)
                         shard_spec[0] = "data"
@@ -311,11 +311,7 @@ class DynamicTorchModelTester(TorchModelTester):
 
             return load_shard_spec
         else:
-
-            def load_shard_spec(workload):
-                return self.loader.load_shard_spec(workload.model)
-
-            return load_shard_spec
+            return self.loader.load_shard_spec
 
     def _get_mesh(self):
         num_devices = xr.global_runtime_device_count()
