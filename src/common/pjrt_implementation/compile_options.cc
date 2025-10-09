@@ -39,8 +39,8 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(false);
   options.export_path =
-      internal::parseStringOption(compile_options, "export_path").value_or("");
-  if (options.export_path == "" &&
+      internal::parseStringOption(compile_options, "export_path");
+  if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
             "'TTNNFlatbuffer'");
