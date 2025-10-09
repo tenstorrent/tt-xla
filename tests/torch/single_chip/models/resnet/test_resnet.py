@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from pytest import MonkeyPatch
 from infra import Framework, RunMode
+from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
     Category,

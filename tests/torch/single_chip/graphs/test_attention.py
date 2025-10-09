@@ -8,6 +8,7 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
 from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
@@ -15,8 +16,6 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
-
-from infra import run_graph_test, Framework
 
 from tests.infra.comparators.comparison_config import (
     AtolConfig,

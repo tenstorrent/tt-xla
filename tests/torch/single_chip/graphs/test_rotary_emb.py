@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from infra import run_graph_test, Framework
-
 import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
 
 from tests.infra.comparators.comparison_config import (

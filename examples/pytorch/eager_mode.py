@@ -3,20 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
+
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytest
-
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from torch_xla.debug import metrics as xla_metrics
 from torch_xla.experimental.eager import eager_mode_context
-from tests.utils import (
-    failed_ttmlir_compilation,
-)
 
+from tests.utils import failed_ttmlir_compilation
 
 # ---- Force TT device for this test session ----
 xr.set_device_type("TT")
