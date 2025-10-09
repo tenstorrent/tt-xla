@@ -276,16 +276,53 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _get_input_activations(self):
         sig = inspect.signature(self.loader.load_inputs)
+        inputs = None
         if "dtype_override" in sig.parameters:
-            return self.loader.load_inputs(dtype_override=torch.bfloat16)
-        return self.loader.load_inputs()
+            inputs = self.loader.load_inputs(dtype_override=torch.bfloat16)
+        else:
+            inputs = self.loader.load_inputs()
+
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            num_devices = xr.global_runtime_device_count()
+            if isinstance(inputs, collections.abc.Mapping):
+                inputs = {
+                    k: v.repeat_interleave(num_devices, dim=0)
+                    for k, v in inputs.items()
+                }
+            elif isinstance(inputs, collections.abc.Sequence):
+                inputs = [inp.repeat_interleave(num_devices, dim=0) for inp in inputs]
+            else:
+                inputs = inputs.repeat_interleave(num_devices, dim=0)
+        return inputs
 
     def _get_shard_specs_function(self):
-        return self.loader.load_shard_spec
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+
+            def load_shard_spec(args, kwargs):
+                shard_specs = {}
+                for arg in args:
+                    if isinstance(arg, torch.Tensor) and arg.dim() > 0:
+                        shard_spec = [None] * len(arg.shape)
+                        shard_spec[0] = "data"
+                        shard_specs[arg] = tuple(shard_spec)
+                for kwarg_value in kwargs.values():
+                    if isinstance(kwarg_value, torch.Tensor) and kwarg_value.dim() > 0:
+                        shard_spec = [None] * len(kwarg_value.shape)
+                        shard_spec[0] = "data"
+                        shard_specs[kwarg_value] = tuple(shard_spec)
+                return shard_specs
+
+            return load_shard_spec
+        else:
+            return self.loader.load_shard_spec
 
     def _get_mesh(self):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            mesh_shape, mesh_names = (1, num_devices), ("model", "data")
+        else:
+            mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
+
         return get_mesh(mesh_shape, mesh_names)
 
 
