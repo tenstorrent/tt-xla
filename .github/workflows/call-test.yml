@@ -84,7 +84,7 @@ jobs:
     runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
-      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.shared-runners) && '' || '/mnt/dockercache' }}
+      DOCKER_CACHE_ROOT: ${{ (!inputs.use-shared-runners && !matrix.build.shared-runners) && '/mnt/dockercache' || '' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
