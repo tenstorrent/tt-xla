@@ -7,11 +7,17 @@ from tests.infra.comparators.comparison_config import (
     PccConfig,
 )
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 
 import pytest
 
 from infra.comparators.torch_comparator import TorchComparator
+from infra.connectors.torch_device_connector import TorchDeviceConnector
+
+import os
+
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
 # We would like to use the OpTester/GraphTester infra instead of manually
@@ -578,4 +584,40 @@ def test_eltwise_binary_eager(op):
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
+    comparator.compare(output, golden)
+
+
+@pytest.mark.parametrize("spmd_mode", [True, False])
+def test_fully_replicated_graph(spmd_mode):
+    if spmd_mode:
+        xr.use_spmd()
+    else:
+        # There is no official way to unset SPMD mode in torch_xla.
+        # So this is a workaround to delete the env var and reset the state.
+        if os.environ.get("XLA_USE_SPMD") is not None:
+            del os.environ["XLA_USE_SPMD"]
+
+    class MM(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return x @ y
+
+    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
+    input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+    model = MM()
+    golden = model(input_x, input_y)
+
+    device = xm.xla_device()
+    model = model.to(device)
+    input_x = input_x.to(device)
+    input_y = input_y.to(device)
+    output = model(input_x, input_y).to("cpu")
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(enabled=False, required_atol=0.02),
+        )
+    )
+
     comparator.compare(output, golden)
