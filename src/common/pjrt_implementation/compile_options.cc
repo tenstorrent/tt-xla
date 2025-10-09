@@ -34,6 +34,9 @@ CompileOptions CompileOptions::parse(
           .value_or(false);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(BackendRuntime::TTNNFlatbuffer);
+  options.enable_trace =
+      internal::parseBoolOption(compile_options, "enable_trace")
+          .value_or(false);
 
   return options;
 }

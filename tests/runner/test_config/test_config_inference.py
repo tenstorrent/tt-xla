@@ -99,9 +99,6 @@ PLACEHOLDER_MODELS = {
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "pointpillars": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "uniad": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2497,6 +2494,14 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "bge_m3/pytorch-base-full-inference": {
+        # This model has a hand written test, don't run via test_models.py
+        "status": ModelTestStatus.EXCLUDE_MODEL,
+    },
+    "bge_m3/encode/pytorch-base-full-inference": {
+        # This model has a hand written test, don't run via test_models.py
+        "status": ModelTestStatus.EXCLUDE_MODEL,
     },
     "pointpillars/pytorch-pointpillars-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
