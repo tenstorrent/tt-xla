@@ -4,149 +4,13 @@
 import torch
 import torch.nn as nn
 import math
-import warnings
 from einops import rearrange
-from abc import abstractmethod, ABCMeta
 from third_party.tt_forge_models.uniad.pytorch.src.utils import FPN, ResNet
 from third_party.tt_forge_models.uniad.pytorch.src.track_head import BEVFormerTrackHead
 from third_party.tt_forge_models.uniad.pytorch.src.track_utils import *
 
 
-class BaseDetector(nn.Module, metaclass=ABCMeta):
-    """Base class for detectors."""
-
-    def __init__(self):
-        super(BaseDetector, self).__init__()
-        self.fp16_enabled = False
-
-    @property
-    def with_neck(self):
-        """bool: whether the detector has a neck"""
-        return hasattr(self, "neck") and self.neck is not None
-
-    @property
-    def with_shared_head(self):
-        """bool: whether the detector has a shared head in the RoI Head"""
-        return hasattr(self, "roi_head") and self.roi_head.with_shared_head
-
-    @property
-    def with_bbox(self):
-        """bool: whether the detector has a bbox head"""
-        return (hasattr(self, "roi_head") and self.roi_head.with_bbox) or (
-            hasattr(self, "bbox_head") and self.bbox_head is not None
-        )
-
-    @property
-    def with_mask(self):
-        """bool: whether the detector has a mask head"""
-        return (hasattr(self, "roi_head") and self.roi_head.with_mask) or (
-            hasattr(self, "mask_head") and self.mask_head is not None
-        )
-
-    def extract_feat(self, imgs):
-        """Extract features from images."""
-        pass
-
-    def extract_feats(self, imgs):
-        """Extract features from multiple images.
-
-        Args:
-            imgs (list[torch.Tensor]): A list of images. The images are
-                augmented from the same image but in different ways.
-
-        Returns:
-            list[torch.Tensor]: Features of different images
-        """
-        assert isinstance(imgs, list)
-        return [self.extract_feat(img) for img in imgs]
-
-    def simple_test(self, img, img_metas, **kwargs):
-        pass
-
-    @abstractmethod
-    def aug_test(self, imgs, img_metas, **kwargs):
-        """Test function with test time augmentation."""
-        pass
-
-    def forward_test(self, imgs, img_metas, **kwargs):
-        """
-        Args:
-            imgs (List[Tensor]): the outer list indicates test-time
-                augmentations and inner Tensor should have a shape NxCxHxW,
-                which contains all images in the batch.
-            img_metas (List[List[dict]]): the outer list indicates test-time
-                augs (multiscale, flip, etc.) and the inner list indicates
-                images in a batch.
-        """
-        for var, name in [(imgs, "imgs"), (img_metas, "img_metas")]:
-            if not isinstance(var, list):
-                raise TypeError(f"{name} must be a list, but got {type(var)}")
-
-        num_augs = len(imgs)
-        if num_augs != len(img_metas):
-            raise ValueError(
-                f"num of augmentations ({len(imgs)}) "
-                f"!= num of image meta ({len(img_metas)})"
-            )
-
-        for img, img_meta in zip(imgs, img_metas):
-            batch_size = len(img_meta)
-            for img_id in range(batch_size):
-                img_meta[img_id]["batch_input_shape"] = tuple(img.size()[-2:])
-
-    def forward(self, img, img_metas, return_loss=True, **kwargs):
-        """Calls either :func:`forward_train` or :func:`forward_test` depending
-        on whether ``return_loss`` is ``True``.
-        """
-
-        return self.forward_test(img, img_metas, **kwargs)
-
-
-class Base3DDetector(BaseDetector):
-    """Base class for detectors."""
-
-    def forward_test(self, points, img_metas, img=None, **kwargs):
-        """
-        Args:
-            points (list[torch.Tensor]): the outer list indicates test-time
-                augmentations and inner torch.Tensor should have a shape NxC,
-                which contains all points in the batch.
-            img_metas (list[list[dict]]): the outer list indicates test-time
-                augs (multiscale, flip, etc.) and the inner list indicates
-                images in a batch
-            img (list[torch.Tensor], optional): the outer
-                list indicates test-time augmentations and inner
-                torch.Tensor should have a shape NxCxHxW, which contains
-                all images in the batch. Defaults to None.
-        """
-        for var, name in [(points, "points"), (img_metas, "img_metas")]:
-            if not isinstance(var, list):
-                raise TypeError("{} must be a list, but got {}".format(name, type(var)))
-
-        num_augs = len(points)
-        if num_augs != len(img_metas):
-            raise ValueError(
-                "num of augmentations ({}) != num of image meta ({})".format(
-                    len(points), len(img_metas)
-                )
-            )
-
-    def forward(self, return_loss=True, **kwargs):
-        """Calls either forward_train or forward_test depending on whether
-        return_loss=True.
-
-        Note this setting will change the expected inputs. When
-        `return_loss=True`, img and img_metas are single-nested (i.e.
-        torch.Tensor and list[dict]), and when `resturn_loss=False`, img and
-        img_metas should be double nested (i.e.  list[torch.Tensor],
-        list[list[dict]]), with the outer list indicating test time
-        augmentations.
-        """
-
-        return self.forward_test(**kwargs)
-
-
-class MVXTwoStageDetector(Base3DDetector):
+class MVXTwoStageDetector(nn.Module):
     """Base class of Multi-modality VoxelNet."""
 
     def __init__(
@@ -190,21 +54,6 @@ class MVXTwoStageDetector(Base3DDetector):
     def with_img_neck(self):
         """bool: Whether the detector has a neck in image branch."""
         return hasattr(self, "img_neck") and self.img_neck is not None
-
-    def aug_test(self, points, img_metas, imgs=None, rescale=False):
-        """Test function with augmentaiton."""
-        img_feats, pts_feats = self.extract_feats(points, img_metas, imgs)
-
-        bbox_list = dict()
-
-        return [bbox_list]
-
-    def extract_feats(self, points, img_metas, imgs=None):
-        """Extract point and image features of multiple samples."""
-        if imgs is None:
-            imgs = [None] * len(img_metas)
-        img_feats, pts_feats = multi_apply(self.extract_feat, points, imgs, img_metas)
-        return img_feats, pts_feats
 
 
 class UniADTrack(MVXTwoStageDetector):

@@ -7,8 +7,6 @@ import torch
 from torch.nn.modules.utils import _pair, _single
 import torchvision
 import warnings
-import math
-import torch.distributed as dist
 import copy
 
 

@@ -310,42 +310,6 @@ class MotionHead(BaseMotionHead):
             batched_mode_query_pos.append(torch.stack(grouped_mode_query_pos))
         return torch.stack(batched_mode_query_pos)
 
-    def compute_matched_gt_traj(
-        self,
-        gt_fut_traj,
-        gt_fut_traj_mask,
-        all_matched_idxes,
-        track_bbox_results,
-        gt_bboxes_3d,
-    ):
-        """
-        Computes the matched ground truth trajectories for a batch of images based on matched indexes.
-
-        Args:
-        gt_fut_traj (torch.Tensor): Ground truth future trajectories of shape (num_imgs, num_objects, num_future_steps, 2).
-        gt_fut_traj_mask (torch.Tensor): Ground truth future trajectory masks of shape (num_imgs, num_objects, num_future_steps, 2).
-        all_matched_idxes (List[torch.Tensor]): A list of tensors containing the matched indexes for each image in the batch.
-        track_bbox_results (List[torch.Tensor]): A list of tensors containing the tracking bounding box results for each image in the batch.
-        gt_bboxes_3d (List[torch.Tensor]): A list of tensors containing the ground truth 3D bounding boxes for each image in the batch.
-
-        Returns:
-        torch.Tensor: A concatenated tensor of the matched ground truth future trajectories.
-        torch.Tensor: A concatenated tensor of the matched ground truth future trajectory masks.
-        """
-        num_imgs = len(all_matched_idxes)
-        gt_fut_traj_all = []
-        gt_fut_traj_mask_all = []
-        for i in range(num_imgs):
-            matched_gt_idx = all_matched_idxes[i]
-            valid_traj_masks = matched_gt_idx >= 0
-            matched_gt_fut_traj = gt_fut_traj[i][matched_gt_idx][valid_traj_masks]
-            matched_gt_fut_traj_mask = gt_fut_traj_mask[i][matched_gt_idx][
-                valid_traj_masks
-            ]
-        gt_fut_traj_all = torch.cat(gt_fut_traj_all, dim=0)
-        gt_fut_traj_mask_all = torch.cat(gt_fut_traj_mask_all, dim=0)
-        return gt_fut_traj_all, gt_fut_traj_mask_all
-
     def get_trajs(self, preds_dicts, bbox_results):
         """
         Generates trajectories from the prediction results, bounding box results.

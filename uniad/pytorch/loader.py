@@ -9,10 +9,6 @@ from typing import Optional
 from ...base import ForgeModel
 from ...config import ModelGroup, ModelTask, ModelSource, Framework, StrEnum, ModelInfo
 from ...tools.utils import get_file
-from third_party.tt_forge_models.uniad.pytorch.src.uniad_e2e import UniAD
-from third_party.tt_forge_models.uniad.pytorch.src.track_utils import (
-    LiDARInstance3DBoxes,
-)
 
 
 class ModelVariant(StrEnum):
@@ -66,6 +62,8 @@ class ModelLoader(ForgeModel):
             Torch model: The UniAD model instance.
         """
         # Load model with defaults
+        from third_party.tt_forge_models.uniad.pytorch.src.uniad_e2e import UniAD
+
         model = UniAD()
         checkpoint_path = get_file("test_files/pytorch/uniad/uniad_e2e.pth")
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
@@ -81,8 +79,12 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: A dictionary of input tensors and metadata suitable for the model.
         """
+        from third_party.tt_forge_models.uniad.pytorch.src.track_utils import (
+            LiDARInstance3DBoxes,
+        )
+
         img_tensor = img_tensor = [
-            torch.randn(1, 6, 3, 928, 1600, dtype=torch.float) * 50
+            torch.randn(1, 6, 3, 928, 1600, dtype=torch.float32) * 50
         ]
         img_metas = [
             [
@@ -95,7 +97,7 @@ class ModelLoader(ForgeModel):
                     "box_type_3d": LiDARInstance3DBoxes,
                     "sample_idx": "3e8750f331d7499e9b5123e9eb70f2e2",
                     "scene_token": "fcbccedd61424f1b85dcbf8f897f9754",
-                    "can_bus": torch.randn(18, dtype=torch.float64) * 300,
+                    "can_bus": torch.randn(18, dtype=torch.float32) * 300,
                 }
             ]
         ]

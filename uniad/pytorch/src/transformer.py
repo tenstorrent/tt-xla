@@ -5,8 +5,6 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 import warnings
-import math
-import torch.distributed as dist
 import copy
 from third_party.tt_forge_models.uniad.pytorch.src.utils import MultiheadAttention
 from typing import Optional

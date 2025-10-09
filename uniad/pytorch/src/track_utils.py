@@ -7,58 +7,14 @@ import torch.nn.functional as F
 from abc import ABCMeta
 import numpy as np
 from torchvision.transforms.functional import rotate
-from torch.nn.init import normal_
-import copy
 import warnings
-import math
 import itertools
 from typing import Any, Dict, List, Tuple, Union
 from third_party.tt_forge_models.uniad.pytorch.src.utils import *
 from third_party.tt_forge_models.uniad.pytorch.src.transformer import *
 
 
-class ClipMatcher(nn.Module):
-    def __init__(
-        self,
-        num_classes=10,
-        weight_dict=None,
-        code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2, 0.2],
-    ):
-        """Create the criterion.
-        Parameters:
-            num_classes: number of object categories, omitting the special no-object category
-            weight_dict: dict containing as key the names of the losses and as values their relative weight.
-            eos_coef: relative classification weight applied to the no-object category
-        """
-        super().__init__()
-        self.num_classes = num_classes
-        self.register_buffer(
-            "code_weights", torch.tensor(code_weights, requires_grad=False)
-        )
-
-        self.weight_dict = weight_dict
-        self.loss_past_traj_weight = loss_past_traj_weight
-        self.losses = ["labels", "boxes", "past_trajs"]
-        self.focal_loss = True
-        self.losses_dict = {}
-        self._current_frame_idx = 0
-
-
-class BaseBBoxCoder(metaclass=ABCMeta):
-    """Base bounding box coder."""
-
-    def __init__(self, **kwargs):
-        pass
-
-    def encode(self, bboxes, gt_bboxes):
-        """Encode deltas between bboxes and ground truth boxes."""
-
-    def decode(self, bboxes, bboxes_pred):
-        """Decode the predicted bboxes according to prediction and base
-        boxes."""
-
-
-class DETRTrack3DCoder(BaseBBoxCoder):
+class DETRTrack3DCoder:
     """Bbox coder for DETR3D.
     Args:
         pc_range (list[float]): Range of point cloud.
@@ -87,9 +43,6 @@ class DETRTrack3DCoder(BaseBBoxCoder):
         self.num_classes = num_classes
         self.with_nms = with_nms
         self.nms_iou_thres = iou_thres
-
-    def encode(self):
-        pass
 
     def decode_single(
         self,
@@ -1506,9 +1459,6 @@ class GridMask(nn.Module):
         self.st_prob = prob
         self.prob = prob
 
-    def set_prob(self, epoch, max_epoch):
-        self.prob = self.st_prob * epoch / max_epoch
-
     def _rotate_tensor(self, tensor, angle):
         """
         Rotate a 2D tensor by the given angle using PyTorch operations.
@@ -1646,32 +1596,11 @@ class Instances:
             )
         self._fields[name] = value
 
-    def has(self, name: str) -> bool:
-        """
-        Returns:
-            bool: whether the field called `name` exists.
-        """
-        return name in self._fields
-
-    def remove(self, name: str) -> None:
-        """
-        Remove the field called `name`.
-        """
-        del self._fields[name]
-
     def get(self, name: str) -> Any:
         """
         Returns the field called `name`.
         """
         return self._fields[name]
-
-    def get_fields(self) -> Dict[str, Any]:
-        """
-        Returns:
-            dict: a dict which maps names (str) to data of the fields
-        Modifying the returned dict will modify this instance.
-        """
-        return self._fields
 
     def numpy(self):
         ret = Instances(self._image_size)
@@ -1845,9 +1774,6 @@ class MemoryBank(nn.Module):
 
         return track_instances
 
-    def forward_temporal_attn(self, track_instances):
-        return self._forward_temporal_attn(track_instances)
-
     def forward(self, track_instances: Instances, update_bank=True) -> Instances:
         track_instances = self._forward_temporal_attn(track_instances)
         if update_bank:
@@ -2015,9 +1941,6 @@ class RuntimeTrackerBase(object):
         self.miss_tolerance = miss_tolerance
         self.max_obj_id = 0
 
-    def clear(self):
-        self.max_obj_id = 0
-
     def update(self, track_instances: Instances, iou_thre=None):
         track_instances.disappear_time[track_instances.scores >= self.score_thresh] = 0
         for i in range(len(track_instances)):
@@ -2183,29 +2106,6 @@ class BaseInstance3DBoxes(object):
         in XYWHR format, in shape (N, 5)."""
         return self.tensor[:, [0, 1, 3, 4, 6]]
 
-    def in_range_bev(self, box_range):
-        """Check whether the boxes are in the given range.
-
-        Args:
-            box_range (list | torch.Tensor): the range of box
-                (x_min, y_min, x_max, y_max)
-
-        Note:
-            The original implementation of SECOND checks whether boxes in
-            a range by checking whether the points are in a convex
-            polygon, we reduce the burden for simpler cases.
-
-        Returns:
-            torch.Tensor: Whether each box is inside the reference range.
-        """
-        in_range_flags = (
-            (self.bev[:, 0] > box_range[0])
-            & (self.bev[:, 1] > box_range[1])
-            & (self.bev[:, 0] < box_range[2])
-            & (self.bev[:, 1] < box_range[3])
-        )
-        return in_range_flags
-
     def rotate(self, angle, points=None):
         """Rotate boxes with points (optional) with the given angle or rotation
         matrix.
@@ -2219,70 +2119,6 @@ class BaseInstance3DBoxes(object):
         """
         pass
 
-    def flip(self, bev_direction="horizontal"):
-        """Flip the boxes in BEV along given BEV direction.
-
-        Args:
-            bev_direction (str, optional): Direction by which to flip.
-                Can be chosen from 'horizontal' and 'vertical'.
-                Defaults to 'horizontal'.
-        """
-        pass
-
-    def translate(self, trans_vector):
-        """Translate boxes with the given translation vector.
-
-        Args:
-            trans_vector (torch.Tensor): Translation vector of size (1, 3).
-        """
-        if not isinstance(trans_vector, torch.Tensor):
-            trans_vector = self.tensor.new_tensor(trans_vector)
-        self.tensor[:, :3] += trans_vector
-
-    def in_range_3d(self, box_range):
-        """Check whether the boxes are in the given range.
-
-        Args:
-            box_range (list | torch.Tensor): The range of box
-                (x_min, y_min, z_min, x_max, y_max, z_max)
-
-        Note:
-            In the original implementation of SECOND, checking whether
-            a box in the range checks whether the points are in a convex
-            polygon, we try to reduce the burden for simpler cases.
-
-        Returns:
-            torch.Tensor: A binary vector indicating whether each box is
-                inside the reference range.
-        """
-        in_range_flags = (
-            (self.tensor[:, 0] > box_range[0])
-            & (self.tensor[:, 1] > box_range[1])
-            & (self.tensor[:, 2] > box_range[2])
-            & (self.tensor[:, 0] < box_range[3])
-            & (self.tensor[:, 1] < box_range[4])
-            & (self.tensor[:, 2] < box_range[5])
-        )
-        return in_range_flags
-
-    def convert_to(self, dst, rt_mat=None):
-        """Convert self to ``dst`` mode.
-
-        Args:
-            dst (:obj:`Box3DMode`): The target Box mode.
-            rt_mat (np.ndarray | torch.Tensor, optional): The rotation and
-                translation matrix between different coordinates.
-                Defaults to None.
-                The conversion from `src` coordinates to `dst` coordinates
-                usually comes along the change of sensors, e.g., from camera
-                to LiDAR. This requires a transformation matrix.
-
-        Returns:
-            :obj:`BaseInstance3DBoxes`: The converted box of the same type
-                in the `dst` mode.
-        """
-        pass
-
     def scale(self, scale_factor):
         """Scale the box with horizontal and vertical scaling factors.
 
@@ -2291,27 +2127,6 @@ class BaseInstance3DBoxes(object):
         """
         self.tensor[:, :6] *= scale_factor
         self.tensor[:, 7:] *= scale_factor
-
-    def nonempty(self, threshold=0.0):
-        """Find boxes that are non-empty.
-
-        A box is considered empty,
-        if either of its side is no larger than threshold.
-
-        Args:
-            threshold (float, optional): The threshold of minimal sizes.
-                Defaults to 0.0.
-
-        Returns:
-            torch.Tensor: A binary vector which represents whether each
-                box is empty (False) or non-empty (True).
-        """
-        box = self.tensor
-        size_x = box[..., 3]
-        size_y = box[..., 4]
-        size_z = box[..., 5]
-        keep = (size_x > threshold) & (size_y > threshold) & (size_z > threshold)
-        return keep
 
     def __getitem__(self, item):
         """
