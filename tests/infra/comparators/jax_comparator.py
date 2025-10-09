@@ -64,14 +64,10 @@ class JaxComparator(Comparator):
 
         # If tensors are really close, pcc will be nan. Handle that before calculating
         # pcc by checking allclose first.
-        try:
-            # Use the existing _compare_allclose method
-            if JaxComparator._compare_allclose(
-                device_output, golden_output, pcc_config.allclose
-            ):
-                return 1.0  # Perfect correlation when values are essentially identical
-        except:
-            pass
+        if JaxComparator._compare_allclose(
+            device_output, golden_output, pcc_config.allclose
+        ):
+            return 1.0  # Perfect correlation when values are essentially identical
 
         # Calculate PCC for non-identical values
         leaf_pccs = jax.tree.map(compute_pcc, device_output, golden_output)

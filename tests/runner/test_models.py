@@ -120,10 +120,9 @@ def test_all_models(
         finally:
             # If there are multiple comparison results, only record the first one because the
             #     DB only supports single comparison result for now
-            print("running test all models")
             if len(comparison_result) > 1:
                 print(
-                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one"
+                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
                 )
             comparison_result = comparison_result[0]
 

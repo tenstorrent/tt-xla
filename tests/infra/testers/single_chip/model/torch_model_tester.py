@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import os
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
 import torch
