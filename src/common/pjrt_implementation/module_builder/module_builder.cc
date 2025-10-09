@@ -1077,9 +1077,7 @@ ModuleBuilder::performCodegenCpp(std::string_view ttir_mlir,
   std::string input_file = folder + "/ttir.mlir";
   bool is_local = false;
   bool cpp_result = m_tt_alchemist_handles->generate_cpp(
-      instance, input_file.c_str(), folder.c_str(), is_local,
-      "enable-const-eval=false"); // options are hardcoded to disabling const
-                                  // eval for now
+      instance, input_file.c_str(), folder.c_str(), is_local, "");
   if (!cpp_result) {
     DLOG_F(ERROR, "tt-alchemist generateCpp failed");
     return tt_pjrt_status::kInternal;
@@ -1112,9 +1110,7 @@ ModuleBuilder::performCodegenPy(std::string_view ttir_mlir,
   std::string input_file = folder + "/ttir.mlir";
   bool is_local = false;
   bool python_result = m_tt_alchemist_handles->generate_python(
-      instance, input_file.c_str(), folder.c_str(), is_local,
-      "enable-const-eval=false"); // options are hardcoded to disabling const
-                                  // eval for now
+      instance, input_file.c_str(), folder.c_str(), is_local, "");
   if (!python_result) {
     DLOG_F(ERROR, "tt-alchemist generatePython failed");
     return tt_pjrt_status::kInternal;
