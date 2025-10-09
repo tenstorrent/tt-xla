@@ -131,6 +131,7 @@ class TTMetadata:
     num_kv_update_slices: torch.Tensor
     num_slices_per_kv_cache_update_block: int
     attn_mask: torch.Tensor
+    is_causal: bool
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -240,7 +241,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 key,
                 value,
                 cur_pos_tensor,
-                is_causal=False,
+                is_causal=attn_metadata.is_causal,
                 attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
@@ -252,7 +253,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                     query,
                     key,
                     value,
-                    is_causal=False,
+                    is_causal=attn_metadata.is_causal,
                     attn_mask=attn_metadata.attn_mask,
                 )
                 .transpose(-3, -2)
