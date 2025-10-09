@@ -34,7 +34,7 @@ class MNISTMLPTester(JaxModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_loader = ModelLoader(ModelVariant.MLP, hidden_sizes)
+        self._model_loader = ModelLoader(ModelVariant.MLP_CUSTOM, hidden_sizes)
         super().__init__(comparison_config, run_mode)
 
     # @override
