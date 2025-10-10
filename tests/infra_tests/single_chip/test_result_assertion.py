@@ -326,3 +326,53 @@ def test_all_checks_pass_no_error_message(framework_setup):
     # Verify success with no error message
     assert result.passed is True
     assert result.error_message is None
+
+
+@pytest.mark.push
+@pytest.mark.parametrize("invalid_value", [float("nan"), float("inf"), float("-inf")])
+def test_invalid_atol_triggers_assertion(framework_setup, invalid_value):
+    """Test that invalid ATOL values (NaN, Inf, -Inf) trigger an assertion."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    # Create config with ATOL check enabled
+    config = ComparisonConfig(
+        atol=AtolConfig(enabled=True, required_atol=0.01),
+        pcc=PccConfig(enabled=False),
+    )
+    assert config.assert_on_failure is True
+
+    comparator = comparator_class(config)
+
+    # Create tensors with invalid values - will result in invalid ATOL
+    device_output = create_tensor([1.0, 2.0, invalid_value])
+    golden_output = create_tensor([1.0, 2.0, 3.0])
+
+    # Should raise AssertionError because ATOL will be invalid
+    with pytest.raises(AssertionError, match="Atol comparison failed"):
+        comparator.compare(device_output, golden_output)
+
+
+@pytest.mark.push
+@pytest.mark.parametrize("invalid_value", [float("nan"), float("inf"), float("-inf")])
+def test_invalid_pcc_triggers_assertion(framework_setup, invalid_value):
+    """Test that invalid PCC values (NaN, Inf, -Inf) trigger an assertion."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    # Create config with PCC check enabled
+    config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
+        atol=AtolConfig(enabled=False),
+    )
+    assert config.assert_on_failure is True
+
+    comparator = comparator_class(config)
+
+    # Create tensors with invalid values - will result in invalid PCC
+    device_output = create_tensor([1.0, 2.0, invalid_value])
+    golden_output = create_tensor([1.0, 2.0, 3.0])
+
+    # Should raise AssertionError because PCC will be invalid
+    with pytest.raises(AssertionError, match="PCC comparison failed"):
+        comparator.compare(device_output, golden_output)

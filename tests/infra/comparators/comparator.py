@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
@@ -106,7 +107,17 @@ class Comparator(ABC):
 
         if self._comparison_config.atol.enabled and comparison_result.atol is not None:
             required_atol = self._comparison_config.atol.required_atol
-            if comparison_result.atol > required_atol:
+            # Check for invalid ATOL values (nan or inf).
+            # Note: All comparisons with NaN return False (nan > x → False, nan < x → False, etc.),
+            # so we must explicitly check for nan/inf before doing threshold comparisons,
+            # otherwise invalid values would incorrectly pass the check.
+            if math.isnan(comparison_result.atol) or math.isinf(comparison_result.atol):
+                passed = False
+                error_messages.append(
+                    f"Atol comparison failed. "
+                    f"Calculated: atol={comparison_result.atol} (invalid value). Required: atol={required_atol}."
+                )
+            elif comparison_result.atol > required_atol:
                 passed = False
                 error_messages.append(
                     f"Atol comparison failed. "
@@ -115,7 +126,17 @@ class Comparator(ABC):
 
         if self._comparison_config.pcc.enabled and comparison_result.pcc is not None:
             required_pcc = self._comparison_config.pcc.required_pcc
-            if comparison_result.pcc < required_pcc:
+            # Check for invalid PCC values (nan or inf).
+            # Note: All comparisons with NaN return False (nan > x → False, nan < x → False, etc.),
+            # so we must explicitly check for nan/inf before doing threshold comparisons,
+            # otherwise invalid values would incorrectly pass the check.
+            if math.isnan(comparison_result.pcc) or math.isinf(comparison_result.pcc):
+                passed = False
+                error_messages.append(
+                    f"PCC comparison failed. "
+                    f"Calculated: pcc={comparison_result.pcc} (invalid value). Required: pcc={required_pcc}."
+                )
+            elif comparison_result.pcc < required_pcc:
                 passed = False
                 error_messages.append(
                     f"PCC comparison failed. "
