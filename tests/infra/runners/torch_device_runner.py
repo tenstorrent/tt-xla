@@ -12,6 +12,27 @@ from torch.utils._pytree import tree_map
 from .device_runner import DeviceRunner
 
 
+def to_device(x, device):
+    if x is None:
+        return x
+    elif isinstance(x, list):
+        return [to_device(item, device) for item in x]
+    elif isinstance(x, tuple):
+        return tuple(to_device(item, device) for item in x)
+    elif isinstance(x, dict):
+        return {k: to_device(v, device) for k, v in x.items()}
+    elif hasattr(x, "to"):
+        return x.to(device)
+    # Handle objects with attributes by recursively processing all fields
+    elif hasattr(x, "__dict__"):
+        for attr_name in x.__dict__:
+            attr_value = getattr(x, attr_name)
+            setattr(x, attr_name, to_device(attr_value, device))
+        return x
+    else:
+        return x
+
+
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
@@ -42,27 +63,8 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        def attempt_to_device(x):
-            # Special handling for StaticCache-like objects that have key_cache and value_cache
-            if hasattr(x, "key_cache") and hasattr(x, "value_cache"):
-                if x.key_cache is not None:
-                    if isinstance(x.key_cache, list):
-                        x.key_cache = [tensor.to(device) for tensor in x.key_cache]
-                    else:
-                        x.key_cache = x.key_cache.to(device)
-
-                if x.value_cache is not None:
-                    if isinstance(x.value_cache, list):
-                        x.value_cache = [tensor.to(device) for tensor in x.value_cache]
-                    else:
-                        x.value_cache = x.value_cache.to(device)
-                return x
-            elif hasattr(x, "to"):
-                return x.to(device)
-            return x
-
-        args_on_device = tree_map(attempt_to_device, workload.args)
-        kwargs_on_device = tree_map(attempt_to_device, workload.kwargs)
+        args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+        kwargs_on_device = tree_map(lambda x: to_device(x, device), workload.kwargs)
 
         if workload.model is not None:
             workload.model = workload.model.to(device)
@@ -74,8 +76,7 @@ class TorchDeviceRunner(DeviceRunner):
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
-        if workload.compiled_executable is not None:
-            attempt_to_device(workload.compiled_executable)
+        workload.compiled_executable = to_device(workload.compiled_executable, device)
 
         return Workload(
             framework=workload.framework,
