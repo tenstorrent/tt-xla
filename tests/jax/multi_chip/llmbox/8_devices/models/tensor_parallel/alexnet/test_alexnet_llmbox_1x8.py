@@ -3,27 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode, enable_shardy
+from infra import RunMode, enable_shardy
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.tester import (
     AlexNetMultichipTester,
 )
-
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "alexnet",
-    "multichip_llmbox_1x8",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
+from third_party.tt_forge_models.alexnet.jax import (
+    ModelVariant,
+    ModelLoader,
 )
+
+VARIANT_NAME = ModelVariant.CUSTOM_1X8
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -46,9 +42,9 @@ def training_tester() -> AlexNetMultichipTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
     bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_llmbox_1x8_inference(
@@ -61,9 +57,9 @@ def test_alexnet_multichip_llmbox_1x8_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 def test_alexnet_multichip_llmbox_1x8_inference_shardy(
     inference_tester: AlexNetMultichipTester,
@@ -76,9 +72,9 @@ def test_alexnet_multichip_llmbox_1x8_inference_shardy(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_alexnet_multichip_llmbox_1x8_training(training_tester: AlexNetMultichipTester):

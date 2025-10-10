@@ -3,25 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode, enable_shardy
+from infra import RunMode, enable_shardy
 from utils import (
     BringupStatus,
     Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .tester import MnistMLPMultichipTester
-
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "mnist",
-    "mlp_multichip_n300",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
+from third_party.tt_forge_models.mnist.image_classification.jax import (
+    ModelVariant,
+    ModelLoader,
 )
+
+VARIANT_NAME = ModelVariant.MLP_CUSTOM_1X2
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -44,9 +40,9 @@ def training_tester(request) -> MnistMLPMultichipTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
@@ -60,9 +56,9 @@ def test_mnist_mlp_multichip_n300_inference(inference_tester: MnistMLPMultichipT
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.parametrize(
     "inference_tester", [(1024, 512, 256)], indirect=True, ids=lambda val: f"{val}"
@@ -78,9 +74,9 @@ def test_mnist_mlp_multichip_n300_inference_shardy(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_mnist_mlp_multichip_n300_training(training_tester: MnistMLPMultichipTester):
