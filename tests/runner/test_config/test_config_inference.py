@@ -99,9 +99,6 @@ PLACEHOLDER_MODELS = {
     "Sentencizer": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "pointpillars": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "uniad": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2505,5 +2502,10 @@ test_config = {
     "bge_m3/encode/pytorch-base-full-inference": {
         # This model has a hand written test, don't run via test_models.py
         "status": ModelTestStatus.EXCLUDE_MODEL,
+    },
+    "pointpillars/pytorch-pointpillars-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: 'ttir.batch_norm' op input tensor must be a 4D tensor' - https://github.com/tenstorrent/tt-xla/issues/1611",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
 }
