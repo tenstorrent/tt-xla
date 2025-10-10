@@ -79,8 +79,7 @@ BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
     MemoryInstance *memory, PJRT_Buffer_Type data_type,
     const std::optional<tt::runtime::Tensor> &host_tensor,
-    const std::optional<tt::runtime::Tensor> &device_tensor,
-  int device_id)
+    const std::optional<tt::runtime::Tensor> &device_tensor, int device_id)
     : m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_host_runtime_tensor(host_tensor), m_data_ready(false),
@@ -343,15 +342,17 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           std::vector<tt::runtime::Tensor> host_runtime_tensors =
               tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
           DLOG_F(LOG_DEBUG,
-                 "Returning tensor to host; with host_runtime_tensors ct = %ld from device %d",
+                 "Returning tensor to host; with host_runtime_tensors ct = %ld "
+                 "from device %d",
                  host_runtime_tensors.size(), device_id);
 
-          // If device_id is -1, we are returning an input buffer instance to host (eg. cache position for update)
-          // this means we can pull back the 0th BI since it's replicated
-          if (device_id == -1){
+          // If device_id is -1, we are returning an input buffer instance to
+          // host (eg. cache position for update) this means we can pull back
+          // the 0th BI since it's replicated
+          if (device_id == -1) {
             device_id = 0;
           }
-          
+
           tt::runtime::Tensor host_shard_runtime_tensor =
               host_runtime_tensors[device_id];
 
