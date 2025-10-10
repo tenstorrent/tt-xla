@@ -711,7 +711,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = true;;
+  options.optimizerPassEnabled = true;
   options.memoryLayoutAnalysisEnabled = false;
   options.l1InterleavedFallbackAnalysisEnabled = false;
 
@@ -732,13 +732,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
-  tt::runtime::Device runtime_device =
-      client_instance->getOrCreateMeshDevice(devices_mesh_shape);
-
-  // TODO(odjuricic, #1503): After compile, execution hangs if the parent mesh
-  // is passed to optimizer.
   tt::runtime::Device submesh_for_optim =
-      tt::runtime::createSubMeshDevice(runtime_device, devices_mesh_shape);
+      client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
   options.devicePtr =
       std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
           submesh_for_optim.handle);
