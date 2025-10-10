@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -14,6 +16,8 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import MBartTester
 
@@ -48,6 +52,7 @@ def training_tester() -> MBartTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
@@ -66,6 +71,7 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )

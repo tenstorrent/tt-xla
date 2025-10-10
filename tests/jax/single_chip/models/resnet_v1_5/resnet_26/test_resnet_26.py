@@ -3,33 +3,27 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
     ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_runtime,
     failed_ttmlir_compilation,
     incorrect_result,
 )
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.resnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import ResNetTester
 
 VARIANT_NAME = ModelVariant.RESNET_26
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "26",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -60,8 +54,8 @@ def inference_tester_optimizer() -> ResNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -73,8 +67,8 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
@@ -92,8 +86,8 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(
     reason=failed_runtime(

@@ -3,32 +3,26 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
+from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
     ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
     failed_ttmlir_compilation,
     incorrect_result,
 )
 
-from third_party.tt_forge_models.beit.image_classification.jax import ModelVariant
+from third_party.tt_forge_models.beit.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxBeitForImageClassificationTester
 
 VARIANT_NAME = ModelVariant.LARGE
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "beit",
-    "large",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
 
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -49,9 +43,9 @@ def training_tester() -> FlaxBeitForImageClassificationTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -69,9 +63,9 @@ def test_flax_beit_large_inference(
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )

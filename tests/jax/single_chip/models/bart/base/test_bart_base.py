@@ -3,43 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
-)
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
-from third_party.tt_forge_models.bart.causal_lm.jax import ModelVariant
+from third_party.tt_forge_models.bart.causal_lm.jax import ModelLoader, ModelVariant
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxBartForCausalLMTester
 
-MODEL_VARIANT = ModelVariant.BASE
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "bart",
-    "base",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.BASE
 
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_VARIANT)
+    return FlaxBartForCausalLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_VARIANT, run_mode=RunMode.TRAINING)
+    return FlaxBartForCausalLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,9 +34,9 @@ def training_tester() -> FlaxBartForCausalLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):
@@ -60,9 +46,9 @@ def test_flax_bart_base_inference(inference_tester: FlaxBartForCausalLMTester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )

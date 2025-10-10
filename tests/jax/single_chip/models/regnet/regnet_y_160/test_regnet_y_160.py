@@ -3,31 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_runtime,
-)
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
-from third_party.tt_forge_models.regnet.image_classification.jax import ModelVariant
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.regnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import RegNetTester
 
 VARIANT_NAME = ModelVariant.REGNET_Y_160
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "regnet",
-    "y_160",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
-
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -48,9 +36,9 @@ def training_tester() -> RegNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
@@ -67,9 +55,9 @@ def test_regnet_y_160_inference(inference_tester: RegNetTester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.FORWARD,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )

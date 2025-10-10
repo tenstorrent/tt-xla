@@ -6,31 +6,18 @@ from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
-)
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.distilbert.masked_lm.jax import (
     ModelLoader,
     ModelVariant,
 )
 
 VARIANT_NAME = ModelVariant.BASE_UNCASED
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "distilbert",
-    "base",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Tester -----
 
@@ -87,9 +74,9 @@ def training_tester() -> FlaxDistilBertForMaskedLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
@@ -99,9 +86,9 @@ def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTe
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )

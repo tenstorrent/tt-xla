@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import BringupStatus, Category
@@ -250,12 +251,16 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         self.loader = loader
+        # Optional: store requested parallelism for reporting/consumers
+        self.parallelism = parallelism
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
+            parallelism=self.parallelism,
         )
 
     # --- TorchModelTester interface implementations ---
@@ -278,11 +283,7 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_mesh(self):
         num_devices = xr.global_runtime_device_count()
         mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = (
-            Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
-        )
-        return mesh
+        return get_mesh(mesh_shape, mesh_names)
 
 
 def setup_models_path(project_root):
@@ -372,7 +373,8 @@ def record_model_test_properties(
     *,
     model_info,
     test_metadata,
-    run_mode: RunMode = RunMode.INFERENCE,
+    run_mode: RunMode,
+    parallelism: Parallelism,
     test_passed: bool = False,
 ):
     """
@@ -412,15 +414,6 @@ def record_model_test_properties(
         else:
             bringup_status = BringupStatus.UNKNOWN
             reason = "Not specified"
-
-    # TODO (kmabee) - This is temporary workaround to populate parallelism tag for superset
-    # database correctly in very short term for newly added TP models on n300-llmbox.
-    # This will be replaced by something more robust in near future.
-    arch = request.config.getoption("--arch")
-    if arch is not None and "llmbox" in arch:
-        parallelism = Parallelism.TENSOR_PARALLEL
-    else:
-        parallelism = Parallelism.SINGLE_DEVICE
 
     tags = {
         "test_name": str(request.node.originalname),

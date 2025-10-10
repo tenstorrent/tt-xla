@@ -3,30 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
-)
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
-from third_party.tt_forge_models.electra.causal_lm.jax import ModelVariant
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.electra.causal_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import ElectraTester
 
 VARIANT_NAME = ModelVariant.LARGE_DISCRIMINATOR
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "electra",
-    "large-discriminator",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
+
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -47,9 +34,9 @@ def training_tester() -> ElectraTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_electra_large_discriminator_inference(inference_tester: ElectraTester):
@@ -59,9 +46,9 @@ def test_electra_large_discriminator_inference(inference_tester: ElectraTester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
