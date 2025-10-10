@@ -6,6 +6,7 @@ import os
 import pytest
 from infra import RunMode
 
+from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -89,6 +90,7 @@ def test_all_models(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False
+        comparison_result = None
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -100,8 +102,14 @@ def test_all_models(
                     parallelism=parallelism,
                 )
 
-                tester.test()
-                succeeded = True
+                comparison_result = tester.test()
+
+                # All results must pass for the test to succeed
+                succeeded = all(result.passed for result in comparison_result)
+
+                # Trigger assertion after comparison_result is cached, and
+                #     fallthrough to finally block on failure.
+                Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
             err = capteesys.readouterr().err
@@ -109,6 +117,14 @@ def test_all_models(
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
+            # If there are multiple comparison results, only record the first one because the
+            #     DB only supports single comparison result for now
+            if len(comparison_result) > 1:
+                print(
+                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
+                )
+            comparison_result = comparison_result[0]
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -117,8 +133,10 @@ def test_all_models(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
-                test_passed=succeeded,
                 parallelism=parallelism,
+                test_passed=succeeded,
+                comparison_result=comparison_result,
+                comparison_config=tester._comparison_config,
             )
 
 
