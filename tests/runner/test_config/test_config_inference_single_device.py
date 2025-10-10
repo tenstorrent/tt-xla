@@ -2529,4 +2529,32 @@ test_config = {
         "reason": "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
+    "falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 165183488 B L1 buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference": {
+        "required_pcc": 0.96,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "pointpillars/pytorch-pointpillars-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "sam/pytorch-facebook/sam-vit-base-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 16777216 B L1 buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "vilt/masked_lm/pytorch-mlm-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }

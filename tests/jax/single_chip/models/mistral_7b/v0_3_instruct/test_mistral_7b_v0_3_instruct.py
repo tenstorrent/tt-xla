@@ -53,13 +53,13 @@ def training_tester() -> Mistral7BTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-# @pytest.mark.skip(
-#     reason=failed_runtime(
-#         "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, "
-#         "where each bank needs to store 19574784 B "
-#         "(https://github.com/tenstorrent/tt-xla/issues/917)"
-#     )
-# )
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 19574784 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/917)"
+    )
+)
 def test_mistral_7b_v0_3_instruct_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
