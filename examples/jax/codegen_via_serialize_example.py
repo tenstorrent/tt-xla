@@ -6,11 +6,11 @@
 ### You should strongly prefer using codegen via compile options
 ### But for completeness we show how to do it via serialization too
 
+import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
-from tt_jax import serialize_compiled_artifacts_to_disk
 import tt_alchemist
-import flax.nnx as nnx
+from tt_jax import serialize_compiled_artifacts_to_disk
 
 
 class Model(nnx.Module):

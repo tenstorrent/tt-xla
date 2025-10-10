@@ -7,6 +7,7 @@
 ### But for completeness we show how to do it via serialization too
 
 import os
+
 import torch
 import torch.nn as nn
 import torch_xla

@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
-import flax.nnx as nnx
 
 
 class Model(nnx.Module):
