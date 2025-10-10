@@ -13,6 +13,22 @@ from .device_runner import DeviceRunner
 
 
 def to_device(x, device):
+    """
+    Recursively move data structures and objects to the specified device.
+
+    This function handles:
+    - Basic Python containers (list, tuple, dict)
+    - PyTorch tensors and models (objects with .to() method)
+    - Custom objects with attributes (recursively processes all fields)
+    - None values and other primitives (returned unchanged)
+
+    Args:
+        x: The data structure or object to move to device
+        device: The target device (e.g., 'cuda', 'cpu', torch.device)
+
+    Returns:
+        The same structure with all compatible elements moved to the device
+    """
     if x is None:
         return x
     elif isinstance(x, list):
