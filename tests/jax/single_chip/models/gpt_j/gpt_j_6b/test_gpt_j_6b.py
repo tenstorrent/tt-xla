@@ -4,17 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category, failed_runtime
 
-from third_party.tt_forge_models.gpt_j.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.gpt_j.causal_lm.jax import ModelLoader, ModelVariant
+
 from ..tester import GPTJTester
 
 VARIANT_NAME = ModelVariant._6B

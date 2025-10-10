@@ -4,17 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category, failed_runtime
 
-from third_party.tt_forge_models.llama.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.llama.causal_lm.jax import ModelLoader, ModelVariant
+
 from ..tester import LLamaTester
 
 VARIANT_NAME = ModelVariant._3B_V2

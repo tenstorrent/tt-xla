@@ -4,18 +4,15 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-)
+from utils import BringupStatus, Category, failed_runtime
+
 from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.regnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import RegNetTester
-from third_party.tt_forge_models.regnet.image_classification.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.REGNET_Y_320
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)

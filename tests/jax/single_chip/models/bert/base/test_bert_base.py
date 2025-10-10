@@ -4,15 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.bert.masked_lm.jax import ModelLoader, ModelVariant
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.bert.masked_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+
 from ..tester import FlaxBertForMaskedLMTester
 
 VARIANT_NAME = ModelVariant.BASE

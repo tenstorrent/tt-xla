@@ -4,23 +4,20 @@
 
 import pytest
 from infra import RunMode
+from utils import BringupStatus, Category, failed_runtime
+
 from tests.infra.testers.compiler_config import CompilerConfig
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-    incorrect_result,
-)
 from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.resnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import ResNetTester
-from third_party.tt_forge_models.resnet.image_classification.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.RESNET_26
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
+
 
 # ----- Fixtures -----
 
@@ -51,8 +48,8 @@ def inference_tester_optimizer() -> ResNetTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
     parallelism=Parallelism.SINGLE_DEVICE,
+    run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.large
@@ -64,8 +61,8 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
-    run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):

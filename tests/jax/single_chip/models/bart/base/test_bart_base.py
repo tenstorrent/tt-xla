@@ -4,17 +4,12 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.bart.causal_lm.jax import ModelLoader, ModelVariant
 from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxBartForCausalLMTester
-from third_party.tt_forge_models.bart.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.BASE
 

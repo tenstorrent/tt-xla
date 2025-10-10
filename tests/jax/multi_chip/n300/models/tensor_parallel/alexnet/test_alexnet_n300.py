@@ -4,17 +4,15 @@
 
 import pytest
 from infra import RunMode, enable_shardy
-from utils import (
-    BringupStatus,
-    Category,
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 from third_party.tt_forge_models.config import Parallelism
 
 from .tester import AlexNetMultichipTester
-from third_party.tt_forge_models.alexnet.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.CUSTOM_1X2
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)

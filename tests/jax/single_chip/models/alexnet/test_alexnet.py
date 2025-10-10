@@ -5,28 +5,19 @@
 # TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
+from infra import RunMode
+from utils import BringupStatus, Category, failed_ttmlir_compilation
+
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 from third_party.tt_forge_models.config import Parallelism
+
 from .tester import AlexNetTester
 
-
-MODEL_PATH = "alexnet"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "alexnet",
-    "custom",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
-)
+VARIANT_NAME = ModelVariant.CUSTOM
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -47,8 +38,7 @@ def training_tester() -> AlexNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
     parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
@@ -66,8 +56,7 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
 )

@@ -4,17 +4,14 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category, failed_runtime
 
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.longt5.text_classification.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
+
 from ..tester import LongT5Tester
 
 VARIANT_NAME = ModelVariant.BASE_TGLOBAL

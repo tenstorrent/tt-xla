@@ -4,18 +4,10 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
 from third_party.tt_forge_models.config import Parallelism
-
-from ..tester import ElectraTester
-
-from third_party.tt_forge_models.electra.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.electra.causal_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import ElectraTester
 

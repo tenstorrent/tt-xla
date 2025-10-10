@@ -3,20 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from pytest import MonkeyPatch
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    incorrect_result,
-)
-from third_party.tt_forge_models.config import Parallelism
+from pytest import MonkeyPatch
+from utils import BringupStatus, Category, ModelGroup
 
-from ..tester import ResNetTester
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.resnet.image_classification.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
+
+from ..tester import CompilerConfig, ResNetTester
 
 VARIANT_NAME = ModelVariant.RESNET_50
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
@@ -65,8 +62,9 @@ def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
+    model_info=MODEL_INFO,
     model_group=ModelGroup.RED,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )

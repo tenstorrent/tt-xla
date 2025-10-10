@@ -6,13 +6,10 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, JaxModelTester, Model, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
-from third_party.tt_forge_models.config import Parallelism
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from utils import BringupStatus, Category
 
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.distilbert.masked_lm.jax import (
     ModelLoader,
     ModelVariant,

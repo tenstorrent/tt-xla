@@ -4,17 +4,15 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
 from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.resnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import ResNetTester
-from third_party.tt_forge_models.resnet.image_classification.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.RESNET_34
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)

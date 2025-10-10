@@ -4,17 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_ttmlir_compilation,
-)
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
+
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.gpt2.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.gpt2.causal_lm.jax import ModelLoader, ModelVariant
+
 from ..tester import GPT2Tester
 
 VARIANT_NAME = ModelVariant.BASE

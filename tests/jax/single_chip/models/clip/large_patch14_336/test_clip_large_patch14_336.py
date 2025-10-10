@@ -4,16 +4,13 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    incorrect_result,
+from utils import BringupStatus, Category, incorrect_result
+
+from third_party.tt_forge_models.clip.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.clip.image_classification.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 from ..tester import FlaxCLIPTester
 

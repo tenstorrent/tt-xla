@@ -4,18 +4,15 @@
 
 import pytest
 from infra import RunMode, enable_shardy
-from utils import (
-    BringupStatus,
-    Category,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category
 
 from tests.jax.multi_chip.n300.models.tensor_parallel.mnist_mlp.tester import (
     MnistMLPMultichipTester,
 )
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
 
 VARIANT_NAME = ModelVariant.MLP_CUSTOM_1X4

@@ -4,15 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.gpt_neo.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.gpt_neo.causal_lm.jax import ModelLoader, ModelVariant
+
 from ..tester import GPTNeoTester
 
 VARIANT_NAME = ModelVariant.GPT_NEO_125M

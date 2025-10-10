@@ -4,17 +4,12 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-)
+from utils import BringupStatus, Category
+
 from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import GPTSw3Tester
-from third_party.tt_forge_models.gpt_sw3.causal_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.INSTRUCT_1_3B
 

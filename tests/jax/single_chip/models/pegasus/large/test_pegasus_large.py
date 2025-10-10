@@ -4,17 +4,12 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_ttmlir_compilation,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category, failed_ttmlir_compilation
 
-from ..tester import PegasusTester
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.pegasus.summarization.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
 
 from ..tester import PegasusTester

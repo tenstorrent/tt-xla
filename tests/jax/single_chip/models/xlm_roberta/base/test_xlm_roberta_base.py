@@ -4,16 +4,14 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_runtime,
-)
+from utils import BringupStatus, Category, failed_runtime
+
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.xlm_roberta.causal_lm.jax import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
+
 from ..tester import XLMRobertaTester
 
 VARIANT_NAME = ModelVariant.BASE

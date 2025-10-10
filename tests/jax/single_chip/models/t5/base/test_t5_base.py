@@ -4,16 +4,11 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    incorrect_result,
-)
+from utils import BringupStatus, Category, incorrect_result
+
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.t5.summarization.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.t5.summarization.jax import ModelLoader, ModelVariant
+
 from ..tester import T5Tester
 
 VARIANT_NAME = ModelVariant.BASE

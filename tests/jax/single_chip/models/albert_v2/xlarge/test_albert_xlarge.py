@@ -4,19 +4,10 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    incorrect_result,
-)
-from third_party.tt_forge_models.config import Parallelism
+from utils import BringupStatus, Category, incorrect_result
 
-from third_party.tt_forge_models.albert.masked_lm.jax import ModelVariant
-from ..tester import AlbertV2Tester
-from third_party.tt_forge_models.albert.masked_lm.jax import (
-    ModelVariant,
-    ModelLoader,
-)
+from third_party.tt_forge_models.albert.masked_lm.jax import ModelLoader, ModelVariant
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import AlbertV2Tester
 
