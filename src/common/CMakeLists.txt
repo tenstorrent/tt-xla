@@ -67,6 +67,7 @@ target_include_directories(TTPJRTCommon PUBLIC
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
+    dl
     libprotobuf
     loguru
     coverage_config
