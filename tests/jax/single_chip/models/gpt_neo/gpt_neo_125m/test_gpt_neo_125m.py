@@ -57,7 +57,7 @@ def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

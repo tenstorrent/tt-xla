@@ -69,7 +69,7 @@ def test_mt5_large_inference(inference_tester: MT5Tester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

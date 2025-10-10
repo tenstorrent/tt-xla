@@ -64,7 +64,7 @@ def test_blenderbot_3b_inference(inference_tester: BlenderBotTester):
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )

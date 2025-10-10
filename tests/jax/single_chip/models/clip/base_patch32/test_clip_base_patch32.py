@@ -65,7 +65,7 @@ def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 2287616 B L1 buffer "
-        "across 2 banks, where each bank needs to store 1143808 B"
+        "across 2 banks, where each bank needs to store 1143808 B "
         "https://github.com/tenstorrent/tt-xla/issues/187"
     )
 )

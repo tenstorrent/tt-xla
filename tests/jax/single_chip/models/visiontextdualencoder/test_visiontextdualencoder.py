@@ -77,7 +77,7 @@ def test_vision_text_dual_encoder_inference(
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

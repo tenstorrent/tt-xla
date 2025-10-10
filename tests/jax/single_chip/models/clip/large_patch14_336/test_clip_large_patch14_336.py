@@ -69,7 +69,7 @@ def test_clip_large_patch14_336_inference(inference_tester: FlaxCLIPTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )

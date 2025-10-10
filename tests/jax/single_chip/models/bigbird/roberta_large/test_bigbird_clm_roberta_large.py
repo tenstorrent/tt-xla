@@ -63,7 +63,7 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
+        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
         "https://github.com/tenstorrent/tt-mlir/issues/4795"
     )
 )

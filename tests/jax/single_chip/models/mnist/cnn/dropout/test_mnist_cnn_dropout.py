@@ -72,7 +72,7 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.select_and_scatter'"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )

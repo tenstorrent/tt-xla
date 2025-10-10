@@ -66,7 +66,7 @@ def test_flax_bart_large_inference(inference_tester: FlaxBartForCausalLMTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/5091"
     )
 )

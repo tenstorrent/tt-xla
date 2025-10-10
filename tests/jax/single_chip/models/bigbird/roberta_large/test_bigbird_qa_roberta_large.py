@@ -63,7 +63,7 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdQATester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.scatter'"
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/5091"
     )
 )
