@@ -20,7 +20,6 @@ from tests.runner.test_utils import (
 )
 from tests.utils import BringupStatus
 from third_party.tt_forge_models.config import Parallelism
-from tests.runner.test_config import PLACEHOLDER_MODELS
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
