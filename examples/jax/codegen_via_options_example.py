@@ -6,6 +6,8 @@ import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
 
+### Demonstrates how to hook into compile options to use Codegen(internally also known as EmitC/EmitPy), from Jax
+
 
 class Model(nnx.Module):
     def __init__(self, *, rngs: nnx.Rngs):
