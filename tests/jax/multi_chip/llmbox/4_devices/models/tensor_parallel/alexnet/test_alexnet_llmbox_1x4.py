@@ -14,9 +14,7 @@ from utils import (
     incorrect_result,
 )
 
-from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.tester import (
-    AlexNetMultichipTester,
-)
+from .tester import AlexNetMultichipTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,

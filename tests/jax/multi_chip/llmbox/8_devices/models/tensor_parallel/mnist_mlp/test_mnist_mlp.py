@@ -13,9 +13,7 @@ from utils import (
     build_model_name,
 )
 
-from tests.jax.multi_chip.n300.models.tensor_parallel.mnist_mlp.tester import (
-    MnistMLPMultichipTester,
-)
+from .tester import MnistMLPMultichipTester
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,12 +29,16 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester(request) -> MnistMLPMultichipTester:
-    return MnistMLPMultichipTester(request.param, run_mode=RunMode.INFERENCE)
+    return MnistMLPMultichipTester(
+        request.param, run_mode=RunMode.INFERENCE, num_devices=8
+    )
 
 
 @pytest.fixture
 def training_tester(request) -> MnistMLPMultichipTester:
-    return MnistMLPMultichipTester(request.param, run_mode=RunMode.TRAINING)
+    return MnistMLPMultichipTester(
+        request.param, run_mode=RunMode.TRAINING, num_devices=8
+    )
 
 
 # ----- Tests -----
