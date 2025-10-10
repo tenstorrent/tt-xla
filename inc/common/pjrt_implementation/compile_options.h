@@ -65,9 +65,8 @@ struct CompileOptions {
   bool enable_trace = false;
 
   // Enables saving graph inputs to disk whenever Execute() is called.
-  // This is useful for chisel and codegen. Defaults to false on the default
-  // backend and true on the codegen backend.
-  std::optional<bool> dump_inputs = std::nullopt;
+  // This is useful for chisel and codegen.
+  bool dump_inputs = false;
 
   // Path that will contain the codegen solution and saved inputs.
   std::optional<std::string> export_path = std::nullopt;
