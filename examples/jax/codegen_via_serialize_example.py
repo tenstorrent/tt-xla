@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-### Demonstrates how to hook into serialization to use Codegen(internally also known as EmitC/EmitPy), from Torch
-### You should strongly prefer using codegen via compile options
-### But for completeness we show how to do it via serialization too
+"""
+Demonstrates how to hook into serialization to use Codegen, from Jax
+You should strongly prefer using codegen via compile options
+But for completeness we show how to do it via serialization too
+"""
 
 import flax.nnx as nnx
 import jax
@@ -26,6 +28,7 @@ class Model(nnx.Module):
         return jnp.sum(x**2)
 
 
+# Initialize model on CPU.
 with jax.default_device(jax.devices("cpu")[0]):
     model = Model(rngs=nnx.Rngs(0))
     key = jax.random.key(1)
@@ -33,20 +36,25 @@ with jax.default_device(jax.devices("cpu")[0]):
     graphdef, state = nnx.split(model)
 
 
+# Define forward pass.
 def forward(graphdef, state, x):
     model = nnx.merge(graphdef, state)
     return model(x)
 
 
+# Serialize the compiled artifacts to disk.
 serialize_compiled_artifacts_to_disk(
     forward, graphdef, state, x, output_prefix="model/model"
 )
+
+# Generate C++ code from the TTIR.
 tt_alchemist.generate_cpp(
     input_file="model/model_ttir.mlir",
     output_dir="model/cpp",
     local=False,
 )
 
+# Generate Python code from the TTIR.
 tt_alchemist.generate_python(
     input_file="model/model_ttir.mlir",
     output_dir="model/py",

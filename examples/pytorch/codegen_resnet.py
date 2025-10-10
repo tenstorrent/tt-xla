@@ -25,10 +25,11 @@ options = {
 }
 torch_xla.set_custom_compile_options(options)
 
+# Compile for TT, then move the model and it's inputs to device.
 device = xm.xla_device()
 model.compile(backend="tt")
 model = model.to(device)
-
 x = torch.randn(1, 3, 224, 224).to(device)
 
+# Run the model. This triggers code generation.
 output = model(x)

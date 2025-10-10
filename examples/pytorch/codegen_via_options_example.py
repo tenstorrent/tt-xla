@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-### Demonstrates how to hook into compile options to use Codegen(internally also known as EmitC/EmitPy), from Torch
+"""
+Demonstrates how to hook into compile options to use Codegen, from Torch
+"""
 
 import os
 
@@ -12,7 +14,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-# Set up XLA runtime for TT backend
+# Set up XLA runtime for TT backend.
 xr.set_device_type("TT")
 
 
@@ -30,16 +32,19 @@ class Model(nn.Module):
         return torch.sum(x**2)
 
 
+# Set up compile options to trigger code generation.
 options = {
     "backend": "codegen_py",
-    "export_path": "torch_codegen_example",
+    "export_path": "model",
 }
 torch_xla.set_custom_compile_options(options)
 
+# Compile for TT, then move the model and it's inputs to device.
 device = xm.xla_device()
 model = Model()
 model.compile(backend="tt")
 model = model.to(device)
 x = torch.randn(32, 32).to(device)
 
+# Run the model. This triggers code generation.
 output = model(x)

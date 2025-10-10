@@ -6,7 +6,9 @@ import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
 
-### Demonstrates how to hook into compile options to use Codegen(internally also known as EmitC/EmitPy), from Jax
+"""
+Demonstrates how to hook into compile options to use Codegen, from Jax
+"""
 
 
 class Model(nnx.Module):
@@ -21,6 +23,7 @@ class Model(nnx.Module):
         return jnp.sum(x**2)
 
 
+# Initialize model on CPU.
 with jax.default_device(jax.devices("cpu")[0]):
     model = Model(rngs=nnx.Rngs(0))
     key = jax.random.key(1)
@@ -28,13 +31,17 @@ with jax.default_device(jax.devices("cpu")[0]):
     graphdef, state = nnx.split(model)
 
 
+# Define forward pass.
 def forward(graphdef, state, x):
     model = nnx.merge(graphdef, state)
     return model(x)
 
 
+# Compile the model. Make sure to pass the code generation options.
 fun = jax.jit(
     forward,
-    compiler_options={"backend": "codegen_py", "export_path": "jax_codegen_example"},
+    compiler_options={"backend": "codegen_py", "export_path": "model"},
 )
+
+# Run the model. This triggers code generation.
 fun(graphdef, state, x)
