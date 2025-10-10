@@ -75,7 +75,6 @@ class TorchDeviceRunner(DeviceRunner):
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
             for tensor, shard_spec in shard_specs.items():
-                breakpoint()
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
         if workload.compiled_executable is not None:
