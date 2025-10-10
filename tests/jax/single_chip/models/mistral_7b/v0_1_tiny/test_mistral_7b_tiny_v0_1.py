@@ -61,7 +61,7 @@ def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

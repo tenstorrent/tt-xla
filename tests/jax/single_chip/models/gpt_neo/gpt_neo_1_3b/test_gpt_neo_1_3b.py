@@ -58,7 +58,7 @@ def test_gpt_neo_1_3b_inference(inference_tester: GPTNeoTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

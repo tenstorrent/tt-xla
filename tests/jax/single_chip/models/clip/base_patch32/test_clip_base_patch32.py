@@ -64,7 +64,7 @@ def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

@@ -84,6 +84,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 
 
 @pytest.mark.push
+@pytest.mark.training
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

@@ -54,7 +54,7 @@ def test_flax_roberta_base_inference(inference_tester: FlaxRobertaForMaskedLMTes
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

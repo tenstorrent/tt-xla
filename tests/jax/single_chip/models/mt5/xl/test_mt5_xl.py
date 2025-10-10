@@ -59,7 +59,7 @@ def test_mt5_xl_inference(inference_tester: MT5Tester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

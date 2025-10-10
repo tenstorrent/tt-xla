@@ -63,7 +63,7 @@ def test_openllama3b_inference(inference_tester: LLamaTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

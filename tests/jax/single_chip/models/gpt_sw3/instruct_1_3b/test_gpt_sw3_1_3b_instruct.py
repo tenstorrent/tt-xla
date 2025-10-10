@@ -58,7 +58,7 @@ def test_gpt_sw3_1_3b_instruct_inference(inference_tester: GPTSw3Tester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

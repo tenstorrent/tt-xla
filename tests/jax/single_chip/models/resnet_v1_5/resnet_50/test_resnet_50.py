@@ -88,7 +88,7 @@ def test_resnet_v1_5_50_inference_trace(
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

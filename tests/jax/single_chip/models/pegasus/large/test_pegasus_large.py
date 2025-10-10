@@ -62,7 +62,7 @@ def test_pegasus_large_inference(inference_tester: PegasusTester):
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

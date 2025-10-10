@@ -62,7 +62,7 @@ def test_vit_base_patch32_224_in21k_inference(
     inference_tester.test()
 
 
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
