@@ -30,13 +30,21 @@ PJRT_NamedValue StableHLOVersionAttribute::toNamedValue() const {
   return named_value;
 }
 
-PluginAttributes::PluginAttributes()
-    : m_stablehlo_current_version("stablehlo_current_version",
-                                  mlir::vhlo::Version::getCurrentVersion()),
-      m_stablehlo_minimum_version("stablehlo_minimum_version",
-                                  mlir::vhlo::Version::getMinimumVersion()) {
-  m_attributes.emplace_back(m_stablehlo_current_version.toNamedValue());
-  m_attributes.emplace_back(m_stablehlo_minimum_version.toNamedValue());
+const std::vector<PJRT_NamedValue> &PluginAttributes::getAttributes() {
+  static StableHLOVersionAttribute current{
+      "stablehlo_current_version", mlir::vhlo::Version::getCurrentVersion()};
+  static StableHLOVersionAttribute minimum{
+      "stablehlo_minimum_version", mlir::vhlo::Version::getMinimumVersion()};
+
+  static const std::vector<PJRT_NamedValue> attrs = []() {
+    std::vector<PJRT_NamedValue> versions;
+    versions.reserve(2);
+    versions.push_back(current.toNamedValue());
+    versions.push_back(minimum.toNamedValue());
+    return versions;
+  }();
+
+  return attrs;
 }
 
 void PluginAttributes::bindApi(PJRT_Api *api) {
@@ -55,11 +63,9 @@ PJRT_Error *onPluginInitialize(PJRT_Plugin_Initialize_Args *args) {
 PJRT_Error *onPluginAttributes(PJRT_Plugin_Attributes_Args *args) {
   DLOG_F(LOG_DEBUG, "PluginAttributes::PJRT_Plugin_Attributes");
 
-  static std::unique_ptr<PluginAttributes> s_plugin_attributes =
-      std::make_unique<PluginAttributes>();
-  args->attributes = s_plugin_attributes->getAttributes();
-  args->num_attributes = s_plugin_attributes->getNumAttributes();
-
+  const std::vector<PJRT_NamedValue> &attrs = PluginAttributes::getAttributes();
+  args->attributes = attrs.data();
+  args->num_attributes = attrs.size();
   return nullptr;
 }
 

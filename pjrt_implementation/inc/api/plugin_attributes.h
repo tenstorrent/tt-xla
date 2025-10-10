@@ -36,19 +36,11 @@ private:
 // Container for PJRT plugin attributes that frameworks can read.
 class PluginAttributes {
 public:
-  PluginAttributes();
-
   // Binds PJRT API functions implementation related to PJRT_Plugin.
   static void bindApi(PJRT_Api *api);
 
-  const PJRT_NamedValue *getAttributes() const { return m_attributes.data(); }
-
-  std::size_t getNumAttributes() const { return m_attributes.size(); }
-
-private:
-  std::vector<PJRT_NamedValue> m_attributes;
-
-  // Attribute for the current StableHLO version of the plugin.
+  // Holds attributes for:
+  // - the current StableHLO version:
   // If a PJRT plugin has an attribute for `stablehlo_current_version` then JAX
   // will precisely downgrade the IR to the plugin's version. Without the
   // attribute JAX uses 12 weeks IR downgrade, meaning newer features can't be
@@ -56,12 +48,13 @@ private:
   // will have more stability if it lets JAX know its precise version so it
   // downgrades more than 12w. Note that support >12w isn't guaranteed by JAX
   // but historically has been fairly stable.
-  StableHLOVersionAttribute m_stablehlo_current_version;
-
-  // Attribute for the minimum supported StableHLO version of the plugin.
+  // - the minimum supported StableHLO version:
   // Requires frameworks to upgrade the IR to at least this version, and to not
   // downgrade the IR below this version.
-  StableHLOVersionAttribute m_stablehlo_minimum_version;
+  static const std::vector<PJRT_NamedValue> &getAttributes();
+
+private:
+  PluginAttributes() = delete;
 };
 
 namespace internal {
