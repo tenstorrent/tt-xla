@@ -76,12 +76,12 @@ namespace internal {
 // Parse out the value of one specific boolean flag from the options map.
 std::optional<bool> parseBoolOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name);
+    const std::string &option_name);
 
 // Parse backend option from string to enum
 std::optional<BackendRuntime> parseBackendOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name);
+    const std::string &option_name);
 
 std::optional<std::string> parseStringOption(
     const std::unordered_map<std::string, std::string> &compile_options,

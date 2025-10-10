@@ -107,7 +107,8 @@ std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
   if (venv.empty()) {
     return std::nullopt;
   }
-  // We can't assume it will be a python3.11 venv
+
+  // We can't assume it will be a python3.11 venv.
   for (const auto &entry : std::filesystem::directory_iterator(venv + "/lib")) {
     if (entry.is_directory() &&
         entry.path().filename().string().find("python") == std::string::npos) {
@@ -184,8 +185,7 @@ void TTAlchemistHandler::initialize() {
 }
 
 ModuleBuilder::ModuleBuilder()
-    : m_context(std::make_unique<mlir::MLIRContext>()),
-      m_tt_alchemist_handler(TTAlchemistHandler()) {
+    : m_context(std::make_unique<mlir::MLIRContext>()) {
   // Register all the required dialects and passes.
   mlir::DialectRegistry registry;
 
@@ -214,8 +214,6 @@ ModuleBuilder::ModuleBuilder()
   // Try to load tt-alchemist library and function pointers.
   m_tt_alchemist_handler.initialize();
 }
-
-ModuleBuilder::~ModuleBuilder() = default;
 
 std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
 ModuleBuilder::buildModule(
@@ -1106,11 +1104,9 @@ ModuleBuilder::buildModuleForTTNNCodegen(
 tt_pjrt_status
 ModuleBuilder::performCodegen(std::string_view ttir_mlir,
                               const CompileOptions &compile_options) {
-  if (!compile_options.export_path.has_value()) {
-    DLOG_F(ERROR, "export_path compile option is not set. This should not be "
-                  "able to happen.");
-    return tt_pjrt_status::kInternal;
-  }
+  assert(compile_options.export_path.has_value() &&
+         "export_path compile option is not set.");
+
   if (!m_tt_alchemist_handler.isInitialized()) {
     DLOG_F(ERROR, "tt-alchemist library or functions not available");
     return tt_pjrt_status::kInternal;
@@ -1123,11 +1119,6 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
   ttir_file << ttir_mlir;
   ttir_file.close();
 
-  if (!m_tt_alchemist_handler.isInitialized()) {
-    DLOG_F(ERROR, "tt-alchemist library or functions not available");
-    return tt_pjrt_status::kInternal;
-  }
-
   void *instance = m_tt_alchemist_handler.getInstanceFunc()();
   if (!instance) {
     DLOG_F(ERROR, "Failed to get tt-alchemist instance");
@@ -1135,13 +1126,11 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
   }
 
   std::string input_file = folder + "/ttir.mlir";
-  bool is_local = true; // Controls wether the generated solution is designed
-                        // for standalone execution(is_local=false)
+  // Controls wether the generated solution is designed
+  // for standalone execution(is_local=false)
   // or for execution within an existing development environment that already
-  // has prerequisites installed(is_local=true) However for Python specifically,
-  // standalone is currently marked as unsupported, and setting it only results
-  // in copying of one extra blank file. As per offline discussion with
-  // mlir-core, we should set local to true for Python.
+  // has prerequisites installed(is_local=true).
+  bool is_local = false;
   std::string pipeline_options =
       ""; // Long term solution is for alchemist to ingest TTNN, that will unify
           // passing options to alchemist. For now, we ignore it.
@@ -1151,12 +1140,15 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
     result = m_tt_alchemist_handler.generateCppFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local, "");
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+    // For Python specifically,
+    // standalone is currently marked as unsupported, and setting it only
+    // results in copying of one extra blank file. As per offline discussion
+    // with mlir-core, we should set local to true for Python.
+    is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local, "");
   } else {
-    DLOG_F(ERROR,
-           "Impossible happened, unsupported backend when doing codegen");
-    return tt_pjrt_status::kInternal;
+    assert(false && "Unsupported backend when doing codegen");
   }
 
   if (!result) {

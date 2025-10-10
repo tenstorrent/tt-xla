@@ -61,15 +61,19 @@ public:
   // Getter for initialization status.
   bool isInitialized() const { return m_initialized; }
 
-  // Getter for handle (needed for checking if library was loaded).
-  void *getHandle() const { return m_handle; }
-
-  // Function pointer accessors.
+  // Gets the alchemist singleton. The singleton is the first parameter for all
+  // alchemist functions.
   void *(*getInstanceFunc() const)() { return m_get_instance; }
+
+  // Gets the function that ingests TTIR and generates a Python solution at the
+  // specified path.
   bool (*generatePythonFunc() const)(void *, const char *, const char *, bool,
                                      const char *) {
     return m_generate_python;
   }
+
+  // Gets the function that ingests TTIR and generates a C++ solution at the
+  // specified path.
   bool (*generateCppFunc() const)(void *, const char *, const char *, bool,
                                   const char *) {
     return m_generate_cpp;
@@ -79,12 +83,22 @@ private:
   // Finds tt-alchemist library path using environment variables
   std::optional<std::string> findTTAlchemistLibraryPath();
 
+  // Initialization status. It is required to be checked before using the
+  // library, as initializing the library is fallible.
   bool m_initialized;
+
+  // The handle to the alchemist .so.
   void *m_handle;
+
+  // Function pointer to the get_instance function in the alchemist .so.
   void *(*m_get_instance)();
+
+  // Function pointer to the generate_python function in the alchemist .so.
   bool (*m_generate_python)(void *instance, const char *input_file,
                             const char *output_dir, bool is_local,
                             const char *pipeline_options);
+
+  // Function pointer to the generate_cpp function in the alchemist .so.
   bool (*m_generate_cpp)(void *instance, const char *input_file,
                          const char *output_dir, bool is_local,
                          const char *pipeline_options);
@@ -107,9 +121,6 @@ struct NumDevicesResult {
 class ModuleBuilder {
 public:
   ModuleBuilder();
-
-  // Handles closing the tt-alchemist library handle.
-  ~ModuleBuilder();
 
   // Compiles given mlir module code and returns produced executable image
   // for execution on a given system, together with the compilation status

@@ -44,6 +44,7 @@ CompileOptions CompileOptions::parse(
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
             "'TTNNFlatbuffer'");
   }
+
   return options;
 }
 
@@ -51,7 +52,7 @@ namespace internal {
 
 std::optional<bool> parseBoolOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name) {
+    const std::string &option_name) {
   if (auto it = compile_options.find(option_name);
       it != compile_options.end()) {
     std::string option_value = it->second;
@@ -73,7 +74,7 @@ std::optional<bool> parseBoolOption(
 
 std::optional<BackendRuntime> parseBackendOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name) {
+    const std::string &option_name) {
   if (auto it = compile_options.find(option_name);
       it != compile_options.end()) {
     std::string option_value = it->second;
