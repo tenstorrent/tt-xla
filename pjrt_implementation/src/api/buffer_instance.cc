@@ -314,8 +314,18 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
-  assert(m_prepared_runtime_tensor.has_value() &&
-         "Trying to copy from uninitialized device tensor");
+
+  assert((m_prepared_runtime_tensor.has_value() ||
+          m_host_runtime_tensor.has_value()) &&
+         "Trying to copy from buffer instance without an associated device or "
+         "host tensor.");
+
+  // Preferentially retrieve from live on device tensor if it exists.
+  // In some cases an Input BufferInstance may be returned to host
+  // requested without an execution taking place
+  tt::runtime::Tensor runtime_tensor_to_retrieve =
+      m_prepared_runtime_tensor.has_value() ? *m_prepared_runtime_tensor
+                                            : *m_host_runtime_tensor;
 
   // Wait if there is a copy already in progress.
   // Needs to be locked, globally, because multiple framework threads can
@@ -405,7 +415,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      std::move(copy_lock), host_buffer, *m_prepared_runtime_tensor, event.get(),
+      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve, event.get(),
       m_data_type, host_buffer_size, m_device_id);
 
 
