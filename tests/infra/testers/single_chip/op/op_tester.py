@@ -87,7 +87,7 @@ class OpTester(BaseTester):
         def compile_torch_workload(workload: Workload) -> None:
             assert workload.executable is not None
             workload.compiled_executable = torch.compile(
-                workload.executable, backend="tt"
+                workload.executable, backend="inductor"
             )
 
         if self._framework == Framework.JAX:
