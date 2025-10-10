@@ -165,7 +165,7 @@ public:
 
   // Returns buffer's device id relative to mesh on which a output shard resides
   int getDeviceId() const { return m_device_id; }
-  void setDeviceId(int device_id) { m_device_id = device_id;}
+  void setDeviceId(int device_id) { m_device_id = device_id; }
 
 private:
   // Constructor used for the input buffers.
@@ -179,7 +179,7 @@ private:
       MemoryInstance *memory, PJRT_Buffer_Type data_type,
       const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
       const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt,
-      int device_id=-1);
+      int device_id = -1);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);
@@ -257,7 +257,6 @@ private:
 
   // Thread for copying data to host.
   std::unique_ptr<std::thread> m_copy_to_host_thread;
-
 };
 
 namespace internal {
