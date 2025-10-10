@@ -12,8 +12,8 @@ from infra.workloads.workload import Workload
 from jaxtyping import PyTree
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
     ModelLoader,
+    ModelVariant,
 )
 
 
@@ -22,12 +22,12 @@ class MNISTCNNTester(JaxModelTester):
 
     def __init__(
         self,
-        variant: ModelArchitecture,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
         self._model_loader = ModelLoader(variant)
-        self._is_dropout = variant == ModelArchitecture.CNN_DROPOUT
+        self._is_dropout = variant == ModelVariant.CNN_DROPOUT
         super().__init__(comparison_config, run_mode)
 
     # @override

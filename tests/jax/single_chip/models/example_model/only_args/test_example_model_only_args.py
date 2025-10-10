@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Dict, Sequence
 
 import jax
 import pytest
@@ -38,6 +38,9 @@ class ExampleModelOnlyArgsTester(JaxModelTester):
     # @override
     def _get_forward_method_name(self) -> str:
         return "__call__"
+
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
 
     # @override
     def _get_forward_method_args(self) -> Sequence[jax.Array]:
