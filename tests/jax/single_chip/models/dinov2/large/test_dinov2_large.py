@@ -58,7 +58,7 @@ def test_dinov2_large_inference(inference_tester: Dinov2Tester):
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29)"
-        "NO_ISSUE"
+        "https://github.com/tenstorrent/tt-mlir/issues/5304"
     )
 )
 def test_dinov2_large_training(training_tester: Dinov2Tester):

@@ -69,7 +69,7 @@ def test_vit_large_patch32_384_inference(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate  2287616 B L1 buffer across 2 banks, "
         "where each bank needs to store 1143808 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/918)"
+        "https://github.com/tenstorrent/tt-xla/issues/918"
     )
 )
 def test_vit_large_patch32_384_training(training_tester: ViTTester):

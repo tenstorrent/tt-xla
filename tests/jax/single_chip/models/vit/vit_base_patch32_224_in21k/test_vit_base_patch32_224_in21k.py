@@ -74,7 +74,7 @@ def test_vit_base_patch32_224_in21k_inference(
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29)"
-        "NO_ISSUE"
+        "https://github.com/tenstorrent/tt-mlir/issues/5304"
     )
 )
 def test_vit_base_patch32_224_in21k_training(training_tester: ViTTester):
