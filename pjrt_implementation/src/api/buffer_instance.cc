@@ -318,9 +318,16 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Preferentially retrieve from live on device tensor if it exists.
   // In some cases an Input BufferInstance may be returned to host
   // requested without an execution taking place
-  tt::runtime::Tensor runtime_tensor_to_retrieve =
-      m_prepared_runtime_tensor.has_value() ? *m_prepared_runtime_tensor
-                                            : *m_host_runtime_tensor;
+  tt::runtime::Tensor runtime_tensor_to_retrieve;
+  bool is_tensor_on_host;
+
+  if (m_prepared_runtime_tensor.has_value()) {
+    runtime_tensor_to_retrieve = *m_prepared_runtime_tensor;
+    is_tensor_on_host = false;
+  } else {
+    runtime_tensor_to_retrieve = *m_host_runtime_tensor;
+    is_tensor_on_host = true;
+  }
 
   // Wait if there is a copy already in progress.
   if (m_copy_to_host_thread) {
@@ -333,24 +340,19 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
          EventInstance *event, PJRT_Buffer_Type data_type,
-         size_t host_buffer_size, int device_id) {
+         size_t host_buffer_size, int device_id, bool already_on_host) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
-
-          // What if there are multiple shards here? We should cache the first
-          // toHost result in the bufferInstance, maybe... how many shards do we
-          // get for an replicated result in a multidevice graph? We assumed it
-          // was one. how many shards do we get for a sharded result in a
-          // multidevice graph? We assumed it was as many shards as devices.
-          // -- How do we know here which of the shards to copy into the
-          // bufferIndex
-
-          // what if the tensor is already on host? - support multiple cached
-          // retrievals
-
-          // we assume that toHost returns runtime tensors in device-order
-          std::vector<tt::runtime::Tensor> host_runtime_tensors =
-              tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
+          std::vector<tt::runtime::Tensor> host_runtime_tensors;
+          if (!already_on_host) {
+            // The tensor transferred to host has its device lifetime managed by
+            // the BufferInstance owner And is no longer deallocated when
+            // transferred back to host.
+            host_runtime_tensors =
+                tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
+          } else {
+            host_runtime_tensors.push_back(runtime_tensor);
+          }
           DLOG_F(LOG_DEBUG,
                  "Returning tensor to host; with host_runtime_tensors ct = %ld "
                  "from device %d",
@@ -358,7 +360,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
           // If device_id is -1, we are returning an input buffer instance to
           // host (eg. cache position for update) this means we can pull back
-          // the 0th BI since it's replicated
+          // the first, or any, bufferInstance since it's replicated
           if (device_id == -1) {
             device_id = 0;
           }
@@ -387,9 +389,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
                   data_type));
 
-          // Can we deallocate part of the tensor or not deallocate it at all?
-          // tt::runtime::deallocateTensor(runtime_tensor, /*force=*/true);
-
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -398,7 +397,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         event->markAsReady(copy_status);
       },
       host_buffer, runtime_tensor_to_retrieve, event.get(), m_data_type,
-      host_buffer_size, m_device_id);
+      host_buffer_size, m_device_id, is_tensor_on_host);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
