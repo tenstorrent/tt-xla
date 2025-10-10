@@ -251,11 +251,11 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
-        parallelism: Parallelism | None = None,
+        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         self.loader = loader
         # Optional: store requested parallelism for reporting/consumers
-        self.parallelism = parallelism or Parallelism.SINGLE_DEVICE
+        self.parallelism = parallelism
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
@@ -373,9 +373,9 @@ def record_model_test_properties(
     *,
     model_info,
     test_metadata,
-    run_mode: RunMode = RunMode.INFERENCE,
+    run_mode: RunMode,
+    parallelism: Parallelism,
     test_passed: bool = False,
-    parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
