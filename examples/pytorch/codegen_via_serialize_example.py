@@ -34,7 +34,7 @@ class Model(nn.Module):
 
     def forward(self, x):
         x = self.A(x)
-        x = nn.functional.silu(x)
+        x = nn.functional.relu(x)
         x = self.B(x)
         x = torch.tanh(x)
         return torch.sum(x**2)

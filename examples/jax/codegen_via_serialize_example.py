@@ -22,7 +22,7 @@ class Model(nnx.Module):
 
     def __call__(self, x):
         x = self.A(x)
-        x = nnx.silu(x)
+        x = nnx.relu(x)
         x = self.B(x)
         x = nnx.tanh(x)
         return jnp.sum(x**2)
