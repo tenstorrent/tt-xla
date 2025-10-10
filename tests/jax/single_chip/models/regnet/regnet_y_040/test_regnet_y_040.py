@@ -75,7 +75,8 @@ def test_regnet_y_040_inference(inference_tester: RegNetTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad'" "NO_ISSUE"
+        "error: failed to legalize operation 'stablehlo.pad'"
+        "https://github.com/tenstorrent/tt-mlir/issues/5305"
     )
 )
 def test_regnet_y_040_training(training_tester: RegNetTester):

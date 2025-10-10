@@ -100,7 +100,8 @@ def test_resnet_v1_5_50_inference_trace(
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad'" "NO_ISSUE"
+        "error: failed to legalize operation 'stablehlo.pad'"
+        "https://github.com/tenstorrent/tt-mlir/issues/5305"
     )
 )
 def test_resnet_v1_5_50_training(training_tester: ResNetTester):
