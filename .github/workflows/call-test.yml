@@ -283,7 +283,7 @@ jobs:
         SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
           --collected-output collected_tests.txt \
           --durations-file .test_durations \
-          --default-timeout 240)
+          --default-timeout 45)
         echo "$SCRIPT_OUTPUT"
 
         ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
