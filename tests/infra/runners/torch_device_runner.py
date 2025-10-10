@@ -43,7 +43,21 @@ class TorchDeviceRunner(DeviceRunner):
         kwargs_on_device = {}
 
         def attempt_to_device(x):
-            if hasattr(x, "to"):
+            # Special handling for StaticCache-like objects that have key_cache and value_cache
+            if hasattr(x, "key_cache") and hasattr(x, "value_cache"):
+                if x.key_cache is not None:
+                    if isinstance(x.key_cache, list):
+                        x.key_cache = [tensor.to(device) for tensor in x.key_cache]
+                    else:
+                        x.key_cache = x.key_cache.to(device)
+
+                if x.value_cache is not None:
+                    if isinstance(x.value_cache, list):
+                        x.value_cache = [tensor.to(device) for tensor in x.value_cache]
+                    else:
+                        x.value_cache = x.value_cache.to(device)
+                return x
+            elif hasattr(x, "to"):
                 return x.to(device)
             return x
 
