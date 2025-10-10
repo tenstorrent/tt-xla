@@ -5,25 +5,27 @@ import os
 
 import pytest
 from infra import RunMode
+from infra.testers.single_chip.model import (
+    DynamicLoader,
+    DynamicTorchModelTester,
+    TorchDynamicLoader,
+)
 
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
-    DynamicTorchModelTester,
     ModelTestConfig,
     ModelTestStatus,
-    create_test_id_generator,
     record_model_test_properties,
-    setup_test_discovery,
     update_test_metadata_for_exception,
 )
 from tests.utils import BringupStatus
 from third_party.tt_forge_models.config import Parallelism
 
-# Setup test discovery using utility functions
+# Setup test discovery using TorchDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
-MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
+MODELS_ROOT, test_entries = TorchDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
 
 @pytest.mark.model_test
@@ -64,7 +66,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.parametrize(
     "test_entry",
     test_entries,
-    ids=create_test_id_generator(MODELS_ROOT),
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
     test_entry,
