@@ -48,11 +48,12 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
             id="single_device",
             marks=pytest.mark.single_device,
         ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
+        # TODO(kmabee): Add when data_parallel is supported next.
+        # pytest.param(
+        #     Parallelism.DATA_PARALLEL,
+        #     id="data_parallel",
+        #     marks=pytest.mark.data_parallel,
+        # ),
         pytest.param(
             Parallelism.TENSOR_PARALLEL,
             id="tensor_parallel",
