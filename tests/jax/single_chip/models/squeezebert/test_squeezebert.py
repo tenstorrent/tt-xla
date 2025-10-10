@@ -111,7 +111,8 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.convolution' " "NO_ISSUE"
+        "error: failed to legalize operation 'ttir.convolution'"
+        "https://github.com/tenstorrent/tt-mlir/issues/5307"
     )
 )
 def test_squeezebert_training(training_tester: SqueezeBertTester):
