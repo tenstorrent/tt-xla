@@ -124,3 +124,49 @@ def random_torch_tensor(
         return torch.randint(0, 2, shape, dtype=torch.bool)
     else:
         raise TypeError(f"Unsupported dtype: {dtype_converted}")
+
+
+def create_jax_inference_tester(
+    model_tester_class, variant_or_args, format: str, compiler_config=None, **kwargs
+):
+    """Generic JAX inference tester creator."""
+    from infra.testers.compiler_config import CompilerConfig
+
+    if format == "float32":
+        dtype = jnp.float32
+    elif format == "bfloat16":
+        dtype = jnp.bfloat16
+    elif format == "bfp8":
+        dtype = jnp.bfloat16
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        compiler_config.enable_bfp8_conversion = True
+
+    return model_tester_class(
+        variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
+    )
+
+
+def create_torch_inference_tester(
+    model_tester_class,
+    variant_or_args,
+    format: str,
+    compiler_config=None,
+    **kwargs,
+):
+    """Generic PyTorch inference tester creator."""
+    from infra.testers.compiler_config import CompilerConfig
+
+    if format == "float32":
+        dtype = None
+    elif format == "bfloat16":
+        dtype = torch.bfloat16
+    elif format == "bfp8":
+        dtype = torch.bfloat16
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        compiler_config.enable_bfp8_conversion = True
+
+    return model_tester_class(
+        variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
+    )

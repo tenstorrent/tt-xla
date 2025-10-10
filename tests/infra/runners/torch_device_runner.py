@@ -74,8 +74,13 @@ class TorchDeviceRunner(DeviceRunner):
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
-        if workload.compiled_executable is not None:
-            attempt_to_device(workload.compiled_executable)
+        # In the future, we will deprecate `workload.model` and use only
+        # `workload.compiled_executable` carrying the model.
+        # So we also move it to the device. But we have to check if compiled_executable has '.to' method.
+        # If we compiled function, compiled_executable will be a callable
+        # which doesn't have `.to()` method (function is not loaded on device).
+        # That is why we use attempt_to_device function.
+        attempt_to_device(workload.compiled_executable)
 
         return Workload(
             framework=workload.framework,
