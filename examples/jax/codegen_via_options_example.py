@@ -32,6 +32,7 @@ def forward(graphdef, state, x):
 
 
 fun = jax.jit(
-    forward, compiler_options={"backend": "codegen_cpp", "export_path": "model"}
+    forward,
+    compiler_options={"backend": "codegen_py", "export_path": "jax_codegen_example"},
 )
 fun(graphdef, state, x)
