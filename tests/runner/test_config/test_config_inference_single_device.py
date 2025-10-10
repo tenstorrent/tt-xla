@@ -272,28 +272,13 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "required_pcc": 0.98,
     },
-    "falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
-    },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
-        "status": ModelTestStatus.EXPECTED_PASSING,
-    },
-    "falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-    },
-    "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497",
-        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
     },
     "yolov5/pytorch-yolov5s-single_device-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
@@ -1843,13 +1828,6 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99",
     },
-    "gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
-        "assert_pcc": False,
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97",
-    },
     "stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed",
@@ -2406,18 +2384,8 @@ test_config = {
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
-    "gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
-        "status": ModelTestStatus.EXPECTED_PASSING,
-    },
     "gemma/pytorch-google/gemma-2-27b-it-single_device-full-inference": {
         "supported_archs": ["p150"],
-        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
-        "reason": "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
-    },
-    "gemma/pytorch-google/gemma-2-27b-it-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
@@ -2428,10 +2396,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475",
-    },
-    "falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-full-inference": {
-        "supported_archs": ["n300-llmbox"],
-        "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "d_fine/pytorch-nano-single_device-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
