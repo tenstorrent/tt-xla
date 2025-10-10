@@ -77,7 +77,7 @@ def inference_tester() -> ExampleModelMixedArgsAndKwargsTester:
 
 @pytest.fixture
 def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
-    return ExampleModelMixedArgsAndKwargsTester(RunMode.TRAINING)
+    return ExampleModelMixedArgsAndKwargsTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -91,6 +91,5 @@ def test_example_model_inference(
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelMixedArgsAndKwargsTester):
     training_tester.test()

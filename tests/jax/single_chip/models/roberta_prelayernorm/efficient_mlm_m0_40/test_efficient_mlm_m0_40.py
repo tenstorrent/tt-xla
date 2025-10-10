@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
@@ -40,7 +40,14 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _get_static_argnames(self):
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
         return ["train"]
 
 
@@ -54,7 +61,9 @@ def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(
+        VARIANT_NAME, run_mode=RunMode.TRAINING
+    )
 
 
 # ----- Tests -----
@@ -74,14 +83,21 @@ def test_flax_roberta_prelayernorm_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_flax_roberta_prelayernorm_training(
     training_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
 ):

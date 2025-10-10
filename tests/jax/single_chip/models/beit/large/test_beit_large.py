@@ -4,7 +4,13 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, incorrect_result
+from utils import (
+    BringupStatus,
+    Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
+    incorrect_result,
+)
 
 from third_party.tt_forge_models.beit.image_classification.jax import (
     ModelLoader,
@@ -28,7 +34,7 @@ def inference_tester() -> FlaxBeitForImageClassificationTester:
 
 @pytest.fixture
 def training_tester() -> FlaxBeitForImageClassificationTester:
-    return FlaxBeitForImageClassificationTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxBeitForImageClassificationTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,14 +60,21 @@ def test_flax_beit_large_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
+        "https://github.com/tenstorrent/tt-mlir/issues/5304"
+    )
+)
 def test_flax_beit_large_training(
     training_tester: FlaxBeitForImageClassificationTester,
 ):

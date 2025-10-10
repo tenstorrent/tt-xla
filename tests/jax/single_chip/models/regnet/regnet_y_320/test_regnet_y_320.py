@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.regnet.image_classification.jax import (
@@ -53,13 +53,22 @@ def test_regnet_y_320_inference(inference_tester: RegNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 15259926528 B DRAM buffer "
+        "across 12 banks, where each bank needs to store 1271660544 B "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
+    )
+)
 def test_regnet_y_320_training(training_tester: RegNetTester):
     training_tester.test()

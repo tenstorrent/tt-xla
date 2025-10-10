@@ -4,7 +4,14 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_runtime
+from utils import (
+    BringupStatus,
+    Category,
+    ExecutionPass,
+    failed_runtime,
+    failed_ttmlir_compilation,
+    incorrect_result,
+)
 
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
@@ -29,7 +36,7 @@ def inference_tester() -> ResNetTester:
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
+    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 @pytest.fixture
@@ -57,14 +64,21 @@ def test_resnet_v1_5_26_inference(inference_tester: ResNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.pad' "
+        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+    )
+)
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):
     training_tester.test()
 

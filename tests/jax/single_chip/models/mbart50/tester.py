@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, RunMode
@@ -35,6 +35,14 @@ class MBartTester(JaxModelTester):
         inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
         return inputs
 
-    # override
-    def _get_static_argnames(self) -> Sequence[str]:
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
         return ["train"]

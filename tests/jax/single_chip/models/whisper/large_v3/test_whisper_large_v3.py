@@ -62,7 +62,7 @@ def test_whisper_large_v3_inference(inference_tester: WhisperTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

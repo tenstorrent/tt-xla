@@ -5,7 +5,13 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_runtime
+from utils import (
+    BringupStatus,
+    Category,
+    ExecutionPass,
+    failed_runtime,
+    failed_ttmlir_compilation,
+)
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.vit.image_classification.jax import (
@@ -29,7 +35,7 @@ def inference_tester() -> ViTTester:
 
 @pytest.fixture
 def training_tester() -> ViTTester:
-    return ViTTester(VARIANT_NAME, RunMode.TRAINING)
+    return ViTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -56,13 +62,20 @@ def test_vit_base_patch32_224_in21k_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
+        "https://github.com/tenstorrent/tt-mlir/issues/5304"
+    )
+)
 def test_vit_base_patch32_224_in21k_training(training_tester: ViTTester):
     training_tester.test()

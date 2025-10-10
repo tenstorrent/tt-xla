@@ -9,7 +9,7 @@ import pytest
 from flax import linen as nn
 from infra import ComparisonConfig, JaxModelTester, RunMode
 from jaxtyping import PyTree
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.squeezebert.masked_lm.jax import (
@@ -59,7 +59,12 @@ class SqueezeBertTester(JaxModelTester):
         return {
             "variables": self._input_parameters,
             **self._input_activations,
-            "train": False,
+            "train": False if self._run_mode == RunMode.INFERENCE else True,
+            "rngs": (
+                {"dropout": jax.random.key(1)}
+                if self._run_mode == RunMode.TRAINING
+                else None
+            ),
         }
 
     # @override
@@ -95,13 +100,20 @@ def test_squeezebert_inference(inference_tester: SqueezeBertTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.convolution' "
+        "https://github.com/tenstorrent/tt-mlir/issues/5307"
+    )
+)
 def test_squeezebert_training(training_tester: SqueezeBertTester):
     training_tester.test()

@@ -45,7 +45,7 @@ def test_gpt2_base_inference(inference_tester: GPT2Tester):
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

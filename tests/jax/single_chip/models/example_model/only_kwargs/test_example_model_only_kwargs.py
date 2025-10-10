@@ -72,7 +72,7 @@ def inference_tester() -> ExampleModelOnlyKwargsTester:
 
 @pytest.fixture
 def training_tester() -> ExampleModelOnlyKwargsTester:
-    return ExampleModelOnlyKwargsTester(RunMode.TRAINING)
+    return ExampleModelOnlyKwargsTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -84,6 +84,5 @@ def test_example_model_inference(inference_tester: ExampleModelOnlyKwargsTester)
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyKwargsTester):
     training_tester.test()

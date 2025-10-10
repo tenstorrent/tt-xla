@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Optional, Sequence
 
+import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 
 from third_party.tt_forge_models.beit.image_classification.jax import (
@@ -31,3 +32,15 @@ class FlaxBeitForImageClassificationTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict | Sequence[Any]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, Any]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return ["train"]
