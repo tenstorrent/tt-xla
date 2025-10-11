@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Dict
 
 import jax
 from flax import linen as nn
@@ -90,3 +90,7 @@ class MnistMLPMultichipTester(JaxMultichipModelTester):
             self._cpu_mesh,
             MNIST_MLP_PARAMS_INIT_SEED,
         )
+    
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
