@@ -8,6 +8,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 
@@ -43,6 +44,65 @@ namespace tt::pjrt::module_builder {
 
 // MLIR program format name. This would ideally be defined in PJRT API header.
 extern const std::string c_mlir_format_name;
+
+// Class to hold tt-alchemist library handles and function pointers.
+class TTAlchemistHandler {
+public:
+  // Default constructor leaves the library unitialized.
+  TTAlchemistHandler();
+
+  // Destructor closes the handle to .so file.
+  ~TTAlchemistHandler();
+
+  // Initializes the tt-alchemist library and function pointers. This function
+  // is fallible.
+  void initialize();
+
+  // Getter for initialization status.
+  bool isInitialized() const { return m_initialized; }
+
+  // Gets the alchemist singleton. The singleton is the first parameter for all
+  // alchemist functions.
+  void *(*getInstanceFunc() const)() { return m_get_instance; }
+
+  // Gets the function that ingests TTIR and generates a Python solution at the
+  // specified path.
+  bool (*generatePythonFunc() const)(void *, const char *, const char *, bool,
+                                     const char *) {
+    return m_generate_python;
+  }
+
+  // Gets the function that ingests TTIR and generates a C++ solution at the
+  // specified path.
+  bool (*generateCppFunc() const)(void *, const char *, const char *, bool,
+                                  const char *) {
+    return m_generate_cpp;
+  }
+
+private:
+  // Finds tt-alchemist library path using environment variables
+  std::optional<std::string> findTTAlchemistLibraryPath();
+
+  // Initialization status. It is required to be checked before using the
+  // library, as initializing the library is fallible.
+  bool m_initialized;
+
+  // The handle to the alchemist .so.
+  void *m_handle;
+
+  // Function pointer to the get_instance function in the alchemist .so.
+  void *(*m_get_instance)();
+
+  // Function pointer to the generate_python function in the alchemist .so.
+  bool (*m_generate_python)(void *instance, const char *input_file,
+                            const char *output_dir, bool is_local,
+                            const char *pipeline_options);
+
+  // Function pointer to the generate_cpp function in the alchemist .so.
+  bool (*m_generate_cpp)(void *instance, const char *input_file,
+                         const char *output_dir, bool is_local,
+                         const char *pipeline_options);
+};
 
 struct NumArgumentsResult {
   size_t num_inputs;
@@ -247,10 +307,9 @@ private:
       std::vector<size_t> &&output_memory_kinds_sizes,
       CompileOptions &&compile_options);
 
-  // Builds module for TTNN Codegen C++ backend runtime (currently
-  // unimplemented).
+  // Builds module for TTNN Codegen C++ backend runtime.
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-  buildModuleForTTNNCodegenCpp(
+  buildModuleForTTNNCodegen(
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       std::string &&original_mlir_code, std::string &&ttir_mlir,
       std::string &&ttnn_mlir, std::string &&executable_name,
@@ -266,27 +325,17 @@ private:
       std::vector<size_t> &&output_memory_kinds_sizes,
       CompileOptions &&compile_options);
 
-  // Builds module for TTNN Codegen Python backend runtime (currently
-  // unimplemented).
-  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
-  buildModuleForTTNNCodegenPy(
-      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-      std::string &&original_mlir_code, std::string &&ttir_mlir,
-      std::string &&ttnn_mlir, std::string &&executable_name,
-      NumArgumentsResult &&num_arguments,
-      const NumDevicesResult &num_devices_result,
-      const std::vector<std::uint32_t> &mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &input_shardings,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings,
-      const std::vector<PJRT_Buffer_Type> &output_types,
-      std::vector<const char *> &&output_memory_kinds,
-      std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+  // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
+  // independently of the frontend. In the future, this will also prepare
+  // everything to generate an .so file for execution.
+  tt_pjrt_status performCodegen(std::string_view ttir_mlir,
+                                const CompileOptions &compile_options);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
+
+  // tt-alchemist library handler.
+  TTAlchemistHandler m_tt_alchemist_handler;
 };
 
 } // namespace tt::pjrt::module_builder
