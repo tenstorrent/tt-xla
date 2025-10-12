@@ -33,4 +33,3 @@ class Mistral7BTester(JaxModelTester):
     # @override
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         return ["train"]
-
