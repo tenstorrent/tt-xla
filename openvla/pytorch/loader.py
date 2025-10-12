@@ -31,6 +31,10 @@ class ModelVariant(StrEnum):
 
     OPENVLA_7B = "openvla_7b"
     OPENVLA_V01_7B = "openvla_v01_7b"
+    OPENVLA_7B_FINETUNED_LIBERO_10 = "openvla_7b_finetuned_libero_10"
+    OPENVLA_7B_FINETUNED_LIBERO_GOAL = "openvla_7b_finetuned_libero_goal"
+    OPENVLA_7B_FINETUNED_LIBERO_OBJECT = "openvla_7b_finetuned_libero_object"
+    OPENVLA_7B_FINETUNED_LIBERO_SPATIAL = "openvla_7b_finetuned_libero_spatial"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +47,18 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENVLA_V01_7B: ModelConfig(
             pretrained_model_name="openvla/openvla-v01-7b",
+        ),
+        ModelVariant.OPENVLA_7B_FINETUNED_LIBERO_10: ModelConfig(
+            pretrained_model_name="openvla/openvla-7b-finetuned-libero-10",
+        ),
+        ModelVariant.OPENVLA_7B_FINETUNED_LIBERO_GOAL: ModelConfig(
+            pretrained_model_name="openvla/openvla-7b-finetuned-libero-goal",
+        ),
+        ModelVariant.OPENVLA_7B_FINETUNED_LIBERO_OBJECT: ModelConfig(
+            pretrained_model_name="openvla/openvla-7b-finetuned-libero-object",
+        ),
+        ModelVariant.OPENVLA_7B_FINETUNED_LIBERO_SPATIAL: ModelConfig(
+            pretrained_model_name="openvla/openvla-7b-finetuned-libero-spatial",
         ),
     }
 
@@ -186,7 +202,7 @@ class ModelLoader(ForgeModel):
         # Choose the prompt based on variant
         sample_prompt = (
             self.sample_prompt
-            if self._variant_config.pretrained_model_name == "openvla/openvla-7b"
+            if "openvla-7b" in self._variant_config.pretrained_model_name
             else self.sample_prompt_1
         )
 
