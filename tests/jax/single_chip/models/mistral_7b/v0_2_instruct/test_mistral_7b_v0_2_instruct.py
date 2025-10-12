@@ -15,9 +15,11 @@ from utils import (
     failed_runtime,
 )
 
-from ..tester import Mistral7BV02Tester
+from third_party.tt_forge_models.mistral.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "unsloth/mistral-7b-instruct-v0.2"
+from ..tester import Mistral7BTester
+
+VARIANT_NAME = ModelVariant.V0_2_INSTRUCT
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -32,12 +34,12 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH)
+def inference_tester() -> Mistral7BTester:
+    return Mistral7BTester(VARIANT_NAME)
 
 
-def training_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> Mistral7BTester:
+    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -58,7 +60,7 @@ def training_tester() -> Mistral7BV02Tester:
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BV02Tester):
+def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
@@ -78,5 +80,5 @@ def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BV02Tester
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-def test_mistral_7b_v0_2_instruct_training(training_tester: Mistral7BV02Tester):
+def test_mistral_7b_v0_2_instruct_training(training_tester: Mistral7BTester):
     training_tester.test()

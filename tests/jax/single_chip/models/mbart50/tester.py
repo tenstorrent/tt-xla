@@ -4,36 +4,33 @@
 from typing import Dict, Optional, Sequence
 
 import jax
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from jaxtyping import PyTree
-from transformers import (
-    AutoTokenizer,
-    FlaxMBartForConditionalGeneration,
-    FlaxPreTrainedModel,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.mbart50.nlp_summarization.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
 class MBartTester(JaxModelTester):
-    """Tester for MBart model variants"""
+    """Tester for MBart50 model on a summarization task."""
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxMBartForConditionalGeneration.from_pretrained(self._model_path)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer("Hello, my dog is cute.", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:

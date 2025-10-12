@@ -15,9 +15,11 @@ from utils import (
     failed_runtime,
 )
 
+from third_party.tt_forge_models.mistral.causal_lm.jax import ModelVariant
+
 from ..tester import Mistral7BTester
 
-MODEL_PATH = "ksmcg/Mistral-7B-v0.1"
+VARIANT_NAME = ModelVariant.V0_1
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -32,12 +34,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH)
+    return Mistral7BTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
