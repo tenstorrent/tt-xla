@@ -18,9 +18,6 @@ PLACEHOLDER_MODELS = {
     "Qwen/Qwen2.5-VL-72B-Instruct": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "Qwen/Qwen2.5-VL-3B-Instruct": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "meta-llama/Llama-3.2-11B-Vision-Instruct": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -1127,6 +1124,11 @@ test_config = {
     },
     "qwen_1_5/causal_lm/pytorch-0_5b_chat-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "qwen_2_5_vl/pytorch-3b_instruct-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_2_1b-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
