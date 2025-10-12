@@ -17,10 +17,11 @@ from utils import (
 )
 
 from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.mbart50.nlp_summarization.jax import ModelVariant
 
 from ..tester import MBartTester
 
-MODEL_PATH = "facebook/mbart-large-50-many-to-many-mmt"
+VARIANT_NAME = ModelVariant.LARGE_MANY_TO_MANY
 MODEL_NAME = build_model_name(
     Framework.JAX,
     "mbart50",
@@ -34,11 +35,11 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MBartTester:
-    return MBartTester(MODEL_PATH)
+    return MBartTester(VARIANT_NAME)
 
 
 def training_tester() -> MBartTester:
-    return MBartTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return MBartTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -55,8 +56,8 @@ def training_tester() -> MBartTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "'ttir.scatter' op Dimension size to slice into must be 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/386"
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/10696"
     )
 )
 def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
@@ -72,5 +73,5 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_mbart50_large_many_to_many_training(inference_tester: MBartTester):
+def test_mbart50_large_many_to_many_training(training_tester: MBartTester):
     training_tester.test()
