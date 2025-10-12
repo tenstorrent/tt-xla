@@ -182,4 +182,4 @@ class ModelLoader(ForgeModel):
         if batch_size > 1:
             input_ids = input_ids.repeat_interleave(batch_size, dim=0)
 
-        return {"input_ids": input_ids, "image_tensor": image_tensor}
+        return {"input_ids": input_ids, "images": image_tensor}
