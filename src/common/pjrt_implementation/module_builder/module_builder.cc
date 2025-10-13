@@ -965,7 +965,10 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
 
   // Dump IR to disk if enabled
-  if (compile_options.dump_irs && compile_options.export_path.has_value()) {
+  if (compile_options.dump_irs) {
+    assert(compile_options.export_path.has_value() &&
+           "export_path compile option is not set.");
+
     std::string export_path = compile_options.export_path.value();
     std::filesystem::path ir_dump_dir =
         std::filesystem::path(export_path) / "irs";
@@ -982,8 +985,6 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       os.flush();
       ir_file << ir_code;
       ir_file.close();
-      DLOG_F(LOG_DEBUG, "Dumped %s IR to %s", stage_name.c_str(),
-             ir_file_path.c_str());
     } else {
       DLOG_F(ERROR, "Failed to open file for dumping %s IR: %s",
              stage_name.c_str(), ir_file_path.c_str());
