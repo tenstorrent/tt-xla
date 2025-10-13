@@ -965,7 +965,7 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
 
   // Dump IR to disk if enabled
-  if (compile_options.dump_irs) {
+  if (compile_options.dump_mlir_modules) {
     assert(compile_options.export_path.has_value() &&
            "export_path compile option is not set.");
 

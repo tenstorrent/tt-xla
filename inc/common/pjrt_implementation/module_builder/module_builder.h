@@ -233,8 +233,8 @@ private:
           &output_shardings);
 
   // Prints module to console for debug purposes.
-  // If dump_irs is enabled in compile_options and export_path is set, also
-  // dumps the IR to disk with the given stage name.
+  // If dump_mlir_modules is enabled in compile_options and export_path is set,
+  // also dumps the IR to disk with the given stage name.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                           const CompileOptions &compile_options,
                           const std::string &stage_name);
