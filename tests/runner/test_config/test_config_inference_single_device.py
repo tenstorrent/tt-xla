@@ -2349,7 +2349,7 @@ test_config = {
             },
         },
     },
-    "qwen_3/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
+    "qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
