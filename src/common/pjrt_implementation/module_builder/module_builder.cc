@@ -332,7 +332,6 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code,
     return tt_pjrt_status::kInternal;
   }
 
-  VLOG_F(LOG_DEBUG, "VHLO Module:");
   printModule(vhlo_module, compile_options, "vhlo");
 
   return tt_pjrt_status::kSuccess;
@@ -352,7 +351,6 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     return tt_pjrt_status::kInternal;
   }
 
-  VLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module, compile_options, "shlo");
 
   return tt_pjrt_status::kSuccess;
@@ -365,7 +363,6 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
-  VLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module, compile_options, "shlo_frontend");
 
   return status;
@@ -683,7 +680,6 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  VLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
   printModule(mlir_module, compile_options, "shlo_compiler");
 
   if (!tt_pjrt_status_is_ok(
@@ -717,7 +713,6 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
 
   ttir_mlir = getMlirCode(mlir_module);
 
-  VLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module, compile_options, "ttir");
 
   return tt_pjrt_status::kSuccess;
@@ -966,6 +961,7 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     return;
   }
 
+  VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
   mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
 
   // Dump IR to disk if enabled
