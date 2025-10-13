@@ -984,7 +984,22 @@ test_config = {
     "qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662",
-        "bringup_status": BringupStatus.FAILED_RUNTIME,
+        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+    },
+    "qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662",
+        "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
+    },
+    "qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ImportError: cannot import name 'triton_key' from 'triton.compiler.compiler' - https://github.com/tenstorrent/tt-xla/issues/1712",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "ImportError: cannot import name 'triton_key' from 'triton.compiler.compiler' - https://github.com/tenstorrent/tt-xla/issues/1712",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
