@@ -500,18 +500,17 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 }
 
 void FlatbufferLoadedExecutableInstance::dumpInputs(
-  std::vector<tt::runtime::Tensor> &input_tensors) {
-DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
-auto dump_dir = std::filesystem::path(
-                    m_executable_image->getCompileOptions().export_path) /
-                "inputs";
-std::filesystem::create_directories(dump_dir);
-for (int i = 0; i < input_tensors.size(); ++i) {
-  std::string filename =
-      "input_" + std::to_string(i) + ".tensorbin";
-  auto filepath = dump_dir / filename;
-  tt::runtime::dumpTensor(input_tensors[i], filepath.string());
-}
+    std::vector<tt::runtime::Tensor> &input_tensors) {
+  DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
+  auto dump_dir = std::filesystem::path(
+                      m_executable_image->getCompileOptions().export_path) /
+                  "inputs";
+  std::filesystem::create_directories(dump_dir);
+  for (int i = 0; i < input_tensors.size(); ++i) {
+    std::string filename = "input_" + std::to_string(i) + ".tensorbin";
+    auto filepath = dump_dir / filename;
+    tt::runtime::dumpTensor(input_tensors[i], filepath.string());
+  }
 }
 
 } // namespace tt::pjrt

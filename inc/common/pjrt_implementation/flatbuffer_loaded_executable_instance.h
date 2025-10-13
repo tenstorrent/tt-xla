@@ -128,8 +128,7 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
-  void dumpInputs(
-    std::vector<tt::runtime::Tensor> &input_tensors);
+  void dumpInputs(std::vector<tt::runtime::Tensor> &input_tensors);
 
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(
