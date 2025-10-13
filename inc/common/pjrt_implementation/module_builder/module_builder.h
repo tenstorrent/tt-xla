@@ -141,15 +141,18 @@ private:
   // Creates VHLO module from the input program code.
   tt_pjrt_status
   createVHLOModule(const std::string_view &code,
-                   mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+                   mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                   const CompileOptions &compile_options);
 
   // Converts VHLO module to StableHLO module.
   tt_pjrt_status
-  convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                        const CompileOptions &compile_options);
 
   // Runs frontend specific SHLO pipeline on the MLIR module.
   tt_pjrt_status
-  runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                          const CompileOptions &compile_options);
 
   // Collects the information about output types.
   static std::vector<PJRT_Buffer_Type>
@@ -172,12 +175,14 @@ private:
 
   // Runs compiler StableHLO pipeline on the MLIR module.
   tt_pjrt_status
-  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                               const CompileOptions &compile_options);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
   convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                        std::string &ttir_code);
+                        std::string &ttir_code,
+                        const CompileOptions &compile_options);
 
   // Collects the information about the mesh shape the module is intended to run
   // on.
@@ -228,6 +233,13 @@ private:
           &output_shardings);
 
   // Prints module to console for debug purposes.
+  // If dump_irs is enabled in compile_options and export_path is set, also
+  // dumps the IR to disk with the given stage name.
+  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                          const CompileOptions &compile_options,
+                          const std::string &stage_name);
+
+  // Overloaded version without IR dumping for backward compatibility.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
   // Enables IR printing between passes with VERBOSE or higher logger level.

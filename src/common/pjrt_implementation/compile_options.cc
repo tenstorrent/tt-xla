@@ -40,6 +40,8 @@ CompileOptions CompileOptions::parse(
   options.dump_inputs =
       internal::parseBoolOption(compile_options, "dump_inputs")
           .value_or(options.dump_inputs);
+  options.dump_irs = internal::parseBoolOption(compile_options, "dump_irs")
+                         .value_or(options.dump_irs);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   if (!options.export_path.has_value() &&
