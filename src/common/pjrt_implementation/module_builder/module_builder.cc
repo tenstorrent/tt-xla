@@ -992,16 +992,6 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   }
 }
 
-void ModuleBuilder::printModule(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  if (loguru::g_stderr_verbosity < LOG_DEBUG) {
-    return;
-  }
-
-  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
-  llvm::errs() << "------------------ END OF MLIR MODULE ------------------\n";
-}
-
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
     return;

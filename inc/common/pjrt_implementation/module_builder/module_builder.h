@@ -239,9 +239,6 @@ private:
                           const CompileOptions &compile_options,
                           const std::string &stage_name);
 
-  // Overloaded version without IR dumping for backward compatibility.
-  static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
   // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
