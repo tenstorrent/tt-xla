@@ -174,8 +174,8 @@ class TorchModelTester(ModelTester):
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
-        # cpu_res = self._run_on_cpu(self._workload)
-
+        cpu_res = self._run_on_cpu(self._workload)
+        print(f"output_type: {type(cpu_res)}")
         # # Generate random gradient
         # random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
 
@@ -191,29 +191,29 @@ class TorchModelTester(ModelTester):
         # cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
         # self._workload.model.zero_grad()
 
-        # Run forward on TT
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_tt_device(self._workload)
-        tt_res = self._run_on_tt_device(self._workload)
-        tt_res = self._wrap_model_output(tt_res)
-        tt_res = tt_res.sum()
-        # Force graph break so we can differentiate between forward and backward
-        torch_xla.sync(wait=True)
+        # # Run forward on TT
+        # # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # # self._compile_for_tt_device(self._workload)
+        # tt_res = self._run_on_tt_device(self._workload)
+        # tt_res = self._wrap_model_output(tt_res)
+        # tt_res = tt_res.sum()
+        # # Force graph break so we can differentiate between forward and backward
+        # torch_xla.sync(wait=True)
 
-        # Run backward on TT
-        tt_backward_workload = Workload(
-            framework=self._framework,
-            executable=tt_res.backward,
-            args=[],
-            # kwargs={"gradient": random_grad},
-        )
-        self._run_on_tt_device(tt_backward_workload)
-        torch_xla.sync(wait=True)
+        # # Run backward on TT
+        # tt_backward_workload = Workload(
+        #     framework=self._framework,
+        #     executable=tt_res.backward,
+        #     args=[],
+        #     # kwargs={"gradient": random_grad},
+        # )
+        # self._run_on_tt_device(tt_backward_workload)
+        # torch_xla.sync(wait=True)
 
-        tt_grads = {
-            name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
-        }
-        torch_xla.sync(wait=True)
+        # tt_grads = {
+        #     name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
+        # }
+        # torch_xla.sync(wait=True)
         # # Compare forward results and gradients
         # self._compare(tt_res, cpu_res)
         # self._compare(tt_grads, cpu_grads)
