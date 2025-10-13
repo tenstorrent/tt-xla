@@ -28,6 +28,8 @@ class MNISTCNNTester(JaxModelTester):
     ) -> None:
         self._model_loader = ModelLoader(variant)
         self._is_dropout = variant == ModelVariant.CNN_DROPOUT
+        self._has_batch_norm = True
+
         super().__init__(comparison_config, run_mode)
 
     # @override
@@ -52,36 +54,3 @@ class MNISTCNNTester(JaxModelTester):
         if self._is_dropout and self._run_mode == RunMode.TRAINING:
             kwargs["rngs"] = {"dropout": jax.random.key(1)}
         return kwargs
-
-    # @override
-    def _initialize_workload(self) -> None:
-        """Initializes `self._workload`."""
-        # Prepack model's forward pass and its arguments into a `Workload.`
-        args = self._get_forward_method_args()
-        kwargs = self._get_forward_method_kwargs()
-        forward_static_args = self._get_static_argnames()
-        forward_method_name = self._get_forward_method_name()
-
-        assert (
-            len(args) > 0 or len(kwargs) > 0
-        ), f"Forward method args or kwargs or both must be provided"
-        assert hasattr(
-            self._model, forward_method_name
-        ), f"Model does not have {forward_method_name} method provided."
-
-        forward_pass_method = getattr(self._model, forward_method_name)
-
-        if self._run_mode == RunMode.TRAINING:
-            forward_pass_method = lambda params, inputs, **kwargs: self._model.apply(
-                params, inputs, mutable=["batch_stats"], **kwargs
-            )[0]
-        else:
-            forward_pass_method = getattr(self._model, forward_method_name)
-
-        self._workload = Workload(
-            framework=self._framework,
-            executable=forward_pass_method,
-            args=args,
-            kwargs=kwargs,
-            static_argnames=forward_static_args,
-        )

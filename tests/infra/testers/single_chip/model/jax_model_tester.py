@@ -42,10 +42,12 @@ class JaxModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        has_batch_norm: bool = False,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters: PyTree = None
+        self._has_batch_norm = has_batch_norm
 
         super().__init__(comparison_config, run_mode, Framework.JAX, compiler_config)
 
@@ -105,7 +107,12 @@ class JaxModelTester(ModelTester):
             self._model, forward_method_name
         ), f"Model does not have {forward_method_name} method provided."
 
-        forward_pass_method = getattr(self._model, forward_method_name)
+        if self._has_batch_norm and self._run_mode == RunMode.TRAINING:
+            forward_pass_method = lambda params, inputs, **kwargs: self._model.apply(
+                params, inputs, mutable=["batch_stats"], **kwargs
+            )[0]
+        else:
+            forward_pass_method = getattr(self._model, forward_method_name)
 
         self._workload = Workload(
             framework=self._framework,
