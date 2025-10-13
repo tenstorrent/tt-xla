@@ -41,7 +41,18 @@ class LLMRunMode(Enum):
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-@pytest.mark.parametrize("run_mode", [LLMRunMode.PREFILL, LLMRunMode.DECODE])
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        LLMRunMode.PREFILL,
+        pytest.param(
+            LLMRunMode.DECODE,
+            marks=pytest.mark.skip(
+                reason="ND hang locally, deterministic hang on uplift (https://github.com/tenstorrent/tt-xla/issues/1668)"
+            ),
+        ),
+    ],
+)
 def test_llama_step(run_mode):
 
     # Must be called at start of program.
