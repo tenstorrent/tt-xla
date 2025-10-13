@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Optional, Sequence
+from typing import Optional, Sequence
 
 import jax
 from flax import linen as nn
@@ -88,7 +88,3 @@ class AlexNetMultichipTester(JaxMultichipModelTester):
             self._cpu_mesh,
             ALEXNET_PARAMS_INIT_SEED,
         )
-
-    # @override
-    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        return {}
