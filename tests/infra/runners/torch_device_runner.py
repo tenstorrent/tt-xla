@@ -12,7 +12,7 @@ from torch.utils._pytree import tree_map
 from .device_runner import DeviceRunner
 
 
-def to_device(x, device):
+def to_device(x, device, depth=5):
     """
     Recursively move data structures and objects to the specified device.
 
@@ -25,25 +25,35 @@ def to_device(x, device):
     Args:
         x: The data structure or object to move to device
         device: The target device (e.g., 'cuda', 'cpu', torch.device)
+        depth: Maximum recursion depth (default: 5). When depth reaches 0,
+               recursion stops and objects are returned as-is.
 
     Returns:
         The same structure with all compatible elements moved to the device
     """
+    # Stop recursion when maximum depth is reached
+    if depth <= 0:
+        # Still try to move tensors/models at the final depth level
+        if hasattr(x, "to"):
+            return x.to(device)
+        return x
+
     if x is None:
         return x
     elif isinstance(x, list):
-        return [to_device(item, device) for item in x]
+        return [to_device(item, device, depth - 1) for item in x]
     elif isinstance(x, tuple):
-        return tuple(to_device(item, device) for item in x)
+        return tuple(to_device(item, device, depth - 1) for item in x)
     elif isinstance(x, dict):
-        return {k: to_device(v, device) for k, v in x.items()}
+        return {k: to_device(v, device, depth - 1) for k, v in x.items()}
     elif hasattr(x, "to"):
         return x.to(device)
-    # Handle objects with attributes by recursively processing all fields
+    # Handle objects with attributes by recursively processing all fields.
+    # This is done in-place.
     elif hasattr(x, "__dict__"):
         for attr_name in x.__dict__:
             attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device))
+            setattr(x, attr_name, to_device(attr_value, device, depth - 1))
         return x
     else:
         return x
