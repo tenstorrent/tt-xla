@@ -2309,6 +2309,21 @@ test_config = {
             },
         },
     },
+    "qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: object of type 'NoneType' has no len() - https://github.com/tenstorrent/tt-xla/issues/1671",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: object of type 'NoneType' has no len() - https://github.com/tenstorrent/tt-xla/issues/1671",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "TypeError: object of type 'NoneType' has no len() - https://github.com/tenstorrent/tt-xla/issues/1671",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
     "qwen_3/causal_lm/pytorch-14b-single_device-full-inference": {
         "arch_overrides": {
             "p150": {
@@ -2349,7 +2364,7 @@ test_config = {
             },
         },
     },
-    "qwen_3/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
+    "qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
