@@ -54,10 +54,6 @@ class MNISTCNNTester(JaxModelTester):
         return kwargs
 
     # @override
-    def _get_static_argnames(self):
-        return ["train"]
-
-    # @override
     def _initialize_workload(self) -> None:
         """Initializes `self._workload`."""
         # Prepack model's forward pass and its arguments into a `Workload.`

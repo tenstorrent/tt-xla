@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
@@ -60,6 +60,10 @@ class ExampleModelOnlyKwargsTester(JaxModelTester):
 
         # Mix activations, weights and biases to match forward method signature.
         return {"act": input_activation, "w0": w0, "b0": b0, "w1": w1, "b1": b1}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
 
 
 # ----- Fixtures -----

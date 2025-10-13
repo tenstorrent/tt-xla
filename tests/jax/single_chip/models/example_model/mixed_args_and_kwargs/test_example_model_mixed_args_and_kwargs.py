@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
@@ -65,6 +65,10 @@ class ExampleModelMixedArgsAndKwargsTester(JaxModelTester):
 
         # Order does not matter.
         return {"b1": b1, "w1": w1, "w0": w0, "b0": b0}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
 
 
 # ----- Fixtures -----

@@ -154,7 +154,7 @@ class JaxModelTester(ModelTester):
 
         By default no arguments are static.
         """
-        return []
+        return ["train"]
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:

@@ -67,10 +67,6 @@ class SqueezeBertTester(JaxModelTester):
             ),
         }
 
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]
-
 
 # ----- Fixtures -----
 

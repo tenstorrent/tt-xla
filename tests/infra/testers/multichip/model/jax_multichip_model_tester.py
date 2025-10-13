@@ -239,3 +239,8 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
         # We do not handle training yet, so we return empty dict
         return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        # We do not handle training yet, so we return empty list
+        return []

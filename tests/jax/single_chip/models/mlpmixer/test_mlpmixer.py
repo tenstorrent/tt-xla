@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
@@ -67,6 +67,10 @@ class MlpMixerTester(JaxModelTester):
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
         return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
 
 
 # ----- Fixtures -----

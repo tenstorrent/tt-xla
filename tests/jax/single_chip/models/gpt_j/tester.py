@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Optional, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
@@ -29,7 +29,3 @@ class GPTJTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
-
-    # @override
-    def _get_static_argnames(self) -> Optional[Sequence[str]]:
-        return ["train"]

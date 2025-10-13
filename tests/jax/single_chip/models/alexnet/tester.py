@@ -68,7 +68,3 @@ class AlexNetTester(JaxModelTester):
         if self._run_mode == RunMode.TRAINING:
             kwargs["rngs"] = {"dropout": jax.random.key(1)}
         return kwargs
-
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Optional, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
@@ -38,7 +38,3 @@ class FlaxBartForCausalLMTester(JaxModelTester):
             kwargs["dropout_rng"] = jax.random.key(1)
 
         return kwargs
-
-    # @override
-    def _get_static_argnames(self) -> Optional[Sequence[str]]:
-        return ["train"]
