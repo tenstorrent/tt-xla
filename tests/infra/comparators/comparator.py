@@ -58,20 +58,18 @@ class Comparator(ABC):
             error_message=None,
         )
 
-        if self._comparison_config.equal.enabled:
-            _comparison_result.equal = self._compare_equal(device_output, golden_output)
-        if self._comparison_config.atol.enabled:
-            _comparison_result.atol = self._compare_atol(
-                device_output, golden_output, self._comparison_config.atol
-            )
-        if self._comparison_config.pcc.enabled:
-            _comparison_result.pcc = self._compare_pcc(
-                device_output, golden_output, self._comparison_config.pcc
-            )
-        if self._comparison_config.allclose.enabled:
-            _comparison_result.allclose = self._compare_allclose(
-                device_output, golden_output, self._comparison_config.allclose
-            )
+        # Always execute comparisons even if disabled in config to gather and report metrics
+        #   Assertion only happens later in _assert_on_results if enabled in config.
+        _comparison_result.equal = self._compare_equal(device_output, golden_output)
+        _comparison_result.atol = self._compare_atol(
+            device_output, golden_output, self._comparison_config.atol
+        )
+        _comparison_result.pcc = self._compare_pcc(
+            device_output, golden_output, self._comparison_config.pcc
+        )
+        _comparison_result.allclose = self._compare_allclose(
+            device_output, golden_output, self._comparison_config.allclose
+        )
 
         # Evaluate the overall pass/fail status and capture any error message
         _comparison_result.passed, _comparison_result.error_message = (
