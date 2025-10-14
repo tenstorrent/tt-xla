@@ -29,3 +29,12 @@ class FlaxBartForCausalLMTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs(dtype_override=jax.numpy.bfloat16)
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+
+        return kwargs

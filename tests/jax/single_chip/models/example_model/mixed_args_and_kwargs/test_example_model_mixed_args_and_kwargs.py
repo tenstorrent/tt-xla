@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
@@ -66,6 +66,10 @@ class ExampleModelMixedArgsAndKwargsTester(JaxModelTester):
         # Order does not matter.
         return {"b1": b1, "w1": w1, "w0": w0, "b0": b0}
 
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
+
 
 # ----- Fixtures -----
 
@@ -77,7 +81,7 @@ def inference_tester() -> ExampleModelMixedArgsAndKwargsTester:
 
 @pytest.fixture
 def training_tester() -> ExampleModelMixedArgsAndKwargsTester:
-    return ExampleModelMixedArgsAndKwargsTester(RunMode.TRAINING)
+    return ExampleModelMixedArgsAndKwargsTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -91,6 +95,5 @@ def test_example_model_inference(
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelMixedArgsAndKwargsTester):
     training_tester.test()

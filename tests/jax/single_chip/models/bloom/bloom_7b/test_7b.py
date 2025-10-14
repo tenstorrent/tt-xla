@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from third_party.tt_forge_models.bloom.causal_lm.jax import ModelLoader, ModelVariant
 from third_party.tt_forge_models.config import Parallelism
@@ -51,14 +51,22 @@ def test_bloom_7b_inference(inference_tester: BloomTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 171270144 B "
+        "https://github.com/tenstorrent/tt-xla/issues/918"
+    )
+)
 def test_bloom_7b_training(training_tester: BloomTester):
     training_tester.test()

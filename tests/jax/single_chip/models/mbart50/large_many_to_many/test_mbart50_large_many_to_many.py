@@ -9,6 +9,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -38,6 +39,7 @@ def inference_tester() -> MBartTester:
     return MBartTester(VARIANT_NAME)
 
 
+@pytest.fixture
 def training_tester() -> MBartTester:
     return MBartTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -64,14 +66,21 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
+    )
+)
 def test_mbart50_large_many_to_many_training(training_tester: MBartTester):
     training_tester.test()

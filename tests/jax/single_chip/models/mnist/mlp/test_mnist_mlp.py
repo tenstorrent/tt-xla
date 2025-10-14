@@ -49,6 +49,7 @@ def training_tester(request) -> MNISTMLPTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize(
     "inference_tester",
@@ -83,6 +84,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 
 
 @pytest.mark.push
+@pytest.mark.training
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

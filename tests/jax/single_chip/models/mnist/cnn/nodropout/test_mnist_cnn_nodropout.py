@@ -12,7 +12,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_fe_compilation,
+    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.mnist.image_classification.jax import ModelVariant
@@ -58,19 +58,19 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
     execution_pass=ExecutionPass.FORWARD,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_fe_compilation(
-        "Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable."
-        "https://github.com/tenstorrent/tt-xla/issues/1388"
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_mnist_cnn_nodropout_training(training_tester: MNISTCNNTester):

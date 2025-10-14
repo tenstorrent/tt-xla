@@ -34,3 +34,12 @@ class ResNetTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _wrapper_model(self, f):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            out = out[0]
+            return out.logits
+
+        return model

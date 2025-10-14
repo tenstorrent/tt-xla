@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.bert.masked_lm.jax import ModelLoader, ModelVariant
 from third_party.tt_forge_models.config import Parallelism
@@ -25,7 +25,7 @@ def inference_tester() -> FlaxBertForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxBertForMaskedLMTester:
-    return FlaxBertForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxBertForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -44,14 +44,20 @@ def test_flax_bert_base_inference(inference_tester: FlaxBertForMaskedLMTester):
     inference_tester.test()
 
 
-@pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/5091"
+    )
+)
 def test_flax_bert_base_training(training_tester: FlaxBertForMaskedLMTester):
     training_tester.test()

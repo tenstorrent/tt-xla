@@ -234,3 +234,13 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
     def _get_input_parameters_partition_spec(self) -> PyTree:
         """Returns partition specs for the parameters."""
         raise NotImplementedError("Subclasses must implement this method.")
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        # We do not handle training yet, so we return empty dict
+        return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        # We do not handle training yet, so we return empty list
+        return []
