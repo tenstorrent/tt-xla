@@ -16,7 +16,7 @@
 </div>
 <br>
 
-TT-XLA leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR and Tenstorrent hardware. It supports ingestion of JAX models via jit compile, providing a StableHLO (SHLO) graph to TT-MLIR compiler.
+TT-XLA leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR and Tenstorrent hardware. It supports ingestion of PyTorch models through PyTorch/XLA and JAX models via jit compile, providing a StableHLO (SHLO) graph to TT-MLIR compiler.
 
 -----
 # Quick Links
@@ -24,7 +24,7 @@ TT-XLA leverages a PJRT interface to integrate JAX (and in the future other fram
 
 -----
 # What is This Repo?
-The TT-XLA repository is primarily used to enable running JAX models on Tenstorrent's AI hardware. It's a backend integration between the JAX ecosystem and Tenstorrent's ML accelerators using the PJRT (Portable JAX Runtime) interface.
+The TT-XLA repository is primarily used to enable running PyTorch and JAX models on Tenstorrent's AI hardware. It's a backend integration between the JAX ecosystem and Tenstorrent's ML accelerators using the PJRT (Portable JAX Runtime) interface.
 
 -----
 # Current AI Framework Front End Projects
