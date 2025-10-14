@@ -32,9 +32,9 @@ from vllm.forward_context import set_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
+from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.model_loader.tpu import TPUModelLoader
 from vllm.model_executor.model_loader.utils import initialize_model
-from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import supports_transcription
 from vllm.model_executor.models.interfaces_base import (
     is_pooling_model,
@@ -50,16 +50,11 @@ from vllm.multimodal.utils import group_mm_kwargs_by_modality
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils import LayerBlockType, cdiv, is_pin_memory_available, prev_power_of_2
-from .attention import (
-    TPU_STR_DTYPE_TO_TORCH_DTYPE,
-    TTAttentionBackend,
-    TTMetadata,
-    get_page_size_bytes,
-)
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
     KVCacheConfig,
+    KVCacheGroupSpec,
     KVCacheSpec,
     SlidingWindowSpec,
 )
@@ -77,13 +72,18 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
 )
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 from vllm.v1.worker.tpu_input_batch import CachedRequestState, InputBatch
-
 from vllm.v1.worker.utils import (
     MultiModalBudget,
     bind_kv_cache,
     sanity_check_mm_encoder_outputs,
 )
-from vllm.v1.kv_cache_interface import KVCacheGroupSpec
+
+from .attention import (
+    TPU_STR_DTYPE_TO_TORCH_DTYPE,
+    TTAttentionBackend,
+    TTMetadata,
+    get_page_size_bytes,
+)
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
