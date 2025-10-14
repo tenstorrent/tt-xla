@@ -60,6 +60,14 @@ class ModelTestConfig:
         self.allclose_rtol = self._resolve("allclose_rtol", default=None)
         self.allclose_atol = self._resolve("allclose_atol", default=None)
 
+        # Force 0.99 threshold for experiment
+        if self.required_pcc is not None and self.required_pcc != 0.99:
+            self.required_pcc = 0.99
+
+        # Force assert_pcc to True for experiment
+        if self.assert_pcc is not None and self.assert_pcc == False:
+            self.assert_pcc = True
+
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
 

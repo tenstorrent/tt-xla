@@ -7,7 +7,7 @@ import difflib
 import pytest
 
 from tests.runner.test_config import test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
+from tests.runner.test_utils import BringupStatus, ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -86,6 +86,10 @@ def pytest_collection_modifyitems(config, items):
         # Apply any custom/extra markers from config (e.g., "push", "nightly")
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
+
+        # If bringup_status is BringupStatus.INCORRECT_RESULT add a marker:
+        if meta.bringup_status == BringupStatus.INCORRECT_RESULT:
+            item.add_marker(pytest.mark.incorrect_result)
 
         # Define default set of supported archs, which can be optionally overridden in test_config.py
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
