@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "274a5d02bf74aafe8b71247a1da05d75e24bbbde")
+    set(TT_MLIR_VERSION "55d04a5fbdba655d7deb1d7054ef86cad26e5902")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -72,7 +72,7 @@ else()
         PATCH_COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        BUILD_COMMAND cmake --build <BINARY_DIR> && cmake --build <BINARY_DIR> --target tt-alchemist
+        BUILD_COMMAND cmake --build <BINARY_DIR>
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
