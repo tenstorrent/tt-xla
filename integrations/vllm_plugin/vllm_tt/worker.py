@@ -10,6 +10,9 @@ from typing import Any, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
+import torch_xla.core.xla_model as xm
+import torch_xla.debug.profiler as xp
+import torch_xla.runtime as xr
 import vllm.envs as envs
 from vllm.config import VllmConfig
 from vllm.distributed import (
@@ -32,12 +35,8 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
 
-import torch_xla.core.xla_model as xm
-import torch_xla.debug.profiler as xp
-import torch_xla.runtime as xr
-from .model_runner import TTModelRunner
 from .attention import TT_HEAD_SIZE_ALIGNMENT
-
+from .model_runner import TTModelRunner
 
 logger = init_logger(__name__)
 
