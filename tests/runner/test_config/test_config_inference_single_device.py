@@ -252,12 +252,15 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference": {
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference": {
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference": {
+        "markers": ["push"],
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
@@ -417,6 +420,7 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-efficientnet_b0-single_device-full-inference": {
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-efficientnet_b1-single_device-full-inference": {
@@ -940,6 +944,7 @@ test_config = {
     },
     "yolov8/pytorch-yolov8x-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "albert/token_classification/pytorch-base_v2-single_device-full-inference": {
         "assert_pcc": False,
@@ -1071,6 +1076,7 @@ test_config = {
     },
     "qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
     },
     "yolov5/pytorch-yolov5n-single_device-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
@@ -1223,6 +1229,7 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference": {
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-single_device-full-inference": {
