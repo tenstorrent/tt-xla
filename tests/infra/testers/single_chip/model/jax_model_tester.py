@@ -197,13 +197,6 @@ class JaxModelTester(ModelTester):
 
         return model
 
-    def _get_output_only(self, f):
-        def model(args, kwargs):
-            out = f(*args, **kwargs)
-            return out[0]
-
-        return model
-
     # @override
     def _test_training(self):
         """
