@@ -6,7 +6,6 @@ import bisect
 import gc
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -29,7 +28,7 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.forward_context import set_forward_context, get_forward_context
+from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
@@ -890,14 +889,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
-            slot_mapping=slot_mapping_metadata,
-            block_tables=block_tables,
             context_lens=seq_lens,
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            num_kv_update_slices=torch.tensor(
-                [num_kv_update_slices], dtype=torch.int32, device=self.device
-            ),
             attn_mask=generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
@@ -907,7 +901,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.device,
             ),
             is_causal=False,
-            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1388,14 +1381,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)  # .to(self.device)
         num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
         attn_metadata = TTMetadata(
-            slot_mapping=slot_mapping,
-            block_tables=block_tables,
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
-            num_kv_update_slices=torch.tensor(
-                [num_kv_update_slices], dtype=torch.int32, device=self.device
-            ),
             attn_mask=generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
@@ -1405,7 +1393,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.device,
             ),
             is_causal=False,
-            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
