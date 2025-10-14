@@ -102,9 +102,6 @@ PLACEHOLDER_MODELS = {
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "maptr": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "MiniMaxAI/MiniMax-Text-01": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -2485,6 +2482,79 @@ test_config = {
     "uniad/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "maptr/pytorch-tiny_r50_24e_av2-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_110e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_t4-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-nano_r18_110e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevpool-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "maptr/pytorch-tiny_fusion_24e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 165183488 B L1 buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference": {
+        "required_pcc": 0.96,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "pointpillars/pytorch-pointpillars-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "sam/pytorch-facebook/sam-vit-base-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 16777216 B L1 buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "vilt/masked_lm/pytorch-mlm-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
