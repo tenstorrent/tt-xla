@@ -89,7 +89,7 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        # Set pad token as done in the test file
+        # Set pad token
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
@@ -137,7 +137,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Input prompt from the test file
+        # Input prompt
         input_prompt = "the movie was great!"
 
         inputs = self.tokenizer(input_prompt, return_tensors="pt")

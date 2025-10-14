@@ -133,7 +133,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Input prompt from the test file
+        # Input prompt
         input_prompt = "HuggingFace is a company based in Paris and New York"
 
         inputs = self.tokenizer(input_prompt, return_tensors="pt")

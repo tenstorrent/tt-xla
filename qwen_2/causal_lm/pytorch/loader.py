@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen 3 model loader implementation for causal language modeling.
+Qwen 2 model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -21,54 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen 3 model variants for causal language modeling."""
+    """Available Qwen 2 model variants for causal language modeling."""
 
-    QWEN_3_0_6B = "0_6b"
-    QWEN_3_1_7B = "1_7b"
-    QWEN_3_4B = "4b"
-    QWEN_3_8B = "8b"
-    QWEN_3_14B = "14b"
-    QWEN_3_32B = "32b"
-    QWEN_3_30B_A3B = "30b_a3b"
+    QWQ_32B = "qwq_32b"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3 model loader implementation for causal language modeling tasks."""
+    """Qwen 2 model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.QWEN_3_0_6B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-0.6B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_1_7B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-1.7B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-4B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_8B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-8B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_14B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-14B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_32B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-32B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-30B-A3B",
+        ModelVariant.QWQ_32B: LLMModelConfig(
+            pretrained_model_name="Qwen/QwQ-32B",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_0_6B
+    DEFAULT_VARIANT = ModelVariant.QWQ_32B
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -95,7 +65,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="qwen_3",
+            model="qwen_2",
             variant=variant,
             group=ModelGroup.RED,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -125,14 +95,14 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
-        """Load and return the Qwen 3 model instance for this instance's variant.
+        """Load and return the Qwen 2 model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The Qwen 3 model instance for causal language modeling.
+            torch.nn.Module: The Qwen 2 model instance for causal language modeling.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -154,7 +124,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Qwen 3 model with this instance's variant settings.
+        """Load and return sample inputs for the Qwen 2 model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -170,7 +140,7 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        # Use chat template for Qwen 3 models
+        # Use chat template for QwQ-32B
         messages = [{"role": "user", "content": self.sample_text}]
         text = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True, enable_thinking=True

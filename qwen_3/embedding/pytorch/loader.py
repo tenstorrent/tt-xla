@@ -158,7 +158,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        # Prepare input texts as in the test file
+        # Prepare input texts
         queries = [
             get_detailed_instruct(self.sample_task, query)
             for query in self.sample_queries

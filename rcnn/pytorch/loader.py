@@ -156,7 +156,7 @@ class ModelLoader(ForgeModel):
             # Create a dummy image if file not found
             img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
-        # Define transforms as in the test file
+        # Define transforms
         transform = transforms.Compose(
             [
                 transforms.ToPILImage(),
@@ -228,7 +228,7 @@ class ModelLoader(ForgeModel):
             # Create a dummy image if file not found
             img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
-        # Define transforms as in the test file
+        # Define transforms
         transform = transforms.Compose(
             [
                 transforms.ToPILImage(),

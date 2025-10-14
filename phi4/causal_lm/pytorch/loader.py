@@ -133,7 +133,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Input prompt from the test file
+        # Input prompt
         input_prompt = "Africa is an emerging economy because"
 
         inputs = self.tokenizer(
