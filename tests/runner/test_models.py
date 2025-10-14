@@ -119,11 +119,12 @@ def test_all_models(
         finally:
             # If there are multiple comparison results, only record the first one because the
             #     DB only supports single comparison result for now
-            if len(comparison_result) > 1:
-                print(
-                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                )
-            comparison_result = comparison_result[0]
+            if comparison_result is not None and len(comparison_result) > 0:
+                if len(comparison_result) > 1:
+                    print(
+                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
+                    )
+                comparison_result = comparison_result[0]
 
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
