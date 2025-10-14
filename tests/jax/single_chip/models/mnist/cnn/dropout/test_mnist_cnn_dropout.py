@@ -16,8 +16,8 @@ from utils import (
 )
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
     ModelLoader,
+    ModelVariant,
 )
 
 from ..tester import MNISTCNNTester
@@ -36,12 +36,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_DROPOUT)
+    return MNISTCNNTester(ModelVariant.CNN_DROPOUT)
 
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_DROPOUT, run_mode=RunMode.TRAINING)
+    return MNISTCNNTester(ModelVariant.CNN_DROPOUT, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -61,7 +61,7 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
 
 
 @pytest.mark.push
-@pytest.mark.model_test
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
@@ -73,7 +73,7 @@ def test_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "error: failed to legalize operation 'stablehlo.select_and_scatter' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4794"
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):

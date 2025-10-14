@@ -2,28 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TODO: Refactor to use ModelLoader.get_model_info() once the PR in tt-forge-models is merged
+
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
+
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .tester import AlexNetTester
 
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "alexnet",
-    None,
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
-)
-
+VARIANT_NAME = ModelVariant.CUSTOM
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -44,9 +38,9 @@ def training_tester() -> AlexNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
@@ -59,13 +53,20 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
+        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+    )
+)
 def test_alexnet_training(training_tester: AlexNetTester):
     training_tester.test()

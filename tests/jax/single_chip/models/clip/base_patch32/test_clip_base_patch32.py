@@ -3,30 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_runtime,
-)
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
-from third_party.tt_forge_models.clip.image_classification.jax import ModelVariant
+from third_party.tt_forge_models.clip.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxCLIPTester
 
 VARIANT_NAME = ModelVariant.BASE_PATCH32
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "clip_vit_patch32",
-    "base",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
 
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -47,9 +37,9 @@ def training_tester() -> FlaxCLIPTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
@@ -63,13 +53,21 @@ def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 2287616 B L1 buffer "
+        "across 2 banks, where each bank needs to store 1143808 B "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
+    )
+)
 def test_clip_base_patch32_training(training_tester: FlaxCLIPTester):
     training_tester.test()

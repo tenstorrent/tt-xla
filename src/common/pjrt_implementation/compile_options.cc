@@ -37,6 +37,13 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(false);
+  options.export_path =
+      internal::parseStringOption(compile_options, "export_path");
+  if (!options.export_path.has_value() &&
+      options.backend != BackendRuntime::TTNNFlatbuffer) {
+    ABORT_F("Compile option 'export_path' must be provided when backend is not "
+            "'TTNNFlatbuffer'");
+  }
 
   return options;
 }
@@ -45,7 +52,7 @@ namespace internal {
 
 std::optional<bool> parseBoolOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name) {
+    const std::string &option_name) {
   if (auto it = compile_options.find(option_name);
       it != compile_options.end()) {
     std::string option_value = it->second;
@@ -67,7 +74,7 @@ std::optional<bool> parseBoolOption(
 
 std::optional<BackendRuntime> parseBackendOption(
     const std::unordered_map<std::string, std::string> &compile_options,
-    std::string option_name) {
+    const std::string &option_name) {
   if (auto it = compile_options.find(option_name);
       it != compile_options.end()) {
     std::string option_value = it->second;
@@ -84,6 +91,14 @@ std::optional<BackendRuntime> parseBackendOption(
             option_name.c_str());
   }
   return BackendRuntime::TTNNFlatbuffer;
+}
+
+std::optional<std::string> parseStringOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::string &option_name) {
+  auto it = compile_options.find(option_name);
+
+  return it == compile_options.end() ? std::nullopt : std::optional(it->second);
 }
 
 } // namespace internal

@@ -7,39 +7,31 @@ from infra import RunMode
 from utils import (
     BringupStatus,
     Category,
-    Framework,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+    ExecutionPass,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 
-from third_party.tt_forge_models.bart.causal_lm.jax import ModelVariant
+from third_party.tt_forge_models.bart.causal_lm.jax import ModelLoader, ModelVariant
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import FlaxBartForCausalLMTester
 
-MODEL_VARIANT = ModelVariant.LARGE
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "bart",
-    "large",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.LARGE
 
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_VARIANT)
+    return FlaxBartForCausalLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(MODEL_VARIANT, RunMode.TRAINING)
+    return FlaxBartForCausalLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,9 +40,9 @@ def training_tester() -> FlaxBartForCausalLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
@@ -63,13 +55,20 @@ def test_flax_bart_large_inference(inference_tester: FlaxBartForCausalLMTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/5091"
+    )
+)
 def test_flax_bart_large_training(training_tester: FlaxBartForCausalLMTester):
     training_tester.test()

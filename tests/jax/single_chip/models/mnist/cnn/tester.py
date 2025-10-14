@@ -8,11 +8,12 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from infra.workloads.workload import Workload
 from jaxtyping import PyTree
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
     ModelLoader,
+    ModelVariant,
 )
 
 
@@ -21,12 +22,14 @@ class MNISTCNNTester(JaxModelTester):
 
     def __init__(
         self,
-        variant: ModelArchitecture,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
         self._model_loader = ModelLoader(variant)
-        super().__init__(comparison_config, run_mode)
+        self._is_dropout = variant == ModelVariant.CNN_DROPOUT
+
+        super().__init__(comparison_config, run_mode, has_batch_norm=True)
 
     # @override
     def _get_model(self) -> Model:
@@ -46,11 +49,7 @@ class MNISTCNNTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        kwargs = {"train": (False if self._run_mode == RunMode.INFERENCE else True)}
-        if self._run_mode == RunMode.TRAINING:
+        kwargs = super()._get_forward_method_kwargs()
+        if self._is_dropout and self._run_mode == RunMode.TRAINING:
             kwargs["rngs"] = {"dropout": jax.random.key(1)}
         return kwargs
-
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]

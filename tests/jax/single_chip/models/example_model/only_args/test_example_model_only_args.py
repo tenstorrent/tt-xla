@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 import pytest
@@ -40,6 +40,14 @@ class ExampleModelOnlyArgsTester(JaxModelTester):
         return "__call__"
 
     # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
+
+    # @override
     def _get_forward_method_args(self) -> Sequence[jax.Array]:
         # Use stored `self._model` to fetch model attributes.
         # Asserts are just sanity checks, no need to use them every time.
@@ -72,7 +80,7 @@ def inference_tester() -> ExampleModelOnlyArgsTester:
 
 @pytest.fixture
 def training_tester() -> ExampleModelOnlyArgsTester:
-    return ExampleModelOnlyArgsTester(RunMode.TRAINING)
+    return ExampleModelOnlyArgsTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -84,6 +92,5 @@ def test_example_model_inference(inference_tester: ExampleModelOnlyArgsTester):
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_example_model_training(training_tester: ExampleModelOnlyArgsTester):
     training_tester.test()

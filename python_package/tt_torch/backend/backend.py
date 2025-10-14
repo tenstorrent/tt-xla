@@ -8,7 +8,7 @@ import torch
 import torch_xla
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind
+from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import CUSTOM_DECOMPOSITION_TABLE
 from .passes import (
@@ -26,7 +26,7 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-) -> torch.fx.GraphModule:
+) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature]:
 
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
@@ -57,7 +57,7 @@ def torch_pass_pipeline(
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
-    return compiled_graph
+    return compiled_graph, program.graph_signature
 
 
 class XLAExecutor:
@@ -68,8 +68,11 @@ class XLAExecutor:
     2. Signalling to torch-xla to cut the graph at the model output.
     """
 
-    def __init__(self, module: torch.fx.GraphModule):
+    def __init__(
+        self, module: torch.fx.GraphModule, signature: torch.export.ExportGraphSignature
+    ):
         self.module = module
+        self.signature = signature
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
@@ -82,14 +85,30 @@ class XLAExecutor:
     def __call__(self, *args):
 
         output = self.module(*args)
-        # This tells torch-xla to cut the graph at only what is required to
-        # compute all tensors in the `output` list.
-        torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+
+        gm_has_functional_output_kind: bool = True
+
+        for el in self.signature.output_specs:
+            if el.kind is not OutputKind.USER_OUTPUT:
+                gm_has_functional_output_kind = False
+                break
+
+        if gm_has_functional_output_kind:
+            # This tells torch-xla to cut the graph at only what is required to
+            # compute all tensors in the `output` list.
+            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        else:
+            # Some graphs have side effects not included in graph output.
+            # In these cases we must call sync() to force materialization of non-user-output
+            # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
+            # This causes buffer mutations to show up as graph outputs in MLIR.
+            torch_xla.sync()
+
         return output
 
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
 
-    module = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module)
+    module, graph_signature = torch_pass_pipeline(gm, example_inputs)
+    return XLAExecutor(module, graph_signature)

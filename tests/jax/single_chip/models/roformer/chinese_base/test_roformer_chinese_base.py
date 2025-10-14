@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from tests.infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from third_party.tt_forge_models.config import Parallelism
@@ -47,13 +47,20 @@ def test_roformer_chinese_base_inference(inference_tester: RoFormerTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_roformer_chinese_base_training(training_tester: RoFormerTester):
     training_tester.test()

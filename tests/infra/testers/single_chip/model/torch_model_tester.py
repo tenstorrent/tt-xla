@@ -4,16 +4,19 @@
 
 import collections
 import os
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
+from infra.utilities.torch_multichip_utils import enable_spmd
 from infra.workloads import Workload
 
+from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.config import Parallelism
 
 from .model_tester import ModelTester, RunMode
 
@@ -36,9 +39,11 @@ class TorchModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        parallelism=None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._parallelism = parallelism
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
@@ -93,9 +98,12 @@ class TorchModelTester(ModelTester):
         has_shard_specs = self._workload.shard_spec_fn is not None
         is_multichip = self._workload.mesh and len(self._workload.mesh.device_ids) > 1
 
+        if self._parallelism == Parallelism.TENSOR_PARALLEL:
+            assert has_shard_specs, "Tensor parallel requires shard specs function"
+            assert is_multichip, "Tensor parallel requires multi-chip mesh"
+
         if has_shard_specs and is_multichip:
-            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-            xr.use_spmd()
+            enable_spmd()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
@@ -134,7 +142,7 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
-    def _test_training(self):
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
@@ -176,6 +184,9 @@ class TorchModelTester(ModelTester):
             name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
         }
 
-        # Compare forward results and gradients
-        self._compare(tt_res, cpu_res)
-        self._compare(tt_grads, cpu_grads)
+        forward_result = self._compare(tt_res, cpu_res)
+        backward_result = self._compare(tt_grads, cpu_grads)
+
+        # Only the first result is recorded in the report properties,
+        # and only want to report on the backward result
+        return backward_result, forward_result

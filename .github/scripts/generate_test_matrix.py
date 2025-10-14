@@ -29,6 +29,10 @@ def map_shared_runner(entry):
         runs_on = entry.get("runs-on")
         if runs_on in shared_runner_mapping:
             entry["runs-on"] = shared_runner_mapping[runs_on]
+        else:
+            raise TypeError(
+                "Expected runs-on attribute to be one of the predefined values"
+            )
     return entry
 
 

@@ -14,8 +14,10 @@ import numpy as np
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
+from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
@@ -116,6 +118,8 @@ class ModelTestConfig:
                 config.pcc.allclose.rtol = self.allclose_rtol
             if self.allclose_atol is not None:
                 config.pcc.allclose.atol = self.allclose_atol
+
+        config.assert_on_failure = False
         return config
 
     def _normalize_markers(self, markers_value):
@@ -250,12 +254,16 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         self.loader = loader
+        # Optional: store requested parallelism for reporting/consumers
+        self.parallelism = parallelism
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
+            parallelism=self.parallelism,
         )
 
     # --- TorchModelTester interface implementations ---
@@ -278,11 +286,7 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_mesh(self):
         num_devices = xr.global_runtime_device_count()
         mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = (
-            Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
-        )
-        return mesh
+        return get_mesh(mesh_shape, mesh_names)
 
 
 def setup_models_path(project_root):
@@ -372,8 +376,11 @@ def record_model_test_properties(
     *,
     model_info,
     test_metadata,
-    run_mode: RunMode = RunMode.INFERENCE,
+    run_mode: RunMode,
+    parallelism: Parallelism,
     test_passed: bool = False,
+    comparison_result=None,
+    comparison_config=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -413,15 +420,6 @@ def record_model_test_properties(
             bringup_status = BringupStatus.UNKNOWN
             reason = "Not specified"
 
-    # TODO (kmabee) - This is temporary workaround to populate parallelism tag for superset
-    # database correctly in very short term for newly added TP models on n300-llmbox.
-    # This will be replaced by something more robust in near future.
-    arch = request.config.getoption("--arch")
-    if arch is not None and "llmbox" in arch:
-        parallelism = Parallelism.TENSOR_PARALLEL
-    else:
-        parallelism = Parallelism.SINGLE_DEVICE
-
     tags = {
         "test_name": str(request.node.originalname),
         "specific_test_case": str(request.node.name),
@@ -432,6 +430,26 @@ def record_model_test_properties(
         "bringup_status": str(bringup_status),
         "parallelism": str(parallelism),
     }
+
+    # Add comparison result metrics if available
+    if comparison_result is not None:
+        tags.update(
+            {
+                "pcc": comparison_result.pcc,
+                "atol": comparison_result.atol,
+                "comparison_passed": comparison_result.passed,
+                "comparison_error_message": comparison_result.error_message,
+            }
+        )
+    if comparison_config is not None:
+        tags.update(
+            {
+                "pcc_threshold": comparison_config.pcc.required_pcc,
+                "atol_threshold": comparison_config.atol.required_atol,
+                "pcc_assertion_enabled": comparison_config.pcc.enabled,
+                "atol_assertion_enabled": comparison_config.atol.enabled,
+            }
+        )
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)

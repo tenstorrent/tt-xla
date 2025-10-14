@@ -31,33 +31,30 @@ class JaxComparator(Comparator):
     # @override
     @staticmethod
     @run_on_cpu(Framework.JAX)
-    def _compare_equal(device_output: PyTree, golden_output: PyTree) -> None:
+    def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         passed = tree_map(lambda x, y: (x == y).all(), device_output, golden_output)
-        assert jax.tree.all(passed), f"Equal comparison failed."
+        return jax.tree.all(passed)
 
     # @override
     @staticmethod
     @run_on_cpu(Framework.JAX)
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
-    ) -> None:
+    ) -> float:
         leaf_atols = tree_map(
             lambda x, y: jnp.max(jnp.abs(x - y)),
             device_output,
             golden_output,
         )
         atol = jax.tree.reduce(lambda x, y: jnp.maximum(x, y), leaf_atols)
-        assert atol <= atol_config.required_atol, (
-            f"Atol comparison failed. "
-            f"Calculated: atol={atol}. Required: atol={atol_config.required_atol}."
-        )
+        return float(atol)
 
     # @override
     @staticmethod
     @run_on_cpu(Framework.JAX)
     def _compare_pcc(
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
-    ) -> None:
+    ) -> float:
         def compute_pcc(x: jax.Array, y: jax.Array):
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - jnp.mean(x_flat), y_flat - jnp.mean(y_flat)
@@ -66,19 +63,17 @@ class JaxComparator(Comparator):
             return jnp.nan if denom == 0 else jnp.dot(vx, vy) / denom
 
         # If tensors are really close, pcc will be nan. Handle that before calculating
-        # pcc.
-        try:
-            JaxComparator._compare_allclose(
-                device_output, golden_output, pcc_config.allclose
-            )
-        except AssertionError:
-            leaf_pccs = jax.tree.map(compute_pcc, device_output, golden_output)
-            flat_pccs, _ = jax.tree_util.tree_flatten(leaf_pccs)
-            pcc = min(flat_pccs)
-            assert pcc >= pcc_config.required_pcc, (
-                f"PCC comparison failed. "
-                f"Calculated: pcc={pcc}. Required: pcc={pcc_config.required_pcc}."
-            )
+        # pcc by checking allclose first.
+        if JaxComparator._compare_allclose(
+            device_output, golden_output, pcc_config.allclose
+        ):
+            return 1.0  # Perfect correlation when values are essentially identical
+
+        # Calculate PCC for non-identical values
+        leaf_pccs = jax.tree.map(compute_pcc, device_output, golden_output)
+        flat_pccs, _ = jax.tree_util.tree_flatten(leaf_pccs)
+        pcc = min(flat_pccs)
+        return float(pcc)
 
     # @override
     @staticmethod
@@ -87,7 +82,7 @@ class JaxComparator(Comparator):
         device_output: PyTree,
         golden_output: PyTree,
         allclose_config: AllcloseConfig,
-    ) -> None:
+    ) -> bool:
         all_close = tree_map(
             lambda x, y: jnp.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
@@ -96,7 +91,4 @@ class JaxComparator(Comparator):
             golden_output,
         )
         passed = jax.tree.reduce(lambda x, y: x and y, all_close)
-        assert passed, (
-            f"Allclose comparison failed. "
-            f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
-        )
+        return bool(passed)

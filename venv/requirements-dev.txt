@@ -9,6 +9,7 @@ jaxtyping
 librosa
 lit
 loguru
+graphviz
 
 # monodepth2 model
 matplotlib

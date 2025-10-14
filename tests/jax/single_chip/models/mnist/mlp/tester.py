@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 from flax import linen as nn
@@ -10,8 +10,8 @@ from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
-    ModelArchitecture,
     ModelLoader,
+    ModelVariant,
 )
 
 MNIST_MLP_PARAMS_INIT_SEED = 42
@@ -34,7 +34,7 @@ class MNISTMLPTester(JaxModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_loader = ModelLoader(ModelArchitecture.MLP, hidden_sizes)
+        self._model_loader = ModelLoader(ModelVariant.MLP_CUSTOM, hidden_sizes)
         super().__init__(comparison_config, run_mode)
 
     # @override
@@ -52,3 +52,11 @@ class MNISTMLPTester(JaxModelTester):
     # @override
     def _get_input_parameters(self) -> PyTree:
         return self._model_loader.load_parameters()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []

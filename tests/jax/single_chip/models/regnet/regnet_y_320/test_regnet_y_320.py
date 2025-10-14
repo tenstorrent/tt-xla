@@ -3,30 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_runtime,
-)
+from infra import RunMode
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
-from third_party.tt_forge_models.regnet.image_classification.jax import ModelVariant
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.regnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
+)
 
 from ..tester import RegNetTester
 
 VARIANT_NAME = ModelVariant.REGNET_Y_320
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "regnet",
-    "y_320",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
-
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -47,9 +36,9 @@ def training_tester() -> RegNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
@@ -64,13 +53,22 @@ def test_regnet_y_320_inference(inference_tester: RegNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.large
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 15259926528 B DRAM buffer "
+        "across 12 banks, where each bank needs to store 1271660544 B "
+        "https://github.com/tenstorrent/tt-xla/issues/187"
+    )
+)
 def test_regnet_y_320_training(training_tester: RegNetTester):
     training_tester.test()

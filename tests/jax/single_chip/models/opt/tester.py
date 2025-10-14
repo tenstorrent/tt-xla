@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
@@ -29,3 +29,14 @@ class OPTTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {
+            "params": self._input_parameters,
+            **self._input_activations,
+        }
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []

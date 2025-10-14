@@ -7,10 +7,12 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 
@@ -37,7 +39,7 @@ def inference_tester() -> VisionTextDualEncoderTester:
 @pytest.fixture
 def training_tester() -> VisionTextDualEncoderTester:
     return VisionTextDualEncoderTester(
-        IMAGE_MODEL_PATH, TEXT_MODEL_PATH, RunMode.TRAINING
+        IMAGE_MODEL_PATH, TEXT_MODEL_PATH, run_mode=RunMode.TRAINING
     )
 
 
@@ -64,14 +66,21 @@ def test_vision_text_dual_encoder_inference(
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_vision_text_dual_encoder_training(
     training_tester: VisionTextDualEncoderTester,
 ):
