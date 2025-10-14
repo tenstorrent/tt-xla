@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import vllm
-
 import pytest
+import vllm
 
 
 @pytest.mark.push
@@ -15,7 +14,6 @@ def test_embed_qwen3():
         "model": "Qwen/Qwen3-Embedding-4B",
         "task": "embed",
         "dtype": "bfloat16",
-        "enforce_eager": True,
         "max_model_len": 64,
         "disable_sliding_window": True,
         "max_num_batched_tokens": 64,
