@@ -252,19 +252,14 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
@@ -422,10 +417,7 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-efficientnet_b0-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC comparison failed. Calculated: pcc=0.9899114966392517. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "efficientnet/pytorch-efficientnet_b1-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
