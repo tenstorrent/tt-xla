@@ -28,9 +28,8 @@ class MNISTCNNTester(JaxModelTester):
     ) -> None:
         self._model_loader = ModelLoader(variant)
         self._is_dropout = variant == ModelVariant.CNN_DROPOUT
-        self._has_batch_norm = True
 
-        super().__init__(comparison_config, run_mode)
+        super().__init__(comparison_config, run_mode, has_batch_norm=True)
 
     # @override
     def _get_model(self) -> Model:
@@ -50,7 +49,7 @@ class MNISTCNNTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        kwargs = {"train": (False if self._run_mode == RunMode.INFERENCE else True)}
+        kwargs = super()._get_forward_method_kwargs()
         if self._is_dropout and self._run_mode == RunMode.TRAINING:
             kwargs["rngs"] = {"dropout": jax.random.key(1)}
         return kwargs

@@ -107,12 +107,7 @@ class JaxModelTester(ModelTester):
             self._model, forward_method_name
         ), f"Model does not have {forward_method_name} method provided."
 
-        if self._has_batch_norm and self._run_mode == RunMode.TRAINING:
-            forward_pass_method = lambda params, inputs, **kwargs: self._model.apply(
-                params, inputs, mutable=["batch_stats"], **kwargs
-            )[0]
-        else:
-            forward_pass_method = getattr(self._model, forward_method_name)
+        forward_pass_method = getattr(self._model, forward_method_name)
 
         self._workload = Workload(
             framework=self._framework,
@@ -141,14 +136,18 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the HF
         FlaxPreTrainedModel, and empty dict for other type of models.
         """
+        kwargs = {}
         if isinstance(self._model, FlaxPreTrainedModel):
-            return {
+            kwargs = {
                 "params": self._input_parameters,
                 "train": False if self._run_mode == RunMode.INFERENCE else True,
                 **self._input_activations,
             }
-
-        return {"train": False if self._run_mode == RunMode.INFERENCE else True}
+        else:
+            kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
+        if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
+            kwargs["mutable"] = ("batch_stats",)
+        return kwargs
 
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         """
@@ -161,6 +160,8 @@ class JaxModelTester(ModelTester):
 
         By default no arguments are static.
         """
+        if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
+            return ["mutable", "train"]
         return ["train"]
 
     # @override
@@ -188,9 +189,18 @@ class JaxModelTester(ModelTester):
     def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
+            if self._has_batch_norm and self._run_mode == RunMode.TRAINING:
+                out = out[0]
             if isinstance(self._model, FlaxPreTrainedModel):
                 out = out.logits
             return out
+
+        return model
+
+    def _get_output_only(self, f):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            return out[0]
 
         return model
 

@@ -56,16 +56,14 @@ class SqueezeBertTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        return {
+        kwargs = {
             "variables": self._input_parameters,
             **self._input_activations,
             "train": False if self._run_mode == RunMode.INFERENCE else True,
-            "rngs": (
-                {"dropout": jax.random.key(1)}
-                if self._run_mode == RunMode.TRAINING
-                else None
-            ),
         }
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["rngs"] = {"dropout": jax.random.key(1)}
+        return kwargs
 
 
 # ----- Fixtures -----

@@ -59,5 +59,6 @@ def test_bloom_3b_inference(inference_tester: BloomTester):
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
     )
 )
+@pytest.mark.large
 def test_bloom_3b_training(training_tester: BloomTester):
     training_tester.test()
