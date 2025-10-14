@@ -16,7 +16,6 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-
 import vllm.envs as envs
 from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
@@ -49,16 +48,11 @@ from vllm.multimodal.utils import group_mm_kwargs_by_modality
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils import LayerBlockType, cdiv, is_pin_memory_available, prev_power_of_2
-from .attention import (
-    TPU_STR_DTYPE_TO_TORCH_DTYPE,
-    TTAttentionBackend,
-    TTMetadata,
-    get_page_size_bytes,
-)
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
     KVCacheConfig,
+    KVCacheGroupSpec,
     KVCacheSpec,
     SlidingWindowSpec,
 )
@@ -77,14 +71,19 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorOutput,
 )
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
-from .pooling_input_batch import CachedRequestState, InputBatch
-
 from vllm.v1.worker.utils import (
     MultiModalBudget,
     bind_kv_cache,
     sanity_check_mm_encoder_outputs,
 )
-from vllm.v1.kv_cache_interface import KVCacheGroupSpec
+
+from .attention import (
+    TPU_STR_DTYPE_TO_TORCH_DTYPE,
+    TTAttentionBackend,
+    TTMetadata,
+    get_page_size_bytes,
+)
+from .pooling_input_batch import CachedRequestState, InputBatch
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -883,15 +882,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
-            slot_mapping=None,
-            block_tables=None,
             context_lens=seq_lens,
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            num_kv_update_slices=None,
             attn_mask=None,
             is_causal=True,
-            num_slices_per_kv_cache_update_block=self._num_slices_per_kv_cache_update_block,
         )
 
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
