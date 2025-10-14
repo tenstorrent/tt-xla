@@ -1512,6 +1512,10 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433",
     },
+    "stable_diffusion_xl_unet/pytorch-base-single_device-full-inference": {
+        "required_pcc": 0.99,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
     "mlp_mixer/pytorch-mixer_github-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
