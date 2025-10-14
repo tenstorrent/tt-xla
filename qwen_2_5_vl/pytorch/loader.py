@@ -4,7 +4,8 @@
 """
 Qwen 2.5 VL model loader implementation for vision-language tasks.
 """
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+import torch
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AwqConfig
 from typing import Optional
 from qwen_vl_utils import process_vision_info
 
@@ -25,6 +26,9 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 VL model variants for vision-language tasks."""
 
     QWEN_2_5_VL_3B_INSTRUCT = "3b_instruct"
+    QWEN_2_5_VL_7B_INSTRUCT = "7b_instruct"
+    QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3b_instruct_awq"
+    QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7b_instruct_awq"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +38,15 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_2_5_VL_3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-3B-Instruct",
+        ),
+        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+        ),
+        ModelVariant.QWEN_2_5_VL_3B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-VL-3B-Instruct-AWQ",
+        ),
+        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
         ),
     }
 
@@ -122,9 +135,20 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"low_cpu_mem_usage": True, "use_cache": False}
 
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name in [
+            "Qwen/Qwen2.5-VL-3B-Instruct-AWQ",
+            "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+        ]:
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
+
         # Load the model with dtype override if specified
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        else:
+            model_kwargs["torch_dtype"] = torch.float32
 
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
