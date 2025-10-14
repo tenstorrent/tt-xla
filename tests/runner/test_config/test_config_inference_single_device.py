@@ -982,10 +982,7 @@ test_config = {
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99",
     },
     "yolov8/pytorch-yolov8n-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9296823098857484. Required: pcc=0.99",
     },
     "stereo/pytorch-small-single_device-full-inference": {
         "assert_pcc": False,
