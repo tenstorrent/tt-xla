@@ -283,16 +283,24 @@ class DynamicTorchModelTester(TorchModelTester):
             inputs = self.loader.load_inputs()
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
+
+            def batch_tensor(tensor, num_devices):
+                if isinstance(tensor, torch.Tensor):
+                    if tensor.dim() == 0:
+                        return tensor.repeat(num_devices)
+                    else:
+                        if tensor.dim() == 1:
+                            tensor = tensor.unsqueeze(0)
+                        return tensor.repeat_interleave(num_devices, dim=0)
+                return tensor
+
             num_devices = xr.global_runtime_device_count()
             if isinstance(inputs, collections.abc.Mapping):
-                inputs = {
-                    k: v.repeat_interleave(num_devices, dim=0)
-                    for k, v in inputs.items()
-                }
+                inputs = {k: batch_tensor(v, num_devices) for k, v in inputs.items()}
             elif isinstance(inputs, collections.abc.Sequence):
-                inputs = [inp.repeat_interleave(num_devices, dim=0) for inp in inputs]
+                inputs = [batch_tensor(inp, num_devices) for inp in inputs]
             else:
-                inputs = inputs.repeat_interleave(num_devices, dim=0)
+                inputs = batch_tensor(inputs, num_devices)
         return inputs
 
     def _get_shard_specs_function(self):
