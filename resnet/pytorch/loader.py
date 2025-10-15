@@ -16,6 +16,7 @@ from timm.data.transforms_factory import create_transform
 
 from transformers import ResNetForImageClassification, AutoImageProcessor
 from ...tools.utils import get_file, print_compiled_model_results
+from torchvision import transforms
 
 
 from ...config import (
@@ -36,6 +37,9 @@ class ResNetConfig(ModelConfig):
     """Configuration specific to ResNet models"""
 
     source: ModelSource
+    high_res_size: tuple = (
+        None  # None means use default size, otherwise (width, height)
+    )
 
 
 class ModelVariant(StrEnum):
@@ -43,14 +47,17 @@ class ModelVariant(StrEnum):
 
     # HuggingFace variants
     RESNET_50_HF = "resnet_50_hf"
+    RESNET_50_HF_HIGH_RES = "resnet_50_hf_high_res"
 
     # TIMM variants
     RESNET_50_TIMM = "resnet50_timm"
+    RESNET_50_TIMM_HIGH_RES = "resnet50_timm_high_res"
 
     # Torchvision variants
     RESNET_18 = "resnet18"
     RESNET_34 = "resnet34"
     RESNET_50 = "resnet50"
+    RESNET_50_HIGH_RES = "resnet50_high_res"
     RESNET_101 = "resnet101"
     RESNET_152 = "resnet152"
 
@@ -65,10 +72,20 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="microsoft/resnet-50",
             source=ModelSource.HUGGING_FACE,
         ),
+        ModelVariant.RESNET_50_HF_HIGH_RES: ResNetConfig(
+            pretrained_model_name="microsoft/resnet-50",
+            source=ModelSource.HUGGING_FACE,
+            high_res_size=(1280, 800),
+        ),
         # TIMM variants
         ModelVariant.RESNET_50_TIMM: ResNetConfig(
             pretrained_model_name="resnet50",
             source=ModelSource.TIMM,
+        ),
+        ModelVariant.RESNET_50_TIMM_HIGH_RES: ResNetConfig(
+            pretrained_model_name="resnet50",
+            source=ModelSource.TIMM,
+            high_res_size=(1280, 800),
         ),
         # Torchvision variants
         ModelVariant.RESNET_18: ResNetConfig(
@@ -82,6 +99,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.RESNET_50: ResNetConfig(
             pretrained_model_name="resnet50",
             source=ModelSource.TORCHVISION,
+        ),
+        ModelVariant.RESNET_50_HIGH_RES: ResNetConfig(
+            pretrained_model_name="resnet50",
+            source=ModelSource.TORCHVISION,
+            high_res_size=(1280, 800),
         ),
         ModelVariant.RESNET_101: ResNetConfig(
             pretrained_model_name="resnet101",
@@ -124,7 +146,9 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        if variant in [ModelVariant.RESNET_50_HF]:
+        if variant in [
+            ModelVariant.RESNET_50_HF_HIGH_RES,
+        ]:
             group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
@@ -195,10 +219,15 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
+        high_res_size = self._variant_config.high_res_size
 
         # Get the Image
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
         image = Image.open(image_file).convert("RGB")
+
+        # Resize to high res if specified
+        if high_res_size is not None:
+            image = image.resize(high_res_size)  # width, height
 
         if source == ModelSource.HUGGING_FACE:
 
@@ -208,7 +237,9 @@ class ModelLoader(ForgeModel):
 
             # Preprocess image using HuggingFace image processor
             inputs = self.image_processor(
-                images=image, return_tensors="pt"
+                images=image,
+                return_tensors="pt",
+                do_resize=False if high_res_size is not None else True,
             ).pixel_values
 
         elif source == ModelSource.TIMM:
@@ -221,6 +252,13 @@ class ModelLoader(ForgeModel):
 
             # Preprocess image using model's data config
             data_config = resolve_data_config({}, model=model_for_config)
+            if high_res_size is not None:
+                data_config["crop_pct"] = 1.0  # avoid center crop
+                data_config["input_size"] = (
+                    3,
+                    high_res_size[1],
+                    high_res_size[0],
+                )  # maintain high res tensor shape
             timm_transforms = create_transform(**data_config)
             inputs = timm_transforms(image).unsqueeze(0)
 
@@ -232,6 +270,21 @@ class ModelLoader(ForgeModel):
             # Get the weights and use their transforms
             weights = getattr(models, weight_class_name).DEFAULT
             preprocess = weights.transforms()
+
+            if high_res_size is not None:
+                # Skip resize, just normalize
+                preprocess = transforms.Compose(
+                    [
+                        transforms.ToTensor(),
+                        transforms.Normalize(
+                            mean=weights.transforms().mean, std=weights.transforms().std
+                        ),
+                    ]
+                )
+            else:
+                # Use default weights transforms
+                preprocess = weights.transforms()
+
             inputs = preprocess(image).unsqueeze(0)
 
         # Replicate tensors for batch size
