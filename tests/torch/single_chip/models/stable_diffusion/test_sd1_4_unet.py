@@ -2,16 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
-from infra.comparators import ComparisonConfig, TorchComparator, PccConfig
-
-import torch
-import torch_xla.runtime as xr
-import torch_xla
-
 import os
 
+import pytest
+import torch
+import torch_xla
+import torch_xla.runtime as xr
 from diffusers import StableDiffusionPipeline, UNet2DConditionModel
+from infra.comparators import ComparisonConfig, PccConfig, TorchComparator
 
 
 @pytest.mark.parametrize("seq_len", [128])
@@ -123,13 +121,14 @@ def test_sd1_4_unet(seq_len):
 
     # Run on CPU for golden
     print("Running on CPU for golden...")
-    cpu_output = unet_module(**inputs)
+    with torch.no_grad():
+        cpu_output = unet_module.forward(**inputs)
 
     print("cpu_output received!: ", cpu_output)
 
     # Compile on TT device
     print("Compiling...")
-    compiled_unet = torch.compile(unet_module, backend="tt")
+    compiled_unet = torch.compile(unet_module.forward, backend="tt")
 
     # Set device type
     print("Setting device type to TT...")
@@ -145,7 +144,8 @@ def test_sd1_4_unet(seq_len):
 
     # Run on TT device
     print("Running on TT device...")
-    tt_output = compiled_unet(**inputs_tt)
+    with torch.no_grad():
+        tt_output = compiled_unet(**inputs_tt)
 
     # Move outputs to CPU
     print("Moving outputs to CPU...")
