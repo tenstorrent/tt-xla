@@ -196,12 +196,3 @@ def test_llama_step(run_mode):
     )
 
     comparator.compare(generated_output_logits, cpu_output_logits)
-
-
-
-    # Release mesh device at the end in a wacko way
-    import ctypes
-    print("\nReleasing mesh device...", flush=True)
-    lib = ctypes.CDLL('python_package/pjrt_plugin_tt/pjrt_plugin_tt.so')
-    lib.TriggerMeshRelease()
-    print("Mesh release complete", flush=True)
