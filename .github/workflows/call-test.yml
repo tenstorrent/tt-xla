@@ -213,6 +213,7 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
+        # Don't fork for multichip torch tests (renamed to torch_multichip)
         for n in run_torch run_large_jax_models run_forge_models_torch; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
