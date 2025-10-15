@@ -2563,4 +2563,24 @@ test_config = {
         "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
+    "openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }
