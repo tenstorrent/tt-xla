@@ -252,9 +252,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        assert (
-            scheduler_config.max_num_seqs == 1
-        ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=32,
