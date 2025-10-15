@@ -22,14 +22,14 @@ from tests.infra.comparators.comparison_config import (
     ComparisonConfig,
     PccConfig,
 )
+from third_party.tt_forge_models.bge_m3.pytorch.loader import (
+    ModelLoader as BgeModelLoader,
+)
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as QwenModelLoader,
-)
-from third_party.tt_forge_models.bge_m3.pytorch.loader import (
-    ModelLoader as BgeModelLoader,
 )
 
 # To see all available models and variants, run:
@@ -305,31 +305,12 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
-    )
 
-    device = torch_xla.device()
-    compiled_fn = torch.compile(attention.to(device), backend="tt")
-    position_embeddings = (
-        position_embeddings[0].to(device),
-        position_embeddings[1].to(device),
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
     )
-    output = compiled_fn(
-        hidden_states.to(device),
-        position_embeddings,
-        attention_mask.to(device),
-        past_key_states,
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-
-    comparator.compare(output[0].cpu(), golden[0])
-    comparator.compare(output[1].cpu(), golden[1])
 
 
 @pytest.mark.nightly
@@ -370,33 +351,11 @@ def test_qwen3_attention_decode(variant, variant_config):
     cache_position = torch.tensor([0])
     past_key_states = static_cache
 
-    golden = attention(
-        hidden_states, position_embeddings, attention_mask, past_key_states
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    with torch.no_grad():
-        past_key_states.key_cache = [k.to(device) for k in static_cache.key_cache]
-        past_key_states.value_cache = [v.to(device) for v in static_cache.value_cache]
-        compiled_fn = torch.compile(attention.to(device), backend="tt")
-        position_embeddings = (
-            position_embeddings[0].to(device),
-            position_embeddings[1].to(device),
-        )
-        output = compiled_fn(
-            hidden_states.to(device),
-            position_embeddings,
-            attention_mask.to(device),
-            past_key_states,
-        )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output[0].cpu(), golden[0])
-    comparator.compare(output[1].cpu(), golden[1])
 
 
 @pytest.mark.nightly
@@ -430,18 +389,7 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     )
     input_shape = (batch_size, seq_len)
 
-    golden = concat_heads(attn_output, input_shape)
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(concat_heads, backend="tt")
-    output = compiled_fn(attn_output.to(device), input_shape)
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output.cpu(), golden)
+    run_graph_test(concat_heads, [attn_output, input_shape], framework=Framework.TORCH)
 
 
 @pytest.mark.nightly
@@ -489,30 +437,11 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     q_norm = attention.q_norm
     k_norm = attention.k_norm
 
-    golden = create_heads(
-        hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
+    run_graph_test(
+        create_heads,
+        [hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(create_heads, backend="tt")
-
-    output = compiled_fn(
-        hidden_states.to(device),
-        hidden_shape,
-        q_proj.to(device),
-        k_proj.to(device),
-        v_proj.to(device),
-        q_norm.to(device),
-        k_norm.to(device),
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
-        comparator.compare(out_tensor.cpu(), golden_tensor)
 
 
 @pytest.mark.nightly
@@ -582,40 +511,19 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
     dropout = 0.0
     scaling = attention.scaling
 
-    golden = sdpa(
-        attention,
-        query_states,
-        key_states,
-        value_states,
-        attention_mask,
-        dropout,
-        scaling,
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(sdpa, backend="tt")
-
-    output = compiled_fn(
-        attention.to(device),
-        query_states.to(device),
-        key_states.to(device),
-        value_states.to(device),
-        attention_mask.to(device),
-        dropout,
-        scaling,
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-
-    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
-        if (
-            out_tensor is not None and golden_tensor is not None
-        ):  # attn_weights might be None
-            comparator.compare(out_tensor.cpu(), golden_tensor)
 
 
 """BGE-M3 attention (XLM-RoBERTa attention) tests"""
@@ -641,26 +549,12 @@ def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
     attention_mask = torch.zeros((batch_size, 1, 1, seq_len), dtype=torch.float32)
 
     past_key_value = None
-    golden = attention(
-        hidden_states,
-        attention_mask=attention_mask,
-        past_key_value=past_key_value,
-    )
 
-    device = torch_xla.device()
-    compiled_fn = torch.compile(attention.to(device), backend="tt")
-    output = compiled_fn(
-        hidden_states.to(device),
-        attention_mask=attention_mask.to(device),
-        past_key_value=past_key_value,
+    run_graph_test(
+        attention,
+        [hidden_states, attention_mask, past_key_value],
+        framework=Framework.TORCH,
     )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    comparator.compare(output[0].cpu(), golden[0])
 
 
 @pytest.mark.nightly
@@ -690,18 +584,9 @@ def test_bge_m3_concat_heads(seq_len, variant, variant_config):
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.float32
     )
 
-    golden = concat_heads(context_layer, all_head_size)
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(concat_heads, backend="tt")
-    output = compiled_fn(context_layer.to(device), all_head_size)
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
+    run_graph_test(
+        concat_heads, [context_layer, all_head_size], framework=Framework.TORCH
     )
-    comparator.compare(output.cpu(), golden)
 
 
 @pytest.mark.nightly
@@ -748,26 +633,8 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
     key_layer = attention.key
     value_layer = attention.value
 
-    golden = create_heads(
-        hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim
+    run_graph_test(
+        create_heads,
+        [hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim],
+        framework=Framework.TORCH,
     )
-
-    device = torch_xla.device()
-    compiled_fn = torch.compile(create_heads, backend="tt")
-
-    output = compiled_fn(
-        hidden_states.to(device),
-        query_layer.to(device),
-        key_layer.to(device),
-        value_layer.to(device),
-        num_heads,
-        head_dim,
-    )
-
-    comparator = TorchComparator(
-        ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.99),
-        )
-    )
-    for i, (out_tensor, golden_tensor) in enumerate(zip(output, golden)):
-        comparator.compare(out_tensor.cpu(), golden_tensor)
