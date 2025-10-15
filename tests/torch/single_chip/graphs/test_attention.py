@@ -10,7 +10,6 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
-from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -224,7 +223,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -233,7 +232,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)

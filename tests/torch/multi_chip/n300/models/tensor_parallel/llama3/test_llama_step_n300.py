@@ -17,7 +17,10 @@ from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
+from transformers.integrations.executorch import sdpa_mask_without_vmap
+from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
@@ -64,6 +67,11 @@ def test_llama_step(run_mode):
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
     model.config.num_hidden_layers = model_hidden_layers
+    ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa_without_vmap", sdpa_mask_without_vmap)
+    ALL_ATTENTION_FUNCTIONS.register(
+        "sdpa_without_vmap", ALL_ATTENTION_FUNCTIONS["sdpa"]
+    )
+    model.config._attn_implementation = "sdpa_without_vmap"
     model = model.eval()
 
     # Instantiate tokenizer.
@@ -111,8 +119,9 @@ def test_llama_step(run_mode):
         print("Cpu tok: ", cpu_tok)
 
     # Move model and inputs to device.
-    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
-    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+    for layer in static_cache.layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
 
@@ -122,14 +131,9 @@ def test_llama_step(run_mode):
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
-        )
-    ):
-        xs.mark_sharding(key, mesh, (None, "model", None, None))
-        xs.mark_sharding(value, mesh, (None, "model", None, None))
+    for layer in input_args["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Shard model internals
     for layer in model.model.layers:
@@ -166,14 +170,9 @@ def test_llama_step(run_mode):
         input_args["cache_position"] = host_cache_pos.to(device)
 
         # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
-        for i, (key, value) in enumerate(
-            zip(
-                input_args["past_key_values"].key_cache,
-                input_args["past_key_values"].value_cache,
-            )
-        ):
-            xs.mark_sharding(key, mesh, (None, "model", None, None))
-            xs.mark_sharding(value, mesh, (None, "model", None, None))
+        for layer in input_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Compare outputs for validation
     comparator = TorchComparator(
