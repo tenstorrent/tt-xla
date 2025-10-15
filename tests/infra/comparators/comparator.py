@@ -58,8 +58,6 @@ class Comparator(ABC):
             error_message=None,
         )
 
-        # Always execute comparisons even if disabled in config to gather and report metrics
-        #   Assertion only happens later in _assert_on_results if enabled in config.
         _comparison_result.equal = self._compare_equal(device_output, golden_output)
         _comparison_result.atol = self._compare_atol(
             device_output, golden_output, self._comparison_config.atol
