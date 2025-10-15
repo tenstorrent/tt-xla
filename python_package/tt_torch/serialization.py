@@ -8,6 +8,7 @@ Serialization tools specific to PyTorch.
 
 import io
 import os
+import shutil
 
 from ttxla_tools import parse_executable
 

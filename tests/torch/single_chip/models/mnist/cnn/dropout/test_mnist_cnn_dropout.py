@@ -67,8 +67,11 @@ def training_tester() -> MNISTCNNTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_torch_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester):
+def test_torch_mnist_cnn_dropout_inference(inference_tester: MNISTCNNTester, request):
     inference_tester.test()
+
+    if request.config.getoption("--serialize", default=False):
+        inference_tester.serialize_compilation_artifacts(request.node.name)
 
 
 @pytest.mark.push

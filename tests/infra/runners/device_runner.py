@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
-from typing import Optional, Sequence
+from typing import Optional
 
 from infra.connectors import DeviceConnector, DeviceType
 from infra.utilities import Device, Tensor
@@ -64,3 +64,25 @@ class DeviceRunner(ABC):
     def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
         """Executes workload on device using framework-specific execution context."""
         raise NotImplementedError("Subclasses must implement this method")
+
+    def serialize_on_device(
+        self,
+        workload: Workload,
+        output_prefix: str,
+        device_type: DeviceType = DeviceType.TT,
+        device_num: int = 0,
+        compiler_options=None,
+    ) -> None:
+        """
+        Serializes a workload after putting it on the specified device.
+
+        Args:
+            workload: The workload to serialize
+            output_prefix: Base path and filename prefix for output files
+            device_type: The type of device to use (default: TT)
+            device_num: The device number (default: 0)
+            compiler_options: Optional JAX compiler options dict
+        """
+        device = self._device_connector.connect_device(device_type, device_num)
+        device_workload = self._put_on_device(workload, device=device)
+        device_workload.serialize(output_prefix, compiler_options=compiler_options)
