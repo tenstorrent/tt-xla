@@ -64,6 +64,9 @@ struct CompileOptions {
   // that are repeated multiple times.
   bool enable_trace = false;
 
+  // Enables consteval graph generation.
+  bool enable_const_eval = true;
+
   // Path that will contain the codegen solution and saved inputs.
   std::optional<std::string> export_path = std::nullopt;
 
