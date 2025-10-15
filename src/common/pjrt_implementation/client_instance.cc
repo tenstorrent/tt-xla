@@ -82,13 +82,15 @@ void ClientInstance::ReleaseMeshes() {
   DLOG_F(LOG_DEBUG, "ClientInstance::ReleaseMeshes");
 
   if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in ReleaseMeshes()");
+    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in "
+                      "ReleaseMeshes()");
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
     m_optimizer_submesh.reset();
   }
 
   if (m_parent_mesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing parent mesh in ReleaseMeshes()");
+    DLOG_F(LOG_DEBUG,
+           ">>> MESH INSTRUMENTATION: Closing parent mesh in ReleaseMeshes()");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
   }
@@ -154,7 +156,9 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Initial mesh creation in populateDevices()");
+  DLOG_F(
+      LOG_DEBUG,
+      ">>> MESH INSTRUMENTATION: Initial mesh creation in populateDevices()");
   m_parent_mesh =
       getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
 
@@ -373,7 +377,10 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
   if (!m_parent_mesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Opening parent mesh with shape %s in getOrCreateMeshDevice()", utils::to_string(target_mesh_shape).c_str());
+    DLOG_F(LOG_DEBUG,
+           ">>> MESH INSTRUMENTATION: Opening parent mesh with shape %s in "
+           "getOrCreateMeshDevice()",
+           utils::to_string(target_mesh_shape).c_str());
     m_parent_mesh = openMeshDevice(target_mesh_shape);
     return *m_parent_mesh;
   }
@@ -406,13 +413,21 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
   if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in getOrCreateMeshDevice() (reshaping mesh)");
+    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in "
+                      "getOrCreateMeshDevice() (reshaping mesh)");
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
     m_optimizer_submesh.reset();
   }
-  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing parent mesh in getOrCreateMeshDevice() (reshaping from %s to %s)", utils::to_string(parent_mesh_shape).c_str(), utils::to_string(target_mesh_shape).c_str());
+  DLOG_F(LOG_DEBUG,
+         ">>> MESH INSTRUMENTATION: Closing parent mesh in "
+         "getOrCreateMeshDevice() (reshaping from %s to %s)",
+         utils::to_string(parent_mesh_shape).c_str(),
+         utils::to_string(target_mesh_shape).c_str());
   tt::runtime::closeMeshDevice(*m_parent_mesh);
-  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Opening parent mesh with shape %s in getOrCreateMeshDevice() (after reshape)", utils::to_string(target_mesh_shape).c_str());
+  DLOG_F(LOG_DEBUG,
+         ">>> MESH INSTRUMENTATION: Opening parent mesh with shape %s in "
+         "getOrCreateMeshDevice() (after reshape)",
+         utils::to_string(target_mesh_shape).c_str());
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
@@ -420,7 +435,9 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 
 tt::runtime::Device
 ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
-  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: openMeshDevice() called with shape %s", utils::to_string(mesh_shape).c_str());
+  DLOG_F(LOG_DEBUG,
+         ">>> MESH INSTRUMENTATION: openMeshDevice() called with shape %s",
+         utils::to_string(mesh_shape).c_str());
   size_t num_devices =
       static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
                                           1, std::multiplies<std::uint32_t>{}));
@@ -486,7 +503,10 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
 
   DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
                     "creating optimizer submesh");
-  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Creating optimizer submesh with shape %s in getOrCreateOptimizerSubmesh()", utils::to_string(target_mesh_shape).c_str());
+  DLOG_F(LOG_DEBUG,
+         ">>> MESH INSTRUMENTATION: Creating optimizer submesh with shape %s "
+         "in getOrCreateOptimizerSubmesh()",
+         utils::to_string(target_mesh_shape).c_str());
   m_optimizer_submesh =
       tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
 
