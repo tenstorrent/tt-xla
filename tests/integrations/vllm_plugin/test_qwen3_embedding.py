@@ -9,6 +9,7 @@ import vllm
 def test_embed_qwen3():
     prompts = [
         "Hello, my name is",
+        "The future of AI is",
     ]
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
