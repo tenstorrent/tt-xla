@@ -326,13 +326,33 @@ class InputBatch:
             self.request_lora_mapping[req_index] = 0
 
     def remove_request(self, req_id: str) -> Optional[int]:
-        """This method must always be followed by a call to condense()."""
+        """This method must always be followed by a call to condense().
+
+        Args:
+          req_id: request to remove
+
+        Returns:
+          Removed request index, or `None` if `req_id` not recognized
+        """
 
         req_index = self.req_id_to_index.pop(req_id, None)
         if req_index is None:
             return None
         self._req_ids[req_index] = None
         self.req_output_token_ids[req_index] = None
+
+        # LoRA
+        lora_id = self.request_lora_mapping[req_index]
+        if lora_id != 0:
+            self.lora_id_to_request_ids[lora_id].discard(req_id)
+            if len(self.lora_id_to_request_ids[lora_id]) == 0:
+                self.lora_id_to_request_ids.pop(lora_id)
+                self.lora_id_to_lora_request.pop(lora_id)
+            self.request_lora_mapping[req_index] = 0
+
+        if self.is_pooling_model:
+            self.pooling_params.pop(req_id, None)
+            return req_index
 
         self.greedy_reqs.discard(req_id)
         self.random_reqs.discard(req_id)
@@ -347,15 +367,6 @@ class InputBatch:
         self.num_logprobs.pop(req_id, None)
         self.num_prompt_logprobs.pop(req_id, None)
         self.in_progress_prompt_logprobs_cpu.pop(req_id, None)
-
-        # LoRA
-        lora_id = self.request_lora_mapping[req_index]
-        if lora_id != 0:
-            self.lora_id_to_request_ids[lora_id].discard(req_id)
-            if len(self.lora_id_to_request_ids[lora_id]) == 0:
-                self.lora_id_to_request_ids.pop(lora_id)
-                self.lora_id_to_lora_request.pop(lora_id)
-            self.request_lora_mapping[req_index] = 0
 
         self.logit_bias[req_index] = None
         self.has_allowed_token_ids.discard(req_id)
