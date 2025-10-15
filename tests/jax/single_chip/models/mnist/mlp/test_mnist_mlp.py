@@ -102,7 +102,7 @@ def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):
     tester.test()
 
     if request.config.getoption("--serialize", default=False):
-        inference_tester.serialize_compilation_artifacts(request.node.name)
+        tester.serialize_compilation_artifacts(request.node.name)
 
 
 @pytest.mark.push
