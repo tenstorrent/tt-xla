@@ -74,13 +74,8 @@ class TorchModelTester(ModelTester):
         assert isinstance(self._model, torch.nn.Module)
         if isinstance(self._model, PreTrainedModel):
             if self._model.config._attn_implementation == "sdpa":
-                ALL_MASK_ATTENTION_FUNCTIONS.register(
-                    "sdpa_without_vmap", sdpa_mask_without_vmap
-                )
-                ALL_ATTENTION_FUNCTIONS.register(
-                    "sdpa_without_vmap", ALL_ATTENTION_FUNCTIONS["sdpa"]
-                )
-                self._model.config._attn_implementation = "sdpa_without_vmap"
+                ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
+                self._model.config._attn_implementation = "sdpa"
         self._model.eval()
 
     # @override

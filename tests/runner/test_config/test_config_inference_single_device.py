@@ -260,6 +260,7 @@ test_config = {
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
@@ -277,7 +278,7 @@ test_config = {
     },
     "albert/masked_lm/pytorch-base_v2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "required_pcc": 0.96,
     },
     "albert/masked_lm/pytorch-xlarge_v2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,

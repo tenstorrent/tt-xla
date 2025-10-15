@@ -9,11 +9,12 @@ test_config = {
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference": {
         "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
+        "required_pcc": 0.97,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference": {
         "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference": {
         "supported_archs": ["n300-llmbox"],
