@@ -88,6 +88,9 @@ jobs:
         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
         echo "echo env var"
         echo $DOCKER_CACHE_ROOT
+        echo "${{ matrix.build.shared-runners }}"
+        echo "whole"
+        echo "${{ matrix.build }}"
 
     - name: Log disk space
       run: df -h
