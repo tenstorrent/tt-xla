@@ -4,7 +4,12 @@
 
 import jax
 import pytest
-from infra import ComparisonConfig, random_tensor, run_op_test
+from infra import (
+    ComparisonConfig,
+    random_tensor,
+    run_op_test,
+    run_op_test_with_random_inputs,
+)
 from utils import Category
 
 
@@ -139,7 +144,9 @@ def test_conv2d(
     # NOTE Some resnet convolutions seem to require bfloat16, ttnn throws in runtime
     # otherwise. On another note, MaxPool2d is also only supported for bfloat16 in ttnn,
     # so we have to run conv in bfloat16 for the time being.
-    img = random_tensor(img_shape, dtype="bfloat16")
-    kernel = random_tensor(kernel_shape, dtype="bfloat16")
-
-    run_op_test(conv2d, [img, kernel], comparison_config)
+    run_op_test_with_random_inputs(
+        conv2d,
+        [img_shape, kernel_shape],
+        comparison_config=comparison_config,
+        dtype="bfloat16",
+    )

@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 
 import jax
 import torch
+import torch_xla
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework, Tensor, random_tensor
 from infra.workloads import Workload
@@ -62,6 +63,12 @@ class OpTester(BaseTester):
 
         def compile_torch_workload(workload: Workload) -> None:
             assert workload.executable is not None
+            # Set custom compile options if provided.
+            # Use explicit API for passing compiler options.
+            if self._compiler_config is not None:
+                torch_xla.set_custom_compile_options(
+                    self._compiler_config.to_torch_compile_options()
+                )
             workload.compiled_executable = torch.compile(
                 workload.executable, backend="tt"
             )
