@@ -19,6 +19,10 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
 from .model_tester import ModelTester, RunMode
+from transformers import PreTrainedModel
+from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS
+from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+from transformers.integrations.executorch import sdpa_mask_without_vmap
 
 
 class TorchModelTester(ModelTester):
@@ -68,6 +72,11 @@ class TorchModelTester(ModelTester):
     # @override
     def _configure_model_for_inference(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
+        if isinstance(self._model, PreTrainedModel):
+            if self._model.config._attn_implementation == "sdpa":
+                ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa_without_vmap", sdpa_mask_without_vmap)
+                ALL_ATTENTION_FUNCTIONS.register("sdpa_without_vmap", ALL_ATTENTION_FUNCTIONS["sdpa"])
+                self._model.config._attn_implementation = "sdpa_without_vmap"
         self._model.eval()
 
     # @override
