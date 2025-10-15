@@ -86,6 +86,8 @@ jobs:
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+        echo "echo env var"
+        echo $DOCKER_CACHE_ROOT
 
     - name: Log disk space
       run: df -h
