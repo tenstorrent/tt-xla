@@ -839,6 +839,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
+  DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Requesting optimizer submesh in convertFromTTIRToTTNN()");
   tt::runtime::Device submesh_for_optim =
       client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
   options.devicePtr =
