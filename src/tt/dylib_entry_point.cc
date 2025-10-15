@@ -9,6 +9,7 @@
 
 #include "common/dylib_platform.h"
 #include "common/pjrt_implementation/api_bindings.h"
+#include "common/pjrt_implementation/client_instance.h"
 #include "tt/client.h"
 
 // Provides the shared library exports.
