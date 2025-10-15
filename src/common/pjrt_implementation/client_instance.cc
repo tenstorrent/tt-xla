@@ -58,15 +58,7 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
-  if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in ~ClientInstance()");
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-  }
-
-  if (m_parent_mesh.has_value()) {
-    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing parent mesh in ~ClientInstance()");
-    tt::runtime::closeMeshDevice(*m_parent_mesh);
-  }
+  ReleaseMeshes();
 
   std::remove(m_cached_system_descriptor_path.data());
 }
@@ -86,6 +78,21 @@ PJRT_Error *ClientInstance::Initialize() {
   return nullptr;
 }
 
+void ClientInstance::ReleaseMeshes() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::ReleaseMeshes");
+
+  if (m_optimizer_submesh.has_value()) {
+    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing optimizer submesh in ReleaseMeshes()");
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
+  }
+
+  if (m_parent_mesh.has_value()) {
+    DLOG_F(LOG_DEBUG, ">>> MESH INSTRUMENTATION: Closing parent mesh in ReleaseMeshes()");
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+    m_parent_mesh.reset();
+  }
+}
 
 void ClientInstance::bindApi(PJRT_Api *api) {
   // TODO(mrakita): Add `PJRT_Client_Create` here too, currently it is

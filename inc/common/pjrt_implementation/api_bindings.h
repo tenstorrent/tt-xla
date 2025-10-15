@@ -21,6 +21,12 @@
 
 namespace tt::pjrt {
 
+// Forward declaration
+class ClientInstance;
+
+// Global client registry for external access (e.g., from Python via ctypes)
+extern ClientInstance* g_last_created_client;
+
 // Top-level API bindings.
 void BindMonomorphicApi(PJRT_Api *api);
 
@@ -52,6 +58,9 @@ void BindApi(PJRT_Api *api) {
     auto *error = client->Initialize();
     if (error)
       return error;
+
+    // Register client globally for external access
+    g_last_created_client = client.get();
 
     // Successful return.
     args->client = reinterpret_cast<PJRT_Client *>(client.release());
