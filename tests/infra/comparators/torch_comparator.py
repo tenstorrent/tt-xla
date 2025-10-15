@@ -39,7 +39,11 @@ class TorchComparator(Comparator):
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
-        passed = tree_map(lambda x, y: torch.equal(x, y), device_output, golden_output)
+        passed = tree_map(
+            lambda x, y: True if x is None and y is None else torch.equal(x, y),
+            device_output,
+            golden_output,
+        )
         flat_passed, _ = tree_flatten(passed)
         return all(flat_passed)
 
@@ -50,10 +54,15 @@ class TorchComparator(Comparator):
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
         leaf_atols = tree_map(
-            lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
+            lambda x, y: (
+                None if x is None and y is None else torch.max(torch.abs(x - y))
+            ),
+            device_output,
+            golden_output,
         )
         flat_atols, _ = tree_flatten(leaf_atols)
-        atol = max(flat_atols)
+        filtered_atols = [atol for atol in flat_atols if atol is not None]
+        atol = max(filtered_atols)
         return float(atol)
 
     # @override
@@ -63,6 +72,8 @@ class TorchComparator(Comparator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+            if x is None and y is None:
+                return None
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
             denom = vx.norm() * vy.norm()
@@ -79,7 +90,8 @@ class TorchComparator(Comparator):
         # Calculate PCC for non-identical values
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
-        pcc = min(flat_pccs)
+        filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
+        pcc = min(filtered_pccs)
         return float(pcc)
 
     # @override
@@ -91,8 +103,12 @@ class TorchComparator(Comparator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         all_close = tree_map(
-            lambda x, y: torch.allclose(
-                x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
+            lambda x, y: (
+                True
+                if x is None and y is None
+                else torch.allclose(
+                    x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
+                )
             ),
             device_output,
             golden_output,

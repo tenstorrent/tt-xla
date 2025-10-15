@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable
+from typing import Callable, List
 
 import pytest
 import torch
 import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
-from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -60,6 +60,60 @@ def test_display_available_variants(model_name):
     )
 
 
+def new_attention_decode_forward(model):
+
+    original_layers = model.layers
+    model.layers = torch.nn.ModuleList([original_layers[0]])
+
+    # Update the config to reflect the new number of layers
+    model.config.num_hidden_layers = 1
+
+    def attention_forward(
+        input_ids=None,
+        attention_mask=None,
+        position_ids=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        cache_position=None,
+        **kwargs,
+    ):
+
+        if inputs_embeds is None:
+            inputs_embeds: torch.Tensor = model.embed_tokens(input_ids)
+
+        if position_ids is None:
+            position_ids = cache_position.unsqueeze(0)
+
+        from transformers.masking_utils import create_causal_mask
+
+        causal_mask = create_causal_mask(
+            config=model.config,
+            input_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            cache_position=cache_position,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
+        )
+
+        hidden_states = inputs_embeds
+        position_embeddings = model.rotary_emb(hidden_states, position_ids)
+
+        for decoder_layer in model.layers[: model.config.num_hidden_layers]:
+            hidden_states = decoder_layer(
+                hidden_states,
+                attention_mask=causal_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                cache_position=cache_position,
+                position_embeddings=position_embeddings,
+                **kwargs,
+            )
+        return hidden_states
+
+    model.forward = attention_forward
+    return model
+
+
 """Llama attention tests"""
 
 
@@ -102,35 +156,66 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention_decode(variant, variant_config):
+    xr.set_device_type("TT")
+    device: torch.device = xm.xla_device()
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    model = model.model
 
-    seq_len = 1
-    hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
-    )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
-    position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    model = new_attention_decode_forward(model)
 
-    batch_size = 1
-    max_cache_len = 16
-    static_cache: StaticCache = StaticCache(
+    input_ids = torch.randint(0, model.config.vocab_size, (1, 1), dtype=torch.long)
+    cache_len = 16  # Assume we have 15 previous tokens + 1 current token
+    attention_mask = torch.ones((1, cache_len), dtype=torch.long)
+    cache_position = torch.tensor([cache_len - 1], dtype=torch.long)  # Last position
+
+    past_key_values: StaticCache = StaticCache(
         config=model.config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
+        max_batch_size=1,
+        max_cache_len=128,
         device="cpu",
         dtype=torch.bfloat16,
     )
-    past_key_states = static_cache
 
-    run_graph_test(
-        attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
-        framework=Framework.TORCH,
+    input_args = {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "cache_position": cache_position,
+        "use_cache": True,  # Enable caching for decode
+        "past_key_values": past_key_values,
+    }
+
+    cpu_outputs: List[torch.Tensor] = []
+    with torch.no_grad():
+        cpu_output = model(**input_args)
+        cpu_outputs.append(cpu_output)
+
+    # Move model and inputs to device.
+    for layer in past_key_values.layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
+    input_args["input_ids"] = input_args["input_ids"].to(device)
+    input_args["cache_position"] = input_args["cache_position"].to(device)
+
+    model = model.to(device)
+
+    golden_outputs: List[torch.Tensor] = []
+    model.compile(backend="tt")
+    with torch.no_grad():
+        output = model(**input_args)
+        output = output.to("cpu")
+        golden_outputs.append(output)
+
+    # Compare outputs for validation
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(enabled=False),
+            pcc=PccConfig(required_pcc=0.99),
+        )
     )
+
+    comparator.compare(golden_outputs, cpu_outputs)
 
 
 @pytest.mark.nightly
@@ -228,7 +313,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -237,7 +322,7 @@ def test_llama_sdpa(variant, variant_config, seq_len):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -330,36 +415,64 @@ def test_qwen3_attention_decode(variant, variant_config):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
+    device: torch.device = xm.xla_device()
 
     loader = QwenModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    model = model.model
 
-    seq_len = 1
-    hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
-    )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
-    position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    model = new_attention_decode_forward(model)
 
-    batch_size = 1
-    max_cache_len = 16
-    static_cache: StaticCache = StaticCache(
+    input_ids = torch.randint(0, model.config.vocab_size, (1, 1), dtype=torch.long)
+    cache_len = 16  # Assume we have 15 previous tokens + 1 current token
+    attention_mask = torch.ones((1, cache_len), dtype=torch.long)
+    cache_position = torch.tensor([cache_len - 1], dtype=torch.long)  # Last position
+    past_key_values: StaticCache = StaticCache(
         config=model.config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
+        max_batch_size=1,
+        max_cache_len=128,
         device="cpu",
         dtype=torch.bfloat16,
     )
-    cache_position = torch.tensor([0])
-    past_key_states = static_cache
+    past_key_values.layers = [past_key_values.layers[0]]  # Use only first layer
 
-    run_graph_test(
-        attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
-        framework=Framework.TORCH,
+    input_args = {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "cache_position": cache_position,
+        "use_cache": True,  # Enable caching for decode
+        "past_key_values": past_key_values,
+    }
+
+    cpu_outputs: List[torch.Tensor] = []
+    with torch.no_grad():
+        cpu_output = model(**input_args)
+        cpu_outputs.append(cpu_output)
+    # Move model and inputs to device.
+    for layer in past_key_values.layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
+    input_args["input_ids"] = input_args["input_ids"].to(device)
+    input_args["cache_position"] = input_args["cache_position"].to(device)
+
+    model = model.to(device)
+
+    golden_outputs: List[torch.Tensor] = []
+    model.compile(backend="tt")
+    with torch.no_grad():
+        output = model(**input_args)
+        output = output.to("cpu")
+        golden_outputs.append(output)
+
+    # Compare outputs for validation
+    comparator = TorchComparator(
+        ComparisonConfig(
+            atol=AtolConfig(enabled=False),
+            pcc=PccConfig(required_pcc=0.99),
+        )
     )
+
+    comparator.compare(golden_outputs, cpu_outputs)
 
 
 @pytest.mark.nightly
