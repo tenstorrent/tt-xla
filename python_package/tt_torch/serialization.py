@@ -102,3 +102,5 @@ def parse_compiled_artifacts_from_cache_to_disk(cache_path: str, output_prefix: 
     flatbuffer_path = f"{output_prefix}.ttnn"
     with open(flatbuffer_path, "wb") as f:
         f.write(flatbuffer_binary)
+
+    shutil.rmtree(cache_path)

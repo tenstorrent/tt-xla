@@ -105,17 +105,15 @@ def test_all_models(
 
                 comparison_result = tester.test()
 
+                if request.config.getoption("--serialize", default=False):
+                    tester.serialize_compilation_artifacts(request.node.name)
+
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Comparator._assert_on_results(comparison_result)
-
-                if request.config.getoption("--serialize", default=False):
-                    tester.serialize_compilation_artifacts(request.node.name)
-
-                succeeded = True
 
         except Exception as e:
             err = capteesys.readouterr().err
