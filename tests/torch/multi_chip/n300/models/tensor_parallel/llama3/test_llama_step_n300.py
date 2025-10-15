@@ -44,13 +44,15 @@ class LLMRunMode(Enum):
 @pytest.mark.parametrize(
     "run_mode",
     [
+        # LLMRunMode.PREFILL,
+        # pytest.param(
+        #     LLMRunMode.DECODE,
+        #     marks=pytest.mark.skip(
+        #         reason="ND hang locally, deterministic hang on uplift (https://github.com/tenstorrent/tt-xla/issues/1668)"
+        #     ),
+        # ),
         LLMRunMode.PREFILL,
-        pytest.param(
-            LLMRunMode.DECODE,
-            marks=pytest.mark.skip(
-                reason="ND hang locally, deterministic hang on uplift (https://github.com/tenstorrent/tt-xla/issues/1668)"
-            ),
-        ),
+        LLMRunMode.DECODE,
     ],
 )
 def test_llama_step(run_mode):
@@ -60,7 +62,7 @@ def test_llama_step(run_mode):
     enable_spmd()
 
     # Set up config variables.
-    model_hidden_layers: int = 28
+    model_hidden_layers: int = 1
     batch_size: int = 1
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"

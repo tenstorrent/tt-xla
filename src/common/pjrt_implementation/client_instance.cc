@@ -37,6 +37,9 @@
 
 namespace tt::pjrt {
 
+// Initialize the static singleton pointer
+ClientInstance* ClientInstance::s_instance = nullptr;
+
 ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
     : platform_(std::move(platform)), m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
@@ -49,24 +52,49 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
 
   // TODO: Ensure this name is unique to prevent clashes between multiple
   // clients. Since we plan to remove the need for storing the descriptor on
-  // disk soon, we’re keeping it simple for now.
+  // disk soon, we're keeping it simple for now.
   m_cached_system_descriptor_path =
       std::filesystem::temp_directory_path().concat(
           "/tt_pjrt_system_descriptor");
+
+  // Register this instance for cleanup at program exit.
+  // This ensures proper cleanup even if PJRT_Client_Destroy is never called
+  // (which happens with PyTorch/XLA's leaky destructor pattern).
+  s_instance = this;
+  std::atexit(atexitCleanup);
 }
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
   if (m_optimizer_submesh.has_value()) {
+    DLOG_F(LOG_DEBUG, "Releasing optimizer submesh device");
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
   }
 
   if (m_parent_mesh.has_value()) {
+    DLOG_F(LOG_DEBUG, "Closing parent mesh device");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
   }
 
   std::remove(m_cached_system_descriptor_path.data());
+
+  // Clear the static pointer to prevent double-deletion from atexit handler.
+  if (s_instance == this) {
+    s_instance = nullptr;
+  }
+}
+
+void ClientInstance::atexitCleanup() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::atexitCleanup");
+
+  // Only delete if the instance still exists (wasn't explicitly destroyed).
+  if (s_instance != nullptr) {
+    DLOG_F(LOG_DEBUG, "ClientInstance was not explicitly destroyed, cleaning up at program exit");
+    delete s_instance;
+    s_instance = nullptr;
+  }
 }
 
 PJRT_Error *ClientInstance::Initialize() {
@@ -362,6 +390,8 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
   if (!m_parent_mesh.has_value()) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateMeshDevice - creating new mesh device");
     m_parent_mesh = openMeshDevice(target_mesh_shape);
     return *m_parent_mesh;
   }
@@ -394,10 +424,14 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
   if (m_optimizer_submesh.has_value()) {
+    DLOG_F(LOG_DEBUG, "Early release of submesh device when reshaping in getOrCreateMeshDevice");
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
     m_optimizer_submesh.reset();
   }
+  DLOG_F(LOG_DEBUG, "Closing parent mesh device in getOrCreateMeshDevice before opening a new one");
   tt::runtime::closeMeshDevice(*m_parent_mesh);
+
+  DLOG_F(LOG_DEBUG, "Opening new parent mesh device in getOrCreateMeshDevice for reshape");
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
@@ -409,6 +443,8 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
       static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
                                           1, std::multiplies<std::uint32_t>{}));
 
+
+  DLOG_F(LOG_DEBUG, "[JAMES] Opening mesh device");
   // NOTES:
   // - this should probably be set automatically by the mlir runtime.
   // - it looks like metal context is being reinitialized each time we

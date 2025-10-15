@@ -119,6 +119,12 @@ private:
   // setting fabric config when needed.
   tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
 
+  // Static pointer to the singleton instance for atexit cleanup.
+  static ClientInstance* s_instance;
+
+  // Static cleanup function registered with atexit.
+  static void atexitCleanup();
+
   std::unique_ptr<Platform> platform_;
 
   // Process index of this client. Always 0 in single-process settings.
