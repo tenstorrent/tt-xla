@@ -28,9 +28,6 @@ jobs:
     container:
       image: ${{ inputs.docker_image }}
 
-    env:
-      MDBOOK_VERSION: 0.4.36
-
     steps:
     - uses: actions/checkout@v4
       with:
@@ -47,18 +44,15 @@ jobs:
     - name: Git safe dir
       run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
 
-    - name: Install system deps (Doxygen, Rust, Cargo)
-      shell: bash
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install documentation dependencies
       run: |
-        apt-get update
-        apt-get install -y doxygen curl
-
-        curl https://sh.rustup.rs -sSf | sh -s -- -y
-        source "$HOME/.cargo/env"
-
-        cargo install --version ${MDBOOK_VERSION} mdbook --locked
-
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        python -m pip install --upgrade pip
+        pip install -r docs/requirements.txt
 
     - name: Setup Pages
       id: pages
@@ -67,15 +61,14 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
-        source venv/activate
-        source "$HOME/.cargo/env"
-        cmake -G Ninja -B build
-        cmake --build build -- docs
+        cd docs
+        make build
+        cd ..
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: ./build/docs/book
+        path: ./docs/output
 
   deploy:
     environment:
