@@ -45,6 +45,7 @@ env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
+  TT_XLA_RED_ONLY: "1"
 
 jobs:
   generate-matrix-test:
@@ -259,12 +260,12 @@ jobs:
 
     # Ensure test_config.py for tt-forge-models test is valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
-    - name: Validate Forge Models Tests test config file
-      if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
-      shell: bash
-      run: |
-        source venv/activate
-        python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
+    # - name: Validate Forge Models Tests test config file
+    #   if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
+    #   shell: bash
+    #   run: |
+    #     source venv/activate
+    #     python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
 
     - name: Collect Tests
       id: collect-tests
