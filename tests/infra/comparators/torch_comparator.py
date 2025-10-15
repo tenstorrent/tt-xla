@@ -6,7 +6,7 @@ import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
-from transformers import EncoderDecoderCache, DynamicCache
+from transformers import DynamicCache, EncoderDecoderCache
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
@@ -22,10 +22,12 @@ class TorchComparator(Comparator):
         def match(tensor):
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32:
                 tensor = tensor.to(torch.float32)
-            return tensor 
+            return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, DynamicCache) or isinstance(tensor, EncoderDecoderCache):
+            if isinstance(tensor, DynamicCache) or isinstance(
+                tensor, EncoderDecoderCache
+            ):
                 tensor = tensor.to_legacy_cache()
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32:
                 tensor = tensor.to(torch.float32)
