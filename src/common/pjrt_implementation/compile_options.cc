@@ -39,6 +39,11 @@ CompileOptions CompileOptions::parse(
           .value_or(false);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
+
+  options.enable_const_eval =
+      internal::parseBoolOption(compile_options, "enable_const_eval")
+          .value_or(true);
+
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "

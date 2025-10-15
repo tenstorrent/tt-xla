@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 import torch
 import torch.nn as nn
+import torch_xla
 
 # TPU XLA related
 import torch_xla.core.xla_model as xm
@@ -195,6 +196,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         device: torch.device,
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
+        torch_xla.set_custom_compile_options(
+            {
+                "enable_const_eval": False,
+            }
+        )
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
         self.cache_config = vllm_config.cache_config
@@ -254,7 +260,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
-            min_token_size=32,
+            min_token_size=128,
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
@@ -1097,6 +1103,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Select states according to indices
             hidden_states = hidden_states[:num_scheduled_tokens]
+            print(f"NUM SCHEDULED TOKENS: {num_scheduled_tokens}")
             # Pooling
             if hasattr(self.model, "pooler") and callable(
                 getattr(self.model, "pooler")
@@ -1489,8 +1496,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
-        self._precompile_backbone()
         return
+        # self._precompile_mm_encoder()
+        # self._precompile_backbone()
+        # self._precompile_select_hidden_states()
+        # self._precompile_compute_logits()
+        # self._precompile_structured_decoding()
+        # self._precompile_sample_from_logits()
+        # self._precompile_gather_logprobs()
 
     def profile_run(
         self,
@@ -1809,7 +1822,7 @@ def _get_token_paddings(
             num += padding_gap
             logger.info("    %d", num)
             paddings.append(num)
-
+    print(f"PADDINGS: {paddings}")
     return paddings
 
 

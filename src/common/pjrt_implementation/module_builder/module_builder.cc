@@ -826,6 +826,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.enable_fusing_conv2d_with_multiply_pattern;
   options.enableTrace = compile_options.enable_trace;
+  options.enableConstEval = compile_options.enable_const_eval;
   options.systemDescPath = system_descriptor_path.data();
 
   if (devices_mesh_shape.size() != 2) {
