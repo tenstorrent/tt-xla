@@ -25,7 +25,7 @@ namespace tt::pjrt {
 class ClientInstance;
 
 // Global client registry for external access (e.g., from Python via ctypes)
-extern ClientInstance* g_last_created_client;
+extern ClientInstance *g_last_created_client;
 
 // Top-level API bindings.
 void BindMonomorphicApi(PJRT_Api *api);
