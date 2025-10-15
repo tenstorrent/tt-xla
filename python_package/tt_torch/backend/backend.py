@@ -5,11 +5,11 @@ import os
 from typing import Tuple
 
 import torch
+import torch.export
 import torch_xla
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
-import torch.export
 
 from .decompositions import CUSTOM_DECOMPOSITION_TABLE
 from .passes import (
@@ -42,7 +42,9 @@ def torch_pass_pipeline(
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     program = torch.export.export(
-        gm, tuple(example_inputs), strict=False,
+        gm,
+        tuple(example_inputs),
+        strict=False,
     )
     program = program.run_decompositions(decompositions)
 
