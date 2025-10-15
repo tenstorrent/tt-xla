@@ -2549,8 +2549,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "mplug_owl2/pytorch-llama2_7b-single_device-full-inference": {
-        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-        "reason": " RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float - https://github.com/tenstorrent/tt-xla/issues/1593",
-        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
