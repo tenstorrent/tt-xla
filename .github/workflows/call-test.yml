@@ -91,6 +91,8 @@ jobs:
         echo "${{ matrix.build.shared-runners }}"
         echo "whole"
         echo "${{ matrix.build }}"
+        echo "if condition"
+        echo "${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') }}"
 
     - name: Log disk space
       run: df -h
