@@ -102,6 +102,11 @@ class ModelLoader(ForgeModel):
         )
         model = DetectionModel(cfg=weights["model"].yaml)
         model.load_state_dict(weights["model"].float().state_dict())
+
+        # https://github.com/tenstorrent/tt-xla/issues/1692
+        model.end2end = False
+        model.model[-1].end2end = False
+
         model.eval()
 
         # Only convert dtype if explicitly requested
