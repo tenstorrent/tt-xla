@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Sequence
 
 import jax
@@ -135,6 +136,25 @@ class OpTester(BaseTester):
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
+    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
+        """
+        Serializes a workload on TT device with proper compiler configuration.
+
+        Args:
+            workload: The workload to serialize
+            output_prefix: Base path and filename prefix for output files
+        """
+        if self._framework == Framework.JAX:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
+        elif self._framework == Framework.TORCH:
+            compiler_options = self._compiler_config.to_torch_compile_options()
+        else:
+            compiler_options = None
+
+        self._device_runner.serialize_on_device(
+            workload, output_prefix, compiler_options=compiler_options
+        )
+
 
 def run_op_test(
     op: Callable,
@@ -152,6 +172,75 @@ def run_op_test(
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
     workload = Workload(framework, executable=op, args=inputs)
     tester.test(workload)
+
+
+def serialize_op(
+    op: Callable,
+    inputs: Sequence[Tensor],
+    output_prefix: str,
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes an op with given inputs to disk.
+
+    Args:
+        op: The operation/function to serialize
+        inputs: Input tensors for the operation
+        output_prefix: Base path and filename prefix for output files
+        framework: The framework to use (default: JAX)
+        compiler_config: Compiler configuration options
+    """
+    # Create an OpTester instance to get access to its device runner
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(framework=framework, compiler_config=compiler_config)
+
+    workload = Workload(framework=framework, executable=op, args=inputs)
+
+    # Serialize workload on TT device using OpTester's method
+    tester.serialize_on_device(workload, output_prefix)
+
+
+def serialize_op_with_random_inputs(
+    op: Callable,
+    input_shapes: Sequence[tuple],
+    test_name: str,
+    minval: float = 0.0,
+    maxval: float = 1.0,
+    dtype: str | DTypeLike | torch.dtype = "float32",
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes an op with random inputs to disk.
+
+    Args:
+        op: The operation/function to serialize
+        input_shapes: Shapes for random input generation
+        test_name: Test name to generate output prefix from
+        minval: Minimum value for random inputs (default: 0.0)
+        maxval: Maximum value for random inputs (default: 1.0)
+        dtype: Data type for inputs
+        framework: The framework to use (default: JAX)
+        compiler_config: Compiler configuration options
+    """
+    # Keep the test name but replace special chars with underscores
+    clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
+    clean_name = clean_name.rstrip("_")
+    output_prefix = f"output_artifact/{clean_name}"
+
+    inputs = [
+        random_tensor(
+            shape,
+            minval=minval,
+            maxval=maxval,
+            dtype=dtype,
+            framework=framework,
+        )
+        for shape in input_shapes
+    ]
+    serialize_op(op, inputs, output_prefix, framework, compiler_config)
 
 
 def run_op_test_with_random_inputs(

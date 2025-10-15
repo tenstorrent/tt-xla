@@ -112,6 +112,11 @@ def test_all_models(
                 #     fallthrough to finally block on failure.
                 Comparator._assert_on_results(comparison_result)
 
+                if request.config.getoption("--serialize", default=False):
+                    tester.serialize_compilation_artifacts(request.node.name)
+
+                succeeded = True
+
         except Exception as e:
             err = capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties

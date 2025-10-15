@@ -7,7 +7,7 @@ from logging import Logger
 
 import torch
 import torch_xla
-import tt_torch  # registers "tt" backend for torch.compile
+import torch_xla.runtime as xr
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 from torch_xla.experimental.plugins import DevicePlugin
 
@@ -24,6 +24,9 @@ class TTPlugin(DevicePlugin):
     def __init__(self):
         super().__init__()
         setup_tt_metal_home()
+
+        # Set device type to TT
+        xr.set_device_type("TT")
 
         # For using the PJRT plugin with `torch_xla` we need to set
         # `XLA_STABLEHLO_COMPILE` env variable to `1` to enable stablehlo compilation.
