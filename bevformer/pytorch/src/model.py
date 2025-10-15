@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
 BEVFormer model implementation
 
@@ -9,155 +8,643 @@ Apdapted from: https://github.com/fundamentalvision/BEVFormer.git
 
 Apache-2.0 License: https://github.com/fundamentalvision/BEVFormer/blob/master/LICENSE
 """
-import re
+import copy
 import math
+import re
+from typing import Tuple, Union
 from abc import ABCMeta, abstractmethod
-from collections import OrderedDict
 
 import numpy as np
+import torchvision
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from addict import Dict
+import torch.utils.checkpoint as checkpoint
+from torch.nn.modules.utils import _pair, _single
 from torchvision.transforms.functional import rotate
-import copy
+from addict import Dict
+from collections import OrderedDict
+import torch.utils.checkpoint as cp
 from PIL import Image
+from detectron2.layers import Conv2d, get_norm, ShapeSpec
+from packaging.version import parse
 
 # ============================================================================
 # MODEL CONFIG
 # ============================================================================
 
-pts_bbox_head = {
-    "type": "BEVFormerHead",
-    "bev_h": 50,
-    "bev_w": 50,
-    "num_query": 900,
-    "num_classes": 10,
-    "in_channels": 256,
-    "sync_cls_avg_factor": True,
-    "with_box_refine": True,
-    "as_two_stage": False,
-    "transformer": {
-        "type": "PerceptionTransformer",
-        "rotate_prev_bev": True,
-        "use_shift": True,
-        "use_can_bus": True,
-        "embed_dims": 256,
-        "encoder": {
-            "type": "BEVFormerEncoder",
-            "num_layers": 3,
-            "pc_range": [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0],
-            "num_points_in_pillar": 4,
-            "return_intermediate": False,
-            "transformerlayers": {
-                "type": "BEVFormerLayer",
-                "attn_cfgs": [
-                    {
-                        "type": "TemporalSelfAttention",
-                        "embed_dims": 256,
-                        "num_levels": 1,
-                    },
-                    {
-                        "type": "SpatialCrossAttention",
-                        "pc_range": [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0],
-                        "deformable_attention": {
-                            "type": "MSDeformableAttention3D",
-                            "embed_dims": 256,
-                            "num_points": 8,
+
+def get_bevformer_v2_model(variant_str):
+
+    base_config = {
+        "point_cloud_range": [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0],
+        "class_names": [
+            "barrier",
+            "bicycle",
+            "bus",
+            "car",
+            "construction_vehicle",
+            "motorcycle",
+            "pedestrian",
+            "traffic_cone",
+            "trailer",
+            "truck",
+        ],
+        "bev_h_": 200,
+        "bev_w_": 200,
+        "frames": (0,),
+        "voxel_size": [102.4 / 200, 102.4 / 200, 8],
+        "img_norm_cfg": dict(
+            mean=[103.53, 116.28, 123.675], std=[1, 1, 1], to_rgb=False
+        ),
+        "_dim_": 256,
+        "_pos_dim_": 128,
+        "_ffn_dim_": 512,
+        "_num_levels_": 4,
+        "_num_mono_levels_": 5,
+        "ida_aug_conf": {
+            "reisze": [
+                640,
+            ],
+            "crop": (0, 260, 1600, 900),
+            "H": 900,
+            "W": 1600,
+            "rand_flip": False,
+        },
+        "ida_aug_conf_eval": {
+            "reisze": [
+                640,
+            ],
+            "crop": (0, 260, 1600, 900),
+            "H": 900,
+            "W": 1600,
+            "rand_flip": False,
+        },
+    }
+
+    if variant_str == "bevformerv2-r50-t1-base":
+        frames = base_config["frames"]
+        group_detr = None
+        pts_bbox_head_type = "BEVFormerHead"
+        self_attn_type = "MultiheadAttention"
+
+    elif variant_str == "bevformerv2-r50-t1":
+        base_config["frames"] = (0,)
+        base_config["group_detr"] = 11
+        base_config["ida_aug_conf"] = {
+            "reisze": [512, 544, 576, 608, 640, 672, 704, 736, 768],
+            "crop": (0, 260, 1600, 900),
+            "H": 900,
+            "W": 1600,
+            "rand_flip": True,
+        }
+        frames = base_config["frames"]
+        group_detr = base_config["group_detr"]
+        pts_bbox_head_type = "BEVFormerHead_GroupDETR"
+        self_attn_type = "GroupMultiheadAttention"
+
+    elif variant_str == "bevformerv2-r50-t2":
+        base_config["frames"] = (
+            -1,
+            0,
+        )
+        base_config["group_detr"] = 11
+        base_config["ida_aug_conf"] = {
+            "reisze": [512, 544, 576, 608, 640, 672, 704, 736, 768],
+            "crop": (0, 260, 1600, 900),
+            "H": 900,
+            "W": 1600,
+            "rand_flip": True,
+        }
+        frames = base_config["frames"]
+        group_detr = base_config["group_detr"]
+        pts_bbox_head_type = "BEVFormerHead_GroupDETR"
+        self_attn_type = "GroupMultiheadAttention"
+
+    elif variant_str == "bevformerv2-r50-t8":
+        base_config["frames"] = (-7, -6, -5, -4, -3, -2, -1, 0)
+        base_config["group_detr"] = 11
+        base_config["ida_aug_conf"] = {
+            "reisze": [512, 544, 576, 608, 640, 672, 704, 736, 768],
+            "crop": (0, 260, 1600, 900),
+            "H": 900,
+            "W": 1600,
+            "rand_flip": True,
+        }
+        frames = base_config["frames"]
+        group_detr = base_config["group_detr"]
+        pts_bbox_head_type = "BEVFormerHead_GroupDETR"
+        self_attn_type = "GroupMultiheadAttention"
+
+    img_backbone = {
+        "type": "ResNet",
+        "depth": 50,
+        "num_stages": 4,
+        "out_indices": (1, 2, 3),
+        "frozen_stages": -1,
+        "norm_cfg": {"type": "SyncBN"},
+        "norm_eval": False,
+        "style": "caffe",
+    }
+
+    img_neck = {
+        "type": "FPN",
+        "in_channels": [512, 1024, 2048],
+        "out_channels": base_config["_dim_"],
+        "start_level": 0,
+        "add_extra_convs": "on_output",
+        "num_outs": base_config["_num_mono_levels_"],
+        "relu_before_extra_convs": True,
+    }
+
+    if pts_bbox_head_type == "BEVFormerHead":
+        pts_bbox_head = _get_base_pts_bbox_head(base_config)
+    else:
+        pts_bbox_head = _get_group_detr_pts_bbox_head(
+            base_config, group_detr, self_attn_type
+        )
+
+    fcos3d_bbox_head = _get_fcos3d_bbox_head(base_config)
+    return img_backbone, pts_bbox_head, img_neck, fcos3d_bbox_head, frames
+
+
+def _get_base_pts_bbox_head(config):
+    """Get base BEVFormerHead configuration"""
+    return {
+        "type": "BEVFormerHead",
+        "bev_h": config["bev_h_"],
+        "bev_w": config["bev_w_"],
+        "num_query": 900,
+        "num_classes": 10,
+        "in_channels": config["_dim_"],
+        "sync_cls_avg_factor": True,
+        "with_box_refine": True,
+        "as_two_stage": False,
+        "transformer": {
+            "type": "PerceptionTransformerV2",
+            "embed_dims": config["_dim_"],
+            "frames": config["frames"],
+            "encoder": {
+                "type": "BEVFormerEncoder",
+                "num_layers": 6,
+                "pc_range": config["point_cloud_range"],
+                "num_points_in_pillar": 4,
+                "return_intermediate": False,
+                "transformerlayers": {
+                    "type": "BEVFormerLayer",
+                    "attn_cfgs": [
+                        {
+                            "type": "TemporalSelfAttention",
+                            "embed_dims": config["_dim_"],
                             "num_levels": 1,
                         },
-                        "embed_dims": 256,
-                    },
-                ],
-                "feedforward_channels": 512,
-                "ffn_dropout": 0.1,
-                "operation_order": (
-                    "self_attn",
-                    "norm",
-                    "cross_attn",
-                    "norm",
-                    "ffn",
-                    "norm",
-                ),
+                        {
+                            "type": "SpatialCrossAttention",
+                            "pc_range": config["point_cloud_range"],
+                            "deformable_attention": {
+                                "type": "MSDeformableAttention3D",
+                                "embed_dims": config["_dim_"],
+                                "num_points": 8,
+                                "num_levels": 4,
+                            },
+                            "embed_dims": config["_dim_"],
+                        },
+                    ],
+                    "feedforward_channels": config["_ffn_dim_"],
+                    "ffn_dropout": 0.1,
+                    "operation_order": (
+                        "self_attn",
+                        "norm",
+                        "cross_attn",
+                        "norm",
+                        "ffn",
+                        "norm",
+                    ),
+                },
+            },
+            "decoder": {
+                "type": "DetectionTransformerDecoder",
+                "num_layers": 6,
+                "return_intermediate": True,
+                "transformerlayers": {
+                    "type": "DetrTransformerDecoderLayer",
+                    "attn_cfgs": [
+                        {
+                            "type": "MultiheadAttention",
+                            "embed_dims": config["_dim_"],
+                            "num_heads": 8,
+                            "dropout": 0.1,
+                        },
+                        {
+                            "type": "CustomMSDeformableAttention",
+                            "embed_dims": config["_dim_"],
+                            "num_levels": 1,
+                        },
+                    ],
+                    "feedforward_channels": config["_ffn_dim_"],
+                    "ffn_dropout": 0.1,
+                    "operation_order": (
+                        "self_attn",
+                        "norm",
+                        "cross_attn",
+                        "norm",
+                        "ffn",
+                        "norm",
+                    ),
+                },
             },
         },
-        "decoder": {
-            "type": "DetectionTransformerDecoder",
-            "num_layers": 6,
-            "return_intermediate": True,
-            "transformerlayers": {
-                "type": "DetrTransformerDecoderLayer",
-                "attn_cfgs": [
-                    {
-                        "type": "MultiheadAttention",
-                        "embed_dims": 256,
-                        "num_heads": 8,
-                        "dropout": 0.1,
-                    },
-                    {
-                        "type": "CustomMSDeformableAttention",
-                        "embed_dims": 256,
-                        "num_levels": 1,
-                    },
-                ],
-                "feedforward_channels": 512,
-                "ffn_dropout": 0.1,
-                "operation_order": (
-                    "self_attn",
-                    "norm",
-                    "cross_attn",
-                    "norm",
-                    "ffn",
-                    "norm",
-                ),
-            },
+        "bbox_coder": {
+            "type": "NMSFreeCoder",
+            "post_center_range": [-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+            "pc_range": config["point_cloud_range"],
+            "max_num": 300,
+            "voxel_size": config["voxel_size"],
+            "num_classes": 10,
         },
-    },
-    "bbox_coder": {
-        "type": "NMSFreeCoder",
-        "post_center_range": [-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-        "pc_range": [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0],
-        "max_num": 300,
-        "voxel_size": [0.2, 0.2, 8],
+        "positional_encoding": {
+            "type": "LearnedPositionalEncoding",
+            "num_feats": config["_pos_dim_"],
+            "row_num_embed": config["bev_h_"],
+            "col_num_embed": config["bev_w_"],
+        },
+        "loss_cls": {
+            "type": "FocalLoss",
+            "use_sigmoid": True,
+            "gamma": 2.0,
+            "alpha": 0.25,
+            "loss_weight": 2.0,
+        },
+        "loss_bbox": {"type": "SmoothL1Loss", "loss_weight": 0.75, "beta": 1.0},
+        "loss_iou": {"type": "GIoULoss", "loss_weight": 0.0},
+    }
+
+
+def _get_group_detr_pts_bbox_head(config, group_detr, self_attn_type):
+    """Get GroupDETR variant of BEVFormerHead"""
+    pts_bbox_head = _get_base_pts_bbox_head(config)
+    pts_bbox_head["type"] = "BEVFormerHead_GroupDETR"
+    pts_bbox_head["group_detr"] = group_detr
+
+    pts_bbox_head["transformer"]["decoder"]["transformerlayers"]["attn_cfgs"][0] = {
+        "type": self_attn_type,
+        "group": group_detr,
+        "embed_dims": config["_dim_"],
+        "num_heads": 8,
+        "dropout": 0.1,
+    }
+
+    if len(config["frames"]) > 2:
+        pts_bbox_head["transformer"]["inter_channels"] = config["_dim_"] * 2
+
+    return pts_bbox_head
+
+
+def _get_fcos3d_bbox_head(config):
+    """Get FCOS3D bbox head configuration"""
+    return {
+        "type": "NuscenesDD3D",
         "num_classes": 10,
-    },
-    "positional_encoding": {
-        "type": "LearnedPositionalEncoding",
-        "num_feats": 128,
-        "row_num_embed": 50,
-        "col_num_embed": 50,
-    },
-    "loss_cls": {
-        "type": "FocalLoss",
-        "use_sigmoid": True,
-        "gamma": 2.0,
-        "alpha": 0.25,
-        "loss_weight": 2.0,
-    },
-    "loss_bbox": {"type": "L1Loss", "loss_weight": 0.25},
-    "loss_iou": {"type": "GIoULoss", "loss_weight": 0.0},
-    "train_cfg": None,
-    "test_cfg": None,
-}
-img_backbone = {
-    "type": "ResNet",
-    "depth": 50,
-    "num_stages": 4,
-    "out_indices": (3,),
-    "frozen_stages": 1,
-    "norm_cfg": {"type": "BN", "requires_grad": False},
-    "norm_eval": True,
-    "style": "pytorch",
-}
-img_neck = {
-    "type": "FPN",
-    "in_channels": [2048],
-    "out_channels": 256,
-    "start_level": 0,
-    "add_extra_convs": "on_output",
-    "num_outs": 1,
-    "relu_before_extra_convs": True,
-}
+        "in_channels": config["_dim_"],
+        "strides": [8, 16, 32, 64, 128],
+        "box3d_on": True,
+        "feature_locations_offset": "none",
+        "fcos2d_cfg": {
+            "num_cls_convs": 4,
+            "num_box_convs": 4,
+            "norm": "SyncBN",
+            "use_deformable": False,
+            "use_scale": True,
+            "box2d_scale_init_factor": 1.0,
+        },
+        "fcos2d_loss_cfg": {
+            "focal_loss_alpha": 0.25,
+            "focal_loss_gamma": 2.0,
+            "loc_loss_type": "giou",
+        },
+        "fcos3d_cfg": {
+            "num_convs": 4,
+            "norm": "SyncBN",
+            "use_scale": True,
+            "depth_scale_init_factor": 0.3,
+            "proj_ctr_scale_init_factor": 1.0,
+            "use_per_level_predictors": False,
+            "class_agnostic": False,
+            "use_deformable": False,
+            "mean_depth_per_level": [44.921, 20.252, 11.712, 7.166, 8.548],
+            "std_depth_per_level": [24.331, 9.833, 6.223, 4.611, 8.275],
+        },
+        "fcos3d_loss_cfg": {
+            "min_depth": 0.1,
+            "max_depth": 80.0,
+            "box3d_loss_weight": 2.0,
+            "conf3d_loss_weight": 1.0,
+            "conf_3d_temperature": 1.0,
+            "smooth_l1_loss_beta": 0.05,
+            "max_loss_per_group": 20,
+            "predict_allocentric_rot": True,
+            "scale_depth_by_focal_lengths": True,
+            "scale_depth_by_focal_lengths_factor": 500.0,
+            "class_agnostic": False,
+            "predict_distance": False,
+            "canon_box_sizes": [
+                [2.3524184, 0.5062202, 1.0413622],
+                [0.61416006, 1.7016163, 1.3054738],
+                [2.9139307, 10.725025, 3.2832346],
+                [1.9751819, 4.641267, 1.74352],
+                [2.772134, 6.565072, 3.2474296],
+                [0.7800532, 2.138673, 1.4437162],
+                [0.6667362, 0.7181772, 1.7616143],
+                [0.40246472, 0.4027083, 1.0084083],
+                [3.0059454, 12.8197, 4.1213827],
+                [2.4986045, 6.9310856, 2.8382742],
+            ],
+        },
+        "target_assign_cfg": {
+            "center_sample": True,
+            "pos_radius": 1.5,
+            "sizes_of_interest": [
+                (-1, 64),
+                (64, 128),
+                (128, 256),
+                (256, 512),
+                (512, 1e8),
+            ],
+        },
+        "nusc_loss_weight": {"attr_loss_weight": 0.2, "speed_loss_weight": 0.2},
+    }
+
+
+class BEVFormerBaseConfig:
+    """Base configuration for BEVFormer model components"""
+
+    point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
+    voxel_size = [0.2, 0.2, 8]
+
+    class_names = [
+        "car",
+        "truck",
+        "construction_vehicle",
+        "bus",
+        "trailer",
+        "barrier",
+        "motorcycle",
+        "bicycle",
+        "pedestrian",
+        "traffic_cone",
+    ]
+
+    _dim_ = 256
+    _pos_dim_ = _dim_ // 2
+    _ffn_dim_ = _dim_ * 2
+    _num_levels_ = 4
+    bev_h_ = 200
+    bev_w_ = 200
+    queue_length = 4
+
+    img_norm_cfg = dict(
+        mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False
+    )
+
+    @classmethod
+    def get_img_backbone(cls, variant="base"):
+        """Get image backbone configuration"""
+        if variant == "BEVFormer-tiny":
+            return dict(
+                type="ResNet",
+                depth=50,
+                num_stages=4,
+                out_indices=(3,),
+                frozen_stages=1,
+                norm_cfg=dict(type="BN", requires_grad=False),
+                norm_eval=True,
+                style="pytorch",
+            )
+        elif variant == "BEVFormer-small":
+            return dict(
+                type="ResNet",
+                depth=101,
+                num_stages=4,
+                out_indices=(3,),
+                frozen_stages=1,
+                norm_cfg=dict(type="BN2d", requires_grad=False),
+                norm_eval=True,
+                style="caffe",
+                with_cp=True,
+                dcn=dict(type="DCNv2", deform_groups=1, fallback_on_stride=False),
+                stage_with_dcn=(False, False, True, True),
+            )
+        else:  # base
+            return dict(
+                type="ResNet",
+                depth=101,
+                num_stages=4,
+                out_indices=(1, 2, 3),
+                frozen_stages=1,
+                norm_cfg=dict(type="BN2d", requires_grad=False),
+                norm_eval=True,
+                style="caffe",
+                dcn=dict(type="DCNv2", deform_groups=1, fallback_on_stride=False),
+                stage_with_dcn=(False, False, True, True),
+            )
+
+    @classmethod
+    def get_img_neck(cls, variant="base"):
+        """Get image neck configuration"""
+        if variant == "BEVFormer-tiny":
+            return dict(
+                type="FPN",
+                in_channels=[2048],
+                out_channels=cls._dim_,
+                start_level=0,
+                add_extra_convs="on_output",
+                num_outs=1,
+                relu_before_extra_convs=True,
+            )
+        elif variant == "BEVFormer-small":
+            return dict(
+                type="FPN",
+                in_channels=[2048],
+                out_channels=cls._dim_,
+                start_level=0,
+                add_extra_convs="on_output",
+                num_outs=1,
+                relu_before_extra_convs=True,
+            )
+        else:  # base
+            return dict(
+                type="FPN",
+                in_channels=[512, 1024, 2048],
+                out_channels=cls._dim_,
+                start_level=0,
+                add_extra_convs="on_output",
+                num_outs=4,
+                relu_before_extra_convs=True,
+            )
+
+    @classmethod
+    def get_pts_bbox_head(cls, variant="base"):
+        params = cls._get_variant_params(variant)
+
+        bbox_head = dict(
+            type="BEVFormerHead",
+            bev_h=params["bev_h"],
+            bev_w=params["bev_w"],
+            num_query=900,
+            num_classes=10,
+            in_channels=cls._dim_,
+            sync_cls_avg_factor=True,
+            with_box_refine=True,
+            as_two_stage=False,
+            transformer=dict(
+                type="PerceptionTransformer",
+                rotate_prev_bev=True,
+                use_shift=True,
+                use_can_bus=True,
+                embed_dims=cls._dim_,
+                encoder=dict(
+                    type="BEVFormerEncoder",
+                    num_layers=params["encoder_layers"],
+                    pc_range=cls.point_cloud_range,
+                    num_points_in_pillar=4,
+                    return_intermediate=False,
+                    transformerlayers=dict(
+                        type="BEVFormerLayer",
+                        attn_cfgs=[
+                            dict(
+                                type="TemporalSelfAttention",
+                                embed_dims=cls._dim_,
+                                num_levels=1,
+                            ),
+                            dict(
+                                type="SpatialCrossAttention",
+                                pc_range=cls.point_cloud_range,
+                                deformable_attention=dict(
+                                    type="MSDeformableAttention3D",
+                                    embed_dims=cls._dim_,
+                                    num_points=8,
+                                    num_levels=params["num_levels"],
+                                ),
+                                embed_dims=cls._dim_,
+                            ),
+                        ],
+                        feedforward_channels=cls._ffn_dim_,
+                        ffn_dropout=0.1,
+                        operation_order=(
+                            "self_attn",
+                            "norm",
+                            "cross_attn",
+                            "norm",
+                            "ffn",
+                            "norm",
+                        ),
+                    ),
+                ),
+                decoder=dict(
+                    type="DetectionTransformerDecoder",
+                    num_layers=6,
+                    return_intermediate=True,
+                    transformerlayers=dict(
+                        type="DetrTransformerDecoderLayer",
+                        attn_cfgs=[
+                            dict(
+                                type="MultiheadAttention",
+                                embed_dims=cls._dim_,
+                                num_heads=8,
+                                dropout=0.1,
+                            ),
+                            dict(
+                                type="CustomMSDeformableAttention",
+                                embed_dims=cls._dim_,
+                                num_levels=1,
+                            ),
+                        ],
+                        feedforward_channels=cls._ffn_dim_,
+                        ffn_dropout=0.1,
+                        operation_order=(
+                            "self_attn",
+                            "norm",
+                            "cross_attn",
+                            "norm",
+                            "ffn",
+                            "norm",
+                        ),
+                    ),
+                ),
+            ),
+            bbox_coder=dict(
+                type="NMSFreeCoder",
+                post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+                pc_range=cls.point_cloud_range,
+                max_num=300,
+                voxel_size=cls.voxel_size,
+                num_classes=10,
+            ),
+            positional_encoding=dict(
+                type="LearnedPositionalEncoding",
+                num_feats=cls._pos_dim_,
+                row_num_embed=params["bev_h"],
+                col_num_embed=params["bev_w"],
+            ),
+            loss_cls=dict(
+                type="FocalLoss",
+                use_sigmoid=True,
+                gamma=2.0,
+                alpha=0.25,
+                loss_weight=2.0,
+            ),
+            loss_bbox=dict(type="L1Loss", loss_weight=0.25),
+            loss_iou=dict(type="GIoULoss", loss_weight=0.0),
+        )
+
+        return bbox_head
+
+    @classmethod
+    def _get_variant_params(cls, variant):
+        if variant == "BEVFormer-tiny":
+            return {
+                "bev_h": 50,
+                "bev_w": 50,
+                "encoder_layers": 3,
+                "num_levels": 1,
+                "queue_length": 3,
+            }
+        elif variant == "BEVFormer-small":
+            return {
+                "bev_h": 150,
+                "bev_w": 150,
+                "encoder_layers": 3,
+                "num_levels": 1,
+                "queue_length": 3,
+            }
+        else:  # base
+            return {
+                "bev_h": 200,
+                "bev_w": 200,
+                "encoder_layers": 6,
+                "num_levels": 4,
+                "queue_length": 4,
+            }
+
+    @classmethod
+    def get_img_norm_cfg(cls, variant="base"):
+        """Get image normalization configuration"""
+        if variant == "BEVFormer-tiny":
+            return dict(
+                mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True
+            )
+        else:  # BEVFormer-small and BEVFormer-base
+            return cls.img_norm_cfg
+
+
+def get_bevformer_model(variant="BEVFormer-tiny"):
+
+    img_backbone = BEVFormerBaseConfig.get_img_backbone(variant)
+    img_neck = BEVFormerBaseConfig.get_img_neck(variant)
+    pts_bbox_head = BEVFormerBaseConfig.get_pts_bbox_head(variant)
+
+    return img_backbone, pts_bbox_head, img_neck
+
 
 ACTIVATION_MAP = {
     "ReLU": nn.ReLU,
@@ -301,15 +788,6 @@ def inverse_sigmoid(x, eps=1e-5):
     return torch.log(x1 / x2)
 
 
-@classmethod
-def load_checkpoint(cls, filename, map_location=None, logger=None):
-
-    checkpoint_loader = cls._get_checkpoint_loader(filename)
-    class_name = checkpoint_loader.__name__
-    print(f"load checkpoint from {class_name[10:]} path: {filename}")
-    return checkpoint_loader(filename, map_location)
-
-
 class Sequential(BaseModule, nn.Sequential):
     def __init__(self, *args, init_cfg=None):
         BaseModule.__init__(self, init_cfg)
@@ -320,6 +798,30 @@ class ModuleList(BaseModule, nn.ModuleList):
     def __init__(self, modules=None, init_cfg=None):
         BaseModule.__init__(self, init_cfg)
         nn.ModuleList.__init__(self, modules)
+
+
+def build_conv_layer(cfg, *args, **kwargs):
+    if cfg is None:
+        cfg_ = dict(type="Conv2d")
+    else:
+        if not isinstance(cfg, dict):
+            raise TypeError("cfg must be a dict")
+        if "type" not in cfg:
+            raise KeyError('the cfg dict must contain the key "type"')
+        cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop("type")
+
+    if layer_type in ("Conv2d", "Conv"):
+        layer_cls = nn.Conv2d
+    elif layer_type == "Conv1d":
+        layer_cls = nn.Conv1d
+    elif layer_type == "Conv3d":
+        layer_cls = nn.Conv3d
+    elif layer_type in ("DCNv2", "DCN"):
+        layer_cls = ModulatedDeformConv2dPackCPU
+
+    return layer_cls(*args, **kwargs, **cfg_)
 
 
 class BaseDetector(BaseModule, metaclass=ABCMeta):
@@ -366,9 +868,12 @@ class MVXTwoStageDetector(Base3DDetector):
             pts_bbox_head.update(train_cfg=pts_train_cfg)
             pts_test_cfg = test_cfg.pts if test_cfg else None
             pts_bbox_head.update(test_cfg=pts_test_cfg)
-            if isinstance(pts_bbox_head, dict):
+            trans_type = pts_bbox_head.get("type", None)
+            if trans_type == "BEVFormerHead_GroupDETR":
                 cfg = pts_bbox_head.copy()
-                cfg.pop("type", None)
+                self.pts_bbox_head = BEVFormerHead_GroupDETR(**cfg)
+            else:
+                cfg = pts_bbox_head.copy()
                 self.pts_bbox_head = BEVFormerHead(**cfg)
         if img_backbone:
             if isinstance(img_backbone, dict):
@@ -517,7 +1022,7 @@ class BEVFormer(MVXTwoStageDetector):
         B = img.size(0)
         if img is not None:
             if img.dim() == 5 and img.size(0) == 1:
-                img = img.squeeze(0)
+                img.squeeze_()
             elif img.dim() == 5 and img.size(0) > 1:
                 B, N, C, H, W = img.size()
                 img = img.reshape(B * N, C, H, W)
@@ -527,29 +1032,30 @@ class BEVFormer(MVXTwoStageDetector):
             img_feats = self.img_backbone(img)
             if isinstance(img_feats, dict):
                 img_feats = list(img_feats.values())
-
         if self.with_img_neck:
             img_feats = self.img_neck(img_feats)
 
         img_feats_reshaped = []
         for img_feat in img_feats:
             BN, C, H, W = img_feat.size()
-            img_feats_reshaped.append(img_feat.view(B, int(BN / B), C, H, W))
+            if len_queue is not None:
+                img_feats_reshaped.append(
+                    img_feat.view(int(B / len_queue), len_queue, int(BN / B), C, H, W)
+                )
+            else:
+                img_feats_reshaped.append(img_feat.view(B, int(BN / B), C, H, W))
         return img_feats_reshaped
 
     def extract_feat(self, img, img_metas=None, len_queue=None):
         img_feats = self.extract_img_feat(img, img_metas, len_queue=len_queue)
         return img_feats
 
-    def forward(self, return_loss=True, **kwargs):
+    def forward(self, return_loss=False, **kwargs):
         return self.forward_test(**kwargs)
 
     def forward_test(self, img_metas, img=None, **kwargs):
-        for var, name in [(img_metas, "img_metas")]:
-            if not isinstance(var, list):
-                raise TypeError("{} must be a list, but got {}".format(name, type(var)))
-        img = [img] if img is None else img
 
+        img = [img] if img is None else img
         if img_metas[0][0]["scene_token"] != self.prev_frame_info["scene_token"]:
             self.prev_frame_info["prev_bev"] = None
         self.prev_frame_info["scene_token"] = img_metas[0][0]["scene_token"]
@@ -599,11 +1105,294 @@ class Linear(torch.nn.Linear):
         return super().forward(x)
 
 
-class BaseModule_backbone(nn.Module, metaclass=ABCMeta):
-    def __init__(self, init_cfg=None):
-        super(BaseModule_backbone, self).__init__()
-        self._is_init = False
-        self.init_cfg = copy.deepcopy(init_cfg)
+class BEVFormerV2(MVXTwoStageDetector):
+    def __init__(
+        self,
+        use_grid_mask=False,
+        pts_voxel_layer=None,
+        pts_voxel_encoder=None,
+        pts_middle_encoder=None,
+        pts_fusion_layer=None,
+        img_backbone=None,
+        pts_backbone=None,
+        img_neck=None,
+        pts_neck=None,
+        pts_bbox_head=None,
+        fcos3d_bbox_head=None,
+        img_roi_head=None,
+        img_rpn_head=None,
+        train_cfg=None,
+        test_cfg=None,
+        pretrained=None,
+        video_test_mode=False,
+        num_levels=None,
+        num_mono_levels=None,
+        mono_loss_weight=1.0,
+        frames=(0,),
+    ):
+
+        super(BEVFormerV2, self).__init__(
+            pts_voxel_layer,
+            pts_voxel_encoder,
+            pts_middle_encoder,
+            pts_fusion_layer,
+            img_backbone,
+            pts_backbone,
+            img_neck,
+            pts_neck,
+            pts_bbox_head,
+            img_roi_head,
+            img_rpn_head,
+            train_cfg,
+            test_cfg,
+            pretrained,
+        )
+        self.grid_mask = GridMask(
+            True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7
+        )
+        self.use_grid_mask = use_grid_mask
+        self.fp16_enabled = False
+        self.video_test_mode = video_test_mode
+
+        if isinstance(fcos3d_bbox_head, dict):
+            cfg = fcos3d_bbox_head.copy()
+            cfg.pop("type", None)
+            self.fcos3d_bbox_head = NuscenesDD3D(**cfg)
+        self.mono_loss_weight = mono_loss_weight
+        self.num_levels = num_levels
+        self.num_mono_levels = num_mono_levels
+        self.frames = frames
+
+    def extract_img_feat(self, img):
+        B = img.size(0)
+        if img is not None:
+            if img.dim() == 5 and img.size(0) == 1:
+                img.squeeze_()
+            elif img.dim() == 5 and img.size(0) > 1:
+                B, N, C, H, W = img.size()
+                img = img.reshape(B * N, C, H, W)
+            if self.use_grid_mask:
+                img = self.grid_mask(img)
+
+            img_feats = self.img_backbone(img)
+            if isinstance(img_feats, dict):
+                img_feats = list(img_feats.values())
+        else:
+            return None
+        if self.with_img_neck:
+            img_feats = self.img_neck(img_feats)
+
+        img_feats_reshaped = []
+        for img_feat in img_feats:
+            BN, C, H, W = img_feat.size()
+            img_feats_reshaped.append(img_feat.view(B, int(BN / B), C, H, W))
+        return img_feats_reshaped
+
+    def extract_feat(self, img, img_metas, len_queue=None):
+        img_feats = self.extract_img_feat(img)
+        if (
+            "aug_param" in img_metas[0]
+            and img_metas[0]["aug_param"]["CropResizeFlipImage_param"][-1] is True
+        ):
+            img_feats = [
+                torch.flip(
+                    x,
+                    dims=[
+                        -1,
+                    ],
+                )
+                for x in img_feats
+            ]
+        return img_feats
+
+    def forward(self, return_loss=False, **kwargs):
+        if return_loss:
+            return self.forward_train(**kwargs)
+        else:
+            return self.forward_test(**kwargs)
+
+    def obtain_history_bev(self, img_dict, img_metas_dict):
+        is_training = self.training
+        self.eval()
+        prev_bev = OrderedDict({i: None for i in self.frames})
+        with torch.no_grad():
+            for t in img_dict.keys():
+                img = img_dict[t]
+                img_metas = [
+                    img_metas_dict[t],
+                ]
+                img_feats = self.extract_feat(img=img, img_metas=img_metas)
+                if self.num_levels:
+                    img_feats = img_feats[: self.num_levels]
+                bev = self.pts_bbox_head(img_feats, img_metas, None, only_bev=True)
+                prev_bev[t] = bev.detach()
+        if is_training:
+            self.train()
+        return list(prev_bev.values())
+
+    def forward_test(self, img_metas, img=None, **kwargs):
+
+        img = [img] if img is None else img
+        new_prev_bev, bbox_results = self.simple_test(
+            img_metas[0], img[0], prev_bev=None, **kwargs
+        )
+        return bbox_results
+
+    def simple_test_pts(self, x, img_metas, prev_bev=None, rescale=False):
+        outs = self.pts_bbox_head(x, img_metas, prev_bev=prev_bev)
+
+        bbox_list = self.pts_bbox_head.get_bboxes(outs, img_metas, rescale=rescale)
+        bbox_results = [
+            bbox3d2result(bboxes, scores, labels)
+            for bboxes, scores, labels in bbox_list
+        ]
+        return outs["bev_embed"], bbox_results
+
+    def simple_test(self, img_metas, img=None, prev_bev=None, rescale=False, **kwargs):
+        img_metas = OrderedDict(sorted(img_metas[0].items()))
+        img_dict = {}
+        for ind, t in enumerate(img_metas.keys()):
+            img_dict[t] = img[:, ind, ...]
+        img = img_dict[0]
+        img_dict.pop(0)
+
+        prev_img_metas = copy.deepcopy(img_metas)
+        prev_bev = self.obtain_history_bev(img_dict, prev_img_metas)
+
+        img_metas = [
+            img_metas[0],
+        ]
+        img_feats = self.extract_feat(img=img, img_metas=img_metas)
+        if self.num_levels:
+            img_feats = img_feats[: self.num_levels]
+
+        bbox_list = [dict() for i in range(len(img_metas))]
+        new_prev_bev, bbox_pts = self.simple_test_pts(
+            img_feats, img_metas, prev_bev, rescale=rescale
+        )
+        for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+            result_dict["pts_bbox"] = pts_bbox
+        return new_prev_bev, bbox_list
+
+
+class ModulatedDeformConv2dPackCPU(nn.Module):
+    """Standalone CPU-only DCNv2 using torchvision's deform_conv2d.
+
+    Note: torchvision's deform_conv2d currently supports groups=1 only.
+    """
+
+    _version = 2
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Union[int, Tuple[int]],
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        deform_groups: int = 1,
+        bias: Union[bool, str] = True,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = _pair(kernel_size)
+        self.stride = _pair(stride)
+        self.padding = _pair(padding)
+        self.dilation = _pair(dilation)
+        self.groups = groups
+        self.deform_groups = deform_groups
+        self.transposed = False
+        self.output_padding = _single(0)
+
+        self.weight = nn.Parameter(
+            torch.Tensor(out_channels, in_channels // groups, *self.kernel_size)
+        )
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(out_channels))
+        else:
+            self.register_parameter("bias", None)
+
+        self.conv_offset = nn.Conv2d(
+            self.in_channels,
+            self.deform_groups * 3 * self.kernel_size[0] * self.kernel_size[1],
+            kernel_size=self.kernel_size,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            bias=True,
+        )
+
+        self.init_weights()
+
+    def init_weights(self) -> None:
+        n = self.in_channels
+        for k in self.kernel_size:
+            n *= k
+        stdv = 1.0 / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.zero_()
+        if hasattr(self, "conv_offset"):
+            self.conv_offset.weight.data.zero_()
+            self.conv_offset.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
+        out = self.conv_offset(x)
+        o1, o2, mask = torch.chunk(out, 3, dim=1)
+        offset = torch.cat((o1, o2), dim=1)
+        mask = torch.sigmoid(mask)
+
+        return torchvision.ops.deform_conv2d(
+            input=x,
+            offset=offset,
+            weight=self.weight,
+            bias=self.bias,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            mask=mask,
+        )
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        version = local_metadata.get("version", None)
+
+        if version is None or version < 2:
+            if (
+                prefix + "conv_offset.weight" not in state_dict
+                and prefix[:-1] + "_offset.weight" in state_dict
+            ):
+                state_dict[prefix + "conv_offset.weight"] = state_dict.pop(
+                    prefix[:-1] + "_offset.weight"
+                )
+            if (
+                prefix + "conv_offset.bias" not in state_dict
+                and prefix[:-1] + "_offset.bias" in state_dict
+            ):
+                state_dict[prefix + "conv_offset.bias"] = state_dict.pop(
+                    prefix[:-1] + "_offset.bias"
+                )
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
 
 def build_norm_hardcoded(cfg, num_features, postfix=None):
@@ -620,6 +1409,9 @@ def build_norm_hardcoded(cfg, num_features, postfix=None):
     elif layer_type in ("BN", "BN2d"):
         module = nn.BatchNorm2d(num_features, **cfg)
         abbr = "bn"
+    elif layer_type == "SyncBN":
+        module = nn.SyncBatchNorm(num_features, **cfg)
+        abbr = "bn"
     if requires_grad is not None:
         for p in module.parameters():
             p.requires_grad = requires_grad
@@ -627,6 +1419,11 @@ def build_norm_hardcoded(cfg, num_features, postfix=None):
         return module
     name = f"{abbr}{postfix}"
     return name, module
+
+
+# ============================================================================
+# BACKBONE
+# ============================================================================
 
 
 class ResLayer(Sequential):
@@ -649,6 +1446,9 @@ class ResLayer(Sequential):
         if stride != 1 or inplanes != planes * block.expansion:
             downsample = []
             conv_stride = stride
+            norm_layer = build_norm_hardcoded(norm_cfg, planes * block.expansion)
+            if isinstance(norm_layer, tuple):
+                norm_layer = norm_layer[1]
             downsample.extend(
                 [
                     nn.Conv2d(
@@ -658,7 +1458,7 @@ class ResLayer(Sequential):
                         stride=conv_stride,
                         bias=False,
                     ),
-                    build_norm_hardcoded(norm_cfg, planes * block.expansion),
+                    norm_layer,
                 ]
             )
             downsample = nn.Sequential(*downsample)
@@ -691,12 +1491,7 @@ class ResLayer(Sequential):
         super(ResLayer, self).__init__(*layers)
 
 
-# ============================================================================
-# BACKBONE
-# ============================================================================
-
-
-class BasicBlock(BaseModule_backbone):
+class BasicBlock(BaseModule):
     expansion = 1
 
     def __init__(
@@ -718,7 +1513,6 @@ class BasicBlock(BaseModule_backbone):
 
         self.norm1_name, norm1 = build_norm_hardcoded(norm_cfg, planes, postfix=1)
         self.norm2_name, norm2 = build_norm_hardcoded(norm_cfg, planes, postfix=2)
-
         self.conv1 = nn.Conv2d(
             in_channels=inplanes,
             out_channels=planes,
@@ -754,12 +1548,16 @@ class BasicBlock(BaseModule_backbone):
             out += identity
             return out
 
-        out = _inner_forward(x)
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
         out = self.relu(out)
         return out
 
 
-class Bottleneck(BaseModule_backbone):
+class Bottleneck(BaseModule):
     expansion = 4
 
     def __init__(
@@ -795,6 +1593,9 @@ class Bottleneck(BaseModule_backbone):
         if self.style == "pytorch":
             self.conv1_stride = 1
             self.conv2_stride = stride
+        else:
+            self.conv1_stride = stride
+            self.conv2_stride = 1
 
         self.norm1_name, norm1 = build_norm_hardcoded(norm_cfg, planes, postfix=1)
         self.norm2_name, norm2 = build_norm_hardcoded(norm_cfg, planes, postfix=2)
@@ -807,8 +1608,21 @@ class Bottleneck(BaseModule_backbone):
         )
         self.add_module(self.norm1_name, norm1)
         fallback_on_stride = False
+        if self.with_dcn:
+            fallback_on_stride = dcn.pop("fallback_on_stride", False)
         if not self.with_dcn or fallback_on_stride:
             self.conv2 = nn.Conv2d(
+                planes,
+                planes,
+                kernel_size=3,
+                stride=self.conv2_stride,
+                padding=dilation,
+                dilation=dilation,
+                bias=False,
+            )
+        else:
+            self.conv2 = build_conv_layer(
+                dcn,
                 planes,
                 planes,
                 kernel_size=3,
@@ -830,7 +1644,7 @@ class Bottleneck(BaseModule_backbone):
     def forward_plugin(self, x, plugin_names):
         out = x
         for name in plugin_names:
-            out = getattr(self, name)(x)
+            out = getattr(self, name)(out)
         return out
 
     @property
@@ -852,21 +1666,12 @@ class Bottleneck(BaseModule_backbone):
             out = self.norm1(out)
             out = self.relu(out)
 
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv1_plugin_names)
-
             out = self.conv2(out)
             out = self.norm2(out)
             out = self.relu(out)
 
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv2_plugin_names)
-
             out = self.conv3(out)
             out = self.norm3(out)
-
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv3_plugin_names)
 
             if self.downsample is not None:
                 identity = self.downsample(x)
@@ -874,12 +1679,16 @@ class Bottleneck(BaseModule_backbone):
             out += identity
             return out
 
-        out = _inner_forward(x)
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
         out = self.relu(out)
         return out
 
 
-class ResNet(BaseModule_backbone):
+class ResNet(BaseModule):
     arch_settings = {
         18: (BasicBlock, (2, 2, 2, 2)),
         34: (BasicBlock, (3, 4, 6, 3)),
@@ -915,7 +1724,6 @@ class ResNet(BaseModule_backbone):
     ):
         super(ResNet, self).__init__(init_cfg)
         self.zero_init_residual = zero_init_residual
-
         block_init_cfg = None
         if init_cfg is None:
             self.init_cfg = [
@@ -924,7 +1732,11 @@ class ResNet(BaseModule_backbone):
             ]
             block = self.arch_settings[depth][0]
             if self.zero_init_residual:
-                if block is Bottleneck:
+                if block is BasicBlock:
+                    block_init_cfg = dict(
+                        type="Constant", val=0, override=dict(name="norm2")
+                    )
+                elif block is Bottleneck:
                     block_init_cfg = dict(
                         type="Constant", val=0, override=dict(name="norm3")
                     )
@@ -985,18 +1797,7 @@ class ResNet(BaseModule_backbone):
             layer_name = f"layer{i + 1}"
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)
-
         self._freeze_stages()
-
-    def make_stage_plugins(self, plugins, stage_idx):
-        stage_plugins = []
-        for plugin in plugins:
-            plugin = plugin.copy()
-            stages = plugin.pop("stages", None)
-            if stages is None or stages[stage_idx]:
-                stage_plugins.append(plugin)
-
-        return stage_plugins
 
     def make_res_layer(self, **kwargs):
         return ResLayer(**kwargs)
@@ -1040,7 +1841,6 @@ class ResNet(BaseModule_backbone):
                 param.requires_grad = False
 
     def forward(self, x):
-        """Forward function."""
         if self.deep_stem:
             x = self.stem(x)
         else:
@@ -1056,22 +1856,14 @@ class ResNet(BaseModule_backbone):
                 outs.append(x)
         return tuple(outs)
 
-    def build_norm_hardcoded(self, cfg, num_features, postfix=None):
-        return build_norm_hardcoded(cfg, num_features, postfix)
-
 
 def kaiming_init(
     module, a=0, mode="fan_out", nonlinearity="relu", bias=0, distribution="normal"
 ):
     if hasattr(module, "weight") and module.weight is not None:
-        if distribution == "uniform":
-            nn.init.kaiming_uniform_(
-                module.weight, a=a, mode=mode, nonlinearity=nonlinearity
-            )
-        else:
-            nn.init.kaiming_normal_(
-                module.weight, a=a, mode=mode, nonlinearity=nonlinearity
-            )
+        nn.init.kaiming_normal_(
+            module.weight, a=a, mode=mode, nonlinearity=nonlinearity
+        )
     if hasattr(module, "bias") and module.bias is not None:
         nn.init.constant_(module.bias, bias)
 
@@ -1151,24 +1943,14 @@ class ConvModule(nn.Module):
 
     def init_weights(self):
         if not hasattr(self.conv, "init_weights"):
-            if self.with_activation and self.act_cfg["type"] == "LeakyReLU":
-                nonlinearity = "leaky_relu"
-                a = self.act_cfg.get("negative_slope", 0.01)
-            else:
-                nonlinearity = "relu"
-                a = 0
+            nonlinearity = "relu"
+            a = 0
             kaiming_init(self.conv, a=a, nonlinearity=nonlinearity)
 
     def forward(self, x, activate=True, norm=True):
         for layer in self.order:
             if layer == "conv":
-                if self.with_explicit_padding:
-                    x = self.padding_layer(x)
                 x = self.conv(x)
-            elif layer == "norm" and norm and self.with_norm:
-                x = self.norm(x)
-            elif layer == "act" and activate and self.with_activation:
-                x = self.activate(x)
         return x
 
 
@@ -1210,6 +1992,10 @@ class FPN(BaseModule):
         self.start_level = start_level
         self.end_level = end_level
         self.add_extra_convs = add_extra_convs
+        if isinstance(add_extra_convs, str):
+            assert add_extra_convs in ("on_input", "on_lateral", "on_output")
+        elif add_extra_convs:  # True
+            self.add_extra_convs = "on_input"
 
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
@@ -1237,6 +2023,23 @@ class FPN(BaseModule):
             self.lateral_convs.append(l_conv)
             self.fpn_convs.append(fpn_conv)
 
+        extra_levels = num_outs - self.backbone_end_level + self.start_level
+        if self.add_extra_convs and extra_levels >= 1:
+            for i in range(extra_levels):
+                in_channels = out_channels
+                extra_fpn_conv = ConvModule(
+                    in_channels,
+                    out_channels,
+                    3,
+                    stride=2,
+                    padding=1,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    act_cfg=act_cfg,
+                    inplace=False,
+                )
+                self.fpn_convs.append(extra_fpn_conv)
+
     def forward(self, inputs):
         laterals = [
             lateral_conv(inputs[i + self.start_level])
@@ -1245,20 +2048,23 @@ class FPN(BaseModule):
 
         used_backbone_levels = len(laterals)
         for i in range(used_backbone_levels - 1, 0, -1):
-            if "scale_factor" in self.upsample_cfg:
-                laterals[i - 1] += F.interpolate(laterals[i], **self.upsample_cfg)
-            else:
-                prev_shape = laterals[i - 1].shape[2:]
-                laterals[i - 1] += F.interpolate(
-                    laterals[i], size=prev_shape, **self.upsample_cfg
-                )
+            prev_shape = laterals[i - 1].shape[2:]
+            laterals[i - 1] += F.interpolate(
+                laterals[i], size=prev_shape, **self.upsample_cfg
+            )
 
         outs = [self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)]
+        if self.num_outs > len(outs):
+            if not self.add_extra_convs:
+                for i in range(self.num_outs - used_backbone_levels):
+                    outs.append(F.max_pool2d(outs[-1], 1, stride=2))
+            else:
+                extra_source = outs[-1]
+                outs.append(self.fpn_convs[used_backbone_levels](extra_source))
+                for i in range(used_backbone_levels + 1, self.num_outs):
+                    if self.relu_before_extra_convs:
+                        outs.append(self.fpn_convs[i](F.relu(outs[-1])))
         return tuple(outs)
-
-
-TORCH_VERSION = torch.__version__
-from packaging.version import parse
 
 
 def digit_version(version_str: str, length: int = 4):
@@ -1370,7 +2176,6 @@ class CustomMSDeformableAttention(BaseModule):
         self.init_weights()
 
     def init_weights(self):
-        """Default initialization for Parameters of Module."""
         constant_init(self.sampling_offsets, 0.0)
         thetas = torch.arange(self.num_heads, dtype=torch.float32) * (
             2.0 * math.pi / self.num_heads
@@ -1415,7 +2220,6 @@ class CustomMSDeformableAttention(BaseModule):
 
         bs, num_query, _ = query.shape
         bs, num_value, _ = value.shape
-
         value = self.value_proj(value)
         value = value.view(bs, num_value, self.num_heads, -1)
 
@@ -1525,7 +2329,6 @@ class SpatialCrossAttention(BaseModule):
         self.init_weight()
 
     def init_weight(self):
-        """Default initialization for Parameters of Module."""
         xavier_init(self.output_proj, distribution="uniform", bias=0.0)
 
     def forward(
@@ -1638,7 +2441,6 @@ class MSDeformableAttention3D(BaseModule):
         self.init_weights()
 
     def init_weights(self):
-        """Default initialization for Parameters of Module."""
         constant_init(self.sampling_offsets, 0.0)
         thetas = torch.arange(self.num_heads, dtype=torch.float32) * (
             2.0 * math.pi / self.num_heads
@@ -1827,10 +2629,6 @@ class TemporalSelfAttention(BaseModule):
 
         query = torch.cat([value[:bs], query], -1)
         value = self.value_proj(value)
-
-        if key_padding_mask is not None:
-            value = value.masked_fill(key_padding_mask[..., None], 0.0)
-
         value = value.reshape(bs * self.num_bev_queue, num_value, self.num_heads, -1)
 
         sampling_offsets = self.sampling_offsets(query)
@@ -1921,6 +2719,77 @@ class TransformerLayerSequence(BaseModule):
         self.pre_norm = self.layers[0].pre_norm
 
 
+class GroupMultiheadAttention(BaseModule):
+    def __init__(
+        self,
+        embed_dims,
+        num_heads,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        group=1,
+        dropout_layer=dict(type="Dropout", drop_prob=0.0),
+        init_cfg=None,
+        batch_first=False,
+        **kwargs,
+    ):
+        super().__init__(init_cfg)
+        if "dropout" in kwargs:
+            attn_drop = kwargs["dropout"]
+            dropout_layer["drop_prob"] = kwargs.pop("dropout")
+
+        self.embed_dims = embed_dims
+        self.num_heads = num_heads
+        self.group = group
+        self.batch_first = batch_first
+
+        self.attn = nn.MultiheadAttention(embed_dims, num_heads, attn_drop, **kwargs)
+
+        self.proj_drop = nn.Dropout(proj_drop)
+        if dropout_layer:
+            cfg = dropout_layer.copy()
+            drop_type = cfg.pop("type")
+            if drop_type == "Dropout":
+                p = cfg.pop("drop_prob", 0.5)
+                self.dropout_layer = nn.Dropout(p=p, **cfg)
+            else:
+                self.dropout_layer = nn.Identity()
+
+    def forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        identity=None,
+        query_pos=None,
+        key_pos=None,
+        attn_mask=None,
+        key_padding_mask=None,
+        **kwargs,
+    ):
+        if identity is None:
+            identity = query
+        if query_pos is not None:
+            query = query + query_pos
+        if key_pos is not None:
+            key = key + key_pos
+
+        num_queries = query.shape[0]
+        bs = query.shape[1]
+        if self.training:
+            query = torch.cat(query.split(num_queries // self.group, dim=0), dim=1)
+            key = torch.cat(key.split(num_queries // self.group, dim=0), dim=1)
+            value = torch.cat(value.split(num_queries // self.group, dim=0), dim=1)
+
+        out = self.attn(
+            query=query,
+            key=key,
+            value=value,
+            attn_mask=attn_mask,
+            key_padding_mask=key_padding_mask,
+        )[0]
+        return identity + self.dropout_layer(self.proj_drop(out))
+
+
 class MultiheadAttention(BaseModule):
     def __init__(
         self,
@@ -1972,12 +2841,6 @@ class MultiheadAttention(BaseModule):
             query = query + query_pos
         if key_pos is not None:
             key = key + key_pos
-
-        if self.batch_first:
-            query = query.transpose(0, 1)
-            key = key.transpose(0, 1)
-            value = value.transpose(0, 1)
-
         out = self.attn(
             query=query,
             key=key,
@@ -1985,9 +2848,6 @@ class MultiheadAttention(BaseModule):
             attn_mask=attn_mask,
             key_padding_mask=key_padding_mask,
         )[0]
-
-        if self.batch_first:
-            out = out.transpose(0, 1)
 
         return identity + self.dropout_layer(self.proj_drop(out))
 
@@ -2067,9 +2927,7 @@ class BaseTransformerLayer(BaseModule):
         self.norms = ModuleList()
         num_norms = operation_order.count("norm")
         for _ in range(num_norms):
-            self.norms.append(
-                build_norm_hardcoded_transformer(norm_cfg, self.embed_dims)
-            )
+            self.norms.append(build_norm_hardcoded(norm_cfg, self.embed_dims))
 
     def forward(
         self,
@@ -2089,7 +2947,6 @@ class BaseTransformerLayer(BaseModule):
         identity = query
         if attn_masks is None:
             attn_masks = [None for _ in range(self.num_attn)]
-
         for layer in self.operation_order:
             if layer == "self_attn":
                 temp_key = temp_value = query
@@ -2176,7 +3033,9 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
         intermediate_reference_points = []
         for lid, layer in enumerate(self.layers):
 
-            reference_points_input = reference_points[..., :2].unsqueeze(2)
+            reference_points_input = reference_points[..., :2].unsqueeze(
+                2
+            )  # BS NUM_QUERY NUM_LEVEL 2
             output = layer(
                 output,
                 *args,
@@ -2188,7 +3047,6 @@ class DetectionTransformerDecoder(TransformerLayerSequence):
 
             if reg_branches is not None:
                 tmp = reg_branches[lid](output)
-
                 new_reference_points = torch.zeros_like(reference_points)
                 new_reference_points[..., :2] = tmp[..., :2] + inverse_sigmoid(
                     reference_points[..., :2]
@@ -2339,11 +3197,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
             & (reference_points_cam[..., 0:1] < 1.0)
             & (reference_points_cam[..., 0:1] > 0.0)
         )
-        if digit_version(TORCH_VERSION) >= digit_version("1.8"):
-            bev_mask = torch.nan_to_num(bev_mask)
-        else:
-            bev_mask = bev_mask.new_tensor(np.nan_to_num(bev_mask.cpu().numpy()))
-
+        bev_mask = torch.nan_to_num(bev_mask)
         reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4)
         bev_mask = bev_mask.permute(2, 1, 3, 0, 4).squeeze(-1)
 
@@ -2421,11 +3275,6 @@ class BEVFormerEncoder(TransformerLayerSequence):
             )
 
             bev_query = output
-            if self.return_intermediate:
-                intermediate.append(output)
-        if self.return_intermediate:
-            return torch.stack(intermediate)
-
         return output
 
 
@@ -2497,9 +3346,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
         self.norms = ModuleList()
         num_norms = operation_order.count("norm")
         for _ in range(num_norms):
-            self.norms.append(
-                build_norm_hardcoded_transformer(norm_cfg, self.embed_dims)
-            )
+            self.norms.append(build_norm_hardcoded(norm_cfg, self.embed_dims))
 
 
 class BEVFormerLayer(MyCustomBaseTransformerLayer):
@@ -2604,6 +3451,393 @@ class BEVFormerLayer(MyCustomBaseTransformerLayer):
         return query
 
 
+class PerceptionTransformerBEVEncoder(BaseModule):
+    def __init__(
+        self,
+        num_feature_levels=4,
+        num_cams=6,
+        two_stage_num_proposals=300,
+        encoder=None,
+        embed_dims=256,
+        use_cams_embeds=True,
+        rotate_center=[100, 100],
+        **kwargs,
+    ):
+        super(PerceptionTransformerBEVEncoder, self).__init__(**kwargs)
+        enc_cfg = encoder.copy()
+        enc_type = enc_cfg.pop("type")
+        self.encoder = globals()[enc_type](**enc_cfg)
+        self.embed_dims = embed_dims
+        self.num_feature_levels = num_feature_levels
+        self.num_cams = num_cams
+        self.fp16_enabled = False
+
+        self.use_cams_embeds = use_cams_embeds
+
+        self.two_stage_num_proposals = two_stage_num_proposals
+        self.rotate_center = rotate_center
+        self.level_embeds = nn.Parameter(
+            torch.Tensor(self.num_feature_levels, self.embed_dims)
+        )
+        if self.use_cams_embeds:
+            self.cams_embeds = nn.Parameter(
+                torch.Tensor(self.num_cams, self.embed_dims)
+            )
+
+    def forward(
+        self,
+        mlvl_feats,
+        bev_queries,
+        bev_h,
+        bev_w,
+        grid_length=[0.512, 0.512],
+        bev_pos=None,
+        prev_bev=None,
+        **kwargs,
+    ):
+        bs = mlvl_feats[0].size(0)
+        bev_queries = bev_queries.unsqueeze(1).repeat(1, bs, 1)
+        bev_pos = bev_pos.flatten(2).permute(2, 0, 1)
+
+        feat_flatten = []
+        spatial_shapes = []
+        for lvl, feat in enumerate(mlvl_feats):
+            bs, num_cam, c, h, w = feat.shape
+            spatial_shape = (h, w)
+            feat = feat.flatten(3).permute(1, 0, 3, 2)
+            if self.use_cams_embeds:
+                feat = feat + self.cams_embeds[:, None, None, :].to(feat.dtype)
+            feat = feat + self.level_embeds[None, None, lvl : lvl + 1, :].to(feat.dtype)
+            spatial_shapes.append(spatial_shape)
+            feat_flatten.append(feat)
+
+        feat_flatten = torch.cat(feat_flatten, 2)
+        spatial_shapes = torch.as_tensor(
+            spatial_shapes, dtype=torch.long, device=bev_pos.device
+        )
+        level_start_index = torch.cat(
+            (spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1])
+        )
+
+        feat_flatten = feat_flatten.permute(
+            0, 2, 1, 3
+        )  # (num_cam, H*W, bs, embed_dims)
+
+        bev_embed = self.encoder(
+            bev_queries,
+            feat_flatten,
+            feat_flatten,
+            bev_h=bev_h,
+            bev_w=bev_w,
+            bev_pos=bev_pos,
+            spatial_shapes=spatial_shapes,
+            level_start_index=level_start_index,
+            prev_bev=None,
+            shift=bev_queries.new_tensor([0, 0]).unsqueeze(0),
+            **kwargs,
+        )
+        prev_bev = bev_embed
+        if (
+            "aug_param" in kwargs["img_metas"][0]
+            and "GlobalRotScaleTransImage_param" in kwargs["img_metas"][0]["aug_param"]
+        ):
+            rot_angle, scale_ratio, flip_dx, flip_dy, bda_mat, only_gt = kwargs[
+                "img_metas"
+            ][0]["aug_param"]["GlobalRotScaleTransImage_param"]
+            prev_bev = prev_bev.reshape(bs, bev_h, bev_w, -1).permute(
+                0, 3, 1, 2
+            )  # bchw
+        return prev_bev
+
+
+class BasicBlock_resfusion(BaseModule):
+    expansion = 1
+
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        style="pytorch",
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        dcn=None,
+        plugins=None,
+        init_cfg=None,
+    ):
+        super(BasicBlock_resfusion, self).__init__(init_cfg)
+
+        self.norm1_name, norm1 = build_norm_hardcoded(norm_cfg, planes, postfix=1)
+        self.norm2_name, norm2 = build_norm_hardcoded(norm_cfg, planes, postfix=2)
+        self.conv1 = nn.Conv2d(
+            inplanes,
+            planes,
+            3,
+            stride=stride,
+            padding=dilation,
+            dilation=dilation,
+            bias=False,
+        )
+        self.add_module(self.norm1_name, norm1)
+        self.conv2 = nn.Conv2d(planes, planes, 3, padding=1, bias=False)
+        self.add_module(self.norm2_name, norm2)
+
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+        self.dilation = dilation
+        self.with_cp = with_cp
+
+    @property
+    def norm1(self):
+        return getattr(self, self.norm1_name)
+
+    @property
+    def norm2(self):
+        return getattr(self, self.norm2_name)
+
+    def forward(self, x):
+        def _inner_forward(x):
+            identity = x
+
+            out = self.conv1(x)
+            out = self.norm1(out)
+            out = self.relu(out)
+
+            out = self.conv2(out)
+            out = self.norm2(out)
+
+            if self.downsample is not None:
+                identity = self.downsample(x)
+
+            out += identity
+            return out
+
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
+        out = self.relu(out)
+        return out
+
+
+class ResNetFusion(BaseModule):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        inter_channels,
+        num_layer,
+        norm_cfg=dict(type="SyncBN"),
+        with_cp=False,
+    ):
+        super(ResNetFusion, self).__init__()
+        layers = []
+        self.inter_channels = inter_channels
+        for i in range(num_layer):
+            if i == 0:
+                if inter_channels == in_channels:
+                    layers.append(
+                        BasicBlock_resfusion(
+                            in_channels, inter_channels, stride=1, norm_cfg=norm_cfg
+                        )
+                    )
+                else:
+                    norm_layer = build_norm_hardcoded(norm_cfg, inter_channels)
+                    if isinstance(norm_layer, tuple):
+                        norm_layer = norm_layer[1]
+                    downsample = nn.Sequential(
+                        nn.Conv2d(
+                            in_channels,
+                            inter_channels,
+                            3,
+                            stride=1,
+                            padding=1,
+                            dilation=1,
+                            bias=False,
+                        ),
+                        norm_layer,
+                    )
+                    layers.append(
+                        BasicBlock_resfusion(
+                            in_channels,
+                            inter_channels,
+                            stride=1,
+                            norm_cfg=norm_cfg,
+                            downsample=downsample,
+                        )
+                    )
+            else:
+                layers.append(
+                    BasicBlock_resfusion(
+                        inter_channels, inter_channels, stride=1, norm_cfg=norm_cfg
+                    )
+                )
+        self.layers = nn.Sequential(*layers)
+        self.layer_norm = nn.Sequential(
+            nn.Linear(inter_channels, out_channels), nn.LayerNorm(out_channels)
+        )
+        self.with_cp = with_cp
+
+    def forward(self, x):
+        x = torch.cat(x, 1).contiguous()
+        for lid, layer in enumerate(self.layers):
+            if self.with_cp and x.requires_grad:
+                x = checkpoint.checkpoint(layer, x)
+            else:
+                x = layer(x)
+        x = x.reshape(x.shape[0], x.shape[1], -1).permute(0, 2, 1)  # nchw -> n(hw)c
+        x = self.layer_norm(x)
+        return x
+
+
+class PerceptionTransformerV2(PerceptionTransformerBEVEncoder):
+    def __init__(
+        self,
+        num_feature_levels=4,
+        num_cams=6,
+        two_stage_num_proposals=300,
+        encoder=None,
+        embed_dims=256,
+        use_cams_embeds=True,
+        rotate_center=[100, 100],
+        frames=(0,),
+        decoder=None,
+        num_fusion=3,
+        inter_channels=None,
+        **kwargs,
+    ):
+        super(PerceptionTransformerV2, self).__init__(
+            num_feature_levels,
+            num_cams,
+            two_stage_num_proposals,
+            encoder,
+            embed_dims,
+            use_cams_embeds,
+            rotate_center,
+            **kwargs,
+        )
+        dec_cfg = decoder.copy()
+        dec_type = dec_cfg.pop("type")
+        self.decoder = globals()[dec_type](**dec_cfg)
+        self.reference_points = nn.Linear(self.embed_dims, 3)
+        self.frames = frames
+        if len(self.frames) > 1:
+            self.fusion = ResNetFusion(
+                len(self.frames) * self.embed_dims,
+                self.embed_dims,
+                inter_channels
+                if inter_channels is not None
+                else len(self.frames) * self.embed_dims,
+                num_fusion,
+            )
+
+    def init_weights(self):
+        super().init_weights()
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+        xavier_init(self.reference_points, distribution="uniform", bias=0.0)
+
+    def get_bev_features(
+        self,
+        mlvl_feats,
+        bev_queries,
+        bev_h,
+        bev_w,
+        grid_length=[0.512, 0.512],
+        bev_pos=None,
+        prev_bev=None,
+        **kwargs,
+    ):
+        return super().forward(
+            mlvl_feats,
+            bev_queries,
+            bev_h,
+            bev_w,
+            grid_length,
+            bev_pos,
+            prev_bev,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        mlvl_feats,
+        bev_queries,
+        object_query_embed,
+        bev_h,
+        bev_w,
+        grid_length=[0.512, 0.512],
+        bev_pos=None,
+        reg_branches=None,
+        cls_branches=None,
+        prev_bev=None,
+        **kwargs,
+    ):
+        bev_embed = self.get_bev_features(
+            mlvl_feats,
+            bev_queries,
+            bev_h,
+            bev_w,
+            grid_length=grid_length,
+            bev_pos=bev_pos,
+            prev_bev=None,
+            **kwargs,
+        )  # bev_embed shape: bs, bev_h*bev_w, embed_dims
+
+        if len(self.frames) > 1:
+            cur_ind = list(self.frames).index(0)
+            prev_bev[cur_ind] = bev_embed
+
+            for i in range(1, cur_ind + 1):
+                if prev_bev[cur_ind - i] is None:
+                    prev_bev[cur_ind - i] = prev_bev[cur_ind - i + 1].detach()
+
+            for i in range(cur_ind + 1, len(self.frames)):
+                if prev_bev[i] is None:
+                    prev_bev[i] = prev_bev[i - 1].detach()
+            bev_embed = [
+                x.reshape(x.shape[0], bev_h, bev_w, x.shape[-1])
+                .permute(0, 3, 1, 2)
+                .contiguous()
+                for x in prev_bev
+            ]
+            bev_embed = self.fusion(bev_embed)
+
+        bs = mlvl_feats[0].size(0)
+        query_pos, query = torch.split(object_query_embed, self.embed_dims, dim=1)
+        query_pos = query_pos.unsqueeze(0).expand(bs, -1, -1)
+        query = query.unsqueeze(0).expand(bs, -1, -1)
+        reference_points = self.reference_points(query_pos)
+        reference_points = reference_points.sigmoid()
+        init_reference_out = reference_points
+
+        query = query.permute(1, 0, 2)
+        query_pos = query_pos.permute(1, 0, 2)
+        bev_embed = bev_embed.permute(1, 0, 2)
+
+        inter_states, inter_references = self.decoder(
+            query=query,
+            key=None,
+            value=bev_embed,
+            query_pos=query_pos,
+            reference_points=reference_points,
+            reg_branches=reg_branches,
+            cls_branches=cls_branches,
+            spatial_shapes=torch.tensor([[bev_h, bev_w]], device=query.device),
+            level_start_index=torch.tensor([0], device=query.device),
+            **kwargs,
+        )
+
+        inter_references_out = inter_references
+        return bev_embed, inter_states, init_reference_out, inter_references_out
+
+
 class PerceptionTransformer(BaseModule):
     def __init__(
         self,
@@ -2642,7 +3876,6 @@ class PerceptionTransformer(BaseModule):
         self.rotate_center = rotate_center
 
     def init_layers(self):
-        """Initialize layers of the Detr3DTransformer."""
         self.level_embeds = nn.Parameter(
             torch.Tensor(self.num_feature_levels, self.embed_dims)
         )
@@ -2668,9 +3901,6 @@ class PerceptionTransformer(BaseModule):
         prev_bev=None,
         **kwargs,
     ):
-        """
-        obtain bev features.
-        """
         bs = mlvl_feats[0].size(0)
         bev_queries = bev_queries.unsqueeze(1).repeat(1, bs, 1)
         bev_pos = bev_pos.flatten(2).permute(2, 0, 1)
@@ -2812,17 +4042,9 @@ class PerceptionTransformer(BaseModule):
         return bev_embed, inter_states, init_reference_out, inter_references_out
 
 
-def build_norm_hardcoded_transformer(cfg, num_features):
-    cfg = cfg.copy()
-    layer_type = cfg.pop("type")
-    if layer_type in ("LN", "LayerNorm"):
-        eps = cfg.pop("eps", 1e-5)
-        elementwise_affine = cfg.pop("elementwise_affine", True)
-        return nn.LayerNorm(
-            num_features, eps=eps, elementwise_affine=elementwise_affine
-        )
-    if layer_type in ("BN", "BN2d"):
-        return nn.BatchNorm2d(num_features, **cfg)
+# ============================================================================
+# HEADS
+# ============================================================================
 
 
 class BBoxTestMixin(object):
@@ -2832,9 +4054,35 @@ class BBoxTestMixin(object):
         return results_list
 
 
-# ============================================================================
-# HEADS
-# ============================================================================
+class Scale(nn.Module):
+    def __init__(self, init_value=1.0):
+        super(Scale, self).__init__()
+        self.scale = nn.Parameter(torch.FloatTensor([init_value]))
+
+    def forward(self, input):
+        return input * self.scale
+
+
+class Offset(nn.Module):
+    def __init__(self, init_value=0.0):
+        super(Offset, self).__init__()
+        self.bias = nn.Parameter(torch.FloatTensor([init_value]))
+
+    def forward(self, input):
+        return input + self.bias
+
+
+class ModuleListDial(nn.ModuleList):
+    def __init__(self, modules=None):
+        super(ModuleListDial, self).__init__(modules)
+        self.cur_position = 0
+
+    def forward(self, x):
+        result = self[self.cur_position](x)
+        self.cur_position += 1
+        if self.cur_position >= len(self):
+            self.cur_position = 0
+        return result
 
 
 class BaseDenseHead(BaseModule, metaclass=ABCMeta):
@@ -2916,6 +4164,405 @@ class LearnedPositionalEncoding(BaseModule):
         return pos
 
 
+class FCOS2DHead(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        input_shape,
+        num_cls_convs=4,
+        num_box_convs=4,
+        norm="BN",
+        use_deformable=False,
+        use_scale=True,
+        box2d_scale_init_factor=1.0,
+        version="v2",
+    ):
+        super().__init__()
+
+        self.num_classes = num_classes
+        self.in_strides = [shape.stride for shape in input_shape]
+        self.num_levels = len(input_shape)
+        self.use_scale = use_scale
+        self.box2d_scale_init_factor = box2d_scale_init_factor
+        self._version = version
+
+        in_channels = [s.channels for s in input_shape]
+        in_channels = in_channels[0]
+
+        head_configs = {"cls": num_cls_convs, "box2d": num_box_convs}
+
+        for head_name, num_convs in head_configs.items():
+            tower = []
+            if self._version == "v2":
+                for _ in range(num_convs):
+                    if norm in ("BN", "FrozenBN", "SyncBN", "GN"):
+                        norm_layer = ModuleListDial(
+                            [
+                                get_norm(norm, in_channels)
+                                for _ in range(self.num_levels)
+                            ]
+                        )
+                    else:
+                        norm_layer = get_norm(norm, in_channels)
+                    tower.append(
+                        Conv2d(
+                            in_channels,
+                            in_channels,
+                            kernel_size=3,
+                            stride=1,
+                            padding=1,
+                            bias=norm_layer is None,
+                            norm=norm_layer,
+                            activation=F.relu,
+                        )
+                    )
+            self.add_module(f"{head_name}_tower", nn.Sequential(*tower))
+
+        self.cls_logits = nn.Conv2d(
+            in_channels, self.num_classes, kernel_size=3, stride=1, padding=1
+        )
+        self.box2d_reg = nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1)
+        self.centerness = nn.Conv2d(in_channels, 1, kernel_size=3, stride=1, padding=1)
+
+        if self.use_scale:
+            self.scales_box2d_reg = nn.ModuleList(
+                [
+                    Scale(init_value=stride * self.box2d_scale_init_factor)
+                    for stride in self.in_strides
+                ]
+            )
+
+        self.init_weights()
+
+    def init_weights(self):
+        for tower in [self.cls_tower, self.box2d_tower]:
+            for l in tower.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.kaiming_normal_(
+                        l.weight, mode="fan_out", nonlinearity="relu"
+                    )
+                    if l.bias is not None:
+                        torch.nn.init.constant_(l.bias, 0)
+
+        predictors = [self.cls_logits, self.box2d_reg, self.centerness]
+
+        for modules in predictors:
+            for l in modules.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.kaiming_uniform_(l.weight, a=1)
+                    if l.bias is not None:  # depth head may not have bias.
+                        torch.nn.init.constant_(l.bias, 0)
+
+
+class FCOS2DLoss(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        focal_loss_alpha=0.25,
+        focal_loss_gamma=2.0,
+        loc_loss_type="giou",
+    ):
+        super().__init__()
+        self.focal_loss_alpha = focal_loss_alpha
+        self.focal_loss_gamma = focal_loss_gamma
+        self.num_classes = num_classes
+
+
+class FCOS3DHead(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        input_shape,
+        num_convs=4,
+        norm="BN",
+        use_scale=True,
+        depth_scale_init_factor=0.3,
+        proj_ctr_scale_init_factor=1.0,
+        use_per_level_predictors=False,
+        class_agnostic=False,
+        use_deformable=False,
+        mean_depth_per_level=None,
+        std_depth_per_level=None,
+    ):
+        super().__init__()
+        self.num_classes = num_classes
+        self.in_strides = [shape.stride for shape in input_shape]
+        self.num_levels = len(input_shape)
+
+        self.use_scale = use_scale
+        self.depth_scale_init_factor = depth_scale_init_factor
+        self.proj_ctr_scale_init_factor = proj_ctr_scale_init_factor
+        self.use_per_level_predictors = use_per_level_predictors
+
+        self.register_buffer("mean_depth_per_level", torch.Tensor(mean_depth_per_level))
+        self.register_buffer("std_depth_per_level", torch.Tensor(std_depth_per_level))
+
+        in_channels = [s.channels for s in input_shape]
+        in_channels = in_channels[0]
+
+        box3d_tower = []
+        for i in range(num_convs):
+            if norm in ("BN", "FrozenBN", "SyncBN", "GN"):
+                norm_layer = ModuleListDial(
+                    [get_norm(norm, in_channels) for _ in range(self.num_levels)]
+                )
+            box3d_tower.append(
+                Conv2d(
+                    in_channels,
+                    in_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=norm_layer is None,
+                    norm=norm_layer,
+                    activation=F.relu,
+                )
+            )
+        self.add_module("box3d_tower", nn.Sequential(*box3d_tower))
+
+        num_classes = self.num_classes if not class_agnostic else 1
+        num_levels = self.num_levels if use_per_level_predictors else 1
+
+        self.box3d_quat = nn.ModuleList(
+            [
+                Conv2d(
+                    in_channels,
+                    4 * num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=True,
+                )
+                for _ in range(num_levels)
+            ]
+        )
+        self.box3d_ctr = nn.ModuleList(
+            [
+                Conv2d(
+                    in_channels,
+                    2 * num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=True,
+                )
+                for _ in range(num_levels)
+            ]
+        )
+        self.box3d_depth = nn.ModuleList(
+            [
+                Conv2d(
+                    in_channels,
+                    1 * num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=(not self.use_scale),
+                )
+                for _ in range(num_levels)
+            ]
+        )
+        self.box3d_size = nn.ModuleList(
+            [
+                Conv2d(
+                    in_channels,
+                    3 * num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=True,
+                )
+                for _ in range(num_levels)
+            ]
+        )
+        self.box3d_conf = nn.ModuleList(
+            [
+                Conv2d(
+                    in_channels,
+                    1 * num_classes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=True,
+                )
+                for _ in range(num_levels)
+            ]
+        )
+
+        if self.use_scale:
+            self.scales_proj_ctr = nn.ModuleList(
+                [
+                    Scale(init_value=stride * self.proj_ctr_scale_init_factor)
+                    for stride in self.in_strides
+                ]
+            )
+            self.scales_size = nn.ModuleList(
+                [Scale(init_value=1.0) for _ in range(self.num_levels)]
+            )
+            self.scales_conf = nn.ModuleList(
+                [Scale(init_value=1.0) for _ in range(self.num_levels)]
+            )
+
+            self.scales_depth = nn.ModuleList(
+                [
+                    Scale(init_value=sigma * self.depth_scale_init_factor)
+                    for sigma in self.std_depth_per_level
+                ]
+            )
+            self.offsets_depth = nn.ModuleList(
+                [Offset(init_value=b) for b in self.mean_depth_per_level]
+            )
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for l in self.box3d_tower.modules():
+            if isinstance(l, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(
+                    l.weight, mode="fan_out", nonlinearity="relu"
+                )
+                if l.bias is not None:
+                    torch.nn.init.constant_(l.bias, 0)
+
+        predictors = [
+            self.box3d_quat,
+            self.box3d_ctr,
+            self.box3d_depth,
+            self.box3d_size,
+            self.box3d_conf,
+        ]
+
+        for modules in predictors:
+            for l in modules.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.kaiming_uniform_(l.weight, a=1)
+                    if l.bias is not None:  # depth head may not have bias.
+                        torch.nn.init.constant_(l.bias, 0)
+
+
+class FCOS3DLoss(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        min_depth=0.1,
+        max_depth=80.0,
+        box3d_loss_weight=2.0,
+        conf3d_loss_weight=1.0,
+        conf_3d_temperature=1.0,
+        smooth_l1_loss_beta=0.05,
+        max_loss_per_group=20,
+        predict_allocentric_rot=True,
+        scale_depth_by_focal_lengths=True,
+        scale_depth_by_focal_lengths_factor=500.0,
+        class_agnostic=False,
+        predict_distance=False,
+        canon_box_sizes=None,
+    ):
+        super().__init__()
+        self.canon_box_sizes = canon_box_sizes
+        self.min_depth = min_depth
+        self.max_depth = max_depth
+        self.predict_allocentric_rot = predict_allocentric_rot
+        self.scale_depth_by_focal_lengths = scale_depth_by_focal_lengths
+        self.scale_depth_by_focal_lengths_factor = scale_depth_by_focal_lengths_factor
+        self.predict_distance = predict_distance
+        self.box3d_loss_weight = box3d_loss_weight
+        self.conf3d_loss_weight = conf3d_loss_weight
+        self.conf_3d_temperature = conf_3d_temperature
+
+        self.num_classes = num_classes
+        self.class_agnostic = class_agnostic
+
+
+class DD3D(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        in_channels,
+        strides,
+        fcos2d_cfg=dict(),
+        fcos2d_loss_cfg=dict(),
+        fcos3d_cfg=dict(),
+        fcos3d_loss_cfg=dict(),
+        target_assign_cfg=dict(),
+        box3d_on=True,
+        feature_locations_offset="none",
+    ):
+        super().__init__()
+        self.backbone_output_shape = [
+            ShapeSpec(channels=in_channels, stride=s) for s in strides
+        ]
+
+        self.feature_locations_offset = feature_locations_offset
+
+        self.fcos2d_head = FCOS2DHead(
+            num_classes=num_classes,
+            input_shape=self.backbone_output_shape,
+            **fcos2d_cfg,
+        )
+        self.fcos2d_loss = FCOS2DLoss(num_classes=num_classes, **fcos2d_loss_cfg)
+
+        if box3d_on:
+            self.fcos3d_head = FCOS3DHead(
+                num_classes=num_classes,
+                input_shape=self.backbone_output_shape,
+                **fcos3d_cfg,
+            )
+            self.fcos3d_loss = FCOS3DLoss(num_classes=num_classes, **fcos3d_loss_cfg)
+            self.only_box2d = False
+        else:
+            self.only_box2d = True
+
+
+class NuscenesDD3D(DD3D):
+    def __init__(
+        self,
+        num_classes,
+        in_channels,
+        strides,
+        fcos2d_cfg=dict(),
+        fcos2d_loss_cfg=dict(),
+        fcos3d_cfg=dict(),
+        fcos3d_loss_cfg=dict(),
+        target_assign_cfg=dict(),
+        nusc_loss_weight=dict(),
+        box3d_on=True,
+        feature_locations_offset="none",
+    ):
+        super().__init__(
+            num_classes,
+            in_channels,
+            strides,
+            fcos2d_cfg=fcos2d_cfg,
+            fcos2d_loss_cfg=fcos2d_loss_cfg,
+            fcos3d_cfg=fcos3d_cfg,
+            fcos3d_loss_cfg=fcos3d_loss_cfg,
+            target_assign_cfg=target_assign_cfg,
+            box3d_on=box3d_on,
+            feature_locations_offset=feature_locations_offset,
+        )
+
+        self.attr_logits = Conv2d(
+            in_channels, 3, kernel_size=3, stride=1, padding=1, bias=True
+        )
+        self.speed = Conv2d(
+            in_channels,
+            1,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=True,
+            activation=F.relu,
+        )
+
+        for modules in [self.attr_logits, self.speed]:
+            for l in modules.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.kaiming_uniform_(l.weight, a=1)
+                    if l.bias is not None:  # depth head may not have bias.
+                        torch.nn.init.constant_(l.bias, 0)
+
+
 class DETRHead(AnchorFreeHead):
     _version = 2
 
@@ -2981,7 +4628,11 @@ class DETRHead(AnchorFreeHead):
         self.positional_encoding = LearnedPositionalEncoding(**cfg)
         args = transformer.copy()
         args.pop("type", None)
-        self.transformer = PerceptionTransformer(**args)
+        trans_type = transformer.get("type", "PerceptionTransformer")
+        if trans_type == "PerceptionTransformerV2":
+            self.transformer = PerceptionTransformerV2(**args)
+        else:
+            self.transformer = PerceptionTransformer(**args)
         self.embed_dims = self.transformer.embed_dims
         self._init_layers()
 
@@ -3044,19 +4695,19 @@ class BEVFormerHead(DETRHead):
         self.bev_w = bev_w
         self.with_box_refine = with_box_refine
         self.as_two_stage = as_two_stage
-        self.code_size = kwargs.get("code_size", 10)
-        self.code_weights = [1.0] * 8 + [0.2, 0.2]
+        if self.as_two_stage:
+            transformer["as_two_stage"] = self.as_two_stage
+        self.code_size = 10
+        self.code_weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2]
 
         if isinstance(bbox_coder, dict):
             cfg = bbox_coder.copy()
             cfg.pop("type", None)
             self.bbox_coder = NMSFreeCoder(**cfg)
-
         self.pc_range = self.bbox_coder.pc_range
         self.real_w = self.pc_range[3] - self.pc_range[0]
         self.real_h = self.pc_range[4] - self.pc_range[1]
         self.num_cls_fcs = num_cls_fcs - 1
-
         super(BEVFormerHead, self).__init__(*args, transformer=transformer, **kwargs)
         self.code_weights = nn.Parameter(
             torch.tensor(self.code_weights, requires_grad=False), requires_grad=False
@@ -3065,17 +4716,16 @@ class BEVFormerHead(DETRHead):
     def _init_layers(self):
         cls_branch = []
         for _ in range(self.num_reg_fcs):
-            cls_branch += [
-                Linear(self.embed_dims, self.embed_dims),
-                nn.LayerNorm(self.embed_dims),
-                nn.ReLU(inplace=True),
-            ]
+            cls_branch.append(Linear(self.embed_dims, self.embed_dims))
+            cls_branch.append(nn.LayerNorm(self.embed_dims))
+            cls_branch.append(nn.ReLU(inplace=True))
         cls_branch.append(Linear(self.embed_dims, self.cls_out_channels))
         fc_cls = nn.Sequential(*cls_branch)
 
         reg_branch = []
         for _ in range(self.num_reg_fcs):
-            reg_branch += [Linear(self.embed_dims, self.embed_dims), nn.ReLU()]
+            reg_branch.append(Linear(self.embed_dims, self.embed_dims))
+            reg_branch.append(nn.ReLU())
         reg_branch.append(Linear(self.embed_dims, self.code_size))
         reg_branch = nn.Sequential(*reg_branch)
 
@@ -3091,6 +4741,9 @@ class BEVFormerHead(DETRHead):
         if self.with_box_refine:
             self.cls_branches = _get_clones(fc_cls, num_pred)
             self.reg_branches = _get_clones(reg_branch, num_pred)
+        else:
+            self.cls_branches = nn.ModuleList([fc_cls for _ in range(num_pred)])
+            self.reg_branches = nn.ModuleList([reg_branch for _ in range(num_pred)])
 
         if not self.as_two_stage:
             self.bev_embedding = nn.Embedding(self.bev_h * self.bev_w, self.embed_dims)
@@ -3101,41 +4754,57 @@ class BEVFormerHead(DETRHead):
         dtype = mlvl_feats[0].dtype
         object_query_embeds = self.query_embedding.weight.to(dtype)
         bev_queries = self.bev_embedding.weight.to(dtype)
-
         bev_mask = torch.zeros(
             (bs, self.bev_h, self.bev_w), device=bev_queries.device
         ).to(dtype)
         bev_pos = self.positional_encoding(bev_mask).to(dtype)
 
-        outputs = self.transformer(
-            mlvl_feats,
-            bev_queries,
-            object_query_embeds,
-            self.bev_h,
-            self.bev_w,
-            grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
-            bev_pos=bev_pos,
-            reg_branches=self.reg_branches if self.with_box_refine else None,
-            cls_branches=self.cls_branches if self.as_two_stage else None,
-            img_metas=img_metas,
-            prev_bev=prev_bev,
-        )
-
+        if (
+            only_bev
+        ):  # only use encoder to obtain BEV features, TODO: refine the workaround
+            return self.transformer.get_bev_features(
+                mlvl_feats,
+                bev_queries,
+                self.bev_h,
+                self.bev_w,
+                grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
+                bev_pos=bev_pos,
+                img_metas=img_metas,
+                prev_bev=prev_bev,
+            )
+        else:
+            outputs = self.transformer(
+                mlvl_feats,
+                bev_queries,
+                object_query_embeds,
+                self.bev_h,
+                self.bev_w,
+                grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
+                bev_pos=bev_pos,
+                reg_branches=self.reg_branches
+                if self.with_box_refine
+                else None,  # noqa:E501
+                cls_branches=self.cls_branches if self.as_two_stage else None,
+                img_metas=img_metas,
+                prev_bev=prev_bev,
+            )
         bev_embed, hs, init_reference, inter_references = outputs
         hs = hs.permute(0, 2, 1, 3)
-
-        outputs_classes, outputs_coords = [], []
+        outputs_classes = []
+        outputs_coords = []
         for lvl in range(hs.shape[0]):
-            reference = init_reference if lvl == 0 else inter_references[lvl - 1]
+            if lvl == 0:
+                reference = init_reference
+            else:
+                reference = inter_references[lvl - 1]
             reference = inverse_sigmoid(reference)
-
             outputs_class = self.cls_branches[lvl](hs[lvl])
             tmp = self.reg_branches[lvl](hs[lvl])
+
             tmp[..., 0:2] += reference[..., 0:2]
             tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
             tmp[..., 4:5] += reference[..., 2:3]
             tmp[..., 4:5] = tmp[..., 4:5].sigmoid()
-
             tmp[..., 0:1] = (
                 tmp[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
             )
@@ -3146,13 +4815,17 @@ class BEVFormerHead(DETRHead):
                 tmp[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
             )
 
+            outputs_coord = tmp
             outputs_classes.append(outputs_class)
-            outputs_coords.append(tmp)
+            outputs_coords.append(outputs_coord)
+
+        outputs_classes = torch.stack(outputs_classes)
+        outputs_coords = torch.stack(outputs_coords)
 
         outs = {
             "bev_embed": bev_embed,
-            "all_cls_scores": torch.stack(outputs_classes),
-            "all_bbox_preds": torch.stack(outputs_coords),
+            "all_cls_scores": outputs_classes,
+            "all_bbox_preds": outputs_coords,
             "enc_cls_scores": None,
             "enc_bbox_preds": None,
         }
@@ -3160,16 +4833,100 @@ class BEVFormerHead(DETRHead):
 
     def get_bboxes(self, preds_dicts, img_metas, rescale=False):
         preds_dicts = self.bbox_coder.decode(preds_dicts)
+
+        num_samples = len(preds_dicts)
         ret_list = []
-        for i, preds in enumerate(preds_dicts):
+        for i in range(num_samples):
+            preds = preds_dicts[i]
             bboxes = preds["bboxes"]
+
             bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
+
             code_size = bboxes.shape[-1]
             bboxes = LiDARInstance3DBoxes(bboxes, code_size)
             scores, labels = preds["scores"], preds["labels"]
             ret_list.append([bboxes, scores, labels])
 
         return ret_list
+
+
+class BEVFormerHead_GroupDETR(BEVFormerHead):
+    def __init__(self, *args, group_detr=1, **kwargs):
+        self.group_detr = group_detr
+        kwargs["num_query"] = group_detr * kwargs["num_query"]
+        super().__init__(*args, **kwargs)
+
+    def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False):
+        bs, num_cam, _, _, _ = mlvl_feats[0].shape
+        dtype = mlvl_feats[0].dtype
+        object_query_embeds = self.query_embedding.weight.to(dtype)
+        if not self.training:
+            object_query_embeds = object_query_embeds[
+                : self.num_query // self.group_detr
+            ]
+        bev_queries = self.bev_embedding.weight.to(dtype)
+
+        bev_mask = torch.zeros(
+            (bs, self.bev_h, self.bev_w), device=bev_queries.device
+        ).to(dtype)
+        bev_pos = self.positional_encoding(bev_mask).to(dtype)
+        outputs = self.transformer(
+            mlvl_feats,
+            bev_queries,
+            object_query_embeds,
+            self.bev_h,
+            self.bev_w,
+            grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
+            bev_pos=bev_pos,
+            reg_branches=self.reg_branches
+            if self.with_box_refine
+            else None,  # noqa:E501
+            cls_branches=self.cls_branches if self.as_two_stage else None,
+            img_metas=img_metas,
+            prev_bev=prev_bev,
+        )
+
+        bev_embed, hs, init_reference, inter_references = outputs
+        hs = hs.permute(0, 2, 1, 3)
+        outputs_classes = []
+        outputs_coords = []
+        for lvl in range(hs.shape[0]):
+            if lvl == 0:
+                reference = init_reference
+            else:
+                reference = inter_references[lvl - 1]
+            reference = inverse_sigmoid(reference)
+            outputs_class = self.cls_branches[lvl](hs[lvl])
+            tmp = self.reg_branches[lvl](hs[lvl])
+            tmp[..., 0:2] += reference[..., 0:2]
+            tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
+            tmp[..., 4:5] += reference[..., 2:3]
+            tmp[..., 4:5] = tmp[..., 4:5].sigmoid()
+            tmp[..., 0:1] = (
+                tmp[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
+            )
+            tmp[..., 1:2] = (
+                tmp[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1]
+            )
+            tmp[..., 4:5] = (
+                tmp[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
+            )
+            outputs_coord = tmp
+            outputs_classes.append(outputs_class)
+            outputs_coords.append(outputs_coord)
+
+        outputs_classes = torch.stack(outputs_classes)
+        outputs_coords = torch.stack(outputs_coords)
+
+        outs = {
+            "bev_embed": bev_embed,
+            "all_cls_scores": outputs_classes,
+            "all_bbox_preds": outputs_coords,
+            "enc_cls_scores": None,
+            "enc_bbox_preds": None,
+        }
+
+        return outs
 
 
 def denormalize_bbox(normalized_bboxes, pc_range):
@@ -3250,25 +5007,12 @@ class NMSFreeCoder(BaseBBoxCoder):
         final_scores = scores
         final_preds = labels
 
-        if self.score_threshold is not None:
-            thresh_mask = final_scores > self.score_threshold
-            tmp_score = self.score_threshold
-            while thresh_mask.sum() == 0:
-                tmp_score *= 0.9
-                if tmp_score < 0.01:
-                    thresh_mask = final_scores > -1
-                    break
-                thresh_mask = final_scores >= tmp_score
-
         if self.post_center_range is not None:
             self.post_center_range = torch.tensor(
                 self.post_center_range, device=scores.device
             )
             mask = (final_box_preds[..., :3] >= self.post_center_range[:3]).all(1)
             mask &= (final_box_preds[..., :3] <= self.post_center_range[3:]).all(1)
-
-            if self.score_threshold:
-                mask &= thresh_mask
 
             boxes3d = final_box_preds[mask]
             scores = final_scores[mask]
