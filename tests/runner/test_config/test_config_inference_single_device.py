@@ -2340,7 +2340,7 @@ test_config = {
             },
         },
     },
-    "qwen_3/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
+    "qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
@@ -2552,5 +2552,15 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": " RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float - https://github.com/tenstorrent/tt-xla/issues/1593",
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "openvla/pytorch-openvla_7b-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_v01_7b-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
 }
