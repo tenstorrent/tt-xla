@@ -27,6 +27,25 @@ else
   pip install -r venv/requirements-dev.txt
 fi
 
+if [ -n "$DOCKER_CACHE_ROOT" ]; then
+  EXPECTED_VERSION="2.9.0+git1f21467"
+  INSTALLED_VERSION=$(pip show torch-xla 2>/dev/null | grep "Version:" | cut -d' ' -f2)
+
+  if [ "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]; then
+    if [ -n "$INSTALLED_VERSION" ]; then
+      echo "Removing torch-xla version $INSTALLED_VERSION"
+      pip uninstall -y torch-xla
+    fi
+    
+    echo "Installing torch-xla version $EXPECTED_VERSION"
+    mkdir -p ./dist
+    cp "$DOCKER_CACHE_ROOT"/models/tt-ci-models-private/wheels/torch_xla-2.9.0+git1f21467-*.whl ./dist/
+    pip install ./dist/torch_xla-2.9.0+git1f21467-*.whl
+  else
+    echo "Correct torch-xla version already installed: $INSTALLED_VERSION"
+  fi
+fi
+
 export TTXLA_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"

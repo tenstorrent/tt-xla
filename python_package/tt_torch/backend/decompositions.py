@@ -313,6 +313,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        torch.ops.aten.bitwise_and.Tensor: aten.logical_and,
+        torch.ops.aten.bitwise_or.Tensor: aten.logical_or,
     }
 
 
