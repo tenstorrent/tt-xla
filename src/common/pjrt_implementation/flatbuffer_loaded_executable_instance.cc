@@ -88,9 +88,6 @@ FlatbufferLoadedExecutableInstance::getOrCreateMeshDevice(
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  DLOG_F(LOG_DEBUG,
-         ">>> MESH INSTRUMENTATION: Requesting mesh device in "
-         "FlatbufferLoadedExecutableInstance::getOrCreateMeshDevice()");
   return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }
 
