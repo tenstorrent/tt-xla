@@ -5,6 +5,7 @@
 import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
+from loguru import logger
 from torch.utils._pytree import tree_flatten, tree_map
 
 from .comparator import Comparator
@@ -55,6 +56,8 @@ class TorchComparator(Comparator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+            logger.info("golden={}", x)
+            logger.info("calculated={}", y)
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
             denom = vx.norm() * vy.norm()

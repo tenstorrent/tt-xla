@@ -1752,12 +1752,12 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "yolov10/pytorch-yolov10x-single_device-full-inference": {
-        "assert_pcc": False,
+        # "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "yolov10/pytorch-yolov10n-single_device-full-inference": {
-        "assert_pcc": False,
+        # "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },

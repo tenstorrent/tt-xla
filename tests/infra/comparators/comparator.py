@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
+from loguru import logger
 
 from .comparison_config import (
     AllcloseConfig,
@@ -99,6 +100,7 @@ class Comparator(ABC):
         """
         passed = True
         error_messages = []
+        logger.info("comparison_result.pcc={}", comparison_result.pcc)
 
         # Check each enabled comparison type and collect all failures
         if self._comparison_config.equal.enabled and comparison_result.equal is False:
