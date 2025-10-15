@@ -513,10 +513,11 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference": {
-        "required_pcc": 0.96,
+        # "required_pcc": 0.96,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9625237584114075. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1402",
+        "markers": ["push"],
+        # "bringup_status": BringupStatus.INCORRECT_RESULT,
+        # "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9625237584114075. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "mnist/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1197,10 +1198,11 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference": {
-        "required_pcc": 0.96,
+        # "required_pcc": 0.96,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9645113945007324. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/pull/1393/files",
+        "markers": ["push"],
+        # "bringup_status": BringupStatus.INCORRECT_RESULT,
+        # "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9645113945007324. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/pull/1393/files",
     },
     "qwen_2_5_coder/pytorch-0_5b-single_device-full-inference": {
         "required_pcc": 0.96,  # tt-torch has this at 0.97
@@ -1294,10 +1296,11 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-inference": {
-        "required_pcc": 0.98,
+        # "required_pcc": 0.98,
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402",
+        # "bringup_status": BringupStatus.INCORRECT_RESULT,
+        # "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "mobilenetv2/pytorch-mobilenetv2_100-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
