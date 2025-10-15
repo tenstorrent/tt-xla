@@ -6,16 +6,12 @@ from typing import Optional, cast
 
 import numpy as np
 import torch
-
 from vllm.lora.request import LoRARequest
 from vllm.sampling_params import SamplingType
 from vllm.utils import swap_dict_values
 from vllm.v1.outputs import LogprobsTensors
 from vllm.v1.pool.metadata import PoolingMetadata
-from vllm.v1.sample.logits_processor import (  # BatchUpdateBuilder,
-    LogitsProcessors,
-    # MoveDirectionality
-)
+from vllm.v1.sample.logits_processor import LogitsProcessors
 from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
