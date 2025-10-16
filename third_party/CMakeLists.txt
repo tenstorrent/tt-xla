@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "c4df9bc69355e072b463ab9a2190c9f48db79d1d")
+    set(TT_MLIR_VERSION "61a5bc4e49912e19a587516d61139d3dffdde9b7")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
