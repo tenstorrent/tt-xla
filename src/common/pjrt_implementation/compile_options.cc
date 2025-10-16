@@ -40,6 +40,9 @@ CompileOptions CompileOptions::parse(
   options.dump_inputs =
       internal::parseBoolOption(compile_options, "dump_inputs")
           .value_or(options.dump_inputs);
+  options.enable_const_eval =
+      internal::parseBoolOption(compile_options, "enable_const_eval")
+          .value_or(true);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   if (!options.export_path.has_value() &&
