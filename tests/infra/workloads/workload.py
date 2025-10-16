@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+import random
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import torch
+from datasets import load_dataset
 from infra.utilities import Framework, Model
+from loguru import logger
 
 
 class Workload:
@@ -65,7 +69,25 @@ class Workload:
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
         if self.model is not None:
-            return self.model(*self.args, **self.kwargs)
+            tt_outputs = self.model(*self.args, **self.kwargs)
+
+            from third_party.tt_forge_models.resnet.pytorch import ModelLoader
+
+            loader = ModelLoader()
+            model = loader.load_model(dtype_override=torch.bfloat16)
+
+            # Load tiny dataset
+            dataset = load_dataset("zh-plus/tiny-imagenet")
+            # Set a fixed seed so the sampled images are reproducible
+            random.seed(42)
+            images = random.sample(dataset["valid"]["image"], 10)
+
+            loader.post_process(
+                tt_outputs, model, self.model, images, dtype_override=torch.bfloat16
+            )
+
+            return tt_outputs
+
         elif self.compiled_executable is not None:
             return self.compiled_executable(*self.args, **self.kwargs)
         elif self.executable is not None:

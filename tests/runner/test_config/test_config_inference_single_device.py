@@ -199,7 +199,7 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "resnet/pytorch-resnet_50_hf-single_device-full-inference": {
-        "required_pcc": 0.96,  # Aug 7 - Drop from 0.97 https://github.com/tenstorrent/tt-torch/issues/1151
+        # "required_pcc": 0.96,  # Aug 7 - Drop from 0.97 https://github.com/tenstorrent/tt-torch/issues/1151
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mamba/pytorch-mamba-790m-hf-single_device-full-inference": {
