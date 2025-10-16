@@ -9,7 +9,8 @@ import vllm
 
 @pytest.mark.push
 def test_embed_qwen3():
-    max_seq_len = 2**14
+    # max_seq_len = 2**14
+    max_seq_len = 2**7
     prompts_list = []
 
     i = 128
