@@ -84,6 +84,7 @@ def test_all_models(
     with RequirementsManager.for_loader(loader_path):
 
         # Get the model loader and model info from desired model, variant.
+        parallelism = Parallelism.TENSOR_PARALLEL
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)

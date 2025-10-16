@@ -268,13 +268,6 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  if (compile_options.is_spmd_mode) {
-    status = setProperSdyMeshAttributeInSpmdMode(mlir_module);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
-    }
-  }
-
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
                                  compile_options.export_path);
