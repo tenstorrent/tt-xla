@@ -5,6 +5,10 @@
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
 
+test_config_common = {
+    "supported_archs": ["n300"],
+}
+
 test_config = {
     "vit/pytorch-base-data_parallel-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
