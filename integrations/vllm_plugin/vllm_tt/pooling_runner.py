@@ -1100,6 +1100,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
                 xm.mark_step()
+                hidden_states = hidden_states.to("cpu")
 
             # Select states according to indices
             hidden_states = hidden_states[:num_scheduled_tokens]
