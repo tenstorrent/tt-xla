@@ -200,6 +200,7 @@ test_config = {
     },
     "resnet/pytorch-resnet_50_hf-single_device-full-inference": {
         "required_pcc": 0.98,
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mamba/pytorch-mamba-790m-hf-single_device-full-inference": {
@@ -1230,6 +1231,7 @@ test_config = {
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-single_device-full-inference": {
         "required_pcc": 0.98,
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference": {
@@ -1825,6 +1827,7 @@ test_config = {
     },
     "mistral/pixtral/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
         "arch_overrides": {
             "n150": {
                 # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
@@ -1931,6 +1934,7 @@ test_config = {
     },
     "qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "markers": ["push"],
         "arch_overrides": {
             "n150": {
                 "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -2120,6 +2124,7 @@ test_config = {
         },
     },
     "mistral/pytorch-7b_instruct_v03-single_device-full-inference": {
+        "markers": ["push"],
         "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "n150": {
