@@ -681,13 +681,15 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
   VLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
   printModule(mlir_module);
-
+  
   if (!tt_pjrt_status_is_ok(
-          frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
-    DLOG_F(ERROR, "Failed to set proper sdy.mesh attribute in SPMD mode");
-    return tt_pjrt_status::kInternal;
-  }
+    frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
+      DLOG_F(ERROR, "Failed to set proper sdy.mesh attribute in SPMD mode");
+      return tt_pjrt_status::kInternal;
+    }
 
+  VLOG_F(LOG_DEBUG, "SHLO Module after setting proper sdy.mesh attribute in SPMD mode:");
+  printModule(mlir_module);
   return tt_pjrt_status::kSuccess;
 }
 

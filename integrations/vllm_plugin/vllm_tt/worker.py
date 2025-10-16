@@ -211,28 +211,16 @@ class TTWorker:
 
         # Get the maximum amount of memory used by the model weights and
         # intermediate activations.
-        if self.use_spmd:
-            # This is a workaround for the TPU SPMD mode. The get_memory_info
-            # API doesn't work with SPMD mode in PyTorch/XLA.
-            # TODO: use xm.get_memory_info for SPMD once it's supported in
-            # PyTorch/XLA.
-            import tpu_info
+        # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
+        # can implement the PJRT API function(s) necesarry to exegcute xm.get_memory_info,
+        # and implement them. I believe we must implement PJRT_Device_MemoryStats.
 
-            chip_type, _ = tpu_info.device.get_local_chips()
-            device_usage = tpu_info.metrics.get_chip_usage(chip_type)
-            total_memory_size = device_usage[0].total_memory
-            current_mem = device_usage[0].memory_usage
-        else:
-            # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
-            # can implement the PJRT API function(s) necesarry to exegcute xm.get_memory_info,
-            # and implement them. I believe we must implement PJRT_Device_MemoryStats.
-
-            # m = xm.get_memory_info(self.device)
-            # total_memory_size = m["bytes_limit"]
-            # current_mem = m["bytes_used"]
-            # @LPanosTT: For now we will always report that no memory has been used.
-            total_memory_size = 12 * 1024**3  # m["bytes_limit"]
-            current_mem = 0  # m["bytes_used"]
+        # m = xm.get_memory_info(self.device)
+        # total_memory_size = m["bytes_limit"]
+        # current_mem = m["bytes_used"]
+        # @LPanosTT: For now we will always report that no memory has been used.
+        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
+        current_mem = 0  # m["bytes_used"]
         # Ideally we would use profiled = m["peak_bytes_used"] to
         # get weights + activations. But there is memory used during
         # compilation / weight loading that impacts the peak and
@@ -322,7 +310,13 @@ class TTWorker:
     ) -> None:
         """Initialize the distributed environment."""
         if self.use_spmd:
+            print("Initializing SPMD...")
+            # Converts the StableHLO emitted by torch-xla to the Shardy dialect
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
+            # Initialize SPMD
             xr.use_spmd()
+            print("XLA environment configured.")
         # NOTE(woosuk): This is just to initialize the TP group and broadcast
         # the input objects on CPU. The all-reduce and all-gather ops on TPU
         # are invoked by `xm.all_reduce` and `xm.all_gather` which use their

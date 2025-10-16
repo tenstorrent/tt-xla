@@ -57,7 +57,7 @@ tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
 namespace internal {
 // Checks whether the graph is in SPMD mode.
 bool isSpmdMode(const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  bool spmd = false;
+  bool spmd = true;
   module.get().walk([&](mlir::func::FuncOp func) {
     if (func.getNumArguments() &&
         func.getArgAttr(0, mlir::tt::gspmd_utils::kXlaShardingAttr)) {

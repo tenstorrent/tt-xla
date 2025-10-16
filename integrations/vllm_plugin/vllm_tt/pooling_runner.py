@@ -8,6 +8,8 @@ import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
 
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -223,11 +225,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         self.use_spmd = envs.VLLM_XLA_USE_SPMD
-        if self.use_spmd:
-            num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
-            device_ids = np.array(range(num_devices))
-            self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+        # if self.use_spmd:
+        # Converts the StableHLO emitted by torch-xla to the Shardy dialect
+        
+        num_devices = xr.global_runtime_device_count()
+        print(f"Creating mesh for {num_devices} devices")
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -260,8 +265,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
-            min_token_size=128,
-            max_token_size=scheduler_config.max_num_batched_tokens,
+            min_token_size=256,
+            # max_token_size=scheduler_config.max_num_batched_tokens,
+            max_token_size=256,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -1179,23 +1185,20 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
-                    tpu_loader = TPUModelLoader(
-                        load_config=self.vllm_config.load_config
-                    )
-                    model = tpu_loader.load_model(
-                        vllm_config=self.vllm_config,
-                        model_config=self.vllm_config.model_config,
-                        mesh=self.mesh,
-                    )
-                else:
-                    model_loader = get_model_loader(self.load_config)
-                    logger.info("Loading model from scratch...")
-                    model = model_loader.load_model(
-                        vllm_config=self.vllm_config, model_config=self.model_config
+
+                model_loader = get_model_loader(self.load_config)
+                logger.info("Loading model from scratch...")
+                model = model_loader.load_model(
+                    vllm_config=self.vllm_config, model_config=self.model_config
                     )
 
                 model = model.to("xla")
+                for layer in model.model.layers:
+                    xs.mark_sharding(layer.self_attn.qkv_proj.weight, self.mesh, ("y", None))
+                    xs.mark_sharding(layer.self_attn.o_proj.weight, self.mesh, (None, "y"))
+                    xs.mark_sharding(layer.mlp.gate_up_proj.weight, self.mesh, ("y", None))
+                    xs.mark_sharding(layer.mlp.down_proj.weight, self.mesh, (None, "y"))
+                print("Successfully marked sharding on model weights")
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
