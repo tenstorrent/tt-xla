@@ -19,9 +19,12 @@ class ResnetTester(TorchModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        dtype_override=None,
     ) -> None:
         self._model_loader = ModelLoader(variant_name)
-        super().__init__(comparison_config, run_mode, compiler_config)
+        super().__init__(
+            comparison_config, run_mode, compiler_config, dtype_override=dtype_override
+        )
 
     # @override
     def _get_model(self) -> Model:

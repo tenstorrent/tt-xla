@@ -15,9 +15,6 @@
 // POSIX includes
 #include <dlfcn.h>
 
-// loguru includes
-#include "loguru/loguru.hpp"
-
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
@@ -334,7 +331,7 @@ tt_pjrt_status ModuleBuilder::createVHLOModule(
     return tt_pjrt_status::kInternal;
   }
 
-  DLOG_F(LOG_DEBUG, "VHLO Module:");
+  VLOG_F(LOG_DEBUG, "VHLO Module:");
   printModule(vhlo_module);
 
   return tt_pjrt_status::kSuccess;
@@ -353,7 +350,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     return tt_pjrt_status::kInternal;
   }
 
-  DLOG_F(LOG_DEBUG, "SHLO Module:");
+  VLOG_F(LOG_DEBUG, "SHLO Module:");
   printModule(mlir_module);
 
   return tt_pjrt_status::kSuccess;
@@ -365,7 +362,7 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
-  DLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
+  VLOG_F(LOG_DEBUG, "SHLO Module after frontend StableHLO pipeline:");
   printModule(mlir_module);
 
   return status;
@@ -682,7 +679,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  DLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
+  VLOG_F(LOG_DEBUG, "SHLO Module after compiler StableHLO pipeline:");
   printModule(mlir_module);
 
   if (!tt_pjrt_status_is_ok(
@@ -715,7 +712,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
 
   ttir_mlir = getMlirCode(mlir_module);
 
-  DLOG_F(LOG_DEBUG, "TTIR Module:");
+  VLOG_F(LOG_DEBUG, "TTIR Module:");
   printModule(mlir_module);
 
   return tt_pjrt_status::kSuccess;
@@ -842,13 +839,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
-  tt::runtime::Device runtime_device =
-      client_instance->getOrCreateMeshDevice(devices_mesh_shape);
-
-  // TODO(odjuricic, #1503): After compile, execution hangs if the parent mesh
-  // is passed to optimizer.
   tt::runtime::Device submesh_for_optim =
-      tt::runtime::createSubMeshDevice(runtime_device, devices_mesh_shape);
+      client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
   options.devicePtr =
       std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
           submesh_for_optim.handle);
@@ -864,7 +856,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   ttnn_mlir = getMlirCode(mlir_module);
 
-  DLOG_F(LOG_DEBUG, "TTNN Module:");
+  VLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module);
 
   return tt_pjrt_status::kSuccess;
@@ -969,6 +961,7 @@ void ModuleBuilder::printModule(
   }
 
   mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+  llvm::errs() << "------------------ END OF MLIR MODULE ------------------\n";
 }
 
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {

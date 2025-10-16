@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
@@ -42,8 +42,22 @@ class BigBirdQATester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _wrapper_model(self, f):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            # NOTE: This is a hack to get the end logits from the model output.
+            out = out.end_logits
+            return out
+
+        return model
 
 
 class BigBirdCLMTester(JaxModelTester):
@@ -67,5 +81,10 @@ class BigBirdCLMTester(JaxModelTester):
         return self._model_loader.load_inputs()
 
     # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["indices_rng"] = jax.random.key(1)
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs

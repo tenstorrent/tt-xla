@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_ttmlir_compilation
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.marian_mt.text_classification.jax import (
@@ -52,13 +52,20 @@ def test_marian_opus_mt_en_de_inference(inference_tester: MarianTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "Failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-xla/issues/911"
+    )
+)
 def test_marian_opus_mt_en_de_training(training_tester: MarianTester):
     training_tester.test()

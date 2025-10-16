@@ -39,7 +39,3 @@ class Wav2Vec2Tester(JaxModelTester):
             return_tensors="jax",
         )
         return inputs
-
-    # @override
-    def _get_static_argnames(self):
-        return ["train"]

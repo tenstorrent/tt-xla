@@ -32,6 +32,7 @@ def pytest_configure(config: pytest.Config):
 
         - Op tests:
             - `jax_op_name`: name of the operation in jax, e.g. `jax.numpy.exp`
+            - `torch_op_name`: name of the operation in torch, e.g. `torch.add`
             - `shlo_op_name`: name of the matching stablehlo operation
 
         - Model tests:
@@ -73,6 +74,7 @@ def pytest_collection_modifyitems(items):
         valid_keys = [
             "category",
             "jax_op_name",
+            "torch_op_name",
             "shlo_op_name",
             "model_name",
             "model_group",

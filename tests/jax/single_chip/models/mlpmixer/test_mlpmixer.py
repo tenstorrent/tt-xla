@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from typing import Dict, Optional, Sequence
+
 import jax
 import pytest
 from flax import linen as nn
@@ -11,10 +13,12 @@ from jaxtyping import PyTree
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
     build_model_name,
+    failed_ttmlir_compilation,
     incorrect_result,
 )
 
@@ -60,6 +64,14 @@ class MlpMixerTester(JaxModelTester):
     def _get_input_parameters(self) -> PyTree:
         return self._model_loader.load_parameters()
 
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []
+
 
 # ----- Fixtures -----
 
@@ -97,13 +109,20 @@ def test_mlpmixer_inference(inference_tester: MlpMixerTester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
+        "https://github.com/tenstorrent/tt-mlir/issues/5304"
+    )
+)
 def test_mlpmixer_training(training_tester: MlpMixerTester):
     training_tester.test()

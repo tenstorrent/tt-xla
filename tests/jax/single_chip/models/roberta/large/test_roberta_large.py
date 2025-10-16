@@ -4,7 +4,13 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category
+from utils import (
+    BringupStatus,
+    Category,
+    ExecutionPass,
+    failed_ttmlir_compilation,
+    incorrect_result,
+)
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.roberta.masked_lm.jax import ModelLoader, ModelVariant
@@ -24,7 +30,7 @@ def inference_tester() -> FlaxRobertaForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -36,19 +42,32 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9585895538330078. Required: pcc=0.99 "
+        "https://github.com/tenstorrent/tt-xla/issues/379"
+    )
 )
 def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_flax_roberta_large_training(training_tester: FlaxRobertaForMaskedLMTester):
     training_tester.test()

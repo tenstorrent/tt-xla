@@ -91,6 +91,8 @@ def test_all_models(
 
         succeeded = False
         comparison_result = None
+        tester = None
+
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -119,11 +121,14 @@ def test_all_models(
         finally:
             # If there are multiple comparison results, only record the first one because the
             #     DB only supports single comparison result for now
-            if len(comparison_result) > 1:
-                print(
-                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                )
-            comparison_result = comparison_result[0]
+            if comparison_result is not None and len(comparison_result) > 0:
+                if len(comparison_result) > 1:
+                    print(
+                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
+                    )
+                comparison_result = comparison_result[0]
+
+            comparison_config = tester._comparison_config if tester else None
 
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
@@ -136,7 +141,7 @@ def test_all_models(
                 parallelism=parallelism,
                 test_passed=succeeded,
                 comparison_result=comparison_result,
-                comparison_config=tester._comparison_config,
+                comparison_config=comparison_config,
             )
 
 

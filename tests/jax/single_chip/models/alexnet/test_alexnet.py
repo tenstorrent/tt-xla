@@ -6,7 +6,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_ttmlir_compilation
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelLoader,
@@ -53,13 +53,20 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
+        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+    )
+)
 def test_alexnet_training(training_tester: AlexNetTester):
     training_tester.test()
