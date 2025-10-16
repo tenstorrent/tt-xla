@@ -100,6 +100,40 @@ class DynamicLoader:
         """
         return hasattr(self.loader, "load_shard_spec")
 
+    def batch_tensor(self, tensor, num_devices):
+        """Batch a tensor for data parallel execution.
+
+        Args:
+            tensor: Input tensor to batch
+            num_devices: Number of devices to batch across
+
+        Returns:
+            Batched tensor repeated across devices
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
+        """
+        raise NotImplementedError(
+            "Subclasses must implement batch_tensor() for their specific framework"
+        )
+
+    def load_shard_spec_data_parallel(self, args, kwargs):
+        """Generate shard specifications for data parallel execution.
+
+        Args:
+            args: Positional arguments containing tensors to be sharded
+            kwargs: Keyword arguments containing tensors to be sharded
+
+        Returns:
+            Dictionary mapping tensors to their shard specifications
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
+        """
+        raise NotImplementedError(
+            "Subclasses must implement load_shard_spec_data_parallel() for their specific framework"
+        )
+
     # ========== Test Discovery Methods (Class Methods) ==========
 
     @classmethod
@@ -352,8 +386,7 @@ class TorchDynamicLoader(DynamicLoader):
 
         return loader_paths
     
-    @classmethod
-    def batch_tensor(cls, tensor, num_devices):
+    def batch_tensor(self, tensor, num_devices):
         if isinstance(tensor, torch.Tensor):
             if tensor.dim() == 0:
                 return tensor.repeat(num_devices)
@@ -363,8 +396,7 @@ class TorchDynamicLoader(DynamicLoader):
                 return tensor.repeat_interleave(num_devices, dim=0)
         return tensor
     
-    @classmethod
-    def load_shard_spec_data_parallel(cls, args, kwargs):
+    def load_shard_spec_data_parallel(self, args, kwargs):
         shard_specs = {}
         for arg in args:
             if isinstance(arg, torch.Tensor) and arg.dim() > 0:

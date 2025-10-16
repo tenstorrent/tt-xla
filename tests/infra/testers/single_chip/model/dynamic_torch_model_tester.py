@@ -85,7 +85,7 @@ class DynamicTorchModelTester(TorchModelTester):
             Shard spec function if loader supports it, None otherwise
         """
         if self.parallelism == Parallelism.DATA_PARALLEL:
-            return self.dynamic_loader.load_shard_spec_data_parallel()
+            return self.dynamic_loader.load_shard_spec_data_parallel
         else:
             return self.dynamic_loader.get_shard_spec_function()
 
