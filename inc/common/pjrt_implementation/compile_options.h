@@ -71,6 +71,12 @@ struct CompileOptions {
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.
+  // Enables generation of consteval graphs.
+  bool enable_const_eval = true;
+
+  // Path that will contain any exported artifacts.
+  // This includes: codegen solutions, graph inputs and intermediate IRs.
+  // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
 
   static CompileOptions
