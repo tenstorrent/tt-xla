@@ -8,6 +8,9 @@
 // c++ standard library includes
 #include <cassert>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -56,6 +59,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
+  ZoneScoped;
   // Assert that all buffer instances have the same prepared tensor.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
@@ -148,6 +152,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
 tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
     tt::runtime::Tensor input_tensor, std::uint32_t program_index,
     size_t arg_index, const tt::runtime::Device &runtime_device) {
+  ZoneScoped;
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
@@ -162,6 +167,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
+  ZoneScoped;
   size_t n_prog_output_tensors = output_tensors.size();
 
   // Iterate over the available tensors and devices, filling in the PJRT Buffer
@@ -257,6 +263,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 

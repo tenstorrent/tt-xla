@@ -40,6 +40,11 @@ target_link_libraries(TTPJRTTTDylib PUBLIC
 
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 
+# Link Tracy library if profiling is enabled
+if(ENABLE_TRACY)
+    target_link_libraries(TTPJRTTTDylib PUBLIC tracy)
+endif()
+
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
 # file) sets its search paths in which it will search for libs it dynamically links.
 set_target_properties(TTPJRTTTDylib PROPERTIES

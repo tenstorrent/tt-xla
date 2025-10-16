@@ -59,6 +59,8 @@ if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
 endif()
 
+option(ENABLE_TRACY "Enable Tracy profiling" OFF)
+
 # ----- coverage_config -----
 
 add_library(coverage_config INTERFACE)

@@ -14,6 +14,9 @@
 #include <stdexcept>
 #include <thread>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -533,6 +536,7 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
 namespace internal {
 
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
 
   delete BufferInstance::unwrap(args->buffer);
@@ -541,6 +545,7 @@ PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
 }
 
 PJRT_Error *onBufferElementType(PJRT_Buffer_ElementType_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
 
   args->type = BufferInstance::unwrap(args->buffer)->getDataType();
@@ -549,6 +554,7 @@ PJRT_Error *onBufferElementType(PJRT_Buffer_ElementType_Args *args) {
 }
 
 PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
@@ -560,6 +566,7 @@ PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
 
 PJRT_Error *
 onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
@@ -572,6 +579,7 @@ onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
 
 PJRT_Error *onBufferDynamicDimensionIndices(
     PJRT_Buffer_DynamicDimensionIndices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_DynamicDimensionIndices");
 
   // We don't support dynamic dimensions yet.
@@ -582,6 +590,7 @@ PJRT_Error *onBufferDynamicDimensionIndices(
 }
 
 PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
   // TODO(mrakita): The caller can specify an optional `host_layout` arg to
@@ -626,6 +635,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 }
 
 PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Delete");
 
   BufferInstance::unwrap(args->buffer)->deleteData();
@@ -634,6 +644,7 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
 }
 
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
@@ -642,6 +653,7 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
 }
 
 PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
@@ -656,6 +668,7 @@ PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
 }
 
 PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
@@ -677,6 +690,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
 }
 
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
 
   // Currently all our inputs are transferred to device where computation runs.
@@ -686,6 +700,7 @@ PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
 }
 
 PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
 
   args->device = *BufferInstance::unwrap(args->buffer)->getDevice();
@@ -694,6 +709,7 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
 }
 
 PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
 
   args->memory = *BufferInstance::unwrap(args->buffer)->getMemory();
@@ -702,6 +718,7 @@ PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
 }
 
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
