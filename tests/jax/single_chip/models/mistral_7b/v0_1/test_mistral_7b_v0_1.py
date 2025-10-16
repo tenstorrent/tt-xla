@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -14,9 +15,11 @@ from utils import (
     failed_runtime,
 )
 
+from third_party.tt_forge_models.mistral.causal_lm.jax import ModelVariant
+
 from ..tester import Mistral7BTester
 
-MODEL_PATH = "ksmcg/Mistral-7B-v0.1"
+VARIANT_NAME = ModelVariant.V0_1
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,11 +34,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH)
+    return Mistral7BTester(VARIANT_NAME)
 
 
+@pytest.fixture
 def training_tester() -> Mistral7BTester:
-    return Mistral7BTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -61,14 +65,22 @@ def test_mistral_7b_v0_1_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Not enough space to allocate 117440512 B DRAM buffer across 12 banks, "
+        "where each bank needs to store 9805824 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/917)"
+    )
+)
 def test_mistral_7b_v0_1_training(training_tester: Mistral7BTester):
     training_tester.test()

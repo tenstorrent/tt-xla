@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.opt.causal_lm.jax import ModelLoader, ModelVariant
@@ -49,14 +49,20 @@ def test_opt_2_7b_inference(inference_tester: OPTTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_runtime(
+        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
+    )
+)
 def test_opt_2_7b_training(training_tester: OPTTester):
     training_tester.test()

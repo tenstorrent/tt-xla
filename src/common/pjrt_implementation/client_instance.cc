@@ -58,6 +58,10 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
+  if (m_optimizer_submesh.has_value()) {
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+  }
+
   if (m_parent_mesh.has_value()) {
     tt::runtime::closeMeshDevice(*m_parent_mesh);
   }
@@ -389,6 +393,10 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // parallel). However, similar as to the case with reshape API, there were
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
+  if (m_optimizer_submesh.has_value()) {
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
+  }
   tt::runtime::closeMeshDevice(*m_parent_mesh);
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
@@ -436,6 +444,36 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   };
 
   return tt::runtime::openMeshDevice(options);
+}
+
+tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
+    const std::vector<uint32_t> &target_mesh_shape) {
+
+  // Ensure parent mesh exists with the correct shape
+  tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
+
+  if (m_optimizer_submesh.has_value()) {
+    std::vector<uint32_t> optimizer_submesh_shape =
+        tt::runtime::getMeshShape(*m_optimizer_submesh);
+
+    if (optimizer_submesh_shape == target_mesh_shape) {
+      DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - reusing "
+                        "already created optimizer submesh");
+      return *m_optimizer_submesh;
+    }
+
+    // If shape changed, parent mesh was closed and reopened in
+    // getOrCreateMeshDevice, which automatically closed the submesh.
+    // Clear the stale reference.
+    m_optimizer_submesh.reset();
+  }
+
+  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
+                    "creating optimizer submesh");
+  m_optimizer_submesh =
+      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
+
+  return *m_optimizer_submesh;
 }
 
 namespace internal {

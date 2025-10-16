@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict
 
 import jax
 from infra import ComparisonConfig, JaxModelTester, RunMode, random_image
@@ -40,17 +40,29 @@ class VisionTextDualEncoderTester(JaxModelTester):
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         model_config = ViTConfig.from_pretrained(self._vision_model_path)
         image_size = model_config.image_size
-        random_image = random_image(image_size)
+        random_image_gen = random_image(image_size)
 
         tokenizer = AutoTokenizer.from_pretrained(self._text_model_path)
         image_processor = AutoImageProcessor.from_pretrained(self._vision_model_path)
         processor = VisionTextDualEncoderProcessor(image_processor, tokenizer)
 
         inputs = processor(
-            text="Some random image", images=random_image, return_tensors="jax"
+            text="Some random image", images=random_image_gen, return_tensors="jax"
         )
         return inputs
 
     # @override
-    def _get_static_argnames(self) -> Sequence[str]:
-        return ["train"]
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
+    # @override
+    def _wrapper_model(self, f):
+        def model(args, kwargs):
+            # TODO: Check if we need to support both image and text model output
+            out = f(*args, **kwargs).text_model_output.pooler_output
+            return out
+
+        return model

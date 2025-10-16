@@ -7,6 +7,7 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
+    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -14,9 +15,11 @@ from utils import (
     failed_runtime,
 )
 
-from ..tester import Mistral7BV02Tester
+from third_party.tt_forge_models.mistral.causal_lm.jax import ModelVariant
 
-MODEL_PATH = "unsloth/mistral-7b-instruct-v0.2"
+from ..tester import Mistral7BTester
+
+VARIANT_NAME = ModelVariant.V0_2_INSTRUCT
 MODEL_GROUP = ModelGroup.GENERALITY
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -31,12 +34,12 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH)
+def inference_tester() -> Mistral7BTester:
+    return Mistral7BTester(VARIANT_NAME)
 
 
-def training_tester() -> Mistral7BV02Tester:
-    return Mistral7BV02Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+def training_tester() -> Mistral7BTester:
+    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -48,7 +51,7 @@ def training_tester() -> Mistral7BV02Tester:
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
 @pytest.mark.skip(
@@ -57,18 +60,25 @@ def training_tester() -> Mistral7BV02Tester:
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BV02Tester):
+def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BTester):
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
     model_group=MODEL_GROUP,
     run_mode=RunMode.TRAINING,
+    execution_pass=ExecutionPass.FORWARD,
+    bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(reason="Support for training not implemented")
-def test_mistral_7b_v0_2_instruct_training(training_tester: Mistral7BV02Tester):
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Not enough space to allocate 117440512 B DRAM buffer across 12 banks, where each bank needs to store 9805824 B "
+        "(https://github.com/tenstorrent/tt-xla/issues/917)"
+    )
+)
+def test_mistral_7b_v0_2_instruct_training(training_tester: Mistral7BTester):
     training_tester.test()

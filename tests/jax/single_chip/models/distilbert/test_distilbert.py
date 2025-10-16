@@ -7,7 +7,7 @@ from typing import Dict
 import jax
 import pytest
 from infra import ComparisonConfig, JaxModelTester, Model, RunMode
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.distilbert.masked_lm.jax import (
@@ -42,6 +42,14 @@ class FlaxDistilBertForMaskedLMTester(JaxModelTester):
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
 
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        kwargs = super()._get_forward_method_kwargs()
+
+        if self._run_mode == RunMode.TRAINING:
+            kwargs["dropout_rng"] = jax.random.key(1)
+        return kwargs
+
 
 # ----- Fixtures -----
 
@@ -53,7 +61,7 @@ def inference_tester() -> FlaxDistilBertForMaskedLMTester:
 
 @pytest.fixture
 def training_tester() -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
+    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -71,13 +79,20 @@ def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTe
     inference_tester.test()
 
 
-@pytest.mark.nightly
+@pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
+    execution_pass=ExecutionPass.BACKWARD,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.skip(reason="Support for training not implemented")
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4792"
+    )
+)
 def test_flax_distilbert_training(training_tester: FlaxDistilBertForMaskedLMTester):
     training_tester.test()

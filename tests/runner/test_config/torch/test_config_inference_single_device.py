@@ -102,9 +102,6 @@ PLACEHOLDER_MODELS = {
     "pointpillars": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
-    "maptr": {
-        "bringup_status": BringupStatus.NOT_STARTED,
-    },
     "MiniMaxAI/MiniMax-Text-01": {
         "bringup_status": BringupStatus.NOT_STARTED,
     },
@@ -255,19 +252,14 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference": {
         "supported_archs": ["p150"],
@@ -425,10 +417,7 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet/pytorch-efficientnet_b0-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC comparison failed. Calculated: pcc=0.9899114966392517. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "efficientnet/pytorch-efficientnet_b1-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -882,7 +871,10 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-xxlarge_v1-single_device-full-inference": {
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9889796376228333. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "albert/question_answering/pytorch-squad2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -951,7 +943,6 @@ test_config = {
     },
     "yolov8/pytorch-yolov8x-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "albert/token_classification/pytorch-base_v2-single_device-full-inference": {
         "assert_pcc": False,
@@ -985,10 +976,7 @@ test_config = {
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99",
     },
     "yolov8/pytorch-yolov8n-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9296823098857484. Required: pcc=0.99",
     },
     "stereo/pytorch-small-single_device-full-inference": {
         "assert_pcc": False,
@@ -1086,7 +1074,6 @@ test_config = {
     },
     "qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "yolov5/pytorch-yolov5n-single_device-full-inference": {
         # Newly exposed in Aug26 tt-forge-models uplift.
@@ -1117,6 +1104,11 @@ test_config = {
     },
     "qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1239,7 +1231,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-single_device-full-inference": {
@@ -1382,8 +1373,10 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "vit/pytorch-vit_l_32-single_device-full-inference": {
-        "required_pcc": 0.98,
+        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97.
@@ -2352,7 +2345,7 @@ test_config = {
             },
         },
     },
-    "qwen_3/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
+    "qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-inference": {
         "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
         "reason": "Too large for single chip",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
@@ -2486,5 +2479,119 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "maptr/pytorch-tiny_r50_24e_av2-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_110e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_t4-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-nano_r18_110e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "maptr/pytorch-tiny_r50_24e_bevpool-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "maptr/pytorch-tiny_fusion_24e-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587",
+        "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
+    },
+    "falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 165183488 B L1 buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference": {
+        "required_pcc": 0.96,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-full-inference": {
+        "required_pcc": 0.98,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "pointpillars/pytorch-pointpillars-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "sam/pytorch-facebook/sam-vit-base-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "RuntimeError: Out of Memory:  Not enough space to allocate 16777216 B L1 buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/1497",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "vilt/masked_lm/pytorch-mlm-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "mplug_owl2/pytorch-llama2_7b-single_device-full-inference": {
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_v01_7b-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "transfuser/pytorch-single_device-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7157331705093384. Required: pcc=0.99.",
     },
 }

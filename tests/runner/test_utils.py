@@ -17,6 +17,7 @@ from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
+from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
@@ -110,6 +111,8 @@ class ModelTestConfig:
                 config.pcc.allclose.rtol = self.allclose_rtol
             if self.allclose_atol is not None:
                 config.pcc.allclose.atol = self.allclose_atol
+
+        config.assert_on_failure = False
         return config
 
     def _normalize_markers(self, markers_value):
@@ -259,6 +262,8 @@ def record_model_test_properties(
     run_mode: RunMode,
     parallelism: Parallelism,
     test_passed: bool = False,
+    comparison_result=None,
+    comparison_config=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -308,6 +313,26 @@ def record_model_test_properties(
         "bringup_status": str(bringup_status),
         "parallelism": str(parallelism),
     }
+
+    # Add comparison result metrics if available
+    if comparison_result is not None:
+        tags.update(
+            {
+                "pcc": comparison_result.pcc,
+                "atol": comparison_result.atol,
+                "comparison_passed": comparison_result.passed,
+                "comparison_error_message": comparison_result.error_message,
+            }
+        )
+    if comparison_config is not None:
+        tags.update(
+            {
+                "pcc_threshold": comparison_config.pcc.required_pcc,
+                "atol_threshold": comparison_config.atol.required_atol,
+                "pcc_assertion_enabled": comparison_config.pcc.enabled,
+                "atol_assertion_enabled": comparison_config.atol.enabled,
+            }
+        )
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
