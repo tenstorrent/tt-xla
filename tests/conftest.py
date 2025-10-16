@@ -364,7 +364,7 @@ def run_around_tests():
     torch._dynamo.reset()
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def autoclose_device(request):
     """
     Pytest fixture that automatically closes devices by calling TriggerMeshRelease
