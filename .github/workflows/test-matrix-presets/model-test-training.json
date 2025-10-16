@@ -1,4 +1,4 @@
 [
     { "runs-on": "n150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "training and not large", "parallel-groups": 3 },
-    { "runs-on": "n150",        "name": "run_large_jax_models", "dir": "./tests/jax/single_chip", "test-mark": "training and large", "shared-runners": "true", "parallel-groups": 3 },
+    { "runs-on": "n150",        "name": "run_large_jax_models", "dir": "./tests/jax/single_chip", "test-mark": "training and large", "shared-runners": "true", "parallel-groups": 3 }
 ]
