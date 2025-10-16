@@ -52,11 +52,7 @@ class DynamicLoader:
         Returns:
             Input tensors/arrays that can be fed to the model
         """
-        sig = inspect.signature(self.loader.load_inputs)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_inputs(dtype_override=torch.bfloat16)
-        else:
-            return self.loader.load_inputs()
+        return self.loader.load_inputs()
 
     def get_shard_spec_function(self):
         """Get shard spec function from loader if available.
