@@ -10,6 +10,9 @@
 #include <mutex>
 #include <numeric>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
@@ -77,6 +80,7 @@ void SOLoadedExecutableInstance::releaseResources() {
 
 tt_pjrt_status
 SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "SOLoadedExecutableInstance::Execute");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
@@ -142,6 +146,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
 void SOLoadedExecutableInstance::createDefaultOutputBuffers(
     PJRT_Buffer **const *output_lists, size_t num_devices) {
+  ZoneScoped;
   size_t num_outputs = m_executable_image->getNumOutputs();
 
   for (size_t device_index = 0; device_index < num_devices; ++device_index) {
@@ -187,6 +192,7 @@ SOLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
+  ZoneScoped;
 
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
