@@ -22,6 +22,7 @@ from tests.utils import BringupStatus
 from tests.runner.test_config import PLACEHOLDER_MODELS
 
 # from third_party.tt_forge_models.mistral.pytorch.loader import ModelVariant, ModelLoader
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import ModelVariant, ModelLoader
 
 # Setup test discovery using utility functions
@@ -64,6 +65,7 @@ def test_all_models(
     with RequirementsManager.for_loader(loader_path):
 
         # Get the model loader and model info from desired model, variant.
+        parallelism = Parallelism.TENSOR_PARALLEL
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
