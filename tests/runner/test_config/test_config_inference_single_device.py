@@ -199,7 +199,7 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "resnet/pytorch-resnet_50_hf-single_device-full-inference": {
-        "required_pcc": 0.96,  # Aug 7 - Drop from 0.97 https://github.com/tenstorrent/tt-torch/issues/1151
+        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mamba/pytorch-mamba-790m-hf-single_device-full-inference": {
@@ -1234,7 +1234,7 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5/casual_lm/pytorch-0_5b_instruct-single_device-full-inference": {
-        "required_pcc": 0.97,
+        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference": {
@@ -1829,13 +1829,8 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "mistral/pixtral/pytorch-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "status": ModelTestStatus.EXPECTED_PASSING,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=-8.055820217123255e-06. Required: pcc=0.99",
-            },
             "n150": {
                 # Have to skip host OOM-killed tests since xfail marker happens after test is run which is too late.
                 "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
@@ -1940,7 +1935,6 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_FE_COMPILATION,
     },
     "qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
             "n150": {
@@ -2131,13 +2125,8 @@ test_config = {
         },
     },
     "mistral/pytorch-7b_instruct_v03-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
         "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "status": ModelTestStatus.EXPECTED_PASSING,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.4954742193222046. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473",
-            },
             "n150": {
                 "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
                 "reason": "Too large for single chip",
