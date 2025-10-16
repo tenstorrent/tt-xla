@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/device_instance.h"
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-xla includes
 #include "common/pjrt_implementation/memory_instance.h"
 #include "common/status.h"
@@ -41,6 +44,7 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onDeviceGetDescription(PJRT_Device_GetDescription_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetDescription");
 
   args->device_description =
@@ -50,6 +54,7 @@ PJRT_Error *onDeviceGetDescription(PJRT_Device_GetDescription_Args *args) {
 }
 
 PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_IsAddressable");
 
   args->is_addressable = DeviceInstance::unwrap(args->device)->isAddressable();
@@ -58,6 +63,7 @@ PJRT_Error *onDeviceIsAddressable(PJRT_Device_IsAddressable_Args *args) {
 }
 
 PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_LocalHardwareId");
 
   args->local_hardware_id =
@@ -68,6 +74,7 @@ PJRT_Error *onDeviceLocalHardwareId(PJRT_Device_LocalHardwareId_Args *args) {
 
 PJRT_Error *
 onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_AddressableMemories");
 
   DeviceInstance *device = DeviceInstance::unwrap(args->device);
@@ -79,6 +86,7 @@ onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args) {
 };
 
 PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
 
   args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());

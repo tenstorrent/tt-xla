@@ -10,6 +10,9 @@
 
 #include "common/pjrt_implementation/error_instance.h"
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 namespace tt::pjrt {
 
 std::unique_ptr<ErrorInstance> ErrorInstance::makeError(tt_pjrt_status status) {
@@ -55,6 +58,7 @@ void onErrorMessage(PJRT_Error_Message_Args *args) {
 }
 
 PJRT_Error *onErrorGetCode(PJRT_Error_GetCode_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ErrorInstance::PJRT_Error_GetCode");
 
   tt_pjrt_status status = ErrorInstance::unwrap(args->error)->getStatus();

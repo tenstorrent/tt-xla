@@ -9,6 +9,9 @@
 #include <cassert>
 #include <numeric>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
@@ -408,6 +411,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {

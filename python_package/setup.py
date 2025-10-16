@@ -130,6 +130,46 @@ class SetupConfig:
 config = SetupConfig()
 
 
+def find_metal_packages() -> list[str]:
+    # Find all python packages in ttnn - skip test packages.
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+
+    tt_metal_root_dir = (
+        Path(file_dir)
+        / ".."
+        / "third_party"
+        / "tt-mlir"
+        / "src"
+        / "tt-mlir"
+        / "third_party"
+        / "tt-metal"
+        / "src"
+        / "tt-metal"
+    )
+    ttnn_dir = tt_metal_root_dir / "ttnn"
+
+    tools_dir = tt_metal_root_dir / "tools"
+
+    ttnn_packages = find_packages(
+        where=ttnn_dir,
+        exclude=["ttnn.examples", "ttnn.examples.*", "test"],
+        include=["ttnn", "ttnn.*"],
+    )
+    print(f"Found ttnn packages: {ttnn_packages}")
+
+    packages = {}
+    packages["ttnn"] = str((ttnn_dir / "ttnn").relative_to(file_dir))
+
+    tools_packages = find_packages(
+        where=tools_dir,
+        include=["tracy"],
+    )
+    print(f"Found metal tools packages: {tools_packages}")
+    packages["tracy"] = str((tools_dir / "tracy").relative_to(file_dir))
+
+    return (ttnn_packages + tools_packages, packages)
+
+
 class BdistWheel(bdist_wheel):
     """
     Custom wheel builder for a platform-specific Python package.
@@ -180,9 +220,20 @@ class CMakeBuildPy(build_py):
     done solely using `package_data` parameter of `setup` which expects python modules.
     """
 
+    def finalize_options(self):
+        super().finalize_options()
+        (metal_packages, dirs) = find_metal_packages()
+        self.distribution.packages.extend(list(metal_packages))
+        self.packages = (self.packages or []).extend(list(metal_packages))
+        self.package_dir.update(dirs)
+        print("packages:", self.distribution.packages)
+        print("package dirs:", self.package_dir)
+
     def run(self):
         if hasattr(self, "editable_mode") and self.editable_mode:
             # No need to built the project in editable mode.
+            # Find all interesting tt-metal packages and install them as well.
+            super().run()
             return
 
         print(f"Building wheel with following settings:\n{config}")
@@ -262,6 +313,10 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=find_packages(),
+    package_dir={
+        "tracy": "../third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tools/tracy",
+        "ttnn": "../third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/ttnn/ttnn",
+    },
     python_requires=">=3.11, <3.12",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,

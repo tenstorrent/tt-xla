@@ -14,6 +14,9 @@
 #include <cstring>
 #include <string>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-xla includes
 #include "common/pjrt_implementation/client_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
@@ -56,6 +59,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Destroy");
 
   delete ExecutableInstance::unwrap(args->executable);
@@ -64,6 +68,7 @@ PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
 }
 
 PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Name");
 
   ExecutableInstance *executable_instance =
@@ -78,6 +83,7 @@ PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
 }
 
 PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumReplicas");
 
   ExecutableInstance *executable_instance =
@@ -91,6 +97,7 @@ PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
 
 PJRT_Error *
 onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumPartitions");
 
   ExecutableInstance *executable_instance =
@@ -136,6 +143,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
 }
 
 PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumOutputs");
 
   ExecutableInstance *executable_instance =
@@ -149,6 +157,7 @@ PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
 
 PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
     PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG,
          "ExecutableInstance::PJRT_Executable_SizeOfGeneratedCodeInBytes");
 
@@ -162,6 +171,7 @@ PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
 }
 
 PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Fingerprint");
 
   const ExecutableInstance *executable_instance =
@@ -178,6 +188,7 @@ PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
 
 PJRT_Error *
 onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputElementTypes");
 
   ExecutableInstance *executable_instance =
@@ -230,6 +241,7 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
 };
 
 PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Serialize");
 
   const ExecutableInstance *executable_instance =

@@ -15,6 +15,9 @@
 #include <filesystem>
 #include <optional>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
@@ -479,6 +482,7 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
 namespace internal {
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
   delete ClientInstance::unwrap(args->client);
@@ -487,6 +491,7 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
 }
 
 PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
 
   ClientInstance *client = ClientInstance::unwrap(args->client);
@@ -499,6 +504,7 @@ PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args) {
 }
 
 PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_ProcessIndex");
 
   args->process_index = ClientInstance::unwrap(args->client)->getProcessIndex();
@@ -507,6 +513,7 @@ PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
 }
 
 PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
 
   ClientInstance *client = ClientInstance::unwrap(args->client);
@@ -519,6 +526,7 @@ PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args) {
 }
 
 PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
 
   const std::vector<DeviceInstance *> &devices_raw =
@@ -532,6 +540,7 @@ PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
 
 PJRT_Error *
 onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices");
 
   const std::vector<DeviceInstance *> &addressable_devices_raw =
@@ -545,6 +554,7 @@ onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args) {
 }
 
 PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -562,6 +572,7 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
 
 PJRT_Error *onClientLookupAddressableDevice(
     PJRT_Client_LookupAddressableDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupAddressableDevice");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -582,6 +593,7 @@ PJRT_Error *onClientLookupAddressableDevice(
 
 PJRT_Error *
 onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -595,6 +607,7 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
   std::unordered_map<std::string, std::string> compile_options_map;
 
@@ -626,6 +639,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
 
 PJRT_Error *onClientDefaultDeviceAssignment(
     PJRT_Client_DefaultDeviceAssignment_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
 
   // TODO(mrakita): Revisit this implementation.
@@ -638,6 +652,7 @@ PJRT_Error *onClientDefaultDeviceAssignment(
 
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
 
   if (args->device_layout &&

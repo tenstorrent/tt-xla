@@ -61,6 +61,7 @@ target_include_directories(TTPJRTCommon PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
     ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/third_party/tracy/public
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
@@ -76,8 +77,19 @@ target_link_libraries(TTPJRTCommon PUBLIC
     TTMLIRRuntime
 )
 
+# Link Tracy library if profiling is enabled
+if(ENABLE_TRACY)
+    target_link_libraries(TTPJRTCommon PUBLIC tracy)
+endif()
+
 target_link_directories(TTPJRTCommon PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/lib
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
 )
+
+# Enable Tracy profiling if requested
+if(ENABLE_TRACY)
+    target_compile_definitions(TTPJRTCommon PUBLIC TRACY_ENABLE)
+    message(STATUS "Tracy profiling enabled")
+endif()

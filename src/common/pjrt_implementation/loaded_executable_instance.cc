@@ -13,6 +13,9 @@
 // c++ standard library includes
 #include <mutex>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-xla includes
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
@@ -57,6 +60,7 @@ namespace internal {
 
 PJRT_Error *
 onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Destroy");
 
   delete LoadedExecutableInstance::unwrap(args->executable);
@@ -66,6 +70,7 @@ onLoadedExecutableDestroy(PJRT_LoadedExecutable_Destroy_Args *args) {
 
 PJRT_Error *onLoadedExecutableGetExecutable(
     PJRT_LoadedExecutable_GetExecutable_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG,
          "LoadedExecutableInstance::PJRT_LoadedExecutable_GetExecutable");
 
@@ -85,6 +90,7 @@ PJRT_Error *onLoadedExecutableGetExecutable(
 
 PJRT_Error *onLoadedExecutableAddressableDevices(
     PJRT_LoadedExecutable_AddressableDevices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG,
          "LoadedExecutableInstance::PJRT_LoadedExecutable_AddressableDevices");
 
@@ -102,6 +108,7 @@ PJRT_Error *onLoadedExecutableAddressableDevices(
 }
 
 PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Delete");
 
   LoadedExecutableInstance::unwrap(args->executable)->releaseResources();
@@ -111,6 +118,7 @@ PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
 
 PJRT_Error *
 onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG,
          "LoadedExecutableInstance::PJRT_LoadedExecutable_IsDeleted");
 
@@ -122,6 +130,7 @@ onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args) {
 
 PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
   tt_pjrt_status status =

@@ -14,6 +14,9 @@
 #include <cassert>
 #include <cstring>
 
+// tracy includes
+#include <tracy/Tracy.hpp>
+
 // tt-xla includes
 #include "common/status.h"
 
@@ -73,6 +76,7 @@ DeviceInstance *MemoryInstance::getDevice() {
 namespace internal {
 
 PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
 
   args->id = MemoryInstance::unwrap(args->memory)->getId();
@@ -81,6 +85,7 @@ PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
 }
 
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -91,6 +96,7 @@ PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
 }
 
 PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -100,6 +106,7 @@ PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
 }
 
 PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_DebugString");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -110,6 +117,7 @@ PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
 }
 
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_ToString");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -121,6 +129,7 @@ PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
 
 PJRT_Error *
 onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
 
   const MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
