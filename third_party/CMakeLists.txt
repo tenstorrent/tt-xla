@@ -75,7 +75,7 @@ else()
         BUILD_COMMAND cmake --build <BINARY_DIR> && cmake --build <BINARY_DIR> --target tt-alchemist
         INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
