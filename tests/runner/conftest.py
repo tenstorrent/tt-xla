@@ -6,7 +6,7 @@ import difflib
 
 import pytest
 
-from tests.runner.test_config import test_config
+from tests.runner.test_config.torch import test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
