@@ -7,6 +7,8 @@
 import importlib.util
 import os
 import sys
+import inspect
+import torch
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -50,7 +52,11 @@ class DynamicLoader:
         Returns:
             Input tensors/arrays that can be fed to the model
         """
-        return self.loader.load_inputs()
+        sig = inspect.signature(self.loader.load_inputs)
+        if "dtype_override" in sig.parameters:
+            return self.loader.load_inputs(dtype_override=torch.bfloat16)
+        else:
+            return self.loader.load_inputs()
 
     def get_shard_spec_function(self):
         """Get shard spec function from loader if available.
@@ -345,6 +351,32 @@ class TorchDynamicLoader(DynamicLoader):
             cls.get_model_variants(path, loader_paths, models_root)
 
         return loader_paths
+    
+    @classmethod
+    def batch_tensor(cls, tensor, num_devices):
+        if isinstance(tensor, torch.Tensor):
+            if tensor.dim() == 0:
+                return tensor.repeat(num_devices)
+            else:
+                if tensor.dim() == 1:
+                    tensor = tensor.unsqueeze(0)
+                return tensor.repeat_interleave(num_devices, dim=0)
+        return tensor
+    
+    @classmethod
+    def load_shard_spec_data_parallel(cls, args, kwargs):
+        shard_specs = {}
+        for arg in args:
+            if isinstance(arg, torch.Tensor) and arg.dim() > 0:
+                shard_spec = [None] * len(arg.shape)
+                shard_spec[0] = "data"
+                shard_specs[arg] = tuple(shard_spec)
+        for kwarg_value in kwargs.values():
+            if isinstance(kwarg_value, torch.Tensor) and kwarg_value.dim() > 0:
+                shard_spec = [None] * len(kwarg_value.shape)
+                shard_spec[0] = "data"
+                shard_specs[kwarg_value] = tuple(shard_spec)
+        return shard_specs
 
 
 class JaxDynamicLoader(DynamicLoader):

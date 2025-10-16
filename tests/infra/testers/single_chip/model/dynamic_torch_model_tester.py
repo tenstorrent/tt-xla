@@ -4,10 +4,10 @@
 
 """Dynamic Torch model tester implementation."""
 
+import collections
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities.torch_multichip_utils import get_mesh
-
 from third_party.tt_forge_models.config import Parallelism
 
 from .dynamic_loader import TorchDynamicLoader
@@ -65,7 +65,18 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Input tensors loaded from the loader
         """
-        return self.dynamic_loader.load_inputs()
+        inputs = self.dynamic_loader.load_inputs()
+
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            num_devices = xr.global_runtime_device_count()
+            if isinstance(inputs, collections.abc.Mapping):
+                inputs = {k: self.dynamic_loader.batch_tensor(v, num_devices) for k, v in inputs.items()}
+            elif isinstance(inputs, collections.abc.Sequence):
+                inputs = [self.dynamic_loader.batch_tensor(inp, num_devices) for inp in inputs]
+            else:
+                inputs = self.dynamic_loader.batch_tensor(inputs, num_devices)
+
+        return inputs
 
     def _get_shard_specs_function(self):
         """Get shard specs function from the dynamic loader if available.
@@ -73,7 +84,10 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Shard spec function if loader supports it, None otherwise
         """
-        return self.dynamic_loader.get_shard_spec_function()
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            return self.dynamic_loader.load_shard_spec_data_parallel()
+        else:
+            return self.dynamic_loader.get_shard_spec_function()
 
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
@@ -82,7 +96,10 @@ class DynamicTorchModelTester(TorchModelTester):
             Mesh object if loader supports mesh configuration, None otherwise
         """
         num_devices = xr.global_runtime_device_count()
-        mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            mesh_shape, mesh_names = (1, num_devices), ("model", "data")
+        else:
+            mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
