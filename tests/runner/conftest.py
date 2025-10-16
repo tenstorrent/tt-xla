@@ -6,7 +6,8 @@ import difflib
 
 import pytest
 
-from tests.runner.test_config.torch import test_config
+from tests.runner.test_config.torch import test_config as torch_test_config
+from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
@@ -52,6 +53,18 @@ def pytest_collection_modifyitems(config, items):
     deselected = []
 
     for item in items:
+        # Determine which test config to use based on the test function
+        if "test_all_models_torch" in item.nodeid:
+            test_config = torch_test_config
+        elif "test_all_models_jax" in item.nodeid:
+            test_config = jax_test_config
+        elif "test_placeholder_models" in item.nodeid:
+            # Placeholder tests use torch config (they're defined in torch/__init__.py)
+            test_config = torch_test_config
+        else:
+            # Skip configuration for other tests
+            continue
+
         nodeid = item.nodeid
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
@@ -115,9 +128,12 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
+    # Combine both configs for validation
+    combined_test_config = torch_test_config | jax_test_config
+
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []
-    for test_name, cfg in test_config.items():
+    for test_name, cfg in combined_test_config.items():
         if not isinstance(cfg, dict):
             continue
         overrides = cfg.get("arch_overrides")
@@ -144,7 +160,7 @@ def pytest_sessionfinish(session, exitstatus):
 
     # Validate that entries in test_config.py are found in the collected tests. They can diverge if
     # model variants are renamed, removed, have import errors, etc.
-    declared_nodeids = set(test_config.keys())
+    declared_nodeids = set(combined_test_config.keys())
     unknown = declared_nodeids - _collected_nodeids
     unlisted = _collected_nodeids - declared_nodeids
     print(

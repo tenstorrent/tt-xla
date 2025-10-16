@@ -178,6 +178,11 @@ def test_all_models_torch(
         #     id="data_parallel",
         #     marks=pytest.mark.data_parallel,
         # ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
     ],
 )
 @pytest.mark.parametrize(
