@@ -66,6 +66,7 @@ jobs:
 
     env:
       DOCKER_CACHE_ROOT: ${{ !matrix.build.shared-runners && '/mnt/dockercache' || '' }}
+      TT_RUNTIME_ENABLE_PROGRAM_CACHE: "1"
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
