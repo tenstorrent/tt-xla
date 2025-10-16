@@ -68,11 +68,9 @@ struct CompileOptions {
   // This is useful for chisel and codegen.
   bool dump_inputs = false;
 
-  // Enables saving intermediate IR representations to disk during compilation.
-  // This is useful for debugging compilation issues.
-  bool dump_mlir_modules = false;
-
-  // Path that will contain the codegen solution and saved inputs.
+  // Path that will contain any exported artifacts.
+  // This includes: codegen solutions, graph inputs and intermediate IRs.
+  // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
 
   static CompileOptions

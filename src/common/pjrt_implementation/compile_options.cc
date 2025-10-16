@@ -17,32 +17,29 @@ CompileOptions CompileOptions::parse(
 
   options.enable_optimizer =
       internal::parseBoolOption(compile_options, "enable_optimizer")
-          .value_or(false);
+          .value_or(options.enable_optimizer);
   options.enable_memory_layout_analysis =
       internal::parseBoolOption(compile_options,
                                 "enable_memory_layout_analysis")
-          .value_or(false);
+          .value_or(options.enable_memory_layout_analysis);
   options.enable_l1_interleaved =
       internal::parseBoolOption(compile_options, "enable_l1_interleaved")
-          .value_or(false);
+          .value_or(options.enable_l1_interleaved);
   options.enable_bfp8_conversion =
       internal::parseBoolOption(compile_options, "enable_bfp8_conversion")
-          .value_or(false);
+          .value_or(options.enable_bfp8_conversion);
   options.enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(compile_options,
                                 "enable_fusing_conv2d_with_multiply_pattern")
-          .value_or(false);
+          .value_or(options.enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
-                        .value_or(BackendRuntime::TTNNFlatbuffer);
+                        .value_or(options.backend);
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
-          .value_or(false);
+          .value_or(options.enable_trace);
   options.dump_inputs =
       internal::parseBoolOption(compile_options, "dump_inputs")
           .value_or(options.dump_inputs);
-  options.dump_mlir_modules =
-      internal::parseBoolOption(compile_options, "dump_mlir_modules")
-          .value_or(options.dump_mlir_modules);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   if (!options.export_path.has_value() &&

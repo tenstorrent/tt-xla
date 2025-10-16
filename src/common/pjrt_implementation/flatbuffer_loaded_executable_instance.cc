@@ -500,18 +500,18 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 }
 
 void FlatbufferLoadedExecutableInstance::dumpInputs(
-    std::vector<tt::runtime::Tensor> &input_tensors) {
+    const std::vector<tt::runtime::Tensor> &input_tensors) {
   DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
   assert(m_executable_image->getCompileOptions().export_path.has_value() &&
          "Export path must be set when dumping inputs");
-  auto dump_dir =
+  std::filesystem::path dump_dir =
       std::filesystem::path(
           m_executable_image->getCompileOptions().export_path.value()) /
       "inputs";
   std::filesystem::create_directories(dump_dir);
   for (int i = 0; i < input_tensors.size(); ++i) {
     std::string filename = "input_" + std::to_string(i) + ".tensorbin";
-    auto filepath = dump_dir / filename;
+    std::filesystem::path filepath = dump_dir / filename;
     tt::runtime::dumpTensor(input_tensors[i], filepath.string());
   }
 }

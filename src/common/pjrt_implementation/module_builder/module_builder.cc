@@ -224,19 +224,20 @@ ModuleBuilder::buildModule(
 
   tt_pjrt_status status;
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module;
-  status = createVHLOModule(mlir_code, mlir_module, compile_options);
+  status =
+      createVHLOModule(mlir_code, mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   std::string original_mlir_code(mlir_code);
 
-  status = convertFromVHLOToSHLO(mlir_module, compile_options);
+  status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  status = runFrontendSHLOPipeline(mlir_module, compile_options);
+  status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -261,13 +262,15 @@ ModuleBuilder::buildModule(
 
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
-  status = runCompilerStableHLOPipeline(mlir_module, compile_options);
+  status =
+      runCompilerStableHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   std::string ttir_mlir;
-  status = convertFromSHLOToTTIR(mlir_module, ttir_mlir, compile_options);
+  status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
+                                 compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -322,7 +325,7 @@ ModuleBuilder::buildModule(
 tt_pjrt_status
 ModuleBuilder::createVHLOModule(const std::string_view &mlir_code,
                                 mlir::OwningOpRef<mlir::ModuleOp> &vhlo_module,
-                                const CompileOptions &compile_options) {
+                                const std::optional<std::string> &export_path) {
   vhlo_module = mlir::parseSourceString<mlir::ModuleOp>(
       llvm::StringRef(mlir_code.data(), mlir_code.size()),
       mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
@@ -332,14 +335,14 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code,
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(vhlo_module, compile_options, "vhlo");
+  printModule(vhlo_module, export_path, "vhlo");
 
   return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const CompileOptions &compile_options) {
+    const std::optional<std::string> &export_path) {
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
@@ -351,19 +354,19 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, compile_options, "shlo");
+  printModule(mlir_module, export_path, "shlo");
 
   return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const CompileOptions &compile_options) {
+    const std::optional<std::string> &export_path) {
 
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
-  printModule(mlir_module, compile_options, "shlo_frontend");
+  printModule(mlir_module, export_path, "shlo_frontend");
 
   return status;
 }
@@ -666,7 +669,7 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
 
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-    const CompileOptions &compile_options) {
+    const std::optional<std::string> &export_path) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
@@ -680,7 +683,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, compile_options, "shlo_compiler");
+  printModule(mlir_module, export_path, "shlo_compiler");
 
   if (!tt_pjrt_status_is_ok(
           frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
@@ -693,7 +696,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
 tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string &ttir_mlir,
-    const CompileOptions &compile_options) {
+    const std::optional<std::string> &export_path) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
@@ -713,7 +716,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
 
   ttir_mlir = getMlirCode(mlir_module);
 
-  printModule(mlir_module, compile_options, "ttir");
+  printModule(mlir_module, export_path, "ttir");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -857,7 +860,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   ttnn_mlir = getMlirCode(mlir_module);
 
   DLOG_F(LOG_DEBUG, "TTNN Module:");
-  printModule(mlir_module, compile_options, "ttnn");
+  printModule(mlir_module, compile_options.export_path, "ttnn");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -955,7 +958,7 @@ tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
 }
 
 void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                                const CompileOptions &compile_options,
+                                const std::optional<std::string> &export_path,
                                 const std::string &stage_name) {
   if (loguru::g_stderr_verbosity < LOG_DEBUG) {
     return;
@@ -963,33 +966,23 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
 
   VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
   mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+  llvm::errs() << "------------------ END OF MLIR MODULE ------------------\n";
 
-  // Dump IR to disk if enabled
-  if (compile_options.dump_mlir_modules) {
-    assert(compile_options.export_path.has_value() &&
-           "export_path compile option is not set.");
-
-    std::string export_path = compile_options.export_path.value();
-    std::filesystem::path ir_dump_dir =
-        std::filesystem::path(export_path) / "irs";
-    std::filesystem::create_directories(ir_dump_dir);
-
-    std::string filename = stage_name + ".mlir";
-    std::filesystem::path ir_file_path = ir_dump_dir / filename;
-
-    std::ofstream ir_file(ir_file_path);
-    if (ir_file.is_open()) {
-      std::string ir_code;
-      llvm::raw_string_ostream os(ir_code);
-      mlir_module->print(os, mlir::OpPrintingFlags().enableDebugInfo());
-      os.flush();
-      ir_file << ir_code;
-      ir_file.close();
-    } else {
-      DLOG_F(ERROR, "Failed to open file for dumping %s IR: %s",
-             stage_name.c_str(), ir_file_path.c_str());
-    }
+  if (!export_path.has_value()) {
+    return;
   }
+
+  std::filesystem::path ir_dump_dir =
+      std::filesystem::path(export_path.value()) / "irs";
+  std::filesystem::create_directories(ir_dump_dir);
+
+  std::string filename = stage_name + ".mlir";
+  std::filesystem::path ir_file_path = ir_dump_dir / filename;
+
+  std::error_code err_code;
+  llvm::raw_fd_ostream out_stream(ir_file_path.string(), err_code);
+  mlir_module->print(out_stream, mlir::OpPrintingFlags().enableDebugInfo());
+  out_stream.close();
 }
 
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
