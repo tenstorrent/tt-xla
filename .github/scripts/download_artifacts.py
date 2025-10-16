@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
-import requests
 import argparse
+import os
 import subprocess
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
+
+import requests
 
 
 def get_token(cli_token):
@@ -110,6 +111,7 @@ def process_zip_file(zip_path, folder_name):
     """
     try:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            members = [zi for zi in zip_ref.infolist() if not zi.is_dir()]
             zip_ref.extractall(folder_name)
         os.remove(zip_path)
 
@@ -126,6 +128,27 @@ def process_zip_file(zip_path, folder_name):
                 )
                 os.rename(extracted_log, new_name)
                 print(f"Renamed {extracted_log} to {new_name}")
+
+        # Temporary hack to get p150 and n150 in filename:
+        if zip_base.startswith("test-reports-") and zip_base.endswith(".zip"):
+            arch_name = zip_base.split("-")[4]
+
+            # Special case for n300-llmbox which contains dash
+            if "n300-llmbox" in zip_base:
+                arch_name = "n300-llmbox"
+            # print(f"Arch name: {arch_name}")
+
+            # Full paths of extracted files
+            extracted_names = [m.filename for m in members]
+
+            # Do the rename for all files in zip to include arch name
+            for extracted_name in extracted_names:
+                new_name = f"{arch_name}_{extracted_name}"
+                new_path = os.path.join(folder_name, new_name)
+                extracted_path = os.path.join(folder_name, extracted_name)
+                os.rename(extracted_path, new_path)
+                print(f"Renamed {extracted_path} to {new_path}")
+
     except Exception as e:
         print(f"Failed to process zip file '{zip_path}': {e}")
 
