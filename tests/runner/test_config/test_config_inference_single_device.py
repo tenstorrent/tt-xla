@@ -144,9 +144,8 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "vovnet/pytorch-vovnet27s-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "vovnet/pytorch-vovnet39_th-single_device-full-inference": {
         "assert_pcc": False,
@@ -194,9 +193,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "xglm/pytorch-xglm-1.7B-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "resnet/pytorch-resnet_50_hf-single_device-full-inference": {
         "required_pcc": 0.98,
@@ -232,24 +230,20 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "t5/pytorch-google/flan-t5-small-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "t5/pytorch-google/flan-t5-base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "t5/pytorch-google/flan-t5-large-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "musicgen_small/pytorch-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -325,9 +319,7 @@ test_config = {
     },
     "densenet/pytorch-densenet161-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "assert_pcc": False,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "PCC Drop to 0.41146078113061335 Aug5 - https://github.com/tenstorrent/tt-torch/issues/1142",
+        "markers": ["pcc_test"],
     },
     "densenet/pytorch-densenet169-single_device-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9880856871604919. Required: pcc=0.99.
@@ -360,11 +352,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "dla/pytorch-dla102-single_device-full-inference": {
-        # Exposed by removal of consteval on host
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "reason": "PCC comparison failed. Calculated: pcc=0.7549546957015991. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "dla/pytorch-dla102x2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -373,11 +362,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "dla/pytorch-dla169-single_device-full-inference": {
-        # Exposed by removal of consteval on host
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "reason": "PCC comparison failed. Calculated: pcc=0.626757800579071. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1242",
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "markers": ["pcc_test"],
     },
     "dla/pytorch-dla34-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -582,63 +568,27 @@ test_config = {
     },
     "swin/image_classification/pytorch-swin_t-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7627570629119873. Required: pcc=0.99  - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-swin_s-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7249900698661804. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-swin_b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.5627762079238892. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-swin_v2_t-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.2837284207344055. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-swin_v2_s-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.31774118542671204. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-swin_v2_b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.35581427812576294. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "unet/pytorch-carvana_unet-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -827,23 +777,11 @@ test_config = {
     },
     "beit/pytorch-base-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.14377377927303314. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "beit/pytorch-large-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.13767358660697937. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "deepcogito/pytorch-v1_preview_llama_3b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -871,10 +809,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "albert/masked_lm/pytorch-xxlarge_v1-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9889796376228333. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402",
+        "markers": ["pcc_test"],
     },
     "albert/question_answering/pytorch-squad2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -916,13 +852,7 @@ test_config = {
     },
     "t5/pytorch-t5-small-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.849456787109375. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "albert/token_classification/pytorch-large_v2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -979,10 +909,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "stereo/pytorch-small-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9212397387139992. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "albert/token_classification/pytorch-xlarge_v2-single_device-full-inference": {
         "assert_pcc": False,
@@ -991,16 +919,12 @@ test_config = {
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99",
     },
     "t5/pytorch-t5-base-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.8489356254421029. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "t5/pytorch-t5-large-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.5978668686425952. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "stereo/pytorch-medium-single_device-full-inference": {
         "assert_pcc": False,
@@ -1009,58 +933,40 @@ test_config = {
         "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99",
     },
     "monodepth2/pytorch-mono_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.0017802508273225888. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-stereo_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-stereo_1024x320-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-mono_no_pt_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-mono_1024x320-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-mono+stereo_640x192-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "monodepth2/pytorch-mono+stereo_1024x320-single_device-full-inference": {
-        "assert_pcc": False,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.001758846541901752. Required: pcc=0.99",
+        "markers": ["pcc_test"],
     },
     "stereo/pytorch-large-single_device-full-inference": {
         "assert_pcc": False,
@@ -1330,33 +1236,15 @@ test_config = {
     },
     "swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.7274536490440369. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.6931940317153931. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "assert_pcc": False,
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-                "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.3293600380420685. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1168",
-            },
-        },
+        "markers": ["pcc_test"],
     },
     "vit/pytorch-vit_b_16-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
