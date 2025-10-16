@@ -1105,6 +1105,11 @@ test_config = {
     "qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
+    "qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
     "llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
@@ -2582,5 +2587,11 @@ test_config = {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
         "reason": "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B",
         "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "transfuser/pytorch-single_device-full-inference": {
+        "assert_pcc": False,
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7157331705093384. Required: pcc=0.99.",
     },
 }
