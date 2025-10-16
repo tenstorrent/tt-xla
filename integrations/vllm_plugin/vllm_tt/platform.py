@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
@@ -23,6 +24,17 @@ else:
 logger = init_logger(__name__)
 
 from torch_xla import runtime as xrt
+
+
+@dataclass
+class TTConfig:
+    enable_const_eval: bool = True
+    min_context_len: int = 128
+
+    def get_pjrt_compile_config(self) -> dict:
+        return {
+            "enable_const_eval": self.enable_const_eval,
+        }
 
 
 class TTPlatform(Platform):

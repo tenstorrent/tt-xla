@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 import torch
 import torch.nn as nn
+import torch_xla
 
 # TPU XLA related
 import torch_xla.core.xla_model as xm
@@ -83,6 +84,7 @@ from .attention import (
     TTMetadata,
     get_page_size_bytes,
 )
+from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
 
 
@@ -195,6 +197,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         device: torch.device,
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
+
+        self.tt_config = TTConfig(**vllm_config.additional_config)
+        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
+
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
         self.cache_config = vllm_config.cache_config
@@ -254,7 +260,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
-            min_token_size=32,
+            min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
