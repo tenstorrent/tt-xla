@@ -2059,7 +2059,7 @@ def _get_token_paddings(
     """
     # assert min_token_size is power of 2
     assert (min_token_size & (min_token_size - 1) == 0) and min_token_size > 0
-    paddings = []
+    paddings = [1]  # We need to support 1 token requests for decode graphs.
     num = min_token_size
 
     if padding_gap == 0:
