@@ -2451,4 +2451,22 @@ test_config = {
     "yolov11/pytorch-yolo11x-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
+    "mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-inference": {
+        "assert_pcc": False, 
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9816039800643921. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1402",
+    },
+    "regnet/pytorch-regnet_y_128gf-single_device-full-inference": {
+        "assert_pcc": False, 
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9861325025558472. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1402",
+    },
+    "detr/object_detection/pytorch-resnet_50-single_device-full-inference": {
+        "assert_pcc": False, 
+        "status": ModelTestStatus.EXPECTED_PASSING,
+        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9013423323631287. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1402",
+    },
 }
