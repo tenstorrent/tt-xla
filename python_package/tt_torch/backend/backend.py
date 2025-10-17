@@ -11,6 +11,7 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import CUSTOM_DECOMPOSITION_TABLE
+from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -18,7 +19,6 @@ from .passes import (
     handle_composite_ops,
     insert_argument_type_markers,
 )
-from .utils import MetadataDispatchMode, extract_nodes_info
 
 
 # This function runs a series of passes on a torch GraphModule.

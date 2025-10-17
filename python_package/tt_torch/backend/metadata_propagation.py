@@ -31,6 +31,8 @@ import torch
 import torch_xla
 from torch.utils._python_dispatch import TorchDispatchMode
 
+UNKNOWN_LOCATION = "unknown/unknown(unknown:0)/"
+
 
 def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
     """
@@ -41,24 +43,24 @@ def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
     Returns:
         Tuple of (file_name, line_num, func_name)
     """
-    if 'stack_trace' not in node.meta or not node.meta['stack_trace']:
+    if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
         return "unknown", 0, "unknown"
 
     # Process in reverse to get deepest (innermost) call first
-    lines = node.meta['stack_trace'].strip().split('\n')
+    lines = node.meta["stack_trace"].strip().split("\n")
     for line in reversed(lines):
         stripped = line.strip()
 
         if not stripped.startswith('File "'):
             continue
 
-        parts = stripped.split(',')
+        parts = stripped.split(",")
         if len(parts) < 3:
             continue
 
         # Parse: File "/path/file.py", line 42, in forward
         full_path = parts[0].split('"')[1]
-        file_name = full_path.split('/')[-1]
+        file_name = full_path.split("/")[-1]
         line_num = int(parts[1].split()[-1])
         func_name = parts[2].split()[-1]
 
@@ -77,19 +79,21 @@ def _extract_module_hierarchy(node: torch.fx.Node) -> tuple[list[str], list[str]
     module_classes: list[str] = []
     module_names: list[str] = []
 
-    if 'nn_module_stack' not in node.meta or not node.meta['nn_module_stack']:
+    if "nn_module_stack" not in node.meta or not node.meta["nn_module_stack"]:
         return module_classes, module_names
 
     # Sort by path length to get hierarchy order (shorter = outer, longer = inner modules)
     # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
-    modules = sorted(node.meta['nn_module_stack'].values(), key=lambda x: len(x[0]))
+    modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
 
     for path, class_name in modules:
-        module_class = class_name.split('.')[-1] if '.' in class_name else class_name
+        module_class = class_name.split(".")[-1] if "." in class_name else class_name
         module_classes.append(module_class)
 
         # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
-        instance = path.replace("L['self'].", "").replace("L['self']", "") if path else ""
+        instance = (
+            path.replace("L['self'].", "").replace("L['self']", "") if path else ""
+        )
         instance = instance if instance else module_class.lower()
         module_names.append(instance)
 
@@ -101,7 +105,7 @@ def _build_location_string(
     module_names: list[str],
     file_name: str,
     line_num: int,
-    func_name: str
+    func_name: str,
 ) -> str:
     """
     Build module hierarchy string from components.
@@ -114,7 +118,7 @@ def _build_location_string(
         for mod_class, mod_name in zip(module_classes, module_names):
             path_parts.append(f"{mod_class}[{mod_name}]")
 
-    hierarchy = '/'.join(path_parts) if path_parts else ""
+    hierarchy = "/".join(path_parts) if path_parts else ""
     file_info = f"{func_name}({file_name}:{line_num})"
 
     if hierarchy:
@@ -140,10 +144,11 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
 
     for node in graph_module.graph.nodes:
         # Only process call_function nodes
-        if node.op != 'call_function':
+        if node.op != "call_function":
             continue
 
-        if not hasattr(node, 'meta') or not node.meta:
+        if not hasattr(node, "meta") or not node.meta:
+            nodes_info.append(UNKNOWN_LOCATION)
             continue
 
         # Extract metadata components
@@ -152,10 +157,13 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
 
         # Build location string if we have any metadata
         if file_name != "unknown" or module_classes:
-            location = _build_location_string(
-                module_classes, module_names, file_name, line_num, func_name
+            nodes_info.append(
+                _build_location_string(
+                    module_classes, module_names, file_name, line_num, func_name
+                )
             )
-            nodes_info.append(location)
+        else:
+            nodes_info.append(UNKNOWN_LOCATION)
 
     return nodes_info
 
@@ -199,23 +207,18 @@ class MetadataDispatchMode(TorchDispatchMode):
         self.node_info = node_info
         self.operation_index = 0
 
-    def __torch_dispatch__(self, func, types, args=(), kwargs=None):
-        if kwargs is None:
-            kwargs = {}
-
+    def __torch_dispatch__(self, func, types, args=(), kwargs={}):
         res = func(*args, **kwargs)
 
-        # Skip tt operations that are just markers for XLA tensors
-        if 'tt' in func.__name__:
-            return res
-
         # Get semantic location for this operation
-        module_hierarchy = None
+        module_hierarchy = UNKNOWN_LOCATION
         if self.operation_index < len(self.node_info):
             module_hierarchy = self.node_info[self.operation_index]
 
-        # Set metadata on XLA tensors
-        if module_hierarchy:
+        # Set metadata only for computation nodes since they have module hierarchy info.
+        # XLA nodes without location info inherit from parent/child nodes, which works
+        # perfectly since computation nodes always have locations.
+        if module_hierarchy != UNKNOWN_LOCATION:
             self._set_metadata(res, module_hierarchy)
 
         # increment counter (critical for correctness)
@@ -223,7 +226,9 @@ class MetadataDispatchMode(TorchDispatchMode):
 
         return res
 
-    def _set_metadata(self, result: torch.Tensor | tuple | list, module_hierarchy: str) -> None:
+    def _set_metadata(
+        self, result: torch.Tensor | tuple | list, module_hierarchy: str
+    ) -> None:
         """
         Set semantic location metadata on XLA tensors in result.
 
@@ -243,8 +248,10 @@ class MetadataDispatchMode(TorchDispatchMode):
 
     def _set_tensor_metadata(self, tensor: torch.Tensor, module_hierarchy: str) -> bool:
         try:
-            if 'xla' in str(tensor.device):
-                torch_xla._XLAC._set_xla_custom_op_name_prefix(tensor, module_hierarchy, 0)
+            if "xla" in str(tensor.device):
+                torch_xla._XLAC._set_xla_custom_op_name_prefix(
+                    tensor, module_hierarchy, 0
+                )
                 return True
         except Exception:
             print(f"Error setting metadata - ({module_hierarchy})", flush=True)
