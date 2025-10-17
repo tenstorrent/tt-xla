@@ -551,7 +551,11 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
     // For output buffers, use the prepared tensor; for input buffers, use host
-    // tensor
+    // tensor. Prepared tensor will always have a >= size than host tensor
+    // since it rounds up to tile size and gives physical tensor volume.
+    // There may not be an associated host runtime tensor with all
+    // buffer instances, eg. if it represents an output that never returned to
+    // host.
     if (buffer->getPreparedTensor().has_value()) {
       args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
           buffer->getPreparedTensor().value(), buffer->getDataType());
