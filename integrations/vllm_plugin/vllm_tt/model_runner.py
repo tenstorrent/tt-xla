@@ -868,9 +868,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[
-                : self.num_reqs_max_model_len
-            ]  # .to(self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
             block_tables = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
@@ -883,9 +881,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[
-                : self.num_reqs_most_model_len
-            ]  # .to(self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
         block_tables = block_tables.to(self.device)
 
         if self.lora_config is not None:
