@@ -6,6 +6,7 @@ import argparse
 import ast
 import glob
 import json
+import math
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -83,9 +84,13 @@ def parse_junit_xml(xml_file, verbose=False, print_header=True):
                 if pcc_value is not None and pcc_threshold_value is not None:
 
                     # Want to detect appreciable PCC bumps based on first 2 decimal places.
-                    pcc_rounded_value = round(pcc_value, 2)
-                    pcc_rounded_threshold = round(pcc_threshold_value, 2)
+                    pcc_rounded_value = math.floor(pcc_value * 100) / 100
+                    pcc_rounded_threshold = math.floor(pcc_threshold_value * 100) / 100
                     pcc_bump = pcc_rounded_value > pcc_rounded_threshold
+
+                    print(
+                        f"pcc_rounded_value: {pcc_rounded_value} pcc_rounded_threshold: {pcc_rounded_threshold} pcc_bump: {pcc_bump} for testcase: {testcase_name}"
+                    )
 
                     # PCC Checking is enabled, but PCC threshold can be raised.
                     if (
@@ -96,7 +101,7 @@ def parse_junit_xml(xml_file, verbose=False, print_header=True):
                             if pcc_value > 0.99:
                                 promotion_flag = "RAISE_PCC_099"
                             else:
-                                promotion_flag = "RAISE_PCC"
+                                promotion_flag = "RAISE_PCC_LESS"
 
                     else:
                         if pcc_value >= pcc_threshold_value:
@@ -181,9 +186,9 @@ def handle_results(result_dicts):
                 xml_file = test_result["xml_file"]
                 arch = test_result["arch"]
                 promotion_flag = test_result["promotion_flag"]
-                print(
-                    f"XML file: {xml_file} - arch: {arch} - test name: {test_name} - promotion flag: {promotion_flag}"
-                )
+                # print(
+                #     f"XML file: {xml_file} - arch: {arch} - test name: {test_name} - promotion flag: {promotion_flag}"
+                # )
                 # combined_results[test_name][arch] = test_result
 
                 combined_results[test_name][promotion_flag].append(arch)
@@ -198,8 +203,9 @@ def handle_results(result_dicts):
             # FIXME - Dirty Hack
             has_both = len(combined_results[test_name][promotion_flag]) == 2
             has_both_flag = "YES_BOTH_ARCH" if has_both else "NOT_BOTH_ARCH"
+            archs_str = ", ".join(combined_results[test_name][promotion_flag])
             print(
-                f"COMBINED test_name: {test_name} - promotion_flag: {promotion_flag} - archs: {combined_results[test_name][promotion_flag]} - has_both: {has_both_flag}"
+                f"COMBINED: promote: {promotion_flag:<15} arch: {archs_str:<15} {has_both_flag:<15} {test_name}"
             )
 
 
