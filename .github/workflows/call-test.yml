@@ -208,7 +208,7 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models_torch; do
+        for n in run_torch run_large_jax_models run_forge_models_torch run_forge_models_jax; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -223,7 +223,7 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config.py
         ARCH=""
-        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
+        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' || "${{ matrix.build.name }}" == 'run_forge_models_jax' ]]; then
           ARCH="--arch ${{ matrix.build.runs-on }}"
         fi
 
@@ -251,7 +251,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build.name == 'run_forge_models_torch' }}
+      if: ${{ matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax' }}
       shell: bash
       run: |
         apt-get update
@@ -260,11 +260,15 @@ jobs:
     # Ensure test_config.py for tt-forge-models test is valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
+      if: ${{ (matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax') && strategy.job-index == 0 }}
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
+          python -m pytest -vv tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        elif [[ "${{ matrix.build.name }}" == 'run_forge_models_jax' ]]; then
+          python -m pytest -vv tests/runner/test_models.py::test_all_models_jax --validate-test-config
+        fi
 
     - name: Collect Tests
       id: collect-tests
