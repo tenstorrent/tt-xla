@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 
 MAX_CHARS = 400
 MAX_SUMMARY_CHARS = 50
@@ -27,6 +28,8 @@ def parse_junit_xml(xml_file, verbose=False, print_header=True):
             print(
                 f"{'BringupStatus':<20} {'PCCThreshold':<15} {'PCC':<10} {'Flag':<15} {'ModelGroup':<12} {'Arch':<12} {'SpecificTestCase'}"
             )
+
+        results_dict = {}
 
         # Find all testcase elements
         for testcase in root.findall(".//testcase"):
@@ -119,6 +122,17 @@ def parse_junit_xml(xml_file, verbose=False, print_header=True):
                 # If conversion fails, leave promotion_flag empty
                 promotion_flag = ""
 
+            # Add to results_dict
+            results_dict[testcase_name] = {
+                "xml_file": xml_file,
+                "bringup_status": bringup_status,
+                "pcc_value": pcc_value,
+                "pcc_threshold_value": pcc_threshold_value,
+                "promotion_flag": promotion_flag,
+                "model_group": model_group,
+                "arch": arch,
+            }
+
             # Format numeric columns safely
             def fmt_float(value):
                 try:
@@ -146,6 +160,47 @@ def parse_junit_xml(xml_file, verbose=False, print_header=True):
     except Exception as e:
         print(f"Unexpected error: {e}")
         sys.exit(1)
+
+    return results_dict
+
+
+def handle_results(result_dicts):
+    """
+    Handle the results.
+    """
+
+    # Combine the results from different archs.
+    # combined_results = {}
+    combined_results = defaultdict(lambda: defaultdict(list))
+
+    for result_dict in result_dicts:
+
+        for test_name in result_dict:
+            test_result = result_dict[test_name]
+            if "xml_file" in test_result:
+                xml_file = test_result["xml_file"]
+                arch = test_result["arch"]
+                promotion_flag = test_result["promotion_flag"]
+                print(
+                    f"XML file: {xml_file} - arch: {arch} - test name: {test_name} - promotion flag: {promotion_flag}"
+                )
+                # combined_results[test_name][arch] = test_result
+
+                combined_results[test_name][promotion_flag].append(arch)
+                # We want to find cases where promotion flag matches for all archs.
+
+    # Explicitly list supported_archs in tests makes things simpler.
+
+    # Go through the combined results and
+    for test_name in combined_results:
+        for promotion_flag in combined_results[test_name]:
+
+            # FIXME - Dirty Hack
+            has_both = len(combined_results[test_name][promotion_flag]) == 2
+            has_both_flag = "YES_BOTH_ARCH" if has_both else "NOT_BOTH_ARCH"
+            print(
+                f"COMBINED test_name: {test_name} - promotion_flag: {promotion_flag} - archs: {combined_results[test_name][promotion_flag]} - has_both: {has_both_flag}"
+            )
 
 
 def main():
@@ -182,11 +237,30 @@ def main():
         print("No XML files matched the provided --xml pattern(s).", file=sys.stderr)
         sys.exit(1)
 
+    result_dicts = []
+
     # Print header only once.
     print_header = True
     for xml_file in matched_files:
-        parse_junit_xml(xml_file, verbose=args.verbose, print_header=print_header)
+        result_dicts.append(
+            parse_junit_xml(xml_file, verbose=args.verbose, print_header=print_header)
+        )
         print_header = False
+
+    handle_results(result_dicts)
+
+    # TODO - Need some way to collect results in a dict then figure out what cases pass for both arch n150 and p150.
+
+    # Need to return an object with fields instead of just printing.
+    # How would automation work?
+    # Go through all results
+
+    # Query results from somewhere (artifacts or database)
+    # Iterate over them all.
+    # TODO - Need to map a result to particular test_config file to update (inference/training, single_device/tensor_parallel/data_parallel). Based on test name.
+    # TODO - Need to determine if results/action (passing, raise PCC, enable PCC etc) is the same for all archs tested.
+    # TODO - Need to read in file, do required updates. Do we update each arch and then collapse?
+    # TODO - Need to convert python file to yaml file, and add ingestion logic (convert python enums to yaml or somethning)
 
 
 if __name__ == "__main__":
