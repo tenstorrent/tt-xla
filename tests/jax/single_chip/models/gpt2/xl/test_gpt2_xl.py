@@ -53,7 +53,7 @@ def test_gpt2_xl_inference(inference_tester: GPT2Tester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 160822400 B DRAM buffer "
         "across 12 banks, where each bank needs to store 13404800 B "

@@ -65,7 +65,7 @@ def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Statically allocated circular buffers in program 2669 clash with "
         "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
