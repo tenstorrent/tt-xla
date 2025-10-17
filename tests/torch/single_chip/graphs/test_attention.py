@@ -302,11 +302,11 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     attention = model.model.layers[0].self_attn
 
     hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (2, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+    cos_sin = torch.rand(2, seq_len, model.config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(2, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
 
@@ -315,12 +315,16 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-    def get_shard_spec(attention):
+    def get_shard_spec(attention, args, kwargs):
         shard_specs = {}
-        shard_specs[attention.q_proj.weight] = ("model", "batch")
-        shard_specs[attention.k_proj.weight] = ("model", "batch")
-        shard_specs[attention.v_proj.weight] = ("model", "batch")
-        shard_specs[attention.o_proj.weight] = ("batch", "model")
+        shard_specs[args[0]] = ("batch", None, None)
+        shard_specs[args[1][0]] = ("batch", None, None)
+        shard_specs[args[1][1]] = ("batch", None, None)
+        shard_specs[args[2]] = ("batch", None, None, None)
+        shard_specs[attention.q_proj.weight] = ("model", None)
+        shard_specs[attention.k_proj.weight] = ("model", None)
+        shard_specs[attention.v_proj.weight] = ("model", None)
+        shard_specs[attention.o_proj.weight] = (None, "model")
         return shard_specs
 
     run_graph_test(

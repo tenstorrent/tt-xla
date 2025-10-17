@@ -99,7 +99,7 @@ class TorchDeviceRunner(DeviceRunner):
             workload.model = workload.model.to(device)
 
         shard_specs = None
-        if hasattr(workload, "shard_spec_fn") and workload.shard_spec_fn:
+        if device.type != "cpu" and hasattr(workload, "shard_spec_fn") and workload.shard_spec_fn:
             sig = inspect.signature(workload.shard_spec_fn)
             param_names = list(sig.parameters.keys())
 
@@ -112,7 +112,7 @@ class TorchDeviceRunner(DeviceRunner):
                 shard_specs = workload.shard_spec_fn(args_on_device, kwargs_on_device)
             else:
                 assert workload.model is not None, "Tensor parallel workloads require a nn.Module to shard weights"
-                shard_specs = workload.shard_spec_fn(workload.model)
+                shard_specs = workload.shard_spec_fn(workload.model, args_on_device, kwargs_on_device)
 
         is_multichip = hasattr(workload, "mesh") and workload.mesh and len(workload.mesh.device_ids) > 1
 
