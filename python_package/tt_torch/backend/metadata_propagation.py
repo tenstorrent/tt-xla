@@ -5,6 +5,10 @@
 """
 FX node metadata tracking for torch-xla operations.
 
+NOTE: This module is only used for debugging purposes as it affects performance.
+In order to use it you have to set the environment variable XLA_HLO_DEBUG to 1 by running the following command:
+export XLA_HLO_DEBUG=1
+
 This module provides node metadata tracking by:
 1. Extracting location metadata from FX graph nodes (module hierarchy, file, line)
 2. Intercepting operations at runtime via TorchDispatchMode
