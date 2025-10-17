@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 import time
 
 import pytest
@@ -30,7 +31,9 @@ def test_embed_qwen3():
 
 @pytest.mark.push
 def test_embed_qwen3_perf():
-    max_seq_len = 2**14
+    # Enable program cache for better performance
+    os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
+    max_seq_len = 2**14  # 16384
     prompts_list = []
 
     i = 128
@@ -50,9 +53,11 @@ def test_embed_qwen3_perf():
             "enable_const_eval": False,
         },
     }
+
+    # Precompile of model backbone done here
     model = vllm.LLM(**llm_args)
 
-    # Precompile executions
+    # Precompile pre/post processing graphs which are part of the actual user flow
     for seq_len, prompts in prompts_list:
         output_embedding = model.embed(prompts)
         print(f"Finished precompile for seq_len: {seq_len}")
