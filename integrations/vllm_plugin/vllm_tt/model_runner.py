@@ -265,6 +265,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             scheduler_config.max_num_seqs == 1
         ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+        if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
+            logger.warning(
+                f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
+            )
+            self.tt_config.min_context_len = scheduler_config.max_num_batched_tokens
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
