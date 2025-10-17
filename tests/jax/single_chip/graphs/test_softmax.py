@@ -8,22 +8,6 @@ from infra import run_graph_test_with_random_inputs
 from utils import Category, failed_runtime
 
 
-def conditionally_skip(x_shape: tuple, axis: int):
-    """
-    Helper function which checks x_shape-axis combination and skips if unsupported for some
-    reason.
-
-    Extracted here in order not to pollute the test function.
-    """
-    if axis != len(x_shape) - 1:
-        pytest.xfail(
-            failed_runtime(
-                "Softmax axis which is not the last dimension is not supported. "
-                "TT-metal issue: https://github.com/tenstorrent/tt-metal/issues/21906"
-            )
-        )
-
-
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -34,12 +18,15 @@ def conditionally_skip(x_shape: tuple, axis: int):
         [(32, 32), 1],
         [(64, 64), 0],
         [(64, 64), 1],
+        [(32, 32, 32), 0],
+        [(32, 32, 32), 1],
+        [(32, 32, 32), 2],
+        [(32, 128000), 1],  # 128000==llama's vocab_size.
+        [(32, 256000), 1],  # 256000==gemma's vocab_size.
     ],
 )
 def test_softmax(x_shape: tuple, axis: int):
     def softmax(x: jax.Array) -> jax.Array:
         return jax.nn.softmax(x, axis=axis)
-
-    conditionally_skip(x_shape, axis)
 
     run_graph_test_with_random_inputs(softmax, [x_shape])
