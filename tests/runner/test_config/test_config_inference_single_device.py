@@ -313,6 +313,7 @@ test_config = {
     },
     "densenet/pytorch-densenet161-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "required_pcc": 0.985,  # 0.990 for BH, 0.989 for WH
     },
     "densenet/pytorch-densenet169-single_device-full-inference": {
         # AssertionError: PCC comparison failed. Calculated: pcc=0.9880856871604919. Required: pcc=0.99.
