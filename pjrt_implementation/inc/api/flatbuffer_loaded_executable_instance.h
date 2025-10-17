@@ -112,16 +112,11 @@ private:
                       std::uint32_t program_index, size_t arg_index,
                       const tt::runtime::Device &runtime_device);
 
-  // Untilizes output tensors and transfers them from device to host.
-  tt_pjrt_status untilizeToHost(
-      const std::vector<tt::runtime::Tensor> &output_tensors,
-      size_t num_devices,
-      std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors);
-
   // Fills the output lists of the PJRT API with the outputs of tt runtime
-  // execution.
+  // execution. Creates BufferInstances with device tensors instead of
+  // transferring them to host.
   void fillPJRTOutputLists(
-      const std::vector<std::vector<tt::runtime::Tensor>> &rt_outputs,
+      const std::vector<tt::runtime::Tensor> &output_tensors,
       size_t num_devices, PJRT_Buffer **const *output_lists,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
