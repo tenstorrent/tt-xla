@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
+
 import torch
 import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
@@ -95,7 +97,22 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None:
             workload.model = workload.model.to(device)
 
-        shard_specs = workload.shard_spec_fn and workload.shard_spec_fn(workload.model)
+        shard_specs = None
+        if workload.shard_spec_fn:
+            sig = inspect.signature(workload.shard_spec_fn)
+            param_names = list(sig.parameters.keys())
+
+            # Check if function expects args and kwargs (data parallel)
+            if (
+                len(param_names) == 2
+                and "args" in param_names
+                and "kwargs" in param_names
+            ):
+                shard_specs = workload.shard_spec_fn(args_on_device, kwargs_on_device)
+            else:
+                # pass the model (tensor parallel)
+                shard_specs = workload.shard_spec_fn(workload.model)
+
         is_multichip = workload.mesh and len(workload.mesh.device_ids) > 1
 
         if shard_specs is not None and is_multichip and device.type != "cpu":

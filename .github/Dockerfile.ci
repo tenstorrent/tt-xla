@@ -75,3 +75,8 @@ RUN apt install libmpfr-dev -y && \
     cd ..  && \
     rm -rf gdb-14.2 gdb-14.2.tar.gz  && \
     gdb --version
+
+# Add entrypoint script
+COPY .github/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
