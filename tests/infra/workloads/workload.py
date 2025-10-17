@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, Model
+from infra.utilities import Framework, Model, Mesh
 
 
 class Workload:
@@ -50,9 +50,6 @@ class Workload:
         # Currently needed because _safely_put_workload_on_device relies on it to avoid putting those args on device.
         # Consider reworking _safely_put_workload_on_device to eliminate the need for static_argnames in Workload.
         self.static_argnames = static_argnames or []
-
-        self.shard_spec_fn = None
-        self.mesh = None
 
     @property
     def is_jax(self) -> bool:

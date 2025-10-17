@@ -17,6 +17,10 @@ from transformers.models.llama.modeling_llama import (
     eager_attention_forward,
 )
 
+from torch_xla.distributed.spmd import Mesh
+import numpy as np
+import torch_xla.runtime as xr
+
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
     ComparisonConfig,
@@ -306,10 +310,25 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
 
     past_key_states = None
 
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention):
+        shard_specs = {}
+        shard_specs[attention.q_proj.weight] = ("model", "batch")
+        shard_specs[attention.k_proj.weight] = ("model", "batch")
+        shard_specs[attention.v_proj.weight] = ("model", "batch")
+        shard_specs[attention.o_proj.weight] = ("batch", "model")
+        return shard_specs
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
+        mesh=mesh, 
+        shard_spec_fn=get_shard_spec,
     )
 
 
