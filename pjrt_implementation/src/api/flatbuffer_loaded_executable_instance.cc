@@ -140,9 +140,21 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     input_tensors.push_back(*prepared_tensor);
-  }
 
-  return tt_pjrt_status::kSuccess;
+    // Safety check to ensure no input tensor can be accidentally
+    //  deallocated during execution, as it may be reused in a future graph.
+    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+      DLOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                    "be deallocated during execution.");
+      return tt_pjrt_status::kInternal;
+    }
+    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+      DLOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                    "means it was deallocated by a previous operation.");
+      return tt_pjrt_status::kInternal;
+    }
+    return tt_pjrt_status::kSuccess;
+  }
 }
 
 std::optional<tt::runtime::Tensor>
@@ -177,8 +189,19 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   if (prepared_tensor.has_value() &&
       tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
     DLOG_F(LOG_DEBUG,
-           "Reusing already prepared input tensor for argument index %zu",
-           arg_index);
+           "Reusing already prepared input tensor for argument index %zu with "
+           "shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+
+    // This prepared tensor may be from a pure output-aliased-to-input, so
+    //  we should set its retention flag to true.
+    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
+      DLOG_F(WARNING,
+             "Prepared tensor for argument index %zu had retain=false; setting "
+             "to true to avoid deallocation during execution.",
+             arg_index);
+    }
+    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
   }
 
