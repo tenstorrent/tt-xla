@@ -62,3 +62,7 @@ FlagEmbedding
 
 # Qwen2.5 VL models
 qwen-vl-utils[decord]==0.0.8
+
+# Qwen2.5 VL AWQ variants
+intel_extension_for_pytorch==2.7.0
+autoawq[cpu]==0.2.9
