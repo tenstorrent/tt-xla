@@ -1099,7 +1099,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
-                xm.mark_step()
                 hidden_states = hidden_states.to("cpu")
 
             # Select states according to indices
@@ -1269,7 +1268,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
-            xm.mark_step()
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
