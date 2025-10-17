@@ -82,8 +82,19 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   if (prepared_tensor.has_value() &&
       tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
     DLOG_F(LOG_DEBUG,
-           "Reusing already prepared input tensor for argument index %zu",
-           arg_index);
+           "Reusing already prepared input tensor for argument index %zu with "
+           "shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+
+    // This prepared tensor may be from a pure output-aliased-to-input, so
+    //  we should set its retention flag to true.
+    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
+      DLOG_F(WARNING,
+             "Prepared tensor for argument index %zu had retain=false; setting "
+             "to true to avoid deallocation during execution.",
+             arg_index);
+    }
+    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
   }
 
