@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import RunMode, enable_shardy
+from infra import RunMode, enable_shardy, JaxMultichipModelTester
 from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.alexnet.image_classification.jax import (
@@ -11,8 +11,6 @@ from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelVariant,
 )
 from third_party.tt_forge_models.config import Parallelism
-
-from .tester import AlexNetMultichipTester
 
 VARIANT_NAME = ModelVariant.CUSTOM_1X2
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
@@ -22,13 +20,23 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.INFERENCE, num_devices=2)
+def inference_tester() -> JaxMultichipModelTester:
+    model_loader = ModelLoader(VARIANT_NAME)
+    return JaxMultichipModelTester(
+        model_loader=model_loader,
+        run_mode=RunMode.INFERENCE,
+        num_devices=2,
+    )
 
 
 @pytest.fixture
-def training_tester() -> AlexNetMultichipTester:
-    return AlexNetMultichipTester(run_mode=RunMode.TRAINING, num_devices=2)
+def training_tester() -> JaxMultichipModelTester:
+    model_loader = ModelLoader(VARIANT_NAME)
+    return JaxMultichipModelTester(
+        model_loader=model_loader,
+        run_mode=RunMode.TRAINING,
+        num_devices=2,
+    )
 
 
 # ----- Tests -----
@@ -43,7 +51,7 @@ def training_tester() -> AlexNetMultichipTester:
     parallelism=Parallelism.TENSOR_PARALLEL,
     bringup_status=BringupStatus.PASSED,
 )
-def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
+def test_alexnet_multichip_n300_inference(inference_tester: JaxMultichipModelTester):
     inference_tester.test()
 
 
@@ -56,7 +64,7 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
     parallelism=Parallelism.TENSOR_PARALLEL,
 )
 def test_alexnet_multichip_n300_inference_shardy(
-    inference_tester: AlexNetMultichipTester,
+    inference_tester: JaxMultichipModelTester,
 ):
     with enable_shardy(True):
         inference_tester.test()
@@ -71,5 +79,5 @@ def test_alexnet_multichip_n300_inference_shardy(
     parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_alexnet_multichip_n300_training(training_tester: AlexNetMultichipTester):
+def test_alexnet_multichip_n300_training(training_tester: JaxMultichipModelTester):
     training_tester.test()

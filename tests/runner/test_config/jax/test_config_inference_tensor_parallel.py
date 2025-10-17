@@ -5,8 +5,7 @@
 from tests.runner.test_utils import ModelTestStatus
 
 test_config = {
-    # AlexNet tensor parallel configurations
-    "alexnet/image_classification/jax-custom-tensor_parallel-full-inference": {
+    "alexnet/image_classification/jax-custom_1x2-tensor_parallel-full-inference": {
         "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
@@ -18,8 +17,7 @@ test_config = {
         "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
-    # MNIST tensor parallel configurations
-    "mnist/image_classification/jax-mlp_custom-tensor_parallel-full-inference": {
+    "mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-full-inference": {
         "supported_archs": ["n300-llmbox"],
         "status": ModelTestStatus.EXPECTED_PASSING,
     },

@@ -4,15 +4,14 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import jax
 from flax import linen
 from infra.comparators import ComparisonConfig
-from infra.connectors import JaxDeviceConnector
+from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
-from infra.utilities import PyTree, ShardingMode, Tensor
+from infra.utilities import Framework, PyTree, ShardingMode, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
@@ -22,33 +21,55 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from ...single_chip import JaxModelTester, RunMode
 
 
-class JaxMultichipModelTester(JaxModelTester, ABC):
+class JaxMultichipModelTester(JaxModelTester):
     """
-    Abstract base class all multichip `jax` model testers must inherit.
+    Multichip JAX model tester that works with any ModelLoader from tt_forge_models.
 
-    Derived classes must provide implementations of:
-    ```
-    _get_model(self) -> Model
-    _get_input_activations_partition_spec -> PartitionSpec
-    _get_input_activations(self) -> Sequence[Any]
-    _get_input_parameters_partition_spec -> PyTree
-    _get_input_parameters(self) -> PyTree # Optional, has default behaviour.
-    _get_forward_method_name(self) -> str # Optional, has default behaviour.
-    _get_forward_method_arg_specs(self) -> tuple[PartitionSpec | PyTree] # Optional, has default behaviour.
-    # One of or both:
-    _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
-    _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
-    ```
+    This class can test any multichip model that follows the ModelLoader pattern,
+    eliminating the need for model-specific tester classes.
     """
 
     def __init__(
         self,
-        mesh_shape: tuple,
-        axis_names: tuple,
+        model_loader=None,
+        mesh_shape: tuple = None,
+        axis_names: tuple = None,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        num_devices: Optional[int] = None,
+        axis_name: str = "X",
     ) -> None:
+        """Initialize the multichip model tester.
+
+        Args:
+            model_loader: ModelLoader instance from tt_forge_models. If provided,
+                         the tester will use it for all model operations.
+            mesh_shape: Shape of the device mesh. Auto-determined if model_loader is provided.
+            axis_names: Names of mesh axes. Auto-determined if model_loader is provided.
+            comparison_config: Configuration for result comparison.
+            run_mode: RunMode.INFERENCE or RunMode.TRAINING.
+            compiler_config: Compiler configuration.
+            num_devices: Number of devices to use. Auto-detected if None.
+            axis_name: Name of the sharding axis (used when model_loader is provided).
+        """
+        # If model_loader is provided, auto-configure mesh settings
+        if model_loader is not None:
+            self._model_loader = model_loader
+
+            # Determine number of devices
+            if num_devices is None:
+                device_connector = DeviceConnectorFactory.create_connector(Framework.JAX)
+                num_devices = device_connector.get_number_of_tt_devices()
+
+            self.num_devices = num_devices
+            self.main_axis_name = axis_name
+            mesh_shape = (self.num_devices,)
+            axis_names = (self.main_axis_name,)
+        else:
+            self._model_loader = None
+            self.num_devices = None
+            self.main_axis_name = None
         self._mesh_shape = mesh_shape
         self._axis_names = axis_names
         # TODO(mrakita): This should be a parameter of model tester, currently only this
@@ -216,24 +237,78 @@ class JaxMultichipModelTester(JaxModelTester, ABC):
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
+        # Get partition spec for activations first (doesn't need actual activations)
         self._input_activations_partition_specs = (
             self._get_input_activations_partition_spec()
         )
+        # Then get actual activations
         self._input_activations = self._get_input_activations()
+        # Now get parameter partition specs (which needs the activations)
         self._input_parameters_partition_specs = (
             self._get_input_parameters_partition_spec()
         )
+        # Finally get parameters (which needs both activations and parameter specs)
         self._input_parameters = self._get_input_parameters()
 
-    @abstractmethod
+    # Override abstract methods to use model_loader when available
+    def _get_model(self):
+        """Get the model instance."""
+        if self._model_loader is not None:
+            return self._model_loader.load_multichip_model(
+                axis_name=self.main_axis_name,
+                num_devices=self.num_devices,
+                train_mode=self._run_mode == RunMode.TRAINING,
+            )
+        else:
+            raise NotImplementedError("Must provide model_loader or override _get_model")
+
+    def _get_forward_method_name(self) -> str:
+        """Get the forward method name."""
+        if self._model_loader is not None:
+            return self._model_loader.get_forward_method_name()
+        else:
+            return "apply"  # Default for Flax models
+
+    def _get_input_activations(self):
+        """Get input activations."""
+        if self._model_loader is not None:
+            # Pass the CPU mesh to load_inputs so it can determine appropriate configuration
+            return self._model_loader.load_inputs(mesh=self._cpu_mesh)
+        else:
+            raise NotImplementedError("Must provide model_loader or override _get_input_activations")
+
     def _get_input_activations_partition_spec(self) -> PartitionSpec:
         """Returns partition specs for the input activations."""
-        raise NotImplementedError("Subclasses must implement this method.")
+        if self._model_loader is not None:
+            return self._model_loader.get_input_activations_partition_spec(self.main_axis_name)
+        else:
+            raise NotImplementedError("Must provide model_loader or override _get_input_activations_partition_spec")
 
-    @abstractmethod
     def _get_input_parameters_partition_spec(self) -> PyTree:
         """Returns partition specs for the parameters."""
-        raise NotImplementedError("Subclasses must implement this method.")
+        if self._model_loader is not None:
+            return self._model_loader.load_parameters_partition_spec(
+                model_for_multichip=self._model,
+                cpu_mesh=self._cpu_mesh,
+                input_activations_partition_specs=self._input_activations_partition_specs,
+                inputs=self._input_activations,  # Pass the cached inputs
+            )
+        else:
+            raise NotImplementedError("Must provide model_loader or override _get_input_parameters_partition_spec")
+
+    def _get_input_parameters(self) -> PyTree:
+        """Returns the input parameters."""
+        if self._model_loader is not None:
+            return self._model_loader.load_parameters(
+                train=self._run_mode == RunMode.TRAINING,
+                inputs=self._input_activations,  # Pass the cached inputs
+                model_for_multichip=self._model,
+                cpu_mesh=self._cpu_mesh,
+                input_activations_partition_specs=self._input_activations_partition_specs,
+                input_parameters_partition_specs=self._input_parameters_partition_specs,
+            )
+        else:
+            return super()._get_input_parameters()
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
