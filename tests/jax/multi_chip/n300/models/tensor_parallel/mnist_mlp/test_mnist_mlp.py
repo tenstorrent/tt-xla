@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import RunMode, enable_shardy, JaxMultichipModelTester
+from infra import RunMode, enable_shardy, DynamicJaxMultiChipModelTester
 from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
@@ -20,9 +20,9 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester(request) -> JaxMultichipModelTester:
+def inference_tester(request) -> DynamicJaxMultiChipModelTester:
     model_loader = ModelLoader(VARIANT_NAME, hidden_sizes=request.param)
-    return JaxMultichipModelTester(
+    return DynamicJaxMultiChipModelTester(
         model_loader=model_loader,
         run_mode=RunMode.INFERENCE,
         num_devices=2,
@@ -30,9 +30,9 @@ def inference_tester(request) -> JaxMultichipModelTester:
 
 
 @pytest.fixture
-def training_tester(request) -> JaxMultichipModelTester:
+def training_tester(request) -> DynamicJaxMultiChipModelTester:
     model_loader = ModelLoader(VARIANT_NAME, hidden_sizes=request.param)
-    return JaxMultichipModelTester(
+    return DynamicJaxMultiChipModelTester(
         model_loader=model_loader,
         run_mode=RunMode.TRAINING,
         num_devices=2,
@@ -54,7 +54,7 @@ def training_tester(request) -> JaxMultichipModelTester:
 @pytest.mark.parametrize(
     "inference_tester", [(1024, 512, 256)], indirect=True, ids=lambda val: f"{val}"
 )
-def test_mnist_mlp_multichip_n300_inference(inference_tester: JaxMultichipModelTester):
+def test_mnist_mlp_multichip_n300_inference(inference_tester: DynamicJaxMultiChipModelTester):
     inference_tester.test()
 
 
@@ -70,7 +70,7 @@ def test_mnist_mlp_multichip_n300_inference(inference_tester: JaxMultichipModelT
     "inference_tester", [(1024, 512, 256)], indirect=True, ids=lambda val: f"{val}"
 )
 def test_mnist_mlp_multichip_n300_inference_shardy(
-    inference_tester: JaxMultichipModelTester,
+    inference_tester: DynamicJaxMultiChipModelTester,
 ):
     with enable_shardy(True):
         inference_tester.test()
@@ -88,5 +88,5 @@ def test_mnist_mlp_multichip_n300_inference_shardy(
 @pytest.mark.parametrize(
     "training_tester", [(1024, 512, 256)], indirect=True, ids=lambda val: f"{val}"
 )
-def test_mnist_mlp_multichip_n300_training(training_tester: JaxMultichipModelTester):
+def test_mnist_mlp_multichip_n300_training(training_tester: DynamicJaxMultiChipModelTester):
     training_tester.test()

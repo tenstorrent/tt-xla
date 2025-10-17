@@ -4,7 +4,7 @@
 import os
 
 import pytest
-from infra import RunMode
+from infra import DynamicJaxMultiChipModelTester, RunMode
 from infra.testers.single_chip.model import (
     DynamicJaxModelTester,
     DynamicLoader,
@@ -213,19 +213,36 @@ def test_all_models_jax(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False
+        comparison_result = None
+        tester = None
+
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                tester = DynamicJaxModelTester(
-                    run_mode,
-                    loader=loader,
-                    comparison_config=test_metadata.to_comparison_config(),
-                    parallelism=parallelism,
-                )
+                # Use DynamicJaxMultiChipModelTester for tensor parallel
+                if parallelism == Parallelism.TENSOR_PARALLEL:
+                    tester = DynamicJaxMultiChipModelTester(
+                        model_loader=loader,
+                        run_mode=run_mode,
+                        comparison_config=test_metadata.to_comparison_config(),
+                    )
+                else:
+                    tester = DynamicJaxModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        parallelism=parallelism,
+                    )
 
-                tester.test()
-                succeeded = True
+                comparison_result = tester.test()
+
+                # All results must pass for the test to succeed
+                succeeded = all(result.passed for result in comparison_result)
+
+                # Trigger assertion after comparison_result is cached, and
+                #     fallthrough to finally block on failure.
+                Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
             err = capteesys.readouterr().err
@@ -233,6 +250,17 @@ def test_all_models_jax(
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
+            # If there are multiple comparison results, only record the first one because the
+            #     DB only supports single comparison result for now
+            if comparison_result is not None and len(comparison_result) > 0:
+                if len(comparison_result) > 1:
+                    print(
+                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
+                    )
+                comparison_result = comparison_result[0]
+
+            comparison_config = tester._comparison_config if tester else None
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -243,6 +271,8 @@ def test_all_models_jax(
                 run_mode=run_mode,
                 test_passed=succeeded,
                 parallelism=parallelism,
+                comparison_result=comparison_result,
+                comparison_config=comparison_config,
             )
 
 

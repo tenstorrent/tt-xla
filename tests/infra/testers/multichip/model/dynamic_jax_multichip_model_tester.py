@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 from flax import linen
-from infra.comparators import ComparisonConfig
+from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import Framework, PyTree, ShardingMode, Tensor
@@ -21,9 +21,9 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from ...single_chip import JaxModelTester, RunMode
 
 
-class JaxMultichipModelTester(JaxModelTester):
+class DynamicJaxMultiChipModelTester(JaxModelTester):
     """
-    Multichip JAX model tester that works with any ModelLoader from tt_forge_models.
+    Dynamic multichip JAX model tester that works with any ModelLoader from tt_forge_models.
 
     This class can test any multichip model that follows the ModelLoader pattern,
     eliminating the need for model-specific tester classes.
@@ -123,7 +123,7 @@ class JaxMultichipModelTester(JaxModelTester):
         )
 
     # @override
-    def _test_inference(self) -> None:
+    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
@@ -134,7 +134,7 @@ class JaxMultichipModelTester(JaxModelTester):
         self._compile_for_tt_device(self.tt_device_multichip_workload)
         tt_res = self._run_on_tt_device(self.tt_device_multichip_workload)
 
-        self._compare(tt_res, cpu_res)
+        return (self._compare(tt_res, cpu_res),)
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> None:

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import RunMode, enable_shardy, JaxMultichipModelTester
+from infra import RunMode, enable_shardy, DynamicJaxMultiChipModelTester
 from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.alexnet.image_classification.jax import (
@@ -20,9 +20,9 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> JaxMultichipModelTester:
+def inference_tester() -> DynamicJaxMultiChipModelTester:
     model_loader = ModelLoader(VARIANT_NAME)
-    return JaxMultichipModelTester(
+    return DynamicJaxMultiChipModelTester(
         model_loader=model_loader,
         run_mode=RunMode.INFERENCE,
         num_devices=2,
@@ -30,9 +30,9 @@ def inference_tester() -> JaxMultichipModelTester:
 
 
 @pytest.fixture
-def training_tester() -> JaxMultichipModelTester:
+def training_tester() -> DynamicJaxMultiChipModelTester:
     model_loader = ModelLoader(VARIANT_NAME)
-    return JaxMultichipModelTester(
+    return DynamicJaxMultiChipModelTester(
         model_loader=model_loader,
         run_mode=RunMode.TRAINING,
         num_devices=2,
@@ -51,7 +51,7 @@ def training_tester() -> JaxMultichipModelTester:
     parallelism=Parallelism.TENSOR_PARALLEL,
     bringup_status=BringupStatus.PASSED,
 )
-def test_alexnet_multichip_n300_inference(inference_tester: JaxMultichipModelTester):
+def test_alexnet_multichip_n300_inference(inference_tester: DynamicJaxMultiChipModelTester):
     inference_tester.test()
 
 
@@ -64,7 +64,7 @@ def test_alexnet_multichip_n300_inference(inference_tester: JaxMultichipModelTes
     parallelism=Parallelism.TENSOR_PARALLEL,
 )
 def test_alexnet_multichip_n300_inference_shardy(
-    inference_tester: JaxMultichipModelTester,
+    inference_tester: DynamicJaxMultiChipModelTester,
 ):
     with enable_shardy(True):
         inference_tester.test()
@@ -79,5 +79,5 @@ def test_alexnet_multichip_n300_inference_shardy(
     parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
-def test_alexnet_multichip_n300_training(training_tester: JaxMultichipModelTester):
+def test_alexnet_multichip_n300_training(training_tester: DynamicJaxMultiChipModelTester):
     training_tester.test()
