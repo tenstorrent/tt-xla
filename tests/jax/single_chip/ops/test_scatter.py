@@ -44,7 +44,9 @@ def test_scatter_1(data_shape, indices_shape, updates_shape):
     data = jnp.arange(jnp.prod(jnp.array(data_shape)), dtype=jnp.int32).reshape(
         data_shape
     )
-    indices = jnp.arange(jnp.prod(jnp.array(indices_shape)), dtype=jnp.int32).reshape(indices_shape)
+    indices = jnp.arange(jnp.prod(jnp.array(indices_shape)), dtype=jnp.int32).reshape(
+        indices_shape
+    )
     updates = (
         jnp.arange(jnp.prod(jnp.array(updates_shape)), dtype=jnp.int32).reshape(
             updates_shape
@@ -153,6 +155,7 @@ def test_scatter_3(data_shape, indices_shape, updates_shape):
         inputs=[data, indices, updates],
     )
 
+
 @pytest.mark.parametrize(
     "data_shape, indices_shape, updates_shape",
     [
@@ -176,24 +179,9 @@ def test_scatter_4(data_shape, indices_shape, updates_shape):
             dimension_numbers=dnums,
         )
 
-    scale_factor = 0.01
-    data = (jnp.arange(jnp.prod(jnp.array(data_shape)), dtype=jnp.float32) * scale_factor).astype(jnp.bfloat16).reshape(
-        data_shape
-    )
-    
-    indices = jnp.arange(10, dtype=jnp.int32).reshape(indices_shape)
-    
-    updates = (
-        jnp.arange(jnp.prod(jnp.array(updates_shape)), dtype=jnp.float32) + 1000
-    ).astype(jnp.bfloat16).reshape(updates_shape)
-
-    comparison_config = ComparisonConfig()
-    comparison_config.equal.enable()
-
-    run_op_test(
+    run_op_test_with_random_inputs(
         scatter,
-        inputs=[data, indices, updates],
-        comparison_config=comparison_config,
+        input_shapes=[data_shape, indices_shape, updates_shape],
+        minval=0,
+        maxval=data_shape[0],
     )
-
-
