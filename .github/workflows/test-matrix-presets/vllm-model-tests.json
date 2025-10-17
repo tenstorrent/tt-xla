@@ -1,0 +1,3 @@
+[
+    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push", "shared-runners": "true" }
+]
