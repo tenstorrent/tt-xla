@@ -305,9 +305,17 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          pip install -r integrations/vllm_plugin/requirements-vllm-plugin.txt
+        fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
+
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          pip uninstall -y vllm transformers
+          pip install -r venv/requirements-dev.txt
+        fi
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
