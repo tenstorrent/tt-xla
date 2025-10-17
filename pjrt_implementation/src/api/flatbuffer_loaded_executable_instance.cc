@@ -141,57 +141,37 @@ tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
                                tt::runtime::getTensorRetain(input_tensor));
 }
 
-tt_pjrt_status FlatbufferLoadedExecutableInstance::untilizeToHost(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-    std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    std::vector<tt::runtime::Tensor> untilized_output =
-        tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
-
-    // If the output is a replicated scalar or tensor, we expect only one tensor
-    // on output, so we need to fill the rest of the output tensors with the
-    // same tensors, to match the number of devices.
-    if (untilized_output.size() != num_devices) {
-      // If the size of the output is not 1 nor num_devices, we have an error.
-      if (untilized_output.size() > 1) {
-        DLOG_F(ERROR,
-               "Untilize to host produced invalid number of output tensors: "
-               "expected %zu, got %zu",
-               num_devices, untilized_output.size());
-        return tt_pjrt_status::kInternal;
-      }
-      for (size_t device_index = 1; device_index < num_devices;
-           ++device_index) {
-        untilized_output.emplace_back(untilized_output[0]);
-      }
-    }
-
-    untilized_output_tensors.emplace_back(std::move(untilized_output));
-  }
-
-  return tt_pjrt_status::kSuccess;
-}
-
 void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<std::vector<tt::runtime::Tensor>>
-        &untilized_output_tensors,
-    size_t num_devices, PJRT_Buffer **const *output_lists,
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
-  size_t num_outputs = untilized_output_tensors.size();
+  size_t n_prog_output_tensors = output_tensors.size();
 
-  for (int device_index = 0; device_index < num_devices; ++device_index) {
-    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      tt::runtime::Tensor output_tensor =
-          untilized_output_tensors[output_index][device_index];
+  // Iterate over the available tensors and devices, filling in the PJRT Buffer
+  // outputs. The output BufferInstance is initialized with a device tensor
+  // which is lazily returned to host when CopyToHost is called.
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    for (int device_index = 0; device_index < num_devices; ++device_index) {
+      tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
+      // For a given output_index, each device will get the same
+      // outputDeviceTensor This is trivially correct for replicated outputs.
+      // For sharded outputs, the outputDeviceTensor is a multi-device tensor
+      // and represents all shards. Therefore, the outputDevice tensor will
+      // still be the same for each device, and the BufferInstance will store
+      // which shard to retrieve via the device index, when requested in
+      // CopyToHost.
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              output_tensor, std::move(output_shape),
+              outputDeviceTensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
+      DLOG_F(LOG_DEBUG,
+             "Filled output at output_index %zu device_index %d with shape %s",
+             output_index, device_index, output_buffer->toShapeStr().c_str());
 
       output_buffer->markAsDataReady();
 
@@ -311,41 +291,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  DLOG_F(LOG_DEBUG, "[JAMES] Fill pjrt output list with device tensors instead "
-                    "of host tensors");
-  size_t n_prog_output_tensors = output_tensors.size();
-
-  // iterate over the available tensors and devices, filling in the PJRT Buffer
-  // outputs The output bufferInstance is initialized with a device tensor
-  // instead of a host tensor.
-
-  for (size_t output_index = 0; output_index < n_prog_output_tensors;
-       output_index++) {
-    for (int device_index = 0; device_index < args->num_devices;
-         ++device_index) {
-
-      tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
-      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-      auto expected_output_data_types = m_executable_image->getOutputTypes();
-      // replicated case - repeat
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              outputDeviceTensor, std::move(output_shape),
-              m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index], device_index);
-      DLOG_F(
-          LOG_DEBUG,
-          "--[JAMES] filled at output index %zu device index %d with shape %s",
-          output_index, device_index, output_buffer->toShapeStr().c_str());
-
-      output_buffer->markAsDataReady();
-
-      // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
-      args->output_lists[device_index][output_index] = *output_buffer.release();
-    }
-  }
+  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                      m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
