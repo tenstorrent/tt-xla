@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import torch
 import torch_xla.core.xla_builder as xb
@@ -121,6 +121,20 @@ class TTAttentionBackend(AttentionBackend):
         return page_size
 
 
+# ttnn.fill_cache has a limitation. If the work that needs to be done to fill the cache does not fit on the device grid,
+# it will fail to compile the op. This workaround pads the fill value to the same shape as the cache and we use this new
+# tensor as the cache instead.
+#
+# This is functionally the same as a fill_cache op, but this avoids the limitation of ttnn.fill_cache.
+def fill_cache_workaround(
+    cache_shape: List[int], fill_value: torch.Tensor
+) -> torch.Tensor:
+    new_cache = torch.nn.functional.pad(
+        fill_value, (0, 0, 0, cache_shape[-2] - fill_value.shape[-2], 0, 0, 0, 0)
+    )
+    return new_cache
+
+
 @dataclass
 class TTMetadata:
     # NOTE(sang): Definition of context_len, query_len, and seq_len.
@@ -233,8 +247,9 @@ class TTAttentionBackendImpl(AttentionImpl):
                 k_cache = torch.ops.tt.update_cache(k_cache, key, cache_position)
                 v_cache = torch.ops.tt.update_cache(v_cache, value, cache_position)
             else:
-                k_cache = torch.ops.tt.fill_cache(k_cache, key)
-                v_cache = torch.ops.tt.fill_cache(v_cache, value)
+                # See the comment in this function for more details.
+                k_cache = fill_cache_workaround(k_cache.shape, key)
+                v_cache = fill_cache_workaround(v_cache.shape, value)
             new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
             key = k_cache
             value = v_cache

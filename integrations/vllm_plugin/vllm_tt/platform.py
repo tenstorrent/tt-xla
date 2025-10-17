@@ -28,6 +28,10 @@ from torch_xla import runtime as xrt
 
 @dataclass
 class TTConfig:
+    # We allow the user of the plugin to toggle consteval in tt-mlir. We would like for this to be on at all times as it results in a more performant model.
+    # However, the results of the consteval graphs are stored on device permanently. When pre-compiling multiple graphs for multiple sequence lengths, we
+    # will essentially end up storing the entire model on device once per graph. This can easily lead to OOM errors.
+    # There is an issue tracking this in tt-mlir: https://github.com/tenstorrent/tt-mlir/issues/3888
     enable_const_eval: bool = True
     min_context_len: int = 128
 
