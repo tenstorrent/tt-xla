@@ -11,8 +11,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
-from infra.utilities.torch_multichip_utils import enable_spmd
-from infra.workloads import Workload
+from infra.workloads import Workload, TorchWorkload
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -91,26 +90,11 @@ class TorchModelTester(ModelTester):
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
 
-        self._workload = Workload(
-            framework=self._framework, model=self._model, args=args, kwargs=kwargs
-        )
-        self._workload.mesh = self._get_mesh()
-        self._workload.shard_spec_fn = self._get_shard_specs_function()
-
-        self._enable_xla_spmd_if_needed()
-
-    # If model has shard specs and running on multichip mesh, then convert StableHLO
-    # to Shardy dialect and initialize XLA SPMD runtime.
-    def _enable_xla_spmd_if_needed(self) -> None:
-        has_shard_specs = self._workload.shard_spec_fn is not None
-        is_multichip = self._workload.mesh and len(self._workload.mesh.device_ids) > 1
-
+        self._workload = TorchWorkload(model=self._model, args=args, kwargs=kwargs, mesh=self._get_mesh(), shard_spec_fn=self._get_shard_specs_function())
+        
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            assert has_shard_specs, "Tensor parallel requires shard specs function"
-            assert is_multichip, "Tensor parallel requires multi-chip mesh"
-
-        if has_shard_specs and is_multichip:
-            enable_spmd()
+            assert self._workload.shard_spec_fn is not None, "Tensor parallel requires shard specs function"
+            assert self._workload.mesh and len(self._workload.mesh.device_ids) > 1, "Tensor parallel requires multi-chip mesh"
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
