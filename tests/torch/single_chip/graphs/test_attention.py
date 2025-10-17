@@ -311,7 +311,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     past_key_states = None
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
+    mesh_shape = (2, num_devices//2)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
