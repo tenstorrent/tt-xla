@@ -20,6 +20,7 @@ on:
           - 'model-test-experimental.json'
           - 'model-test-training.json'
           - 'custom-basic-and-models-push.json'
+          - 'vllm-model-tests.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
