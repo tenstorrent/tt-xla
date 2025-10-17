@@ -859,7 +859,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   ttnn_mlir = getMlirCode(mlir_module);
 
-  DLOG_F(LOG_DEBUG, "TTNN Module:");
   printModule(mlir_module, compile_options.export_path, "ttnn");
 
   return tt_pjrt_status::kSuccess;
