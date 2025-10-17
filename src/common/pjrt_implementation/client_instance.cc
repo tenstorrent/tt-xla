@@ -12,8 +12,12 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -53,11 +57,444 @@ ClientInstance::ClientInstance(std::unique_ptr<Platform> platform)
   m_cached_system_descriptor_path =
       std::filesystem::temp_directory_path().concat(
           "/tt_pjrt_system_descriptor");
+
+  const char *testno_env = std::getenv("TESTNO");
+  int testno = testno_env ? std::atoi(testno_env) : 0;
+
+  switch (testno) {
+  case 1:
+    OpenCloseDeviceExperiment();
+    break;
+  case 2:
+    OpenCloseDeviceExperimentLooped(10);
+    break;
+  case 3:
+    OpenCloseDeviceExperiment2();
+    break;
+  case 4:
+    OpenCloseDeviceExperiment3();
+    break;
+  case 5:
+    ForkMeshSubmeshExperiment();
+    break;
+  case 6:
+    ForkMeshSubmeshExperimentTwice();
+    break;
+  case 7:
+    MeshSubmeshExperimentTwice();
+    break;
+  case 8:
+    ForkMeshSubmeshMixed();
+    break;
+  case 9:
+    MeshSubmeshMixed();
+    break;
+  default:
+    DLOG_F(LOG_DEBUG,
+           "[James] No OpenCloseDeviceExperiment selected (TESTNO=%d)", testno);
+    break;
+  }
+  throw std::runtime_error("Early termination for experiment");
+}
+
+void ClientInstance::OpenCloseDeviceExperiment() {
+  DLOG_F(LOG_DEBUG,
+         "[James] Open Close Device Experiment in a single process, once.");
+  DLOG_F(LOG_DEBUG, "[James] Opening device");
+  auto device = openMeshDevice({1, 2});
+  DLOG_F(LOG_DEBUG, "[James] Closing device");
+  tt::runtime::closeMeshDevice(device);
+  DLOG_F(LOG_DEBUG, "[James] Exit.");
+}
+
+void ClientInstance::OpenCloseDeviceExperimentLooped(int nloops) {
+  DLOG_F(LOG_DEBUG,
+         "[James] Open Close Device Experiment in a single process, looped.");
+  for (int i = 0; i < nloops; i++) {
+    DLOG_F(LOG_DEBUG, "[James] Opening device @ loopct %d", i);
+    auto device = openMeshDevice({1, 2});
+    DLOG_F(LOG_DEBUG, "[James] Closing device");
+    tt::runtime::closeMeshDevice(device);
+  }
+  DLOG_F(LOG_DEBUG, "[James] Exit.");
+}
+
+void ClientInstance::OpenCloseDeviceExperiment2() {
+  DLOG_F(LOG_DEBUG,
+         "[James] Open Close Device Experiment in a single process, once.");
+  DLOG_F(LOG_DEBUG, "[James] Opening device");
+  auto device = openMeshDevice({1, 2});
+  DLOG_F(LOG_DEBUG, "[James] Closing device");
+  tt::runtime::closeMeshDevice(device);
+
+  DLOG_F(LOG_DEBUG, "[James] Opening device1x1");
+  auto device1x1 = openMeshDevice({1, 1});
+  DLOG_F(LOG_DEBUG, "[James] Closing device1x1");
+  tt::runtime::closeMeshDevice(device1x1);
+  DLOG_F(LOG_DEBUG, "[James] Exit.");
+}
+
+void ClientInstance::OpenCloseDeviceExperiment3() {
+  DLOG_F(LOG_DEBUG,
+         "[James] Open Close Device Experiment in a single process, once.");
+  DLOG_F(LOG_DEBUG, "[James] Opening device");
+  auto device = openMeshDevice({1, 2});
+  DLOG_F(LOG_DEBUG, "[James] Closing device");
+  tt::runtime::closeMeshDevice(device);
+
+  DLOG_F(LOG_DEBUG, "[James] Opening device1x1");
+  auto device1x1 = openMeshDevice({1, 1});
+  DLOG_F(LOG_DEBUG, "[James] Exit without closing 1x1.");
+}
+
+void ClientInstance::ForkMeshSubmeshExperiment() {
+  DLOG_F(LOG_DEBUG, "[James] Fork Mesh Submesh Experiment - single fork cycle");
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    DLOG_F(ERROR, "[James] Fork failed!");
+    return;
+  }
+
+  if (pid == 0) {
+    // Child process
+    DLOG_F(LOG_DEBUG, "[James] [Child] Opening 1x2 mesh");
+    auto mesh = openMeshDevice({1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child] Opening 1x2 submesh");
+    auto submesh = tt::runtime::createSubMeshDevice(mesh, {1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child] Closing 1x2 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child] Destroying submesh device reference");
+    submesh = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child] Closing 1x2 mesh");
+    tt::runtime::closeMeshDevice(mesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child] Exit.");
+    std::exit(0);
+  } else {
+    // Parent process
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Waiting for child process %d", pid);
+    int status;
+    waitpid(pid, &status, 0);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Child process completed with status %d",
+           status);
+  }
+}
+
+void ClientInstance::ForkMeshSubmeshExperimentTwice() {
+  DLOG_F(LOG_DEBUG, "[James] Fork Mesh Submesh Experiment - two fork cycles");
+
+  // First fork cycle
+  DLOG_F(LOG_DEBUG, "[James] Starting first fork cycle");
+  pid_t pid1 = fork();
+
+  if (pid1 < 0) {
+    DLOG_F(ERROR, "[James] First fork failed!");
+    return;
+  }
+
+  if (pid1 == 0) {
+    // First child process
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x2 mesh");
+    auto mesh = openMeshDevice({1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x2 submesh");
+    auto submesh = tt::runtime::createSubMeshDevice(mesh, {1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x2 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Destroying submesh device reference");
+    submesh = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x2 mesh");
+    tt::runtime::closeMeshDevice(mesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Exit.");
+    std::exit(0);
+  } else {
+    // Parent process - wait for first child
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Waiting for first child process %d",
+           pid1);
+    int status1;
+    waitpid(pid1, &status1, 0);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] First child completed with status %d",
+           status1);
+  }
+
+  // Second fork cycle
+  DLOG_F(LOG_DEBUG, "[James] Starting second fork cycle");
+  pid_t pid2 = fork();
+
+  if (pid2 < 0) {
+    DLOG_F(ERROR, "[James] Second fork failed!");
+    return;
+  }
+
+  if (pid2 == 0) {
+    // Second child process
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x2 mesh");
+    auto mesh = openMeshDevice({1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x2 submesh");
+    auto submesh = tt::runtime::createSubMeshDevice(mesh, {1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x2 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Destroying submesh device reference");
+    submesh = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x2 mesh");
+    tt::runtime::closeMeshDevice(mesh);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Exit.");
+    std::exit(0);
+  } else {
+    // Parent process - wait for second child
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Waiting for second child process %d",
+           pid2);
+    int status2;
+    waitpid(pid2, &status2, 0);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Second child completed with status %d",
+           status2);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] All cycles completed.");
+  }
+}
+
+void ClientInstance::MeshSubmeshExperimentTwice() {
+  DLOG_F(LOG_DEBUG, "[James] Mesh Submesh Experiment - single process, twice");
+
+  // First cycle
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x2 mesh");
+  auto mesh1 = openMeshDevice({1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x2 submesh");
+  auto submesh1 = tt::runtime::createSubMeshDevice(mesh1, {1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x2 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh1);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Destroying submesh device reference");
+  submesh1 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x2 mesh");
+  tt::runtime::closeMeshDevice(mesh1);
+
+  // Second cycle
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x2 mesh");
+  auto mesh2 = openMeshDevice({1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x2 submesh");
+  auto submesh2 = tt::runtime::createSubMeshDevice(mesh2, {1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x2 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh2);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Destroying submesh device reference");
+  submesh2 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x2 mesh");
+  tt::runtime::closeMeshDevice(mesh2);
+
+  DLOG_F(LOG_DEBUG, "[James] All cycles completed.");
+}
+
+void ClientInstance::ForkMeshSubmeshMixed() {
+  DLOG_F(LOG_DEBUG, "[James] Fork Mesh Submesh Mixed - 1x2 then 1x1, twice");
+
+  // First fork cycle
+  DLOG_F(LOG_DEBUG, "[James] Starting first fork cycle");
+  pid_t pid1 = fork();
+
+  if (pid1 < 0) {
+    DLOG_F(ERROR, "[James] First fork failed!");
+    return;
+  }
+
+  if (pid1 == 0) {
+    // First child process
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x2 mesh");
+    auto mesh1x2 = openMeshDevice({1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x2 submesh");
+    auto submesh1x2 = tt::runtime::createSubMeshDevice(mesh1x2, {1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x2 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh1x2);
+
+    DLOG_F(LOG_DEBUG,
+           "[James] [Child 1] Destroying 1x2 submesh device reference");
+    submesh1x2 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x2 mesh");
+    tt::runtime::closeMeshDevice(mesh1x2);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x1 mesh");
+    auto mesh1x1 = openMeshDevice({1, 1});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Opening 1x1 submesh");
+    auto submesh1x1 = tt::runtime::createSubMeshDevice(mesh1x1, {1, 1});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x1 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh1x1);
+
+    DLOG_F(LOG_DEBUG,
+           "[James] [Child 1] Destroying 1x1 submesh device reference");
+    submesh1x1 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Closing 1x1 mesh");
+    tt::runtime::closeMeshDevice(mesh1x1);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 1] Exit.");
+    std::exit(0);
+  } else {
+    // Parent process - wait for first child
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Waiting for first child process %d",
+           pid1);
+    int status1;
+    waitpid(pid1, &status1, 0);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] First child completed with status %d",
+           status1);
+  }
+
+  // Second fork cycle
+  DLOG_F(LOG_DEBUG, "[James] Starting second fork cycle");
+  pid_t pid2 = fork();
+
+  if (pid2 < 0) {
+    DLOG_F(ERROR, "[James] Second fork failed!");
+    return;
+  }
+
+  if (pid2 == 0) {
+    // Second child process
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x2 mesh");
+    auto mesh1x2 = openMeshDevice({1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x2 submesh");
+    auto submesh1x2 = tt::runtime::createSubMeshDevice(mesh1x2, {1, 2});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x2 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh1x2);
+
+    DLOG_F(LOG_DEBUG,
+           "[James] [Child 2] Destroying 1x2 submesh device reference");
+    submesh1x2 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x2 mesh");
+    tt::runtime::closeMeshDevice(mesh1x2);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x1 mesh");
+    auto mesh1x1 = openMeshDevice({1, 1});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Opening 1x1 submesh");
+    auto submesh1x1 = tt::runtime::createSubMeshDevice(mesh1x1, {1, 1});
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x1 submesh");
+    tt::runtime::releaseSubMeshDevice(submesh1x1);
+
+    DLOG_F(LOG_DEBUG,
+           "[James] [Child 2] Destroying 1x1 submesh device reference");
+    submesh1x1 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Closing 1x1 mesh");
+    tt::runtime::closeMeshDevice(mesh1x1);
+
+    DLOG_F(LOG_DEBUG, "[James] [Child 2] Exit.");
+    std::exit(0);
+  } else {
+    // Parent process - wait for second child
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Waiting for second child process %d",
+           pid2);
+    int status2;
+    waitpid(pid2, &status2, 0);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] Second child completed with status %d",
+           status2);
+    DLOG_F(LOG_DEBUG, "[James] [Parent] All cycles completed.");
+  }
+}
+
+void ClientInstance::MeshSubmeshMixed() {
+  DLOG_F(LOG_DEBUG,
+         "[James] Mesh Submesh Mixed - single process, 1x2 then 1x1, twice");
+
+  // First cycle
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x2 mesh");
+  auto mesh1x2_c1 = openMeshDevice({1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x2 submesh");
+  auto submesh1x2_c1 = tt::runtime::createSubMeshDevice(mesh1x2_c1, {1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x2 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh1x2_c1);
+
+  DLOG_F(LOG_DEBUG,
+         "[James] [Cycle 1] Destroying 1x2 submesh device reference");
+  submesh1x2_c1 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x2 mesh");
+  tt::runtime::closeMeshDevice(mesh1x2_c1);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x1 mesh");
+  auto mesh1x1_c1 = openMeshDevice({1, 1});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Opening 1x1 submesh");
+  auto submesh1x1_c1 = tt::runtime::createSubMeshDevice(mesh1x1_c1, {1, 1});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x1 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh1x1_c1);
+
+  DLOG_F(LOG_DEBUG,
+         "[James] [Cycle 1] Destroying 1x1 submesh device reference");
+  submesh1x1_c1 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 1] Closing 1x1 mesh");
+  tt::runtime::closeMeshDevice(mesh1x1_c1);
+
+  // Second cycle
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x2 mesh");
+  auto mesh1x2_c2 = openMeshDevice({1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x2 submesh");
+  auto submesh1x2_c2 = tt::runtime::createSubMeshDevice(mesh1x2_c2, {1, 2});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x2 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh1x2_c2);
+
+  DLOG_F(LOG_DEBUG,
+         "[James] [Cycle 2] Destroying 1x2 submesh device reference");
+  submesh1x2_c2 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x2 mesh");
+  tt::runtime::closeMeshDevice(mesh1x2_c2);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x1 mesh");
+  auto mesh1x1_c2 = openMeshDevice({1, 1});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Opening 1x1 submesh");
+  auto submesh1x1_c2 = tt::runtime::createSubMeshDevice(mesh1x1_c2, {1, 1});
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x1 submesh");
+  tt::runtime::releaseSubMeshDevice(submesh1x1_c2);
+
+  DLOG_F(LOG_DEBUG,
+         "[James] [Cycle 2] Destroying 1x1 submesh device reference");
+  submesh1x1_c2 = tt::runtime::Device(tt::runtime::DeviceRuntime::Disabled);
+
+  DLOG_F(LOG_DEBUG, "[James] [Cycle 2] Closing 1x1 mesh");
+  tt::runtime::closeMeshDevice(mesh1x1_c2);
+
+  DLOG_F(LOG_DEBUG, "[James] All cycles completed.");
 }
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
-
   ReleaseMeshes();
 
   std::remove(m_cached_system_descriptor_path.data());

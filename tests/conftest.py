@@ -362,7 +362,7 @@ def run_around_tests():
     torch._dynamo.reset()
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def autoclose_device(request):
     """
     Pytest fixture that automatically closes devices by calling TriggerMeshRelease
@@ -379,12 +379,13 @@ def autoclose_device(request):
 
     if not is_torch_test:
         return
+
     # Cleanup after test - trigger mesh release
     try:
         so_path = Path("python_package/pjrt_plugin_tt/pjrt_plugin_tt.so")
         if so_path.exists():
             lib = ctypes.CDLL(str(so_path))
             lib.TriggerMeshRelease()
-            logger.debug("Called TriggerMeshRelease() to close devices")
+            print("Called TriggerMeshRelease() to close devices")
     except Exception as e:
-        logger.warning(f"Failed to call TriggerMeshRelease: {e}")
+        print(f"Failed to call TriggerMeshRelease: {e}")

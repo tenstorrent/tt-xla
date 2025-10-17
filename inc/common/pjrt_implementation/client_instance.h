@@ -120,6 +120,16 @@ private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
 
+  void OpenCloseDeviceExperiment();
+  void OpenCloseDeviceExperiment2();
+  void OpenCloseDeviceExperiment3();
+  void OpenCloseDeviceExperimentLooped(int nloops);
+  void ForkMeshSubmeshExperiment();
+  void ForkMeshSubmeshExperimentTwice();
+  void MeshSubmeshExperimentTwice();
+  void ForkMeshSubmeshMixed();
+  void MeshSubmeshMixed();
+
   // Wrapper method around `tt::runtime::openMeshDevice` that also handles
   // setting fabric config when needed.
   tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
