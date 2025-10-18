@@ -674,6 +674,9 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
 
+    stablehlo_pipeline_pm.getContext()->disableMultithreading();
+  stablehlo_pipeline_pm.enableIRPrinting();
+
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     return tt_pjrt_status::kInternal;
