@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -60,4 +61,31 @@ class BaseTester(ABC):
     @abstractmethod
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def serialize_compilation_artifacts(self, test_name: str) -> None:
+        """Serialize the model with the appropriate output prefix.
+
+        Args:
+            test_name: Test name to generate output prefix from.
+        """
+
+        # Keep the test name but replace special chars with underscores
+        # Example: test_mnist_mlp_inference[256-128-64] -> output/test_mnist_mlp_inference_256_128_64
+        clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
+        # Remove trailing underscores
+        clean_name = clean_name.rstrip("_")
+
+        output_prefix = f"output_artifact/{clean_name}"
+
+        self.serialize_on_device(output_prefix)
+
+    @abstractmethod
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
         raise NotImplementedError("Subclasses must implement this method.")
