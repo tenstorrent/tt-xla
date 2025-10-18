@@ -37,6 +37,9 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(false);
+  options.enable_const_eval =
+      internal::parseBoolOption(compile_options, "enable_const_eval")
+          .value_or(true);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   if (!options.export_path.has_value() &&
