@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch_xla
 
 # TPU XLA related
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
@@ -225,14 +226,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         self.use_spmd = envs.VLLM_XLA_USE_SPMD
-        # if self.use_spmd:
-        # Converts the StableHLO emitted by torch-xla to the Shardy dialect
-        
-        num_devices = xr.global_runtime_device_count()
-        print(f"Creating mesh for {num_devices} devices")
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+        if self.use_spmd:
+            # xr.use_spmd()
+            num_devices = xr.global_runtime_device_count()
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -266,8 +265,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=256,
-            # max_token_size=scheduler_config.max_num_batched_tokens,
-            max_token_size=256,
+            max_token_size=scheduler_config.max_num_batched_tokens,
+            # max_token_size=512,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -803,6 +802,16 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Get positions.
         positions_np = self.positions_np[:total_num_scheduled_tokens]
+
+        print("num_scheduled_tokens_per_req:", num_scheduled_tokens_per_req.tolist())
+        print("max_needed:", max_num_scheduled_tokens_all_reqs)
+        print("len(self.arange_np):", len(self.arange_np))
+        print("total_num_scheduled_tokens:", total_num_scheduled_tokens)
+
+        print("req_indices.shape:", req_indices.shape)
+        print("arange.shape:", arange.shape)
+        print("positions_np.shape:", positions_np.shape)
+
         np.add(
             self.input_batch.num_computed_tokens_cpu[req_indices],
             arange,
@@ -972,9 +981,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # 2. A list or tuple (length: num_items) of tensors, each of shape
             # (feature_size, hidden_size) in case the feature size is dynamic
             # depending on the input multimodal items.
-            xm.mark_step()
+            #torch_xla.sync()
             curr_group_outputs = self.model.get_multimodal_embeddings(**mm_kwargs_group)
-            xm.mark_step()
+            #torch_xla.sync()
 
             sanity_check_mm_encoder_outputs(
                 curr_group_outputs,
@@ -1074,15 +1083,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             mm_embeds = []
 
-        xm.mark_step()
+        #torch_xla.sync()
         start_index = 0
         num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
         combined_pooler_outputs: list[torch.Tensor] = []
 
         with set_forward_context(None, self.vllm_config):
             self.maybe_setup_kv_connector(scheduler_output)
-
-        while start_index < self.input_batch.num_reqs:
+        while start_index < self.input_batch.num_reqs: 
             (
                 attn_metadata,
                 logits_indices,
@@ -1092,7 +1100,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
-            xm.mark_step()
+            #torch_xla.sync()
 
             # Run the decoder
             with set_forward_context(
@@ -1105,7 +1113,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
-                xm.mark_step()
+                #torch_xla.sync()
 
             # Select states according to indices
             hidden_states = hidden_states[:num_scheduled_tokens]
@@ -1178,7 +1186,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # determine the order of concatenating the output tensors.
         # As a workaround, we use the xm's rank assignment only when loading
         # the embedding weights.
-        xm_tp_rank = xr.global_ordinal()
+        xm_tp_rank = xr.global_runtime_device_count()
         with patch(
             "vllm.model_executor.layers.vocab_parallel_embedding."
             "get_tensor_model_parallel_rank",
@@ -1194,10 +1202,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 model = model.to("xla")
                 for layer in model.model.layers:
-                    xs.mark_sharding(layer.self_attn.qkv_proj.weight, self.mesh, ("y", None))
-                    xs.mark_sharding(layer.self_attn.o_proj.weight, self.mesh, (None, "y"))
-                    xs.mark_sharding(layer.mlp.gate_up_proj.weight, self.mesh, ("y", None))
-                    xs.mark_sharding(layer.mlp.down_proj.weight, self.mesh, (None, "y"))
+                    xs.mark_sharding(layer.self_attn.qkv_proj.weight, self.mesh, (None, "y"))
+                    xs.mark_sharding(layer.self_attn.o_proj.weight, self.mesh,  ("y", None))
+                    xs.mark_sharding(layer.mlp.gate_up_proj.weight, self.mesh, (None, "y"))
+                    xs.mark_sharding(layer.mlp.down_proj.weight, self.mesh,  ("y", None))
                 print("Successfully marked sharding on model weights")
             except RuntimeError as e:
                 raise RuntimeError(
@@ -1219,8 +1227,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Sync all pending XLA execution during model initialization and weight
         # loading.
-        xm.mark_step()
-        xm.wait_device_ops()
+        # torch_xla.sync()
+        # # xm.wait_device_ops()
         if not hasattr(self, "model"):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
@@ -1272,17 +1280,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
-            xm.mark_step()
+            #torch_xla.sync()
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests
     ) -> None:
-        xm.mark_step()  # Captures input updates
+        #torch_xla.sync()  # Captures input updates
         super()._set_active_loras(
             prompt_lora_mapping, token_lora_mapping, lora_requests
         )
-        xm.mark_step()  # Captures metadata updates
+        #torch_xla.sync()  # Captures metadata updates
 
     def _precompile_mm_encoder(self) -> None:
         if not self.supports_mm_inputs:
@@ -1311,11 +1319,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     num_items,
                 )
                 # Run multimodal encoder.
-                xm.mark_step()
+                #torch_xla.sync()
                 mm_embeds = self.model.get_multimodal_embeddings(
                     **batched_dummy_mm_inputs
                 )
-                xm.mark_step()
+                #torch_xla.sync()
                 num_patches = mm_embeds[0].shape[0]
                 items_size = num_patches * num_items
 
@@ -1338,7 +1346,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         # Assign outputs or the graph will be cut short.
                         a, b = self._get_model_inputs(placeholders_ids, [mm_embeds])
                         assert a is None
-                        xm.mark_step()
+                        #torch_xla.sync()
 
             # Pre-compile `get_input_embeddings` when mm_embeddings are not
             # present. Chunk is only made of text, no mm_placeholders.
@@ -1349,9 +1357,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 placeholders_ids = placeholders_ids.to(self.device)
                 a, b = self._get_model_inputs(placeholders_ids, [])
                 assert a is None
-                xm.mark_step()
+                #torch_xla.sync()
 
-            xm.wait_device_ops()
+            # xm.wait_device_ops()
             end = time.perf_counter()
             logger.info(
                 "Multimodal %s Encoder compilation finished in in %.2f " "[secs].",
@@ -1373,7 +1381,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
@@ -1396,7 +1404,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # next bigger value in case num_tokens uses bucketed padding.
                 if num_reqs >= min(num_tokens, self.max_num_reqs):
                     break
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("select_hidden_states")
@@ -1411,7 +1419,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             self.compute_logits(dummy_hidden)
             logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("compute_logits")
@@ -1440,7 +1448,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 arange,
             )
             logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("structured_decoding")
@@ -1470,7 +1478,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ):
                     self.sample_from_logits_func(dummy_logits, sampling_metadata)
             logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("sample_from_logits")
@@ -1490,7 +1498,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 self.gather_logprobs(dummy_logits, dummy_tokens)
             logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
@@ -1552,12 +1560,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Isolate encoder graph from post-processing to minimize
                     # impact of recompilation until it's fixed.
                     start = time.perf_counter()
-                    xm.mark_step()
+                    #torch_xla.sync()
                     dummy_encoder_outputs = self.model.get_multimodal_embeddings(
                         **batched_dummy_mm_inputs
                     )
-                    xm.mark_step()
-                    xm.wait_device_ops()
+                    #torch_xla.sync()
+                    # xm.wait_device_ops()
                     end = time.perf_counter()
                     logger.info(
                         "Multimodal Encoder profiling finished in %.2f [secs].",
@@ -1583,8 +1591,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.num_blocks_per_most_len_req,
             )
 
-        xm.mark_step()
-        xm.wait_device_ops()
+        #torch_xla.sync()
+        # xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
 
@@ -1832,9 +1840,13 @@ def _get_token_paddings(
 def _get_padded_token_len(paddings: list[int], x: int) -> int:
     """Return the first element in paddings list greater or equal to x."""
     index = bisect.bisect_left(paddings, x)
-    assert index < len(paddings)
-    return paddings[index]
+    if index < len(paddings) :
+        return paddings[index]
 
+    last = paddings[-1] if paddings else 0
+    target = max(x, last)
+    import math
+    return int(math.ceil(target / 64) * 64)
 
 def _make_src_and_dst_indices(
     src_block_ids: list[int],
@@ -1905,11 +1917,11 @@ def replace_set_lora(model):
         # to a tensor doesn't seem to work anymore. This might be fixed with a
         # later release of torch_xla.
         self._original_set_lora(index, lora_a, lora_b, embeddings_tensor, bias)
-        xm.mark_step()
+        #torch_xla.sync()
 
     def _tpu_reset_lora(self, index: int):
         self._original_reset_lora(index)
-        xm.mark_step()
+        #torch_xla.sync()
 
     for _, module in model.named_modules():
         if isinstance(module, BaseLayerWithLoRA):

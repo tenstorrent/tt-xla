@@ -5,12 +5,14 @@ import time
 
 import pytest
 import vllm
-
+import os
 
 @pytest.mark.push
 def test_embed_qwen3():
     # max_seq_len = 2**14
-    max_seq_len = 2**7
+    os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    max_seq_len = 2**15
     prompts_list = []
 
     i = 128
