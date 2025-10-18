@@ -64,7 +64,13 @@ struct CompileOptions {
   // that are repeated multiple times.
   bool enable_trace = false;
 
-  // Path that will contain the codegen solution and saved inputs.
+  // Enables saving graph inputs to disk whenever Execute() is called.
+  // This is useful for chisel and codegen.
+  bool dump_inputs = false;
+
+  // Path that will contain any exported artifacts.
+  // This includes: codegen solutions, graph inputs and intermediate IRs.
+  // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
 
   static CompileOptions
