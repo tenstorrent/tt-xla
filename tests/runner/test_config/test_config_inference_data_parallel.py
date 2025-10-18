@@ -91,7 +91,6 @@ test_config = {
     "albert/masked_lm/pytorch-base_v2-data_parallel-full-inference": {
         "supported_archs": ["n300"],
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "yolov6/pytorch-yolov6l-data_parallel-full-inference": {
         "supported_archs": ["n300"],
