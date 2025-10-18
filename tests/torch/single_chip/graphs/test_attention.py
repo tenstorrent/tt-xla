@@ -317,10 +317,10 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
 
     def get_shard_spec(attention, args, kwargs):
         shard_specs = {}
-        shard_specs[args[0]] = ("batch", None, None)
-        shard_specs[args[1][0]] = ("batch", None, None)
-        shard_specs[args[1][1]] = ("batch", None, None)
-        shard_specs[args[2]] = ("batch", None, None, None)
+        # shard_specs[args[0]] = ("batch", None, None)
+        # shard_specs[args[1][0]] = ("batch", None, None)
+        # shard_specs[args[1][1]] = ("batch", None, None)
+        # shard_specs[args[2]] = ("batch", None, None, None)
         shard_specs[attention.q_proj.weight] = ("model", None)
         shard_specs[attention.k_proj.weight] = ("model", None)
         shard_specs[attention.v_proj.weight] = ("model", None)
@@ -330,6 +330,101 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh, 
+        shard_spec_fn=get_shard_spec,
+    )
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_mlp_batch(seq_len, variant, variant_config):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (2, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, num_devices//2)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("batch", None, None)
+        shard_specs[mlp.up_proj.weight] = ("model", "batch")
+        shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+        shard_specs[mlp.down_proj.weight] = ("batch", "model")
+        # shard_specs[mlp.up_proj.weight] = ("model", None)
+        # shard_specs[mlp.gate_proj.weight] = ("model", None)
+        # shard_specs[mlp.down_proj.weight] = (None, "model")
+        return shard_specs
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh, 
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_mlp_replicated(seq_len, variant, variant_config):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (2, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, num_devices//2)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = (None, None, None)
+        shard_specs[mlp.up_proj.weight] = ("model", "batch")
+        shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+        shard_specs[mlp.down_proj.weight] = ("batch", "model")
+        # shard_specs[mlp.up_proj.weight] = ("model", None)
+        # shard_specs[mlp.gate_proj.weight] = ("model", None)
+        # shard_specs[mlp.down_proj.weight] = (None, "model")
+        return shard_specs
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
         framework=Framework.TORCH,
         mesh=mesh, 
         shard_spec_fn=get_shard_spec,
