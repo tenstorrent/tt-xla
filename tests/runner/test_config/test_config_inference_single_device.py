@@ -502,10 +502,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.975,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9625237584114075. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "mnist/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -690,14 +688,7 @@ test_config = {
     },
     "deit/pytorch-base-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.97,
-        "arch_overrides": {
-            "p150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434",
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-            },
-        },
+        "required_pcc": 0.985,
     },
     "mlp_mixer/lucidrains/pytorch-base-single_device-full-inference": {
         # Exposed by "Remove host-side consteval" change
@@ -1192,10 +1183,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9645113945007324. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/pull/1393/files",
     },
     "qwen_2_5_coder/pytorch-0_5b-single_device-full-inference": {
         "required_pcc": 0.96,  # tt-torch has this at 0.97
