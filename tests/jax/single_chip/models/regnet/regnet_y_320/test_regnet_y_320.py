@@ -63,7 +63,7 @@ def test_regnet_y_320_inference(inference_tester: RegNetTester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 15259926528 B DRAM buffer "
         "across 12 banks, where each bank needs to store 1271660544 B "

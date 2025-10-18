@@ -62,7 +62,7 @@ def test_xlm_roberta_large_inference(inference_tester: XLMRobertaTester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     )

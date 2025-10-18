@@ -59,7 +59,7 @@ def test_opt_2_7b_inference(inference_tester: OPTTester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_runtime(
         "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     )

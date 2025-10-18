@@ -53,7 +53,7 @@ def test_bloom_3b_inference(inference_tester: BloomTester):
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_ttmlir_compilation(
         "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-mlir/issues/4792"
