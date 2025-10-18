@@ -29,10 +29,6 @@ class TTPlugin(DevicePlugin):
         # `XLA_STABLEHLO_COMPILE` env variable to `1` to enable stablehlo compilation.
         # NOTE: This variable should soon be on by-default in `torch_xla`, but for now we need it.
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-        # HLO Debug and IR Debug flags are required for TorchXLA to attach useful location information to IR.
-        # We rely on this for Codegen exporting.
-        os.environ["XLA_HLO_DEBUG"] = "1"
-        os.environ["XLA_IR_DEBUG"] = "1"
 
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
