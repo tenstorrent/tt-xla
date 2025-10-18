@@ -452,6 +452,17 @@ def record_model_test_properties(
         reason = static_reason or None
         bringup_status = static_bringup_status or BringupStatus.PASSED
 
+        # Handle common case where test passes but is statically marked as INCORRECT_RESULT and doesn't contain a reason.
+        # In this case, report PCC check enablement and results for superset dashboard visibility on latest results.
+        if (
+            static_reason is None
+            and static_bringup_status == BringupStatus.INCORRECT_RESULT
+        ):
+            pcc = comparison_result.pcc
+            required_pcc = comparison_config.pcc.required_pcc
+            pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
+            reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+
     else:
         runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
