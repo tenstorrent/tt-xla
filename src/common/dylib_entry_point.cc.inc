@@ -63,6 +63,11 @@ PJRT_Api* GetInitializedAPIStruct() {
 }
 
 }  // namespace
+
+
+// Global client registry definition (extern declaration in api_bindings.h)
+ClientInstance* g_last_created_client = nullptr;
+
 }  // namespace tt::pjrt
 
 //===----------------------------------------------------------------------===//
@@ -91,6 +96,11 @@ static_assert(std::is_same_v<decltype(GetPjrtApiVersion),
 PJRT_PLUGIN_EXPORTED PJRT_Api* GetPjrtApi();
 static_assert(
     std::is_same_v<decltype(GetPjrtApi), PJRT_Plugin_Create_FN>);
+
+// Custom debug/instrumentation functions
+PJRT_PLUGIN_EXPORTED void DumpClientInfo();
+PJRT_PLUGIN_EXPORTED int GetClientDeviceCount();
+PJRT_PLUGIN_EXPORTED void TriggerMeshRelease();
 }
 
 //===----------------------------------------------------------------------===//
@@ -101,4 +111,38 @@ unsigned GetPjrtApiVersion() { return 1; }
 
 PJRT_Api* GetPjrtApi() {
   return tt::pjrt::GetInitializedAPIStruct();
+}
+
+//===----------------------------------------------------------------------===//
+// Custom debug/instrumentation functions
+//===----------------------------------------------------------------------===//
+
+void DumpClientInfo() {
+  if (tt::pjrt::g_last_created_client) {
+    auto* client = tt::pjrt::g_last_created_client;
+    printf("=== PJRT Client Info ===\n");
+    printf("Platform: %s\n", client->cached_platform_name().c_str());
+    printf("Version: %s\n", client->cached_platform_version().c_str());
+    printf("Process Index: %d\n", client->getProcessIndex());
+    printf("Devices: %zu\n", client->getDevicesRaw().size());
+    printf("Addressable Devices: %zu\n", client->getAddressableDevicesRaw().size());
+    printf("Memories: %zu\n", client->getAddressableMemoriesRaw().size());
+  } else {
+    printf("No PJRT client created yet\n");
+  }
+}
+
+int GetClientDeviceCount() {
+  if (tt::pjrt::g_last_created_client) {
+    return static_cast<int>(tt::pjrt::g_last_created_client->getDevicesRaw().size());
+  }
+  return -1;
+}
+
+void TriggerMeshRelease() {
+  if (tt::pjrt::g_last_created_client) {
+    tt::pjrt::g_last_created_client->ReleaseMeshes();
+  } else {
+    printf("No client available to release meshes\n");
+  }
 }
