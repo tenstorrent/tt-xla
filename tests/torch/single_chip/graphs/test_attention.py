@@ -317,10 +317,10 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
 
     def get_shard_spec(attention, args, kwargs):
         shard_specs = {}
-        # shard_specs[args[0]] = ("batch", None, None)
-        # shard_specs[args[1][0]] = ("batch", None, None)
-        # shard_specs[args[1][1]] = ("batch", None, None)
-        # shard_specs[args[2]] = ("batch", None, None, None)
+        shard_specs[args[0]] = ("batch", None, None)
+        shard_specs[args[1][0]] = ("batch", None, None)
+        shard_specs[args[1][1]] = ("batch", None, None)
+        shard_specs[args[2]] = ("batch", None, None, None)
         shard_specs[attention.q_proj.weight] = ("model", None)
         shard_specs[attention.k_proj.weight] = ("model", None)
         shard_specs[attention.v_proj.weight] = ("model", None)
