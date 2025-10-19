@@ -2,27 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .test_config_inference_data_parallel import (
-    test_config as test_config_inference_data_parallel,
-)
-from .test_config_inference_single_device import (
-    PLACEHOLDER_MODELS as PLACEHOLDER_MODELS_INFERENCE,
-)
-from .test_config_inference_single_device import (
-    test_config as test_config_inference_single_device,
-)
-from .test_config_inference_tensor_parallel import (
-    test_config as test_config_inference_tensor_parallel,
-)
-from .test_config_training_single_device import (
-    test_config as test_config_training_single_device,
-)
+from .config_loader import load_all_test_configs
 
-PLACEHOLDER_MODELS = PLACEHOLDER_MODELS_INFERENCE
+# Load all test config objects from yaml files and expose as python objects.
+_loaded = load_all_test_configs()
 
-test_config = (
-    test_config_inference_single_device
-    | test_config_inference_tensor_parallel
-    | test_config_inference_data_parallel
-    | test_config_training_single_device
-)
+PLACEHOLDER_MODELS = _loaded.get("PLACEHOLDER_MODELS", {})
+test_config = _loaded.get("test_config", {})
+
+assert isinstance(
+    PLACEHOLDER_MODELS, dict
+), f"Expected dict for PLACEHOLDER_MODELS, got {type(PLACEHOLDER_MODELS).__name__}"
+assert isinstance(
+    test_config, dict
+), f"Expected dict for test_config, got {type(test_config).__name__}"

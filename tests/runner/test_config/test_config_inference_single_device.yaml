@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Inference single-device test configuration
+# Use Python enum names or values for fields below (names preferred for readability):
+#   - status: ModelTestStatus names (e.g., EXPECTED_PASSING) or values (e.g., expected_passing)
+#   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
+
+test_config:
+  gpt2/pytorch-gpt2-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: [push]
+
+  resnet/pytorch-resnet50-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434"
+        bringup_status: INCORRECT_RESULT
+
+  t5/pytorch-t5-small-single_device-full-inference:
+    status: EXPECTED_PASSING
+    bringup_status: NOT_STARTED
+    markers: [pcc_test]
+
+  mnist/pytorch-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: [push]
+
+  yolov8/pytorch-yolov8n-single_device-full-inference:
+    status: EXPECTED_PASSING
