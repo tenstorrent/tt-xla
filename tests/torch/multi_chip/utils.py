@@ -247,3 +247,169 @@ def tensor_parallel_inference_mnist(model: nn.Module,
         outputs = model(inputs)
 
     return outputs
+
+# Functional & method pass-through allowlists (extend as needed)
+PASS_THROUGH_FUNCS = {
+    torch.relu, torch.nn.functional.relu,
+    torch.nn.functional.gelu, torch.nn.functional.silu,
+    torch.tanh, torch.sigmoid,
+    torch.add, torch.sub, torch.mul, torch.div, torch.neg, torch.abs,
+    torch.clamp,
+    torch.transpose, torch.permute, torch.flatten,
+    torch.reshape,
+    torch.squeeze, torch.unsqueeze,
+    operator.getitem,  # tuple/tensor indexing
+}
+PASS_THROUGH_METHODS = {
+    "relu", "tanh", "sigmoid", "leaky_relu",
+    "view", "reshape", "flatten", "squeeze", "unsqueeze",
+    "transpose", "permute", "contiguous", "type_as"
+}
+PASS_THROUGH_MODULES = (
+    nn.ReLU, nn.GELU, nn.SiLU, nn.Tanh, nn.Sigmoid, nn.LeakyReLU, nn.Flatten, nn.Identity
+)
+def is_linear_node(gm: GraphModule, node: Node):
+    return node.op == "call_module" and isinstance(gm.get_submodule(node.target), nn.Linear)
+
+def is_passthrough_node(gm: GraphModule, node: Node):
+    if node.op == "call_function":
+        return node.target in PASS_THROUGH_FUNCS
+    if node.op == "call_method":
+        return node.target in PASS_THROUGH_METHODS
+    if node.op == "call_module":
+        try:
+            m = gm.get_submodule(n.target)
+        except Exception:
+            return False
+        return isinstance(m, PASS_THROUGH_MODULES)
+    # Treat placeholders as pass-through sources; outputs are sinks
+    return False
+def downstream_linear_users(gm: GraphModule, start_node, *, max_nodes=2000, max_depth=None):
+    """
+    Traverse downstream from `start_node` using BFS.
+    Returns the set of nearest Linear nodes reachable through only pass-through ops.
+    Stop conditions per branch:
+      - If a Linear node is found → collect it, stop exploring further down that branch.
+      - If a non-pass-through node is encountered → stop exploring that branch.
+      - If max_depth is exceeded (if provided) → stop exploring deeper.
+    """
+    found_linear_nodes = set()
+    # Initialize queue with direct users of start_node
+    worklist = [(user_node, 0) for user_node in start_node.users.keys()]
+    visited_nodes = {user_node for user_node, _ in worklist}
+    while worklist:
+        current_node, depth = worklist.pop(0)
+        if max_depth is not None and depth > max_depth:
+            continue
+        # Case 1: Found a Linear → record and stop this branch
+        if is_linear_node(gm, current_node):
+            found_linear_nodes.add(current_node)
+            continue
+        # Case 2: Pass-through → keep traversing
+        if is_passthrough_node(gm, current_node):
+            for next_user in current_node.users.keys():
+                if next_user not in visited_nodes and len(visited_nodes) < max_nodes:
+                    visited_nodes.add(next_user)
+                    worklist.append((next_user, depth + 1))
+            continue
+        # Case 3: Hit a barrier (non-pass-through, non-linear) → stop branch
+    return found_linear_nodes
+
+def alternating_linear_sharding_skip_passthrough(gm: GraphModule):
+    # default everything to 'row'
+    linear_nodes = [n for n in gm.graph.nodes if is_linear_node(gm, n)]
+    decisions = {n.target: "row" for n in linear_nodes}
+    # return decisions
+    linear_set = set(linear_nodes)
+    # topo order already
+    for n in gm.graph.nodes:
+        if n in linear_set and decisions[n.target] == "row":
+            for u in downstream_linear_users(gm, n):
+                # Flip only if still row (first flip wins in fan-in)
+                if decisions.get(u.target, "row") == "row":
+                    decisions[u.target] = "col"
+    return decisions
+
+
+
+def apply_tp_sharding_linear_alternate(
+    model: nn.Module,
+    mesh,
+    *,
+    move_to_device: bool = True,
+    strict_weights: bool = False,
+    strict_bias: bool = False,
+) -> None:
+    """
+    Mark all nn.Linear layers for tensor-parallel sharding with dataflow-aware alternation.
+    Sharding rules (PyTorch nn.Linear):
+      - weight shape is [out_features, in_features].
+      - 'row' sharding = shard OUT (dim 0) → spec ("model", None) → no all-reduce.
+      - 'col' sharding = shard IN  (dim 1) → spec (None, "model") → needs all-reduce.
+    Policy (alternate with pass-throughs):
+      - Default every Linear to 'row'.
+      - If a Linear_j is the *nearest downstream Linear* reachable from Linear_i
+        by following only trivial pass-through ops (elementwise, reshape, etc.),
+        and Linear_i is 'row', then Linear_j is set to 'col'.
+      - Traversal stops at the first downstream Linear or at a non-pass-through op,
+        so Linears alternate row → col → row → … along each dataflow chain.
+      - Parallel/sibling Linears (no downstream link through allowed pass-throughs)
+        remain 'row'.
+    Notes:
+      - We replicate by using `None` in the spec. If your mesh has a size-1 axis named "batch",
+        we use "batch" there instead (purely cosmetic); otherwise we use None.
+      - Bias (1D, length = out_features) is sharded on "model" when divisible by num_devices; else replicated
+        (or raise if strict_bias=True).
+    """
+    # ---- mesh checks & helpers ----
+    axis_names = tuple(getattr(mesh, "axis_names"))
+    mesh_shape = tuple(getattr(mesh, "mesh_shape"))
+    if "model" not in axis_names:
+        raise ValueError(f"Mesh must have an axis named 'model', got axis_names={axis_names}")
+    model_axis = axis_names.index("model")
+    num_devices = int(mesh_shape[model_axis])
+    if move_to_device:
+        model.to(torch_xla.device())
+    # ---- trace dataflow once ----
+    gm = fx.symbolic_trace(model)
+    name2mod: Dict[str, nn.Module] = dict(model.named_modules())
+    decisions = alternating_linear_sharding_skip_passthrough(gm)
+    # ---- apply sharding ----
+    for qualified_name, kind in decisions.items():
+        lin: nn.Linear = name2mod[qualified_name]
+        W = lin.weight  # [out, in]
+        if kind == "row":
+            if (W.shape[0] % num_devices) != 0:
+                msg = (f"[TP row] {qualified_name}.weight out_features={W.shape[0]} not divisible by "
+                       f"num_devices={num_devices}. XLA may insert reshard/collectives.")
+                if strict_weights:
+                    raise ValueError(msg)
+                warnings.warn(msg)
+            xs.mark_sharding(W, mesh, ("model", None))      # shard OUT
+        else:  # 'col'
+            if (W.shape[1] % num_devices) != 0:
+                msg = (f"[TP col] {qualified_name}.weight in_features={W.shape[1]} not divisible by "
+                       f"num_devices={num_devices}. XLA may insert reshard/collectives.")
+                if strict_weights:
+                    raise ValueError(msg)
+                warnings.warn(msg)
+            xs.mark_sharding(W, mesh, (None, "model"))      # shard IN
+        # Bias (1D => shape (out_features,)):
+        # try to shard the same way as corresponding linear weight
+        b = lin.bias
+        if b is not None:
+            if kind == "row":
+                if (b.numel() % num_devices) == 0:
+                    xs.mark_sharding(b, mesh, ("model",))
+                else:
+                    if strict_bias:
+                        raise ValueError(
+                            f"[TP bias] {qualified_name}.bias len={b.numel()} not divisible by num_devices={num_devices}"
+                        )
+                    warnings.warn(
+                        f"[TP bias] {qualified_name}.bias len={b.numel()} not divisible by num_devices={num_devices}; replicating."
+                    )
+                    xs.mark_sharding(b, mesh, (None,))
+            else:
+                # Bias does not align with IN sharding → always replicate;
+                xs.mark_sharding(b, mesh, (None,))
