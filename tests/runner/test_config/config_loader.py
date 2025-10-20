@@ -5,7 +5,7 @@
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
+from ruamel.yaml import YAML
 
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
@@ -71,7 +71,47 @@ def _normalize_enums_in_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return cfg
 
 
-# Load placeholders from dedicated YAML and merge test entries from other YAMLs.
+# Define allowed fields, used for validation of test config YAML to catch unknown fields / typos.
+_ALLOWED_FIELDS = {
+    # Comparator controls
+    "required_pcc",
+    "assert_pcc",
+    "assert_atol",
+    "required_atol",
+    "assert_allclose",
+    "allclose_rtol",
+    "allclose_atol",
+    # Status/metadata
+    "status",
+    "reason",
+    "bringup_status",
+    "markers",
+    "supported_archs",
+    "batch_size",
+    # Nested arch overrides
+    "arch_overrides",
+}
+
+
+# Validate top-level and nested fields to ensure they are from the allowed fields list.
+def _validate_allowed_keys(cfg: Dict[str, Any], *, ctx: str) -> None:
+    def validate_mapping(mapping: Dict[str, Any], where: str) -> None:
+        for k in mapping.keys():
+            if k not in _ALLOWED_FIELDS:
+                raise ValueError(
+                    f"Unknown field '{k}' in {where} of {ctx}. Allowed: {sorted(_ALLOWED_FIELDS)}"
+                )
+
+    validate_mapping(cfg, where="entry")
+
+    overrides = cfg.get("arch_overrides")
+    if isinstance(overrides, dict):
+        for arch, arch_cfg in overrides.items():
+            if isinstance(arch_cfg, dict):
+                validate_mapping(arch_cfg, where=f"arch_overrides['{arch}']")
+
+
+# Load placeholders from dedicated YAML and merge test entries from other YAMLs while validating contents.
 def load_all_test_configs() -> Dict[str, Any]:
     """Load and merge YAML-based test configurations for model bring-up and CI.
 
@@ -87,12 +127,16 @@ def load_all_test_configs() -> Dict[str, Any]:
     """
     config_dir = Path(__file__).parent
 
+    # Initialize ruamel.yaml loader with duplicate-key checking
+    yaml = YAML(typ="rt")
+    yaml.allow_duplicate_keys = False
+
     # Load placeholders only from the dedicated file
     merged_placeholders: Dict[str, Any] = {}
     placeholders_file = config_dir / PLACEHOLDERS_FILENAME
     if placeholders_file.exists():
         with open(placeholders_file, "r") as fh:
-            data = yaml.safe_load(fh) or {}
+            data = yaml.load(fh) or {}
         placeholders = data.get("PLACEHOLDER_MODELS", {}) or {}
         for k, v in placeholders.items():
             entry = dict(v or {})
@@ -104,9 +148,10 @@ def load_all_test_configs() -> Dict[str, Any]:
         if yaml_file.name == PLACEHOLDERS_FILENAME:
             continue
         with open(yaml_file, "r") as fh:
-            data = yaml.safe_load(fh) or {}
+            data = yaml.load(fh) or {}
         tests = data.get("test_config", {}) or {}
         for test_id, cfg in tests.items():
+            _validate_allowed_keys(cfg, ctx=f"test '{test_id}' in {yaml_file.name}")
             merged_test_config[test_id] = _normalize_enums_in_cfg(cfg)
 
     return {
