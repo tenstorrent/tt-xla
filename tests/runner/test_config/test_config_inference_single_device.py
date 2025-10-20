@@ -135,7 +135,6 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference": {
@@ -265,7 +264,6 @@ test_config = {
     },
     "albert/masked_lm/pytorch-base_v2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "albert/masked_lm/pytorch-xlarge_v2-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -280,7 +278,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "bart/pytorch-large-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-full-inference": {
@@ -302,7 +299,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "deit/pytorch-small-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "deit/pytorch-tiny-single_device-full-inference": {
@@ -388,7 +384,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-full-inference": {
@@ -419,15 +414,9 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "ghostnet/pytorch-ghostnet_100-single_device-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.9883896112442017. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "ghostnet/pytorch-ghostnet_100.in1k-single_device-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.9883896112442017. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "hrnet/pytorch-hrnet_w18-single_device-full-inference": {
@@ -491,10 +480,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.975,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9625237584114075. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1402",
     },
     "mnist/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -637,14 +624,7 @@ test_config = {
     },
     "deit/pytorch-base-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.97,
-        "arch_overrides": {
-            "p150": {
-                "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
-                "reason": "Bad PCC on blackhole - Calculated: pcc=0.967721700668335. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/issues/1434",
-                "bringup_status": BringupStatus.INCORRECT_RESULT,
-            },
-        },
+        "required_pcc": 0.985,
     },
     "mlp_mixer/lucidrains/pytorch-base-single_device-full-inference": {
         # Exposed by "Remove host-side consteval" change
@@ -726,7 +706,6 @@ test_config = {
     },
     "bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.985,
     },
     "bert/masked_lm/pytorch-bert-base-uncased-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -946,7 +925,6 @@ test_config = {
     },
     "qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "required_pcc": 0.98,
     },
     "qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1081,10 +1059,8 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference": {
-        "required_pcc": 0.96,
+        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
-        "reason": "AssertionError: PCC comparison failed. Calculated: pcc=0.9645113945007324. Required: pcc=0.97 - https://github.com/tenstorrent/tt-xla/pull/1393/files",
     },
     "qwen_2_5_coder/pytorch-0_5b-single_device-full-inference": {
         "required_pcc": 0.96,  # tt-torch has this at 0.97
@@ -1218,11 +1194,6 @@ test_config = {
     },
     "vit/pytorch-vit_h_14-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
-        "arch_overrides": {
-            "p150": {
-                "required_pcc": 0.98,
-            },
-        },
     },
     "vit/pytorch-vit_l_16-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
@@ -1329,15 +1300,9 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "regnet/pytorch-regnet_x_1_6gf-single_device-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.9891631007194519. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "regnet/pytorch-regnet_x_3_2gf-single_device-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.9899966716766357. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "regnet/pytorch-regnet_x_8gf-single_device-full-inference": {
@@ -1512,9 +1477,6 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-inference": {
-        # AssertionError: PCC comparison failed. Calculated: pcc=0.9897240996360779. Required: pcc=0.99.
-        # Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-inference": {
@@ -1815,8 +1777,12 @@ test_config = {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
     "gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference": {
-        "required_pcc": 0.98,
         "status": ModelTestStatus.EXPECTED_PASSING,
+        "arch_overrides": {
+            "p150": {
+                "required_pcc": 0.98,
+            },
+        },
     },
     "detr3d/pytorch-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
