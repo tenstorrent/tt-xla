@@ -306,7 +306,7 @@ jobs:
       run: |
         source venv/activate
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
-          pip install -r integrations/vllm_plugin/requirements-vllm-plugin.txt
+          pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
@@ -314,7 +314,7 @@ jobs:
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
           pip uninstall -y vllm transformers
-          pip install -r venv/requirements-dev.txt
+          pip install -r $(pwd)/venv/requirements-dev.txt
         fi
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
