@@ -7,6 +7,7 @@ from typing import Tuple
 import numpy as np
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
+# from torch_xla.experimental import plugins
 
 
 def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
@@ -36,4 +37,26 @@ def enable_spmd():
     # In the pytorch-xla fork this enables the ConvertStableHloToSdy pass.
     # The tt-mlir stablehlo compiler pipeline expects input shlo from pytorch/xla to contain shardy annotations.
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.set_device_type("TT")
     xr.use_spmd()
+
+
+# # TODO this shouldn't be here, but a common utility
+# def setup_xla_environment():
+#     """Setup TensorTrent environment and plugin."""
+#     os.environ["PJRT_DEVICE"] = "TT"
+#     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+#     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
+#     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
+#     class TTPjrtPlugin(plugins.DevicePlugin):
+#         def library_path(self):
+#             # Find tt-xla repo root by traversing up from current file
+#             current_dir = os.path.dirname(os.path.abspath(__file__))
+#             while current_dir != "/" and not os.path.exists(os.path.join(current_dir, "build")):
+#                 current_dir = os.path.dirname(current_dir)
+#             return os.path.join(current_dir, "build/src/tt/pjrt_plugin_tt.so")
+
+#     plugins.register_plugin("TT", TTPjrtPlugin())
+#     xr.set_device_type("TT")
+#     xr.use_spmd()
