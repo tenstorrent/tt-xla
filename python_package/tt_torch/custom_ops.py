@@ -114,6 +114,16 @@ def scaled_dot_product_attention(
             attn_mask.device == query.device
         ), "attn_mask must be on the same device as query, key, and value."
 
+        assert (
+            is_causal == False
+        ), "is_causal attribute can't be True if attn_mask is available."
+
+        assert (
+            query.shape[0] == attn_mask.shape[0]
+        ), "Attention mask batch size must match query batch size."
+    else:
+        assert is_causal == True, "Attention mask is required when is_causal is false."
+
     if query.device.type == "xla":
         inputs = [query, key, value]
         if attn_mask is not None:
