@@ -88,7 +88,7 @@ jobs:
     needs: check-existing-artifact
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
-    runs-on: ubuntu-latest
+    runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla"
     container:
       image: ${{ inputs.docker_image }}
@@ -120,17 +120,6 @@ jobs:
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
             echo "build-name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)" >> "$GITHUB_OUTPUT"
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
