@@ -134,23 +134,47 @@ def generate_attn_mask(
     num_query_tokens: int,
     num_query_heads: int,
     max_model_len: int,
-    dtype,
-    device,
+    dtype: torch.dtype,
+    device: torch.device,
 ) -> torch.Tensor:
-    L, S = num_query_tokens, max_model_len
-    attn_mask = torch.zeros(L, S, dtype=dtype)
+    """
+    Generate an attention mask for encoder/pooling models with possible
+    multiple concatenated sequences and padding.
 
-    length = context_lens[0].item()
-    if L != 1:
-        temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
-        attn_mask = attn_mask.masked_fill(
-            temp_mask.logical_not(), torch.ones(()) * float("-inf")
+    Args:
+        context_lens: 1D tensor of sequence lengths, e.g. [37, 6, 6] or [40, 0, 0].
+                      Sum of non-zero lengths = total valid tokens.
+        num_query_tokens: Total padded sequence length (e.g. 64).
+        dtype: torch.dtype (usually torch.float32)
+        device: torch.device
+
+    Returns:
+        attn_mask: Tensor of shape [1, 1, num_query_tokens, num_query_tokens]
+                   - -inf where attention should be blocked
+                   - 0 where attention is allowed (within same segment)
+    """
+
+    L = num_query_tokens
+    attn_mask = torch.full((1, 1, L, L), float("-inf"), dtype=dtype)
+    valid_pos = 0
+
+    for seg_len in context_lens.tolist():
+        if seg_len <= 0:
+            continue  # skip empty segments
+        start = valid_pos
+        end = valid_pos + seg_len
+        valid_pos = end
+
+        # Create a lower-triangular (causal) mask within the segment
+        segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
+        attn_mask[:, :, start:end, start:end] = torch.where(
+            segment_mask, torch.zeros((), dtype=dtype), float("-inf")
         )
 
-    attn_mask[:, length:] = float("-inf")
-    attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
-    if L == 1:
-        attn_mask = attn_mask.repeat(1, 1, num_query_heads, 1)
+    # Mask out any remaining padded region (no attention at all)
+    if valid_pos < L:
+        attn_mask[:, :, valid_pos:, :] = float("-inf")
+        attn_mask[:, :, :, valid_pos:] = float("-inf")
 
     return attn_mask.detach().to(device)
 
@@ -857,7 +881,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len].to(self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
             block_tables = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
@@ -870,7 +894,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len].to(self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
         block_tables = block_tables.to(self.device)
 
         if self.lora_config is not None:
@@ -888,10 +912,16 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             context_lens=seq_lens,
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            attn_mask=None,
-            is_causal=True,
+            attn_mask=generate_attn_mask(
+                seq_lens,
+                self.input_ids.shape[-1],
+                self.num_query_heads,
+                self.max_model_len,
+                self.dtype,
+                self.device,
+            ),
+            is_causal=False,
         )
-
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
@@ -1143,6 +1173,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             spec_token_ids=None,
         )
 
+        # Check there are no new graphs compiled - all the graphs should be
+        # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
         return model_runner_output
 
@@ -1186,7 +1218,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
-                    )
+                    ).eval()
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
@@ -1210,8 +1242,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.scheduler_config,
                 self.lora_config,
                 self.device,
-            )
-            replace_set_lora(model)
+            ).eval()
+            replace_set_lora(model.eval())
 
         # Sync all pending XLA execution during model initialization and weight
         # loading.
@@ -1247,14 +1279,21 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
         ).to(self.device)
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
         num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
         attn_metadata = TTMetadata(
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
-            attn_mask=None,
-            is_causal=True,
+            attn_mask=generate_attn_mask(
+                context_lens,
+                input_ids.shape[-1],
+                self.num_query_heads,
+                self.max_model_len,
+                self.dtype,
+                self.device,
+            ),
+            is_causal=False,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1280,6 +1319,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.mark_step()  # Captures metadata updates
 
     def _precompile_mm_encoder(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         if not self.supports_mm_inputs:
             return
 
@@ -1355,6 +1395,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
     def _precompile_backbone(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
@@ -1374,6 +1415,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("model backbone")
 
     def _precompile_select_hidden_states(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         # Compile hidden state selection function for bucketed
         # n_tokens x max_num_reqs. Graph is really small so this is fine.
         logger.info("Compiling select_hidden_states with different input shapes.")
@@ -1397,6 +1439,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("select_hidden_states")
 
     def _precompile_compute_logits(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling compute_logits with different input shapes.")
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
@@ -1412,6 +1455,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("compute_logits")
 
     def _precompile_structured_decoding(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling structured_decoding with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1441,6 +1485,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("structured_decoding")
 
     def _precompile_sample_from_logits(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling sample_from_logits with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1471,6 +1516,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._update_num_xla_graphs("sample_from_logits")
 
     def _precompile_gather_logprobs(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
@@ -1501,6 +1547,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
             if self.model_config.multimodal_config.skip_mm_profiling:
@@ -1562,6 +1609,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.encoder_cache["tmp"] = dict(enumerate(dummy_encoder_outputs))
 
         # Trigger compilation for general shape.
+        torch._dynamo.config.dynamic_shapes = False
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
@@ -1610,7 +1658,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        return hidden_states[indices_do_sample]
+        device = hidden_states.device
+        indices_do_sample = indices_do_sample.to("cpu")
+        hidden_states = hidden_states.to("cpu")
+        return hidden_states[indices_do_sample].to(device)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
@@ -1626,7 +1677,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        out_tokens = torch.argmax(logits.to("cpu"), dim=-1, keepdim=True).to("xla")
+        # @LPanosTT: sampler functionalitty has issues currently, so we will always use greedy sampling
+        if sampling_metadata.all_greedy or True:
+            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+        else:
+            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
 
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1660,11 +1715,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         arange: torch.Tensor,
     ) -> torch.Tensor:
+        device = logits.device
         return torch.where(
-            require_struct_decoding,
-            self.apply_grammar_bitmask(logits, grammar_bitmask, arange),
-            logits,
-        )
+            require_struct_decoding.to("cpu"),
+            self.apply_grammar_bitmask(
+                logits.to("cpu"), grammar_bitmask.to("cpu"), arange.to("cpu")
+            ),
+            logits.to("cpu"),
+        ).to(device)
 
     def apply_grammar_bitmask(
         self, logits: torch.Tensor, grammar_bitmask: torch.Tensor, arange: torch.Tensor
