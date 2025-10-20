@@ -73,7 +73,6 @@ def test_embed_qwen3():
         print("-" * 60)
 
 
-@pytest.mark.push
 def test_embed_qwen3_perf():
     # Enable program cache for better performance
     os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
