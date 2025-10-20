@@ -13,10 +13,10 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from jax.sharding import PartitionSpec as P
 
 # from transformers import Gemma3Config, SiglipVisionConfig, Gemma3TextConfig
 from gemma3.base import BaseConfig, BaseModel
+from jax.sharding import PartitionSpec as P
 from jax_config import device_mesh
 
 
