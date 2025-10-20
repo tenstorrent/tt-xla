@@ -2463,4 +2463,45 @@ test_config = {
     "yolov11/pytorch-yolo11x-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
     },
+    "resnet/pytorch-resnet_50_hf_high_res-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "resnet/pytorch-resnet50_timm_high_res-single_device-full-inference": {
+        "status": ModelTestStatus.EXPECTED_PASSING,
+    },
+    "vgg19_unet/pytorch-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "qwen_2/token_classification/pytorch-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "unet/pytorch-smp_unet_resnet101-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "sam/pytorch-facebook/sam-vit-large-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "deepseek/qwen/pytorch-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
+    "sam/pytorch-facebook/sam-vit-huge-single_device-full-inference": {
+        "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
+        "reason": "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
+    },
 }

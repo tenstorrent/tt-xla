@@ -62,3 +62,6 @@ FlagEmbedding
 
 # Qwen2.5 VL models
 qwen-vl-utils[decord]==0.0.8
+
+# whisper and wav2vec2 models
+torchcodec
