@@ -26,6 +26,7 @@ class RequirementsManager:
     - Installs required packages (supports an optional 'requirements.nodeps.txt' installed with --no-deps)
     - On exit, uninstalls newly added packages and restores changed versions
     - Uses a global file lock to serialize pip operations
+    - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
     def __init__(self, requirements_path: Optional[str]) -> None:
@@ -34,11 +35,21 @@ class RequirementsManager:
             if requirements_path and os.path.isfile(requirements_path)
             else None
         )
+        self.system_requirements_path = None
+        if self.requirements_path:
+            # Look for system-requirements.txt in the same directory
+            sys_req_path = os.path.join(
+                os.path.dirname(self.requirements_path), "system-requirements.txt"
+            )
+            if os.path.isfile(sys_req_path):
+                self.system_requirements_path = sys_req_path
+
         self._before_freeze: Dict[str, str] = {}
         self._after_freeze: Dict[str, str] = {}
         self._newly_installed: Set[str] = set()
         self._changed_versions: Dict[str, str] = {}
         self._lock_file = None
+        self._system_packages_installed: Set[str] = set()
 
     @staticmethod
     def for_loader(loader_path: str) -> "RequirementsManager":
@@ -59,6 +70,24 @@ class RequirementsManager:
         )
         self._lock_file = open(lock_path, "w")
         fcntl.flock(self._lock_file, fcntl.LOCK_EX)
+
+        # Install system requirements first (if any)
+        if self.system_requirements_path:
+            _dbg(
+                f"[Requirements] __enter__: installing system packages from {self.system_requirements_path}"
+            )
+            self._install_system_requirements(self.system_requirements_path)
+
+        # Check for uninstall_first.txt to uninstall incompatible packages
+        uninstall_path = os.path.join(
+            os.path.dirname(self.requirements_path), "uninstall_first.txt"
+        )
+        if os.path.isfile(uninstall_path):
+            _dbg(f"[Requirements] __enter__: uninstalling packages from {uninstall_path}")
+            with open(uninstall_path, "r") as f:
+                packages_to_uninstall = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            if packages_to_uninstall:
+                self._pip_uninstall(packages_to_uninstall)
 
         self._before_freeze = self._pip_freeze()
         _dbg(f"[Requirements] __enter__: installing -r {self.requirements_path}")
@@ -195,3 +224,84 @@ class RequirementsManager:
                 except ValueError:
                     continue
         return result
+
+    def _install_system_requirements(self, system_req_path: str) -> None:
+        """Install system packages from system-requirements.txt using apt-get.
+
+        Args:
+            system_req_path: Path to system-requirements.txt file
+        """
+        # Read the packages from the file
+        packages = []
+        try:
+            with open(system_req_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if line and not line.startswith("#"):
+                        packages.append(line)
+        except Exception as e:
+            _dbg(f"[Requirements] Failed to read {system_req_path}: {e}")
+            return
+
+        if not packages:
+            return
+
+        # Check if packages are already installed
+        packages_to_install = []
+        for pkg in packages:
+            if not self._is_system_package_installed(pkg):
+                packages_to_install.append(pkg)
+            else:
+                _dbg(f"[Requirements] System package '{pkg}' already installed, skipping")
+
+        if not packages_to_install:
+            return
+
+        # Install packages using apt-get
+        _dbg(f"[Requirements] Installing system packages: {packages_to_install}")
+        try:
+            # Update package list first
+            subprocess.run(
+                ["sudo", "apt-get", "update", "-qq"],
+                check=True,
+                capture_output=True,
+            )
+
+            # Install packages
+            cmd = ["sudo", "apt-get", "install", "-y", "-qq"] + packages_to_install
+            subprocess.run(cmd, check=True, capture_output=True)
+
+            # Track what was installed
+            self._system_packages_installed.update(packages_to_install)
+            _dbg(
+                f"[Requirements] Successfully installed system packages: {packages_to_install}"
+            )
+        except subprocess.CalledProcessError as e:
+            _dbg(
+                f"[Requirements] Failed to install system packages: {e.stderr.decode() if e.stderr else str(e)}"
+            )
+            # Don't fail the test if system packages can't be installed
+            # The test might still work if the package was already available
+
+    @staticmethod
+    def _is_system_package_installed(package: str) -> bool:
+        """Check if a system package is already installed using dpkg.
+
+        Args:
+            package: Name of the package to check
+
+        Returns:
+            True if package is installed, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ["dpkg", "-s", package],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            # dpkg -s returns 0 if package is installed
+            return result.returncode == 0
+        except Exception:
+            return False

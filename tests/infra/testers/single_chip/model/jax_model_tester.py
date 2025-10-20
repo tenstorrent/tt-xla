@@ -142,9 +142,11 @@ class JaxModelTester(ModelTester):
         """
         kwargs = {}
         if isinstance(self._model, FlaxPreTrainedModel):
+            # HuggingFace Flax models use 'deterministic' parameter
+            # deterministic=True means inference (no dropout), deterministic=False means training
             kwargs = {
                 "params": self._input_parameters,
-                "train": False if self._run_mode == RunMode.INFERENCE else True,
+                "deterministic": True if self._run_mode == RunMode.INFERENCE else False,
                 **self._input_activations,
             }
         else:
@@ -165,7 +167,13 @@ class JaxModelTester(ModelTester):
         By default no arguments are static.
         """
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
+            # FlaxPreTrainedModel uses 'deterministic', other models use 'train'
+            if isinstance(self._model, FlaxPreTrainedModel):
+                return ["mutable", "deterministic"]
             return ["mutable", "train"]
+        # FlaxPreTrainedModel uses 'deterministic', other models use 'train'
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return ["deterministic"]
         return ["train"]
 
     # @override

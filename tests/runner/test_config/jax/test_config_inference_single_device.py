@@ -120,10 +120,9 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "clip/image_classification/jax-base_patch32-single_device-full-inference": {
-        "assert_pcc": False,
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "reason": "Severe PCC comparison failed: pcc=-1.0 < 0.99 required",
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks, where each bank needs to store 1143808 B, but bank size is only 1364928 B",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "clip/image_classification/jax-large_patch14-single_device-full-inference": {
         "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
@@ -271,10 +270,9 @@ test_config = {
         "bringup_status": BringupStatus.INCORRECT_RESULT,
     },
     "mt5/nlp_summarization/jax-xl-single_device-full-inference": {
-        "assert_pcc": False,
-        "status": ModelTestStatus.EXPECTED_PASSING,
-        "reason": "PCC comparison failed. Calculated: pcc=0.886627197265625. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379",
-        "bringup_status": BringupStatus.INCORRECT_RESULT,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "opt/causal_lm/jax-125M-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
