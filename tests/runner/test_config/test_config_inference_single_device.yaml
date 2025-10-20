@@ -48,7 +48,6 @@ test_config:
 
   clip/pytorch-openai/clip-vit-base-patch32-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Sept 6 due to tt-mlir uplift.
     reason: "RuntimeError... - ID 4489 while an async operation is in flight: UNKNOWN_SCALAR - https://github.com/tenstorrent/tt-xla/issues/1306"
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -1897,6 +1896,11 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
 
   d_fine/pytorch-nano-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2029,11 +2033,6 @@ test_config:
     reason: "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587"
     bringup_status: FAILED_FE_COMPILATION
 
-  falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Out of Memory:  Not enough space to allocate 165183488 B L1 buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
-
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference:
     required_pcc: 0.96
     status: EXPECTED_PASSING
@@ -2097,9 +2096,6 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7157331705093384. Required: pcc=0.99."
-
-  yolov11/pytorch-yolo11s-single_device-full-inference:
-    status: EXPECTED_PASSING
 
   yolov11/pytorch-yolo11n-single_device-full-inference:
     status: EXPECTED_PASSING
