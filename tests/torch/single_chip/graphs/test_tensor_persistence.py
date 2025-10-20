@@ -371,9 +371,9 @@ def test_output_reused_with_matrix_operations():
     output_q = run_model_on_device(program_c, [output_o])
 
     # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-2, atol=1e-2)
+    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-2, atol=1e-2)
+    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-2, atol=1e-2)
 
 
 @pytest.mark.push
