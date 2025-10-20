@@ -5,6 +5,8 @@ SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
+# Model dependencies
+# - Whisper and Wav2Vec2 : ffmpeg
 RUN apt-get update && apt-get install -y \
     software-properties-common \
     build-essential \
@@ -37,6 +39,7 @@ RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     libprotobuf-dev \
     xxd \
+    ffmpeg \
     sudo
 
 # Install clang 17
