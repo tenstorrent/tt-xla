@@ -178,11 +178,21 @@ class JaxModelTester(ModelTester):
             if isinstance(self._model, FlaxPreTrainedModel):
                 return ["mutable", "deterministic"]
             return ["mutable", "train"]
-        # For inference mode, return empty list for HuggingFace models
-        # since not all of them have 'deterministic' parameter
+
+        # For inference mode with FlaxPreTrainedModel
         if isinstance(self._model, FlaxPreTrainedModel):
+            # Check if model accepts 'deterministic' parameter
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if 'deterministic' in sig.parameters:
+                    # If it accepts deterministic, it needs to be static for control flow
+                    return ["deterministic"]
+            except:
+                pass
+            # If we can't determine or it doesn't have deterministic, no static args
             return []
-        # For non-HuggingFace models, check for 'train' parameter
+
+        # For non-HuggingFace models, 'train' parameter is typically static
         return ["train"]
 
     # @override
