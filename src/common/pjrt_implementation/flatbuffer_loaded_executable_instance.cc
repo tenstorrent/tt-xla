@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cassert>
+#include <filesystem>
 #include <numeric>
 
 // tt-mlir includes
@@ -447,6 +448,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return status;
   }
 
+  if (m_executable_image->getCompileOptions().dump_inputs) {
+    dumpInputs(input_tensors);
+  }
+
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
@@ -492,6 +497,30 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+// This should ideally live in the base class, and dumping should be exposed via
+// both paths. As the .so execution is not yet implemented, as a hack this is
+// implemented here for now.
+void FlatbufferLoadedExecutableInstance::dumpInputs(
+    const std::vector<tt::runtime::Tensor> &input_tensors) {
+  DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
+
+  assert(m_executable_image->getCompileOptions().export_path.has_value() &&
+         "Export path must be set when dumping inputs");
+
+  std::filesystem::path dump_dir =
+      std::filesystem::path(
+          m_executable_image->getCompileOptions().export_path.value()) /
+      "inputs";
+  std::filesystem::create_directories(dump_dir);
+
+  for (int i = 0; i < input_tensors.size(); ++i) {
+    std::string filename = "input_" + std::to_string(i) + ".tensorbin";
+    std::filesystem::path filepath = dump_dir / filename;
+
+    tt::runtime::dumpTensor(input_tensors[i], filepath.string());
+  }
 }
 
 } // namespace tt::pjrt
