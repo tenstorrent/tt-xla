@@ -147,11 +147,13 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
-        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
-          --repo ${{ github.repository }} \
-          --dir wheels \
-          --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
+        fi
         echo "Downloaded wheel files:"
         ls -la wheels
 
