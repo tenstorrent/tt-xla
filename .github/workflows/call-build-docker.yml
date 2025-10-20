@@ -114,7 +114,11 @@ jobs:
         run: |
           DOCKER_CI_IMAGE=${{ needs.check-if-docker-exist.outputs.docker-image }}
           if [ -z "$DOCKER_CI_IMAGE" ]; then
-            echo "Error: steps.check.outputs.docker-image is not set"
+          echo "Using docker image from build-image job"
+            DOCKER_CI_IMAGE=${{ needs.build-image.outputs.docker-image }}
+          fi
+          if [ -z "$DOCKER_CI_IMAGE" ]; then
+            echo "Error: No docker image available from either check-if-docker-exist or build-image"
             exit 1
           fi
           DOCKER_TAG=$(echo $DOCKER_CI_IMAGE | sed 's/^.*://')
