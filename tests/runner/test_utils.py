@@ -283,6 +283,7 @@ def record_model_test_properties(
     reason = None
     static_bringup_status = getattr(test_metadata, "bringup_status", None)
     static_reason = getattr(test_metadata, "reason", None)
+    arch = getattr(test_metadata, "arch", None)
 
     if test_passed:
         # If custom bringup_status and reason are provided, use them.
@@ -312,6 +313,7 @@ def record_model_test_properties(
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
         "parallelism": str(parallelism),
+        "arch": arch,
     }
 
     # Add comparison result metrics if available

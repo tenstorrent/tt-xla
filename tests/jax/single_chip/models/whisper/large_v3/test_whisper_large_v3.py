@@ -3,28 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    incorrect_result,
+from infra import RunMode
+from utils import BringupStatus, Category, failed_fe_compilation
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.whisper.audio_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 from ..tester import WhisperTester
 
-MODEL_PATH = "openai/whisper-large-v3"
-MODEL_GROUP = ModelGroup.RED
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "whisper",
-    "large_v3",
-    ModelTask.AUDIO_CLS,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.LARGE_V3
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -32,12 +23,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> WhisperTester:
-    return WhisperTester(MODEL_PATH)
+    return WhisperTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> WhisperTester:
-    return WhisperTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return WhisperTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -46,18 +37,18 @@ def training_tester() -> WhisperTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
-@pytest.mark.large
 @pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
+    reason=failed_fe_compilation(
+        "NotImplementedError: Could not run 'torchcodec_ns::create_from_tensor'"
+        "https://github.com/tenstorrent/tt-xla/issues/1635"
     )
 )
+@pytest.mark.large
 def test_whisper_large_v3_inference(inference_tester: WhisperTester):
     inference_tester.test()
 
@@ -65,8 +56,8 @@ def test_whisper_large_v3_inference(inference_tester: WhisperTester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.large

@@ -3,27 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
+from infra import RunMode
+from utils import BringupStatus, Category, failed_fe_compilation
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.wav2vec2.audio_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 from ..tester import Wav2Vec2Tester
 
-MODEL_PATH = "facebook/wav2vec2-large-lv60"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "wav2vec2",
-    "large-lv60",
-    ModelTask.AUDIO_CLS,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.LARGE_LV_60
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -31,12 +23,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> Wav2Vec2Tester:
-    return Wav2Vec2Tester(MODEL_PATH)
+    return Wav2Vec2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> Wav2Vec2Tester:
-    return Wav2Vec2Tester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return Wav2Vec2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -45,15 +37,15 @@ def training_tester() -> Wav2Vec2Tester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'stablehlo.dynamic_slice' "
-        "https://github.com/tenstorrent/tt-xla/issues/404"
+    reason=failed_fe_compilation(
+        "NotImplementedError: Could not run 'torchcodec_ns::create_from_tensor'"
+        "https://github.com/tenstorrent/tt-xla/issues/1635"
     )
 )
 def test_wav2vec2_large_lv60_inference(inference_tester: Wav2Vec2Tester):
@@ -63,8 +55,8 @@ def test_wav2vec2_large_lv60_inference(inference_tester: Wav2Vec2Tester):
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

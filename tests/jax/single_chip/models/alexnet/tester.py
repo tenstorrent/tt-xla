@@ -34,6 +34,7 @@ class AlexNetTester(JaxModelTester):
 
     def __init__(
         self,
+        variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         variant: Optional[ModelVariant] = None,

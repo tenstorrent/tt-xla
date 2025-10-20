@@ -22,8 +22,14 @@ from tests.infra.comparators.comparison_config import (
     ComparisonConfig,
     PccConfig,
 )
+from third_party.tt_forge_models.bge_m3.pytorch.loader import (
+    ModelLoader as BgeModelLoader,
+)
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
+)
+from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+    ModelLoader as QwenModelLoader,
 )
 
 # To see all available models and variants, run:
@@ -31,6 +37,8 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
+    "qwen3": QwenModelLoader,
+    "bge_m3": BgeModelLoader,
 }
 
 
@@ -193,7 +201,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@pytest.mark.parametrize("seq_len", [1024])  # 4096 causes OOM on CPU
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -263,5 +271,370 @@ def test_llama_sdpa(variant, variant_config, seq_len):
             dropout,
             scaling,
         ],
+        framework=Framework.TORCH,
+    )
+
+
+"""Qwen3 attention tests"""
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_attention_prefill(seq_len, variant, variant_config):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    hidden_states = torch.randn(
+        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_attention_decode(variant, variant_config):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    seq_len = 1
+    hidden_states = torch.randn(
+        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    batch_size = 1
+    max_cache_len = 16
+    static_cache: StaticCache = StaticCache(
+        config=model.config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    cache_position = torch.tensor([0])
+    past_key_states = static_cache
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_concat_heads(variant, variant_config, seq_len):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    def concat_heads(attn_output, input_shape):
+        return attn_output.reshape(*input_shape, -1).contiguous()
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+
+    batch_size = 1
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.head_dim
+    hidden_size = model.config.hidden_size
+
+    attn_output = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    input_shape = (batch_size, seq_len)
+
+    run_graph_test(concat_heads, [attn_output, input_shape], framework=Framework.TORCH)
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_create_heads(variant, variant_config, seq_len):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    def create_heads(
+        hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
+    ):
+        query_states = q_norm(q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
+        key_states = k_norm(k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
+        value_states = v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        return query_states, key_states, value_states
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.head_dim
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
+    )
+
+    input_shape = hidden_states.shape[:-1]
+    hidden_shape = (*input_shape, -1, head_dim)
+
+    q_proj = attention.q_proj
+    k_proj = attention.k_proj
+    v_proj = attention.v_proj
+    q_norm = attention.q_norm
+    k_norm = attention.k_norm
+
+    run_graph_test(
+        create_heads,
+        [hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
+)
+def test_qwen3_sdpa(variant, variant_config, seq_len):
+    if str(variant) == "qwq_32b":
+        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "32b" or str(variant) == "30b_a3b":
+        pytest.xfail("Variant doesn't fit on device")
+
+    xr.set_device_type("TT")
+
+    def sdpa(
+        attention_module,
+        query_states,
+        key_states,
+        value_states,
+        attention_mask,
+        dropout,
+        scaling,
+    ):
+        attention_interface: Callable = eager_attention_forward
+        if attention_module.config._attn_implementation != "eager":
+            attention_interface = ALL_ATTENTION_FUNCTIONS[
+                attention_module.config._attn_implementation
+            ]
+
+        attn_output, attn_weights = attention_interface(
+            attention_module,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout,
+            scaling=scaling,
+            sliding_window=getattr(attention_module, "sliding_window", None),
+        )
+        return attn_output, attn_weights
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
+    head_dim = model.config.head_dim
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+
+    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    dropout = 0.0
+    scaling = attention.scaling
+
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        framework=Framework.TORCH,
+    )
+
+
+"""BGE-M3 attention (XLM-RoBERTa attention) tests"""
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+    attention = model.model.encoder.layer[0].attention
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
+    attention_mask = torch.zeros((batch_size, 1, 1, seq_len), dtype=torch.float32)
+
+    past_key_value = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, attention_mask, past_key_value],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_concat_heads(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    def concat_heads(context_layer, all_head_size):
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (all_head_size,)
+        context_layer = context_layer.view(new_context_layer_shape)
+        return context_layer
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+
+    batch_size = 1
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    all_head_size = model.config.hidden_size
+    context_layer = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.float32
+    )
+
+    run_graph_test(
+        concat_heads, [context_layer, all_head_size], framework=Framework.TORCH
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bge_m3").items(),
+    ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+def test_bge_m3_create_heads(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    def create_heads(
+        hidden_states,
+        query_layer,
+        key_layer,
+        value_layer,
+        num_attention_heads,
+        attention_head_size,
+    ):
+        def transpose_for_scores(x):
+            new_x_shape = x.size()[:-1] + (num_attention_heads, attention_head_size)
+            x = x.view(new_x_shape)
+            return x.permute(0, 2, 1, 3)
+
+        query_states = transpose_for_scores(query_layer(hidden_states))
+        key_states = transpose_for_scores(key_layer(hidden_states))
+        value_states = transpose_for_scores(value_layer(hidden_states))
+
+        return query_states, key_states, value_states
+
+    loader = BgeModelLoader(variant=variant)
+    model = loader.load_model()
+    attention = model.model.encoder.layer[0].attention.self
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+
+    hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
+
+    query_layer = attention.query
+    key_layer = attention.key
+    value_layer = attention.value
+
+    run_graph_test(
+        create_heads,
+        [hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim],
         framework=Framework.TORCH,
     )

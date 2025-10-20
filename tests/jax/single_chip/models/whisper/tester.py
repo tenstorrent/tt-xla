@@ -5,12 +5,11 @@
 from typing import Dict
 
 import jax
-from datasets import load_dataset
-from infra import ComparisonConfig, JaxModelTester, RunMode
-from transformers import (
-    FlaxPreTrainedModel,
-    FlaxWhisperForAudioClassification,
-    WhisperProcessor,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+
+from third_party.tt_forge_models.whisper.audio_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
@@ -19,27 +18,21 @@ class WhisperTester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxWhisperForAudioClassification.from_pretrained(self._model_path)
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        processor = WhisperProcessor.from_pretrained(self._model_path)
-        dataset = load_dataset(
-            "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
-        )
-        sample = dataset[0]["audio"]
-        inputs = processor(
-            sample["array"],
-            sampling_rate=sample["sampling_rate"],
-            return_tensors="jax",
-        )
-        return inputs
+        return self._model_loader.load_inputs()
+
+    # @override
+    def _get_static_argnames(self):
+        return ["train"]
