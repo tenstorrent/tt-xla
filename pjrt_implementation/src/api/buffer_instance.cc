@@ -525,10 +525,6 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
-  // Print shape of buffer to return
-  DLOG_F(LOG_DEBUG, "Returning buffer of shape %s to host",
-         buffer->toShapeStr().c_str());
-
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
     // For output buffers, use the prepared tensor; for input buffers, use host
