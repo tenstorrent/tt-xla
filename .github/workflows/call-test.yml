@@ -221,7 +221,7 @@ jobs:
           VERBOSITY="-sv"
         fi
 
-        # Pass arch to forge models tests to resolve arch_overrides in test_config.py
+        # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
         if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' ]]; then
           ARCH="--arch ${{ matrix.build.runs-on }}"
@@ -257,7 +257,7 @@ jobs:
         apt-get update
         apt install -y libgl1 libglx-mesa0
 
-    # Ensure test_config.py for tt-forge-models test is valid, especially on PR's for uplifting tt-forge-models
+    # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
       if: ${{ matrix.build.name == 'run_forge_models_torch' && strategy.job-index == 0 }}
