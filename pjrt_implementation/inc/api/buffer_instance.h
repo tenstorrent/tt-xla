@@ -165,7 +165,6 @@ public:
 
   // Returns buffer's device id relative to mesh on which a output shard resides
   int getDeviceId() const { return m_device_id; }
-  void setDeviceId(int device_id) { m_device_id = device_id; }
 
 private:
   // Constructor used for the input buffers.
@@ -214,7 +213,7 @@ private:
   DeviceInstance *m_device;
 
   // Device index relative to mesh on which a output shard resides
-  int m_device_id;
+  const int m_device_id;
 
   // Memory on which this buffer resides, Can be nullptr if buffer is created
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
