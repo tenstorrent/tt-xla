@@ -128,8 +128,22 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
-    # Combine both configs for validation
-    combined_test_config = torch_test_config | jax_test_config
+    # Determine which configs to validate based on collected tests
+    # Check if we collected torch tests, jax tests, or both
+    has_torch_tests = any("pytorch" in nodeid or "test_all_models_torch" in nodeid for nodeid in _collected_nodeids)
+    has_jax_tests = any("jax" in nodeid and "test_all_models_jax" in nodeid for nodeid in _collected_nodeids)
+
+    # Only validate configs for the framework(s) that were actually collected
+    if has_torch_tests and has_jax_tests:
+        combined_test_config = torch_test_config | jax_test_config
+    elif has_torch_tests:
+        combined_test_config = torch_test_config
+    elif has_jax_tests:
+        combined_test_config = jax_test_config
+    else:
+        # No model tests collected, nothing to validate
+        combined_test_config = {}
+        print("No model tests collected, skipping validation")
 
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []

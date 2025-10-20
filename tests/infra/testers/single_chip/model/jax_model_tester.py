@@ -5,7 +5,7 @@
 import os
 import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
-
+import inspect
 import jax
 import jax.numpy as jnp
 from flax import linen, nnx
@@ -142,13 +142,20 @@ class JaxModelTester(ModelTester):
         """
         kwargs = {}
         if isinstance(self._model, FlaxPreTrainedModel):
-            # HuggingFace Flax models use 'deterministic' parameter
-            # deterministic=True means inference (no dropout), deterministic=False means training
+            # Start with params and input activations
             kwargs = {
                 "params": self._input_parameters,
-                "deterministic": True if self._run_mode == RunMode.INFERENCE else False,
                 **self._input_activations,
             }
+
+            # Only add 'deterministic' if the model accepts it
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if 'deterministic' in sig.parameters:
+                    # deterministic=True means inference (no dropout), deterministic=False means training
+                    kwargs["deterministic"] = True if self._run_mode == RunMode.INFERENCE else False
+            except:
+                pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
