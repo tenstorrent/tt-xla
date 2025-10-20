@@ -153,8 +153,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(
                     "means it was deallocated by a previous operation.");
       return tt_pjrt_status::kInternal;
     }
-    return tt_pjrt_status::kSuccess;
   }
+  return tt_pjrt_status::kSuccess;
 }
 
 std::optional<tt::runtime::Tensor>
