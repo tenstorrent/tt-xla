@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import json
 import os
 
 import pytest
@@ -79,6 +80,82 @@ def test_all_models(
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
+
+    # Dump ModelTestConfig test_metadata for debugging to file
+    # FIXME
+    try:
+        # Output directory can be overridden via env; default under project artifacts
+        output_dir = os.environ.get(
+            "TT_XLA_TEST_METADATA_DIR",
+            os.path.join(PROJECT_ROOT, ".artifacts", "test_metadata"),
+        )
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Use fully-parameterized pytest nodeid as the base name, sanitized for filesystem
+        nodeid = request.node.nodeid
+        safe_name = "".join(c if c.isalnum() else "_" for c in nodeid)
+        arch_value = getattr(test_metadata, "arch", None)
+        arch_str = str(arch_value) if arch_value is not None else ""
+        arch_safe = "".join(c if c.isalnum() else "_" for c in arch_str)
+        prefix = f"{arch_safe}__" if arch_safe else ""
+        output_path = os.path.join(output_dir, f"{prefix}{safe_name}.json")
+
+        def _serialize(value):
+            try:
+                from enum import Enum
+
+                if isinstance(value, Enum):
+                    return value.value
+            except Exception:
+                pass
+            if isinstance(value, dict):
+                return {str(k): _serialize(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [_serialize(v) for v in value]
+            return value
+
+        payload = {
+            "test_nodeid": nodeid,
+            "resolved": {
+                "arch": _serialize(getattr(test_metadata, "arch", None)),
+                "status": _serialize(getattr(test_metadata, "status", None)),
+                "required_pcc": _serialize(
+                    getattr(test_metadata, "required_pcc", None)
+                ),
+                "assert_pcc": _serialize(getattr(test_metadata, "assert_pcc", None)),
+                "assert_atol": _serialize(getattr(test_metadata, "assert_atol", None)),
+                "required_atol": _serialize(
+                    getattr(test_metadata, "required_atol", None)
+                ),
+                "assert_allclose": _serialize(
+                    getattr(test_metadata, "assert_allclose", None)
+                ),
+                "allclose_rtol": _serialize(
+                    getattr(test_metadata, "allclose_rtol", None)
+                ),
+                "allclose_atol": _serialize(
+                    getattr(test_metadata, "allclose_atol", None)
+                ),
+                "batch_size": _serialize(getattr(test_metadata, "batch_size", None)),
+                "reason": _serialize(getattr(test_metadata, "reason", None)),
+                "bringup_status": _serialize(
+                    getattr(test_metadata, "bringup_status", None)
+                ),
+                "markers": _serialize(getattr(test_metadata, "markers", None)),
+                "supported_archs": _serialize(
+                    getattr(test_metadata, "supported_archs", None)
+                ),
+            },
+            "raw_data": _serialize(getattr(test_metadata, "data", {})),
+        }
+
+        with open(output_path, "w") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+    except Exception as e:
+        print(f"Failed to write test metadata to file: {e}", flush=True)
+
+    # Exit early after dumping metadata
+    return
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
