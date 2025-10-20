@@ -36,4 +36,5 @@ def enable_spmd():
     # In the pytorch-xla fork this enables the ConvertStableHloToSdy pass.
     # The tt-mlir stablehlo compiler pipeline expects input shlo from pytorch/xla to contain shardy annotations.
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     xr.use_spmd()
