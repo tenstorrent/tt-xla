@@ -26,7 +26,7 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature]:
+) -> Tuple[torch.export.ExportedProgram, torch.export.ExportGraphSignature]:
 
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
@@ -45,19 +45,21 @@ def torch_pass_pipeline(
     ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
-    compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
-    )
-    compiled_graph = bypass_dtype_promotion_and_redundant_cast(
-        compiled_graph, example_inputs
-    )
+    # compiled_graph = insert_argument_type_markers(
+    #     compiled_graph, program.graph_signature
+    # )
+    # compiled_graph = bypass_dtype_promotion_and_redundant_cast(
+    #     compiled_graph, example_inputs
+    # )
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
-    return compiled_graph, program.graph_signature
+
+    program = torch.export.export_for_training(compiled_graph, tuple(example_inputs), strict=False)
+    return program, program.graph_signature
 
 
 class XLAExecutor:
@@ -69,22 +71,29 @@ class XLAExecutor:
     """
 
     def __init__(
-        self, module: torch.fx.GraphModule, signature: torch.export.ExportGraphSignature
+        self, module: torch.export.ExportedProgram, signature: torch.export.ExportGraphSignature
     ):
         self.module = module
         self.signature = signature
+        self.compiled_graph = None
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
-        self.devices = set()
-        for _, tensor in module.state_dict().items():
-            self.devices.add(tensor.device.type)
-        self.devices = list(self.devices)
+        self.module.graph_module.devices = set()
+        for _, tensor in module.graph_module.state_dict().items():
+            self.module.graph_module.devices.add(tensor.device.type)
+        self.devices = list(self.module.graph_module.devices)
 
     def __call__(self, *args):
 
-        output = self.module(*args)
+        if self.compiled_graph is None:
+            import torch_xla.core.dynamo_bridge as bridge
+
+            arguments = args + tuple(self.module.buffers())
+            self.compiled_graph = bridge.extract_compiled_graph(self.module.graph_module, arguments)
+
+        output = self.compiled_graph(*args)
 
         gm_has_functional_output_kind: bool = True
 
