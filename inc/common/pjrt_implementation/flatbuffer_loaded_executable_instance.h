@@ -128,6 +128,9 @@ private:
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
 
+  // Save all graph inputs as files, in metal's tensorbin format.
+  void dumpInputs(const std::vector<tt::runtime::Tensor> &input_tensors);
+
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(
       std::shared_ptr<FlatbufferExecutableImage> executable_image,
