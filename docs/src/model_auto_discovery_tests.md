@@ -52,8 +52,7 @@ pytest -svv --validate-test-config tests/runner/test_models.py |& tee validate.l
 
 - List all expected passing llama inference tests for n150 (using substring `-k` and markers with `-m`):
 ```bash
-  pytest -q --collect-only -k "llama" tests/runner/test_models.py \
-   -m "n150 and expected_passing and inference" |& tee tests.log
+pytest -q --collect-only -k "llama" tests/runner/test_models.py -m "n150 and expected_passing and inference" |& tee tests.log
 
 tests/runner/test_models.py::test_all_models[deepcogito/pytorch-v1_preview_llama_3b-single_device-full-inference]
 tests/runner/test_models.py::test_all_models[huggyllama/pytorch-llama_7b-single_device-full-inference]
@@ -73,6 +72,7 @@ tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8
 - Implementation highlights:
   - Discovery and IDs: `tests/runner/test_utils.py` (`setup_test_discovery`, `discover_loader_paths`, `create_test_entries`, `create_test_id_generator`)
   - Main test: `tests/runner/test_models.py`
+  - Config loading/validation: `tests/runner/test_config/config_loader.py` (merges YAML into Python with validation)
 
 ## Test IDs and filtering
 
@@ -108,13 +108,22 @@ Take a look at `model-test-passing.json` and related `.json` files inside `.gith
 
 ## Test configuration and statuses
 
-- Central configuration is merged from `tests/runner/test_config/*` via `tests/runner/test_config/__init__.py`.
-- Example: `tests/runner/test_config/test_config_inference_single_device.py` for all single device inference test tagging, and `tests/runner/test_config/test_config_inference_data_parallel.py` for data parallel inference test tagging.
+- Central configuration is authored as YAML in `tests/runner/test_config/*` and loaded/validated by `tests/runner/test_config/config_loader.py` (merged into Python at runtime).
+- Example: `tests/runner/test_config/test_config_inference_single_device.yaml` for all single device inference test tagging, and `tests/runner/test_config/test_config_inference_data_parallel.yaml` for data parallel inference test tagging.
 - Each entry is keyed by the collected test ID and can specify:
   - **Status**: `EXPECTED_PASSING`, `KNOWN_FAILURE_XFAIL`, `NOT_SUPPORTED_SKIP`, `UNSPECIFIED`, `EXCLUDE_MODEL`
   - **Comparators**: `required_pcc`, `assert_pcc`, `assert_allclose`, `allclose_rtol`, `allclose_atol`
   - **Metadata**: `bringup_status`, `reason`, custom `markers` (e.g., `push`, `nightly`)
   - **Architecture scoping**: `supported_archs` used for filtering by CI job and optional `arch_overrides` used if test_config entries need to be modified based on arch.
+
+### YAML to Python loading and validation
+
+- The YAML files in `tests/runner/test_config/*` are the single source of truth. At runtime, `tests/runner/test_config/config_loader.py`:
+  - Loads and merges all YAML fragments into a single Python dictionary keyed by collected test IDs
+  - Normalizes enum-like values (accepts both names like `EXPECTED_PASSING` and values like `expected_passing`)
+  - Applies `--arch <archname>`-specific `arch_overrides` when provided
+  - Validates field names/types and raises helpful errors on typos or invalid values
+  - Uses `ruamel.yaml` for parsing, which will flag duplicate mapping keys and detect duplicate test entries both within a single YAML file and across multiple YAML files. Duplicates cause validation errors with clear messages.
 
 ## Model status and bringup_status guidance
 
@@ -203,7 +212,7 @@ pytest -q -m n300_llmbox --arch n300-llmbox tests/runner/test_models.py
 
 ## Placeholder models (report-only)
 
-- `PLACEHOLDER_MODELS` in `tests/runner/test_config/test_config_inference_single_device.py` lists important customer `ModelGroup.RED` models not yet merged, typically marked with `BringupStatus.NOT_STARTED`.
+- Placeholder models are declared in YAML at `tests/runner/test_config/test_config_placeholders.yaml` and list important customer `ModelGroup.RED` models not yet merged, typically marked with `BringupStatus.NOT_STARTED`. These entries are loaded using the same config loader as other YAML files.
 - `tests/runner/test_models.py::test_placeholder_models` emits report entries with the `placeholder` marker; used for reporting on Superset dashboard and run in tt-xla Nightly CI (typically via `model-test-xfail.json`).
 - Be sure to remove the placeholder at the same time the real model is added to avoid duplicate reports.
 
@@ -233,7 +242,7 @@ git commit -m "Uplift tt-forge-models submodule to <version> to include <model>"
 ```
 5. Verify the test appears via `--collect-only` and run desired flavor locally if needed.
 6. Add or update the corresponding entry in `tests/runner/test_config/*` to set status/thresholds/markers/arch support so that the model test is run in tt-xla Nightly CI. Look at existing tests for reference.
-7. Remove any corresponding placeholder entry from `PLACEHOLDER_MODELS` if it exists.
+7. Remove any corresponding placeholder entry from `PLACEHOLDER_MODELS` in `test_config_placeholders.yaml` if it exists.
 8. Locally run `pytest -q --validate-test-config tests/runner/test_models.py` to validate `tests/runner/test_config/*` updates (on-PR jobs run it too).
 9. Open a PR in `tt-xla` for changes, consider running full set of expected passing models on CI to qualify `tt_forge_models` uplift (if it is risky), and land the PR in `tt-xla` main when confident in changes.
 
@@ -256,5 +265,6 @@ git commit -m "Uplift tt-forge-models submodule to <version> to include <model>"
 - `tests/runner/test_utils.py`: discovery, IDs, `DynamicTorchModelTester`
 - `tests/runner/requirements.py`: per-model requirements context manager
 - `tests/runner/conftest.py`: config attachment, markers, `--arch`, config validation
-- `tests/runner/test_config/*`: test config files to mark status and what is run in CI
+- `tests/runner/test_config/*.yaml`: YAML test config files (source of truth)
+- `tests/runner/test_config/config_loader.py`: loads/merges/validates YAML into Python at runtime
 - `third_party/tt_forge_models/config.py`: `Parallelism` and model metadata
