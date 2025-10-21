@@ -149,7 +149,6 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
-    @abstractmethod
     def _unwrap_model_output(self, output: Any) -> torch.Tensor:
         """
         Unwraps model output to a single tensor.
