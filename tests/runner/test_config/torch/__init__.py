@@ -2,27 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .test_config_inference_single_device import (
-    PLACEHOLDER_MODELS as PLACEHOLDER_MODELS_INFERENCE,
-)
-from .test_config_inference_single_device import (
-    test_config as test_config_inference_single_device,
-)
-from .test_config_inference_tensor_parallel import (
-    test_config as test_config_inference_tensor_parallel,
-)
-from .test_config_training_single_device import (
-    test_config as test_config_training_single_device,
-)
-from .test_config_inference_data_parallel import (
-    test_config as test_config_inference_data_parallel,
-)
+from tests.infra.utilities.types import Framework
+from ..config_loader import load_framework_test_configs
 
-PLACEHOLDER_MODELS = PLACEHOLDER_MODELS_INFERENCE
+# Load torch test configs using the centralized loader
+_loaded = load_framework_test_configs(Framework.TORCH)
 
-test_config = (
-    test_config_inference_single_device
-    | test_config_inference_data_parallel
-    | test_config_inference_tensor_parallel
-    | test_config_training_single_device
-)
+PLACEHOLDER_MODELS = _loaded.get("PLACEHOLDER_MODELS", {})
+test_config = _loaded.get("test_config", {})

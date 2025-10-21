@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from ruamel.yaml import YAML
 
+from tests.infra.utilities.types import Framework
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
 
@@ -111,13 +112,12 @@ def _validate_allowed_keys(cfg: Dict[str, Any], *, ctx: str) -> None:
                 validate_mapping(arch_cfg, where=f"arch_overrides['{arch}']")
 
 
-# Load placeholders from dedicated YAML and merge test entries from other YAMLs while validating contents.
-def load_all_test_configs() -> Dict[str, Any]:
-    """Load and merge YAML-based test configurations for model bring-up and CI.
+# Load test configs for a specific framework
+def load_framework_test_configs(framework: Framework) -> Dict[str, Any]:
+    """Load YAML-based test configurations for a specific framework.
 
-    Files:
-    - test_config_placeholders.yaml: defines PLACEHOLDER_MODELS entries.
-    - test_config_*.yaml: define test_config entries grouped by mode (e.g. inference, training).
+    Args:
+        framework: Framework.TORCH or Framework.JAX
 
     Returns:
     dict: {
@@ -125,24 +125,28 @@ def load_all_test_configs() -> Dict[str, Any]:
         "test_config": <merged dict of all test configs>
     }
     """
-    config_dir = Path(__file__).parent
+    config_dir = Path(__file__).parent / framework.value
+
+    if not config_dir.exists():
+        return {"PLACEHOLDER_MODELS": {}, "test_config": {}}
 
     # Initialize ruamel.yaml loader with duplicate-key checking
     yaml = YAML(typ="rt")
     yaml.allow_duplicate_keys = False
 
-    # Load placeholders only from the dedicated file
+    # Load placeholders only from the dedicated file (only for torch)
     merged_placeholders: Dict[str, Any] = {}
-    placeholders_file = config_dir / PLACEHOLDERS_FILENAME
-    if placeholders_file.exists():
-        with open(placeholders_file, "r") as fh:
-            data = yaml.load(fh) or {}
-        placeholders = data.get("PLACEHOLDER_MODELS", {}) or {}
-        for k, v in placeholders.items():
-            entry = dict(v or {})
-            merged_placeholders[k] = _normalize_enums_in_cfg(entry)
+    if framework == Framework.TORCH:
+        placeholders_file = config_dir / PLACEHOLDERS_FILENAME
+        if placeholders_file.exists():
+            with open(placeholders_file, "r") as fh:
+                data = yaml.load(fh) or {}
+            placeholders = data.get("PLACEHOLDER_MODELS", {}) or {}
+            for k, v in placeholders.items():
+                entry = dict(v or {})
+                merged_placeholders[k] = _normalize_enums_in_cfg(entry)
 
-    # Merge test_config from all other YAMLs
+    # Merge test_config from all YAMLs in the framework directory
     merged_test_config: Dict[str, Any] = {}
     for yaml_file in sorted(config_dir.glob("test_config_*.yaml")):
         if yaml_file.name == PLACEHOLDERS_FILENAME:
@@ -151,8 +155,33 @@ def load_all_test_configs() -> Dict[str, Any]:
             data = yaml.load(fh) or {}
         tests = data.get("test_config", {}) or {}
         for test_id, cfg in tests.items():
-            _validate_allowed_keys(cfg, ctx=f"test '{test_id}' in {yaml_file.name}")
+            _validate_allowed_keys(cfg, ctx=f"test '{test_id}' in {framework.value}/{yaml_file.name}")
             merged_test_config[test_id] = _normalize_enums_in_cfg(cfg)
+
+    return {
+        "PLACEHOLDER_MODELS": merged_placeholders,
+        "test_config": merged_test_config,
+    }
+
+# Load placeholders from dedicated YAML and merge test entries from other YAMLs while validating contents.
+def load_all_test_configs() -> Dict[str, Any]:
+    """Load and merge YAML-based test configurations for model bring-up and CI.
+
+    This function loads configs from both torch/ and jax/ subdirectories.
+
+    Returns:
+    dict: {
+        "PLACEHOLDER_MODELS": <dict of placeholder configs>,
+        "test_config": <merged dict of all test configs>
+    }
+    """
+    # Load configs from both frameworks
+    torch_configs = load_framework_test_configs(Framework.TORCH)
+    jax_configs = load_framework_test_configs(Framework.JAX)
+
+    # Merge everything together
+    merged_placeholders = torch_configs["PLACEHOLDER_MODELS"] | jax_configs["PLACEHOLDER_MODELS"]
+    merged_test_config = torch_configs["test_config"] | jax_configs["test_config"]
 
     return {
         "PLACEHOLDER_MODELS": merged_placeholders,

@@ -2,18 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .test_config_inference_single_device import (
-    test_config as test_config_inference_single_device,
-)
-from .test_config_inference_tensor_parallel import (
-    test_config as test_config_inference_tensor_parallel,
-)
+from tests.infra.utilities.types import Framework
+from ..config_loader import load_framework_test_configs
+
+# Load JAX test configs using the centralized loader
+_loaded = load_framework_test_configs(Framework.JAX)
 
 # Empty placeholder models dictionary since all JAX models are discovered from tt-forge-models
-PLACEHOLDER_MODELS = {}
-
-# Merge all test configs
-test_config = (
-    test_config_inference_single_device
-    | test_config_inference_tensor_parallel
-)
+PLACEHOLDER_MODELS = _loaded.get("PLACEHOLDER_MODELS", {})
+test_config = _loaded.get("test_config", {})
