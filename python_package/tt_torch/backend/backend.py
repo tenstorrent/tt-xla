@@ -58,8 +58,69 @@ def torch_pass_pipeline(
     # passes are reflected during execution.
     compiled_graph.recompile()
 
-    program = torch.export.export_for_training(compiled_graph, tuple(example_inputs), strict=False)
+    program = torch.export.export_for_training(
+        compiled_graph, tuple(example_inputs), strict=False
+    )
     return program, program.graph_signature
+
+
+from collections import defaultdict
+
+
+def build_full_args_for_gm(ep: ExportedProgram, *user_args):
+    gm = ep.graph_module
+    sig = ep.graph_signature
+
+    # Export keeps a state dict for lifted params/buffers
+    state = ep.state_dict  # { "p_...": tensor, "b_...": tensor, ... }
+    for k, v in state.items():
+        print(f"state: {k}")
+
+    # Some exports also have constant tensors; include them if present
+    constants = getattr(ep, "constants", {})  # may be {} on your version
+
+    # Map from placeholder name -> tensor
+    lookup = defaultdict(lambda: None)
+    total_args = tuple()
+    for spec in sig.input_specs:
+        if spec.kind == InputKind.USER_INPUT:
+            continue
+        total_args += (state[spec.target],)
+
+    return total_args
+    # Params
+    for spec in sig.parameters:
+        print(f"parameter: {spec}")
+        lookup[spec] = state[spec]
+    # Buffers
+    for spec in getattr(sig, "buffers", []):
+        print(f"buffer: {spec}")
+        lookup[spec] = state[spec]
+    # Constant tensors (if any)
+    for spec in getattr(sig, "constants", []):
+        print(f"const: {spec}")
+        lookup[spec] = constants[spec]
+
+    print(f"code:\n{gm.code}")
+    print(f"gm.buffers(): {[name for (name, _) in gm.named_buffers()]}")
+
+    for name, buffer in ep.named_buffers():
+        print(f"buffer: {name}")
+        lookup[name] = buffer
+    # Now assemble args in the exact placeholder order
+    full_args = []
+    user_it = iter(user_args)
+    for n in gm.graph.nodes:
+        if n.op != "placeholder":
+            continue
+        name = n.target
+        if name in lookup and lookup[name] is not None:
+            full_args.append(lookup[name])  # lifted thing
+        else:
+            print(f"Using user arg for placeholder '{name}'")
+            full_args.append(next(user_it))  # user input
+
+    return tuple(full_args)
 
 
 class XLAExecutor:
@@ -71,29 +132,34 @@ class XLAExecutor:
     """
 
     def __init__(
-        self, module: torch.export.ExportedProgram, signature: torch.export.ExportGraphSignature
+        self,
+        module: torch.export.ExportedProgram,
+        signature: torch.export.ExportGraphSignature,
     ):
         self.module = module
         self.signature = signature
         self.compiled_graph = None
+        self.full_args = None
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
-        self.module.graph_module.devices = set()
+        self.module.devices = set()
         for _, tensor in module.graph_module.state_dict().items():
-            self.module.graph_module.devices.add(tensor.device.type)
-        self.devices = list(self.module.graph_module.devices)
+            self.module.devices.add(tensor.device.type)
+        self.devices = list(self.module.devices)
 
     def __call__(self, *args):
 
         if self.compiled_graph is None:
             import torch_xla.core.dynamo_bridge as bridge
 
-            arguments = args + tuple(self.module.buffers())
-            self.compiled_graph = bridge.extract_compiled_graph(self.module.graph_module, arguments)
+            self.full_args = build_full_args_for_gm(self.module, *args)
+            self.compiled_graph = bridge.extract_compiled_graph(
+                self.module.graph_module, self.full_args + args
+            )
 
-        output = self.compiled_graph(*args)
+        output = self.compiled_graph(self.full_args + args)
 
         gm_has_functional_output_kind: bool = True
 
