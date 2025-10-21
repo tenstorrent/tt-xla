@@ -2,21 +2,280 @@
 name: Container image retention
 
 on:
+  pull_request:
+    paths:
+      - '.github/scripts/generate_test_matrix.py'
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'
-
 
 jobs:
-  delete-package-versions:
-    name: Delete package versions older than 4 weeks
+  test-matrix-generator:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: snok/container-retention-policy@v3.0.0
-        with:
-          account: tenstorrent
-          token: ${{ secrets.GH_TOKEN }}
-          image-names: "tt-xla*ci* tt-xla*ird*"
-          cut-off: 4w
-          keep-n-most-recent: 5
-          dry-run: false
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Test basic functionality
+      run: |
+        cd .github/scripts
+
+        # Create test input file
+        cat > test_basic.json << 'EOF'
+        [
+          {
+            "name": "test1",
+            "runs-on": "n150",
+            "shared-runners": "true",
+            "test-mark": "basic"
+          },
+          {
+            "name": "test2",
+            "runs-on": "n300",
+            "shared-runners": "false",
+            "test-mark": "advanced"
+          }
+        ]
+        EOF
+
+        # Test the script
+        python generate_test_matrix.py test_basic.json > output.json
+
+        # Verify output is valid JSON
+        jq empty output.json
+        echo "✓ Output is valid JSON"
+
+        # Show the output
+        echo "Generated matrix:"
+        jq . output.json
+
+    - name: Test string to boolean conversion
+      run: |
+        cd .github/scripts
+
+        # Test with string booleans
+        cat > test_booleans.json << 'EOF'
+        [
+          {
+            "name": "string-true",
+            "runs-on": "n150",
+            "shared-runners": "true"
+          },
+          {
+            "name": "string-false",
+            "runs-on": "n300",
+            "shared-runners": "false"
+          },
+          {
+            "name": "bool-true",
+            "runs-on": "n150",
+            "shared-runners": true
+          },
+          {
+            "name": "bool-false",
+            "runs-on": "n300",
+            "shared-runners": false
+          },
+          {
+            "name": "no-shared-runners",
+            "runs-on": "n300"
+          }
+        ]
+        EOF
+
+        python generate_test_matrix.py test_booleans.json > bool_output.json
+
+        # Verify all shared-runners values are booleans or null using jq
+        if jq -e '.[] | select(has("shared-runners")) | select(.["shared-runners"] | type != "boolean")' bool_output.json > /dev/null; then
+          echo "Found non-boolean shared-runners values"
+          exit 1
+        else
+          echo "All shared-runners values are booleans or null"
+        fi
+
+    - name: Test parallel groups expansion
+      run: |
+        cd .github/scripts
+
+        # Test parallel groups
+        cat > test_parallel.json << 'EOF'
+        [
+          {
+            "name": "parallel-test",
+            "runs-on": "n150",
+            "parallel-groups": 3,
+            "test-mark": "parallel"
+          },
+          {
+            "name": "single-test",
+            "runs-on": "n300",
+            "test-mark": "single"
+          }
+        ]
+        EOF
+
+        python generate_test_matrix.py test_parallel.json > parallel_output.json
+
+        # Count parallel entries
+        PARALLEL_COUNT=$(jq '[.[] | select(.name == "parallel-test")] | length' parallel_output.json)
+        SINGLE_COUNT=$(jq '[.[] | select(.name == "single-test")] | length' parallel_output.json)
+
+        if [ "$PARALLEL_COUNT" != "3" ]; then
+          echo "Expected 3 parallel entries, got $PARALLEL_COUNT"
+          exit 1
+        fi
+
+        if [ "$SINGLE_COUNT" != "1" ]; then
+          echo "Expected 1 single entry, got $SINGLE_COUNT"
+          exit 1
+        fi
+
+        # Check group-id values
+        GROUP_IDS=$(jq -r '[.[] | select(.name == "parallel-test") | .["group-id"]] | sort | join(",")' parallel_output.json)
+        if [ "$GROUP_IDS" != "1,2,3" ]; then
+          echo "Expected group-ids 1,2,3, got $GROUP_IDS"
+          exit 1
+        fi
+
+        echo "✓ Parallel groups expansion works correctly"
+
+    - name: Test shared runner mapping
+      run: |
+        cd .github/scripts
+
+        # Test shared runner mapping
+        cat > test_mapping.json << 'EOF'
+        [
+          {
+            "name": "shared-test",
+            "runs-on": "n150",
+            "shared-runners": true
+          },
+          {
+            "name": "dedicated-test",
+            "runs-on": "n300",
+            "shared-runners": false
+          }
+        ]
+        EOF
+
+        python generate_test_matrix.py test_mapping.json > mapping_output.json
+
+        # Check that shared runner was mapped
+        MAPPED_RUNNER=$(jq -r '.[] | select(.name == "shared-test") | .["runs-on"]' mapping_output.json)
+        ORIGINAL_RUNNER=$(jq -r '.[] | select(.name == "shared-test") | .["runs-on-original"]' mapping_output.json)
+
+        if [ "$MAPPED_RUNNER" != "tt-ubuntu-2204-n150-stable" ]; then
+          echo "Expected mapped runner to be tt-ubuntu-2204-n150-stable, got $MAPPED_RUNNER"
+          exit 1
+        fi
+
+        if [ "$ORIGINAL_RUNNER" != "n150" ]; then
+          echo "Expected original runner to be preserved as n150, got $ORIGINAL_RUNNER"
+          exit 1
+        fi
+
+        # Check that dedicated runner wasn't mapped
+        DEDICATED_RUNNER=$(jq -r '.[] | select(.name == "dedicated-test") | .["runs-on"]' mapping_output.json)
+        if [ "$DEDICATED_RUNNER" != "n300" ]; then
+          echo "Dedicated runner should not be mapped, got $DEDICATED_RUNNER"
+          exit 1
+        fi
+
+        echo "Shared runner mapping works correctly"
+
+    - name: Test error handling
+      run: |
+        cd .github/scripts
+
+        # Test invalid shared-runners value
+        cat > test_invalid.json << 'EOF'
+        [
+          {
+            "name": "invalid-test",
+            "runs-on": "n150",
+            "shared-runners": "invalid"
+          }
+        ]
+        EOF
+
+        # This should fail
+        if python generate_test_matrix.py test_invalid.json 2>/dev/null; then
+          echo "Script should have failed with invalid shared-runners value"
+          exit 1
+        else
+          echo "Script correctly rejected invalid shared-runners value"
+        fi
+
+        # Test invalid runs-on for shared runner
+        cat > test_invalid_runner.json << 'EOF'
+        [
+          {
+            "name": "invalid-runner",
+            "runs-on": "invalid-arch",
+            "shared-runners": true
+          }
+        ]
+        EOF
+
+        if python generate_test_matrix.py test_invalid_runner.json 2>/dev/null; then
+          echo "Script should have failed with invalid runs-on for shared runner"
+          exit 1
+        else
+          echo "Script correctly rejected invalid runs-on for shared runner"
+        fi
+
+    - name: Test with existing preset files
+      run: |
+        # Test with actual preset files if they exist
+        if find .github -name "*.json" -path "*/test-matrix-presets/*" | head -1 | grep -q .; then
+          echo "Testing with existing preset files:"
+          find .github -name "*.json" -path "*/test-matrix-presets/*" | while read file; do
+            echo "Testing $file"
+            python .github/scripts/generate_test_matrix.py "$file" > /dev/null
+            echo "$file processed successfully"
+          done
+        else
+          echo "No preset files found to test"
+        fi
+
+    - name: Test output format compatibility
+      run: |
+        cd .github/scripts
+
+        cat > test_format.json << 'EOF'
+        [
+          {
+            "name": "format-test",
+            "runs-on": "n150",
+            "shared-runners": true,
+            "test-mark": "format"
+          }
+        ]
+        EOF
+
+        # Generate matrix and test various jq operations (like in workflows)
+        python generate_test_matrix.py test_format.json > format_output.json
+
+        # Test compact format
+        jq -c . format_output.json > /dev/null
+        echo "Output is compatible with jq -c"
+
+        # Test matrix access patterns used in workflows
+        jq -r '.[0].name' format_output.json > /dev/null
+        jq -r '.[0]["runs-on"]' format_output.json > /dev/null
+        jq -r '.[0]["shared-runners"]' format_output.json > /dev/null
+        echo "Output supports expected field access patterns"
+
+        # Test that boolean fields are actual booleans in JSON
+        SHARED_TYPE=$(jq -r '.[0]["shared-runners"] | type' format_output.json)
+        if [ "$SHARED_TYPE" != "boolean" ]; then
+          echo "shared-runners should be boolean type, got $SHARED_TYPE"
+          exit 1
+        fi
+        echo "Boolean fields are proper JSON booleans"
