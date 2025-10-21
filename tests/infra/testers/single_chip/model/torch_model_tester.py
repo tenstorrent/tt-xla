@@ -149,41 +149,12 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
-    def _unwrap_model_output(self, output: Any) -> Any:
-        output_field_mapping = {
-            "BaseModelOutputWithPast": "last_hidden_state",
-            "BaseModelOutputWithPastAndCrossAttentions": "last_hidden_state",
-            "CausalLMOutputWithCrossAttentions": "logits",
-            "CausalLMOutputWithPast": "logits",
-            "CLIPOutput": "logits_per_text",
-            "DepthEstimatorOutput": "predicted_depth",
-            "DPRReaderOutput": "end_logits",
-            "ImageClassifierOutput": "logits",
-            "ImageClassifierOutputWithNoAttention": "logits",
-            "LlavaCausalLMOutputWithPast": "logits",
-            "MambaCausalLMOutput": "logits",
-            "MaskedLMOutput": "logits",
-            "MgpstrModelOutput": "logits",
-            "PerceiverClassifierOutput": "logits",
-            "PerceiverMaskedLMOutput": "logits",
-            "SegFormerImageClassifierOutput": "logits",
-            "Seq2SeqLMOutput": "logits",
-            "Seq2SeqSequenceClassifierOutput": "logits",
-            "SequenceClassifierOutput": "logits",
-            "SequenceClassifierOutputWithPast": "logits",
-            "TokenClassifierOutput": "logits",
-            "UNet2DConditionOutput": "sample",
-        }
-        cls_name = output.__class__.__name__
-        if cls_name in output_field_mapping:
-            return getattr(output, output_field_mapping[cls_name])
-        if isinstance(output, torch.Tensor):
-            return output
-        if isinstance(output, (tuple, list, dict)):
-            raise ValueError(
-                "Tuple, list, and dict output is not handled in general case, should be implemented per model"
-            )
-        raise ValueError(f"Output {type(output)} is not handled")
+    @abstractmethod
+    def _unwrap_model_output(self, output: Any) -> torch.Tensor:
+        """
+        Unwraps model output to a single tensor.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
