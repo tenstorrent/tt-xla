@@ -10,6 +10,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import torch
@@ -333,6 +334,9 @@ class DynamicTorchModelTester(TorchModelTester):
             mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
 
         return get_mesh(mesh_shape, mesh_names)
+
+    def _unpack_forward_output(self, output: Any) -> torch.Tensor:
+        return self.loader.unpack_forward_output(output)
 
 
 def setup_models_path(project_root):
