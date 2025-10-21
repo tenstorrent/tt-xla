@@ -320,7 +320,9 @@ test_config = {
         "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "resnet/image_classification/jax-resnet-18-single_device-full-inference": {
-        "status": ModelTestStatus.EXPECTED_PASSING,
+        "status": ModelTestStatus.NOT_SUPPORTED_SKIP,
+        "reason": "running the test CRASHED with signal 9 - uses too much memory need higher memory host",
+        "bringup_status": BringupStatus.FAILED_RUNTIME,
     },
     "resnet/image_classification/jax-resnet-26-single_device-full-inference": {
         "status": ModelTestStatus.EXPECTED_PASSING,
