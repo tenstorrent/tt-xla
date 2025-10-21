@@ -57,7 +57,6 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
-    if: success() || failure()
     with:
       test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
