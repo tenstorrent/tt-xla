@@ -63,7 +63,7 @@ jobs:
           fi
   perf-benchmark:
     needs: [ set-inputs, build ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@jmcgrath/1711-produce-data-fails-when-on-perf-benchmark-from-xla
     secrets: inherit
     with:
         project: tt-xla
