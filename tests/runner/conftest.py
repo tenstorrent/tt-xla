@@ -24,13 +24,13 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         choices=sorted(ALLOWED_ARCHES),
-        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config.py",
+        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config files",
     )
     parser.addoption(
         "--validate-test-config",
         action="store_true",
         default=False,
-        help="Fail if test_config.py and collected test IDs are out of sync",
+        help="Fail if test_config files and collected test IDs are out of sync",
     )
 
 
@@ -100,7 +100,7 @@ def pytest_collection_modifyitems(config, items):
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
 
-        # Define default set of supported archs, which can be optionally overridden in test_config.py
+        # Define default set of supported archs, which can be optionally overridden in test_config files
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
         default_archs = ["n150", "p150"]
         archs_to_mark = getattr(meta, "supported_archs", None) or default_archs
@@ -167,12 +167,12 @@ def pytest_sessionfinish(session, exitstatus):
         print("\nAllowed arches:", ", ".join(sorted(ALLOWED_ARCHES)))
         print("\n" + "=" * 60)
         raise pytest.UsageError(
-            "test_config.py contains arch_overrides with unknown arches"
+            "test_config yaml files contain arch_overrides with unknown arches"
         )
     else:
         print("All arch_overrides entries are valid")
 
-    # Validate that entries in test_config.py are found in the collected tests. They can diverge if
+    # Validate that entries in test_config yaml files are found in the collected tests. They can diverge if
     # model variants are renamed, removed, have import errors, etc.
     declared_nodeids = set(combined_test_config.keys())
     unknown = declared_nodeids - _collected_nodeids
@@ -184,15 +184,15 @@ def pytest_sessionfinish(session, exitstatus):
 
     # Unlisted tests are just warnings, for informational purposes.
     if unlisted:
-        print("\nWARNING: The following tests are missing from test_config.py:")
+        print("\nWARNING: The following tests are missing from test_config yaml files:")
         for test_name in sorted(unlisted):
             print(f"  - {test_name}")
     else:
-        print("\nAll collected tests are properly defined in test_config.py")
+        print("\nAll collected tests are properly defined in test_config yaml files")
 
     # Unknown tests are tests listed that no longer exist, treat as error.
     if unknown:
-        msg = "test_config.py contains entries not found in collected tests."
+        msg = "test_config yaml files contain entries not found in collected tests."
         print(f"\nERROR: {msg}")
         for test_name in sorted(unknown):
             print(f"  - {test_name}")

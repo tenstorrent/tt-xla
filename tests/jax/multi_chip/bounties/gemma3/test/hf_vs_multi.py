@@ -1,20 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from huggingface_hub import login
-import numpy as np
-import jax.numpy as jnp
 import os
 import sys
-from flax import nnx
+
 import jax
+import jax.numpy as jnp
+import numpy as np
+import torch
+from flax import nnx
+from huggingface_hub import login
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 sys.path.append(os.getcwd())
 
-from gemma3.gemma3_tp import Gemma3ForCausalLM as FlaxGemma3ForCausalLM
 from gemma3.gemma3_tp import Gemma3Config as FlaxGemma3Config
+from gemma3.gemma3_tp import Gemma3ForCausalLM as FlaxGemma3ForCausalLM
 
 # need a token
 hf_token = os.getenv("HF_TOKEN")
