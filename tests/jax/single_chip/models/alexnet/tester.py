@@ -37,9 +37,8 @@ class AlexNetTester(JaxModelTester):
         variant: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
-        variant: Optional[ModelVariant] = None,
     ) -> None:
-        self._model_loader = ModelLoader(variant or ModelVariant.CUSTOM)
+        self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)
 
     # @override

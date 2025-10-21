@@ -31,6 +31,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 def training_tester() -> ResNetTester:
     return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+@pytest.fixture
+def inference_tester_optimizer() -> ResNetTester:
+    return ResNetTester(
+        VARIANT_NAME,
+        run_mode=RunMode.INFERENCE,
+        compiler_config=CompilerConfig(enable_optimizer=True),
+    )
+
 # ----- Tests -----
 
 @pytest.mark.training
@@ -63,3 +71,5 @@ def test_resnet_v1_5_26_training(training_tester: ResNetTester):
         "https://github.com/tenstorrent/tt-xla/issues/1547",
     )
 )
+def test_resnet_v1_5_26_inference_optimizer(inference_tester_optimizer: ResNetTester):
+    inference_tester_optimizer.test()
