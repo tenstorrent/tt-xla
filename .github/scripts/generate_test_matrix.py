@@ -85,7 +85,7 @@ def map_shared_runners_field(entry):
     if isinstance(shared_runners, str) and shared_runners == "false":
         entry["shared-runners"] = False
 
-    if not isinstance(shared_runners, bool):
+    if not isinstance(entry.get("shared-runners"), bool):
         raise TypeError(
             "Expected the shared-runners field to be a boolean or a string representation of a boolean"
         )
