@@ -1136,7 +1136,7 @@ test_config:
   stable_diffusion_unet/pytorch-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
-  
+
   unet_for_conditional_generation/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
 
