@@ -196,10 +196,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     // This prepared tensor may be from a pure output-aliased-to-input, so
     //  we should set its retention flag to true.
     if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
-      DLOG_F(WARNING,
-             "Prepared tensor for argument index %zu had retain=false; setting "
+      DLOG_F(LOG_DEBUG,
+             "Prepared tensor for argument index %zu with shape %s had "
+             "retain=false; setting "
              "to true to avoid deallocation during execution.",
-             arg_index);
+             arg_index, arg_buffers[0]->toShapeStr().c_str());
     }
     tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
@@ -328,8 +329,9 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
   // which is lazily returned to host when CopyToHost is called.
   for (size_t output_index = 0; output_index < n_prog_output_tensors;
        output_index++) {
+    tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
     for (int device_index = 0; device_index < num_devices; ++device_index) {
-      tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
       // For a given output_index, each device will get the same
