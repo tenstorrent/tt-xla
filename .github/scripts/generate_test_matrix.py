@@ -28,6 +28,9 @@ def map_shared_runner(entry):
     if entry.get("shared-runners") == "true" or entry.get("shared-runners") is True:
         runs_on = entry.get("runs-on")
         if runs_on in shared_runner_mapping:
+            # Preserve the original runs-on so downstream consumers
+            # (e.g. --arch for test_models.py) can access non mapped arch.
+            entry["runs-on-original"] = runs_on
             entry["runs-on"] = shared_runner_mapping[runs_on]
         else:
             raise TypeError(
