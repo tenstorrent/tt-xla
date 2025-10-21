@@ -68,10 +68,16 @@ struct CompileOptions {
   // This is useful for chisel and codegen.
   bool dump_inputs = false;
 
-  // Path that will contain any exported artifacts.
-  // This includes: codegen solutions, graph inputs and intermediate IRs.
-  // Setting this will enable IR dumping.
   // Enables generation of consteval graphs.
+  //
+  // We allow the user of the plugin to toggle consteval in tt-mlir. We would
+  // like for this to be on at all times as it results in a more performant
+  // model. However, the results of the consteval graphs are stored on device
+  // until the device is closed. If multiple graphs use the same weights (i.e,
+  // same model, different input shapes), then we will end up cloning the
+  // weights multiple times. This can easily lead to OOM errors. There is an
+  // issue tracking this in tt-mlir:
+  // https://github.com/tenstorrent/tt-mlir/issues/3888
   bool enable_const_eval = true;
 
   // Path that will contain any exported artifacts.
