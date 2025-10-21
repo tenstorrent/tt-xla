@@ -244,15 +244,13 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   mlp_mixer/image_classification/jax-base_16-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "NotImplementedError: Model tester not implemented for MLP-Mixer in JAX"
-    bringup_status: NOT_STARTED
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
+    bringup_status: INCORRECT_RESULT
     markers: [push]
 
   mnist/image_classification/jax-mlp_custom-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "NotImplementedError: Custom MLP model tester not implemented"
-    bringup_status: NOT_STARTED
+    status: EXPECTED_PASSING
     markers: [push]
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-inference:

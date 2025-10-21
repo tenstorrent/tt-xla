@@ -4,6 +4,7 @@
 
 """Dynamic JAX model tester implementation."""
 
+import inspect
 import jax
 import jax.numpy as jnp
 from infra.comparators import ComparisonConfig
@@ -127,7 +128,12 @@ class DynamicJaxModelTester(JaxModelTester):
         """
         # Check if loader has specific forward method kwargs
         if hasattr(self.dynamic_loader.loader, "get_forward_method_kwargs"):
-            return self.dynamic_loader.loader.get_forward_method_kwargs()
+            # Pass run_mode if the method accepts it
+            sig = inspect.signature(self.dynamic_loader.loader.get_forward_method_kwargs)
+            if "run_mode" in sig.parameters:
+                return self.dynamic_loader.loader.get_forward_method_kwargs(run_mode=self._run_mode)
+            else:
+                return self.dynamic_loader.loader.get_forward_method_kwargs()
 
         # Otherwise delegate to parent implementation
         return super()._get_forward_method_kwargs()

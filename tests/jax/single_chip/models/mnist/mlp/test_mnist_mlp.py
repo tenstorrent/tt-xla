@@ -14,8 +14,6 @@ from utils import (
     build_model_name,
 )
 
-from tests.infra.utilities.utils import create_jax_inference_tester
-
 from .tester import MNISTMLPTester
 
 MODEL_NAME = build_model_name(
@@ -28,45 +26,11 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
-def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
-    """Create inference tester with specified hidden sizes and data format."""
-    return create_jax_inference_tester(MNISTMLPTester, hidden_sizes, format)
-
 @pytest.fixture
 def training_tester(request) -> MNISTMLPTester:
     return MNISTMLPTester(request.param, run_mode=RunMode.TRAINING)
 
 # ----- Tests -----
-
-@pytest.mark.parametrize(
-    "inference_tester",
-    [
-        (128,),
-        (128, 128),
-        (192, 128),
-        (512, 512),
-        (128, 128, 128),
-    ],
-    indirect=True,
-    ids=lambda val: f"{val}",
-)
-
-@pytest.mark.parametrize(
-    "format",
-    [
-        "float32",
-        "bfloat16",
-        pytest.param(
-            "bfp8",
-            marks=pytest.mark.skip(
-                reason="Skip until mixed-precision is supported in MLIR. https://github.com/tenstorrent/tt-mlir/issues/5252"
-            ),
-        ),
-    ],
-)
-def test_mnist_mlp_inference(hidden_sizes: tuple, format: str):
-    tester = create_inference_tester(hidden_sizes, format)
-    tester.test()
 
 @pytest.mark.push
 @pytest.mark.training
