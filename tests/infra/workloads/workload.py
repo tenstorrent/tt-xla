@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, Model, Mesh
+from infra.utilities import Framework, Mesh, Model
 
 
 class Workload:

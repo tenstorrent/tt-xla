@@ -40,7 +40,9 @@ def run_graph_test(
     """
     tester = GraphTester(comparison_config, framework)
     if framework == Framework.TORCH:
-        workload = TorchWorkload(model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn)
+        workload = TorchWorkload(
+            model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
+        )
     else:
         workload = Workload(framework=framework, executable=graph, args=inputs)
     tester.test(workload)

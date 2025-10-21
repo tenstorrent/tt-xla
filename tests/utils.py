@@ -163,3 +163,19 @@ def convert_output_to_bfloat16(f: Callable):
         return jlx.convert_element_type(res, jnp.bfloat16)
 
     return wrapper
+
+
+def is_single_device(request):
+    return request.node.get_closest_marker("single_device") is not None
+
+
+def is_dual_chip(request):
+    return request.node.get_closest_marker("dual_chip") is not None
+
+
+def is_llmbox(request):
+    return request.node.get_closest_marker("llmbox") is not None
+
+
+def is_galaxy(request):
+    return request.node.get_closest_marker("galaxy") is not None

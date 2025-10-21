@@ -11,7 +11,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
-from infra.workloads import Workload, TorchWorkload
+from infra.workloads import TorchWorkload, Workload
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -90,11 +90,21 @@ class TorchModelTester(ModelTester):
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
 
-        self._workload = TorchWorkload(model=self._model, args=args, kwargs=kwargs, mesh=self._get_mesh(), shard_spec_fn=self._get_shard_specs_function())
-        
+        self._workload = TorchWorkload(
+            model=self._model,
+            args=args,
+            kwargs=kwargs,
+            mesh=self._get_mesh(),
+            shard_spec_fn=self._get_shard_specs_function(),
+        )
+
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            assert self._workload.shard_spec_fn is not None, "Tensor parallel requires shard specs function"
-            assert self._workload.mesh and len(self._workload.mesh.device_ids) > 1, "Tensor parallel requires multi-chip mesh"
+            assert (
+                self._workload.shard_spec_fn is not None
+            ), "Tensor parallel requires shard specs function"
+            assert (
+                self._workload.mesh and len(self._workload.mesh.device_ids) > 1
+            ), "Tensor parallel requires multi-chip mesh"
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:

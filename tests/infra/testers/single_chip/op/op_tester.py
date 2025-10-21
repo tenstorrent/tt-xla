@@ -64,16 +64,16 @@ class OpTester(BaseTester):
         def compile_torch_workload(workload: Workload) -> None:
             assert (workload.executable is None) != (workload.model is None)
 
-            to_compile = workload.model if workload.model is not None else workload.executable
+            to_compile = (
+                workload.model if workload.model is not None else workload.executable
+            )
             # Set custom compile options if provided.
             # Use explicit API for passing compiler options.
             if self._compiler_config is not None:
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            workload.compiled_executable = torch.compile(
-                to_compile, backend="tt"
-            )
+            workload.compiled_executable = torch.compile(to_compile, backend="tt")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
@@ -96,10 +96,10 @@ class OpTester(BaseTester):
         def compile_torch_workload(workload: Workload) -> None:
             assert (workload.executable is None) != (workload.model is None)
 
-            to_compile = workload.model if workload.model is not None else workload.executable
-            workload.compiled_executable = torch.compile(
-                to_compile, backend="inductor"
+            to_compile = (
+                workload.model if workload.model is not None else workload.executable
             )
+            workload.compiled_executable = torch.compile(to_compile, backend="inductor")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
