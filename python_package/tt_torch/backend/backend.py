@@ -45,12 +45,12 @@ def torch_pass_pipeline(
     ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
-    # compiled_graph = insert_argument_type_markers(
-    #     compiled_graph, program.graph_signature
-    # )
-    # compiled_graph = bypass_dtype_promotion_and_redundant_cast(
-    #     compiled_graph, example_inputs
-    # )
+    compiled_graph = insert_argument_type_markers(
+        compiled_graph, program.graph_signature
+    )
+    compiled_graph = bypass_dtype_promotion_and_redundant_cast(
+        compiled_graph, example_inputs
+    )
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
@@ -159,7 +159,7 @@ class XLAExecutor:
                 self.module.graph_module, self.full_args + args
             )
 
-        output = self.compiled_graph(self.full_args + args)
+        output = self.compiled_graph(*(self.full_args + args))
 
         gm_has_functional_output_kind: bool = True
 
