@@ -149,11 +149,48 @@ class TorchModelTester(ModelTester):
 
         workload.model.compile(backend=backend)
 
+    def _unwrap_model_output(self, output: Any) -> Any:
+        output_field_mapping = {
+            "BaseModelOutputWithPast": "last_hidden_state",
+            "BaseModelOutputWithPastAndCrossAttentions": "last_hidden_state",
+            "CausalLMOutputWithCrossAttentions": "logits",
+            "CausalLMOutputWithPast": "logits",
+            "CLIPOutput": "logits_per_text",
+            "DepthEstimatorOutput": "predicted_depth",
+            "DPRReaderOutput": "end_logits",
+            "ImageClassifierOutput": "logits",
+            "ImageClassifierOutputWithNoAttention": "logits",
+            "LlavaCausalLMOutputWithPast": "logits",
+            "MambaCausalLMOutput": "logits",
+            "MaskedLMOutput": "logits",
+            "MgpstrModelOutput": "logits",
+            "PerceiverClassifierOutput": "logits",
+            "PerceiverMaskedLMOutput": "logits",
+            "SegFormerImageClassifierOutput": "logits",
+            "Seq2SeqLMOutput": "logits",
+            "Seq2SeqSequenceClassifierOutput": "logits",
+            "SequenceClassifierOutput": "logits",
+            "SequenceClassifierOutputWithPast": "logits",
+            "TokenClassifierOutput": "logits",
+            "UNet2DConditionOutput": "sample",
+        }
+        cls_name = output.__class__.__name__
+        if cls_name in output_field_mapping:
+            return getattr(output, output_field_mapping[cls_name])
+        if isinstance(output, torch.Tensor):
+            return output
+        if isinstance(output, (tuple, list, dict)):
+            raise ValueError(
+                "Tuple, list, and dict output is not handled in general case, should be implemented per model"
+            )
+        raise ValueError(f"Output {type(output)} is not handled")
+
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        cpu_res = self._unwrap_model_output(cpu_res)
 
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
@@ -174,6 +211,7 @@ class TorchModelTester(ModelTester):
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
+        tt_res = self._unwrap_model_output(tt_res)
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
 
