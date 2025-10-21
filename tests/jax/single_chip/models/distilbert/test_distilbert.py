@@ -21,7 +21,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Tester -----
 
-
 class FlaxDistilBertForMaskedLMTester(JaxModelTester):
     """Tester for DistilBert model on a masked language modeling task"""
 
@@ -50,34 +49,13 @@ class FlaxDistilBertForMaskedLMTester(JaxModelTester):
             kwargs["dropout_rng"] = jax.random.key(1)
         return kwargs
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> FlaxDistilBertForMaskedLMTester:
-    return FlaxDistilBertForMaskedLMTester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> FlaxDistilBertForMaskedLMTester:
     return FlaxDistilBertForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_flax_distilbert_inference(inference_tester: FlaxDistilBertForMaskedLMTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

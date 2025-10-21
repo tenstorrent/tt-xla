@@ -23,37 +23,18 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
-
-@pytest.fixture
-def inference_tester() -> BloomTester:
-    return BloomTester(VARIANT_NAME)
-
-
 @pytest.fixture
 def training_tester() -> BloomTester:
     return BloomTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=-0.06243601813912392. Required: pcc=0.99 "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
-def test_bloom_1b1_inference(inference_tester: BloomTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

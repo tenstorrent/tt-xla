@@ -23,40 +23,20 @@ from ..tester import MT5Tester
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> MT5Tester:
-    return MT5Tester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> MT5Tester:
     return MT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed. Calculated: pcc=0.6492372155189514. Required: pcc=0.99. "
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
-def test_mt5_large_inference(inference_tester: MT5Tester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

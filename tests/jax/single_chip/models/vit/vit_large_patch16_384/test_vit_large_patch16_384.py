@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import pytest
 from infra import RunMode
 from utils import (
@@ -24,31 +23,14 @@ from ..tester import ViTTester
 VARIANT_NAME = ModelVariant.LARGE_PATCH16_384
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> ViTTester:
-    return ViTTester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> ViTTester:
     return ViTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 4718592 B L1 buffer across 6 banks, "
@@ -56,11 +38,6 @@ def training_tester() -> ViTTester:
         "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
-def test_vit_large_patch16_384_inference(
-    inference_tester: ViTTester,
-):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

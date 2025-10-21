@@ -17,32 +17,14 @@ from ..tester import Dinov2Tester
 VARIANT_NAME = ModelVariant.GIANT
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> Dinov2Tester:
-    return Dinov2Tester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> Dinov2Tester:
     return Dinov2Tester(VARIANT_NAME, RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Statically allocated circular buffers in program 1331 clash with "
@@ -51,9 +33,6 @@ def training_tester() -> Dinov2Tester:
         "(https://github.com/tenstorrent/tt-xla/issues/1066)"
     )
 )
-def test_dinov2_giant_inference(inference_tester: Dinov2Tester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

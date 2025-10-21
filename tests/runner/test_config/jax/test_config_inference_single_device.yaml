@@ -51,6 +51,7 @@ test_config:
 
   bert/masked_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   bert/masked_lm/jax-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -120,6 +121,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "Severe PCC comparison failed: pcc=-1.0 < 0.99 required"
     bringup_status: INCORRECT_RESULT
+    markers: [push]
 
   clip/image_classification/jax-base_patch32-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -162,6 +164,7 @@ test_config:
 
   gpt2/causal_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   gpt2/causal_lm/jax-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -179,6 +182,7 @@ test_config:
 
   gpt_neo/causal_lm/jax-_125m-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -243,21 +247,25 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "NotImplementedError: Model tester not implemented for MLP-Mixer in JAX"
     bringup_status: NOT_STARTED
+    markers: [push]
 
   mnist/image_classification/jax-mlp_custom-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "NotImplementedError: Custom MLP model tester not implemented"
     bringup_status: NOT_STARTED
+    markers: [push]
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable - https://github.com/tenstorrent/tt-xla/issues/1388"
     bringup_status: FAILED_FE_COMPILATION
+    markers: [push]
 
   mnist/image_classification/jax-cnn_dropout-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
     bringup_status: FAILED_TTMLIR_COMPILATION
+    markers: [push]
 
   mt5/nlp_summarization/jax-base-single_device-full-inference:
     assert_pcc: false
@@ -334,6 +342,7 @@ test_config:
 
   resnet/image_classification/jax-resnet-50-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   resnet/image_classification/jax-resnet-101-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -354,6 +363,7 @@ test_config:
 
   roformer/masked_lm/jax-chinese-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   roformer/masked_lm/jax-chinese-char-small-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -368,15 +378,18 @@ test_config:
 
   t5/summarization/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   t5/summarization/jax-large-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=-0.04681511968374252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
+    markers: [push]
 
   t5/summarization/jax-small-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-full-inference:
     assert_pcc: false

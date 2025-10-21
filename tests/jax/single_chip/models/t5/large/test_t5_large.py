@@ -22,38 +22,18 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
-
-@pytest.fixture
-def inference_tester() -> T5Tester:
-    return T5Tester(VARIANT_NAME)
-
-
 @pytest.fixture
 def training_tester() -> T5Tester:
     return T5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
 @pytest.mark.xfail(
     reason=incorrect_result(
         "PCC comparison failed on Blackhole. Calculated: pcc=0.6636892557144165. Required: pcc=0.99."
         "https://github.com/tenstorrent/tt-xla/issues/1038"
     )
 )
-def test_t5_large_inference(inference_tester: T5Tester):
-    inference_tester.test()
-
 
 @pytest.mark.push
 @pytest.mark.training

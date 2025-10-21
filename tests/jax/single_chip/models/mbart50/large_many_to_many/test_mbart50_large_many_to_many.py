@@ -33,38 +33,18 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
-
-@pytest.fixture
-def inference_tester() -> MBartTester:
-    return MBartTester(VARIANT_NAME)
-
-
 @pytest.fixture
 def training_tester() -> MBartTester:
     return MBartTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "Failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/10696"
     )
 )
-def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

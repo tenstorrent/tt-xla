@@ -18,7 +18,6 @@ from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
 VARIANT_NAME = ModelVariant.EFFICIENT_MLM_M0_40
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
     """Tester for Roberta PreLayerNorm model on a masked language modeling task."""
 
@@ -46,14 +45,7 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
             kwargs["dropout_rng"] = jax.random.key(1)
         return kwargs
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
@@ -61,23 +53,7 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
         VARIANT_NAME, run_mode=RunMode.TRAINING
     )
 
-
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_flax_roberta_prelayernorm_inference(
-    inference_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

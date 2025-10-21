@@ -19,11 +19,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> GPTNeoTester:
-    return GPTNeoTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> GPTNeoTester:
     return GPTNeoTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -33,18 +28,6 @@ def training_tester() -> GPTNeoTester:
 
 # This test specifically is somewhat flaky, it failed and then returned to passing
 # without any apparent reason for that.
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_gpt_neo_125m_inference(inference_tester: GPTNeoTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

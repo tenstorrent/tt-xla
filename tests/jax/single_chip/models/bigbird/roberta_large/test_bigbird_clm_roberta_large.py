@@ -17,40 +17,20 @@ from ..tester import BigBirdCLMTester
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> BigBirdCLMTester:
-    return BigBirdCLMTester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> BigBirdCLMTester:
     return BigBirdCLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "failed to legalize operation 'ttir.gather' "
         "https://github.com/tenstorrent/tt-xla/issues/318"
     )
 )
-def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

@@ -31,27 +31,8 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
-
-@pytest.fixture
-def inference_tester() -> Mistral7BTester:
-    return Mistral7BTester(VARIANT_NAME)
-
-
-def training_tester() -> Mistral7BTester:
-    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
-
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
 @pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer "
@@ -59,9 +40,6 @@ def training_tester() -> Mistral7BTester:
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-def test_mistral_7b_v0_1_tiny_inference(inference_tester: Mistral7BTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

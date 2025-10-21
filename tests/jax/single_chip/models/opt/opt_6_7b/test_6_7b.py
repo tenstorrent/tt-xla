@@ -16,29 +16,12 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
-
-@pytest.fixture
-def inference_tester() -> OPTTester:
-    return OPTTester(VARIANT_NAME)
-
-
 @pytest.fixture
 def training_tester() -> OPTTester:
     return OPTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
 @pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, "
@@ -46,9 +29,6 @@ def training_tester() -> OPTTester:
         "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
-def test_opt_6_7b_inference(inference_tester: OPTTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(

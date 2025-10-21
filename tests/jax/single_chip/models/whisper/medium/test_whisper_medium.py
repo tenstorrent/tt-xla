@@ -17,40 +17,20 @@ from ..tester import WhisperTester
 VARIANT_NAME = ModelVariant.MEDIUM
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> WhisperTester:
-    return WhisperTester(VARIANT_NAME)
-
 
 @pytest.fixture
 def training_tester() -> WhisperTester:
     return WhisperTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
-
 # ----- Tests -----
 
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
 @pytest.mark.xfail(
     reason=failed_fe_compilation(
         "NotImplementedError: Could not run 'torchcodec_ns::create_from_tensor'"
         "https://github.com/tenstorrent/tt-xla/issues/1635"
     )
 )
-def test_whisper_medium_inference(inference_tester: WhisperTester):
-    inference_tester.test()
-
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(
