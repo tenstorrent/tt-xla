@@ -168,17 +168,17 @@ class XLAExecutor:
                 gm_has_functional_output_kind = False
                 break
 
-        if gm_has_functional_output_kind:
-            # This tells torch-xla to cut the graph at only what is required to
-            # compute all tensors in the `output` list.
-            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
-        else:
-            # Some graphs have side effects not included in graph output.
-            # In these cases we must call sync() to force materialization of non-user-output
-            # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
-            # This causes buffer mutations to show up as graph outputs in MLIR.
-            torch_xla.sync()
-
+        # if gm_has_functional_output_kind:
+        #     # This tells torch-xla to cut the graph at only what is required to
+        #     # compute all tensors in the `output` list.
+        #     torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        # else:
+        #     # Some graphs have side effects not included in graph output.
+        #     # In these cases we must call sync() to force materialization of non-user-output
+        #     # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
+        #     # This causes buffer mutations to show up as graph outputs in MLIR.
+        #     torch_xla.sync()
+        #
         return output
 
 
