@@ -117,3 +117,31 @@ def test_embed_qwen3_perf():
     print("Latency per sequence length:")
     for seq_len, latency in perf_data.items():
         print(f"seq_len: {seq_len}, latency: {latency}")
+
+
+@pytest.mark.push
+def test_embed_qwen3_reduced_dims():
+    prompts = [
+        "Hello, my name is",
+    ]
+    llm_args = {
+        "model": "Qwen/Qwen3-Embedding-4B",
+        "task": "embed",
+        "dtype": "bfloat16",
+        "max_model_len": 64,
+        "disable_sliding_window": True,
+        "max_num_batched_tokens": 64,
+        "max_num_seqs": 1,
+        "hf_overrides": {"is_matryoshka": True},
+    }
+    model = vllm.LLM(**llm_args)
+
+    pooling_params = vllm.PoolingParams(dimensions=128)
+
+    output_embedding = model.embed(prompts, pooling_params=pooling_params)
+    print(f"Prompt: {prompts[0]}")
+    print(f"Embeddings: {output_embedding[0].outputs.embedding}")
+    print(f"len={len(output_embedding[0].outputs.embedding)}")
+    assert (
+        len(output_embedding[0].outputs.embedding) == 128
+    ), f"vLLM generated incorrect number of embedding dimensions; Expected dims=128 but got {len(output_embedding[0].outputs.embedding)}"
