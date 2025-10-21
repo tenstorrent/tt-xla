@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def map_shared_runner(entry):
+def map_runner_name(entry):
     """
     Map runs-on value to shared runner equivalent if shared-runners is enabled.
 
@@ -71,6 +71,26 @@ def read_preset_test_entries(file_path):
     return [entry for entry in matrix if "_metadata" not in entry]
 
 
+def map_shared_runners_field(entry):
+    """
+    Maps shared_runner field from string represenation to boolean representation
+    """
+    shared_runners = entry.get("shared-runners")
+
+    if shared_runners is None:
+        return
+
+    if isinstance(shared_runners, str) and shared_runners == "true":
+        entry["shared-runners"] = True
+    if isinstance(shared_runners, str) and shared_runners == "false":
+        entry["shared-runners"] = False
+
+    if not isinstance(shared_runners, bool):
+        raise TypeError(
+            "Expected the shared-runners field to be a boolean or a string representation of a boolean"
+        )
+
+
 def process_test_matrix(matrix_file_path):
     """
     Process test matrix by expanding parallel groups and mapping shared runners.
@@ -87,7 +107,9 @@ def process_test_matrix(matrix_file_path):
     expanded_matrix = []
 
     for entry in matrix:
-        map_shared_runner(entry)
+        map_shared_runners_field(entry)
+
+        map_runner_name(entry)
 
         expand_parallel_entry(entry, expanded_matrix)
 
