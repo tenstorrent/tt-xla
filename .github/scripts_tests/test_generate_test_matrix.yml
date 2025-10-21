@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/scripts/generate_test_matrix.py'
     types: [opened, synchronize, reopened]
+  workflow_disptach:
 
 jobs:
   test-matrix-generator:
