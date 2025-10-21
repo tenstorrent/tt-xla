@@ -1898,9 +1898,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+        status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-nano-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP

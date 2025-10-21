@@ -69,8 +69,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Sentencizer:
     bringup_status: NOT_STARTED
-  pointpillars:
-    bringup_status: NOT_STARTED
   MiniMaxAI/MiniMax-Text-01:
     bringup_status: NOT_STARTED
   MiniMaxAI/MiniMax-VL-01:
