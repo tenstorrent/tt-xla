@@ -820,6 +820,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
+  options.rowMajorEnabled = true;
   options.optimizerPassEnabled = true;
   options.memoryLayoutAnalysisEnabled =
       compile_options.enable_memory_layout_analysis;
