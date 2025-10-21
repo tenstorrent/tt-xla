@@ -10,6 +10,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import torch
@@ -17,7 +18,6 @@ import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
-from typing import Any
 
 from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
@@ -337,6 +337,7 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _unwrap_model_output(self, output: Any) -> torch.Tensor:
         return self.loader.unpack_forward_output(output)
+
 
 def setup_models_path(project_root):
     """Setup models root path and add to sys.path for imports."""
