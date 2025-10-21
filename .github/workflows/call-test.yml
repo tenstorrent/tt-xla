@@ -54,6 +54,19 @@ jobs:
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
 
+  log-out:
+    needs: generate-matrix-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log out
+        shell: bash
+        run: |
+          echo "original matrix"
+          echo ${{ needs.generate-matrix-test.outputs.test_matrix }}
+          echo "modified matrix"
+          echo ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
+
+
   # Run tests on TT hardware
   run-tests:
     needs: generate-matrix-test
