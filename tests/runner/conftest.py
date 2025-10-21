@@ -87,6 +87,10 @@ def pytest_collection_modifyitems(config, items):
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
 
+        # Mark tests that specify a required PCC threshold in test_config
+        if getattr(meta, "required_pcc", None) is not None:
+            item.add_marker(pytest.mark.required_pcc)
+
         # Define default set of supported archs, which can be optionally overridden in test_config files
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
         default_archs = ["n150", "p150"]
