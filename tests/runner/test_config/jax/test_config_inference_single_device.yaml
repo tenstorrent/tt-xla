@@ -112,8 +112,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   bloom/causal_lm/jax-7b-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2055208960 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/918"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   clip/image_classification/jax-base_patch16-single_device-full-inference:
@@ -176,8 +176,8 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_j/causal_lm/jax-6b-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/918"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   gpt_neo/causal_lm/jax-_125m-single_device-full-inference:
@@ -194,8 +194,8 @@ test_config:
     status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3b-v2-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate DRAM buffer for Llama 3B model"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   longt5/text_classification/jax-base-tglobal-single_device-full-inference:
@@ -209,8 +209,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   longt5/text_classification/jax-xl-tglobal-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 - https://github.com/tenstorrent/tt-xla/issues/580"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   marian_mt/text_classification/jax-opus-mt-en-de-single_device-full-inference:
@@ -224,8 +224,8 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   mistral/causal_lm/jax-v0_1-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate buffers for Mistral 7B model"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_1_tiny-single_device-full-inference:
@@ -234,13 +234,13 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_2_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate buffers for Mistral 7B model"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_3_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate buffers for Mistral 7B model"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   mlp_mixer/image_classification/jax-base_16-single_device-full-inference:
@@ -297,8 +297,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/causal_lm/jax-6.7B-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 134217728 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/918"
+    status: NOT_SUPPORTED_SKIP
+    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
   pegasus/summarization/jax-large-single_device-full-inference:
