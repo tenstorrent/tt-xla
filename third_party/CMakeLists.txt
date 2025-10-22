@@ -62,7 +62,10 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
     set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
-    set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
+    set(WITH_METAL_HOME_SET "")
+    if(NOT DEFINED ENV{TT_METAL_HOME})
+        set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
+    endif()
     set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
 
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
@@ -79,9 +82,9 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
 
         BUILD_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
-        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
+        COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
 
-        INSTALL_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
+        INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
