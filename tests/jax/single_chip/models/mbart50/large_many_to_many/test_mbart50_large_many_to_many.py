@@ -78,7 +78,7 @@ def test_mbart50_large_many_to_many_inference(inference_tester: MBartTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
