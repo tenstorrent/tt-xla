@@ -5,6 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
+    # set(TT_MLIR_VERSION "sshon/refine-shardy-default-get-as-closed")
     set(TT_MLIR_VERSION "ebe1f8dd008f5417b5a726bf712804c0367b6977")
 endif()
 
