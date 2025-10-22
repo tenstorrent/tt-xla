@@ -22,6 +22,9 @@ from tests.infra.comparators.comparison_config import (
     ComparisonConfig,
     PccConfig,
 )
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
+    ModelLoader as BertModelLoader,
+)
 from third_party.tt_forge_models.bge_m3.pytorch.loader import (
     ModelLoader as BgeModelLoader,
 )
@@ -39,6 +42,7 @@ MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
     "qwen3": QwenModelLoader,
     "bge_m3": BgeModelLoader,
+    "bert": BertModelLoader,
 }
 
 
@@ -636,5 +640,48 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
     run_graph_test(
         create_heads,
         [hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bert").items(),
+    ids=[str(k) for k in get_available_variants("bert").keys()],
+)
+def test_bert_create_heads(variant, variant_config, seq_len):
+
+    def create_heads(hidden_states, hidden_shape, query_proj, key_proj, value_proj):
+        query_states = query_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = key_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = value_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        return query_states, key_states, value_states
+
+    loader = BertModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+
+    attention = model.bert.encoder.layer[0].attention.self
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    head_dim = attention.attention_head_size
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
+    )
+
+    input_shape = hidden_states.shape[:-1]
+    hidden_shape = (*input_shape, -1, head_dim)
+
+    query_proj = attention.query
+    key_proj = attention.key
+    value_proj = attention.value
+
+    run_graph_test(
+        create_heads,
+        [hidden_states, hidden_shape, query_proj, key_proj, value_proj],
         framework=Framework.TORCH,
     )
