@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -75,6 +76,23 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Helper function to move an existing file to a new path with a timestamp
+// suffix, to avoid overwriting.
+static void preserveOlderFile(const std::filesystem::path &path) {
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count();
+
+  auto new_path = path.parent_path() /
+                  (path.filename().string() + "_old_" + std::to_string(ms));
+
+  std::filesystem::rename(path, new_path);
+}
 
 // TTAlchemistHandler implementation
 
@@ -977,6 +995,7 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
 
   std::string filename = stage_name + ".mlir";
   std::filesystem::path ir_file_path = ir_dump_dir / filename;
+  preserveOlderFile(ir_file_path);
 
   std::error_code err_code;
   llvm::raw_fd_ostream out_stream(ir_file_path.string(), err_code);
@@ -1064,6 +1083,13 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
+
+  if (compile_options.export_path.has_value()) {
+    std::filesystem::path output_path =
+        std::filesystem::path(compile_options.export_path.value()) / "fb.ttnn";
+    preserveOlderFile(output_path);
+    flatbuffer.store(output_path.string().c_str());
+  }
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
