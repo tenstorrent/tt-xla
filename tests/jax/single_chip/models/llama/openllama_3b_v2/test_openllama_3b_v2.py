@@ -58,7 +58,7 @@ def test_openllama3b_inference(inference_tester: LLamaTester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
         "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     )

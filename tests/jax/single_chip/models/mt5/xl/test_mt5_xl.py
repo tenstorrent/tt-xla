@@ -69,7 +69,7 @@ def test_mt5_xl_inference(inference_tester: MT5Tester):
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
-@pytest.mark.skip(
+@pytest.mark.xfail(
     reason=failed_runtime(
         "Out of Memory: Not enough space to allocate 160822400 B DRAM buffer "
         "across 12 banks, where each bank needs to store 13404800 B "
