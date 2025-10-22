@@ -1150,7 +1150,8 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     result = m_tt_alchemist_handler.generateCppFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local, "");
+        instance, input_file.c_str(), folder.c_str(), is_local,
+        pipeline_options.c_str());
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     // For Python specifically,
     // standalone is currently marked as unsupported, and setting it only
@@ -1158,7 +1159,8 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
     // with mlir-core, we should set local to true for Python.
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local, "");
+        instance, input_file.c_str(), folder.c_str(), is_local,
+        pipeline_options.c_str());
   } else {
     assert(false && "Unsupported backend when doing codegen");
   }
