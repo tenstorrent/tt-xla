@@ -6,279 +6,278 @@ test_config:
   mnist/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'stablehlo.rng_bit_generator' https://github.com/tenstorrent/tt-mlir/issues/4793"
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    markers: [push]
+    bringup_status: FAILED_TTMLIR_COMPILATION    markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
     status: EXPECTED_PASSING
     markers: [push]
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   detr/object_detection/pytorch-resnet_50-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   alexnet/pytorch-alexnet-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   resnet/pytorch-resnet18-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   unet/pytorch-unet_cityscapes-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   bloom/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   monodepth2/pytorch-mono_640x192-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   segformer/pytorch-mit_b0-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   densenet/pytorch-densenet121-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   qwen_2_5_coder/pytorch-0_5b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   dla/pytorch-dla34-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   clip/pytorch-openai/clip-vit-base-patch32-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   stereo/pytorch-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   d_fine/pytorch-nano-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   regnet/pytorch-regnet_y_040-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   vgg19_unet/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   vovnet/pytorch-vovnet27s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   musicgen_small/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   glpn_kitti/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   inception/pytorch-inception_v4-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   stable_diffusion_unet/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   xglm/pytorch-xglm-564M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   t5/pytorch-t5-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   perceiver/pytorch-deepmind/language-perceiver-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   vit/pytorch-vit_b_16-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   vgg/pytorch-vgg11-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   openpose/v2/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   googlenet/pytorch-googlenet-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   xception/pytorch-xception41-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   bart/pytorch-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   gpt2/pytorch-gpt2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   beit/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   bert/masked_lm/pytorch-bert-base-uncased-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   hrnet/pytorch-hrnet_w18_small_v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   fuyu/pytorch-adept/fuyu-8b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP,
-    bringup_status: FAILED_TTMLIR_COMPILATION,
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-mlir/issues/5104"
