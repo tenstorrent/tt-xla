@@ -59,8 +59,8 @@ else()
 
     # ----- tt-mlir -----
 
-    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
-    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
+    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
+    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
     set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
     set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
@@ -106,11 +106,6 @@ else()
         ExternalProject_Add_Step(tt-mlir build_explorer
             COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
             DEPENDEES build
-            WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
-        )
-        ExternalProject_Add_Step(tt-mlir install_explorer
-            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install ${TTMLIR_LIB_DIR} --component explorer
-            DEPENDEES install
             WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
         )
     endif()
