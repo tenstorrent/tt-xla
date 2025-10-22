@@ -45,7 +45,7 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: true
+      build_type: codecov
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
