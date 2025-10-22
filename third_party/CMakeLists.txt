@@ -62,18 +62,28 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
     set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
+    set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     set(TT_RUNTIME_DEBUG ON CACHE BOOL "Enable ttmlir runtime debugging")
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
+
         # Installing the python dependencies before the build
-        PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR} && TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
+        PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR} 
+        COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
+
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        BUILD_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build <BINARY_DIR> && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
-        INSTALL_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component explorer
+
+        BUILD_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
+        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
+        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
+
+        INSTALL_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
+        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component explorer
+
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
