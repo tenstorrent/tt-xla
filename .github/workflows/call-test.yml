@@ -103,6 +103,7 @@ jobs:
           .test_durations
           pytest.ini
           python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
           tests
           venv
 
