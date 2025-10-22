@@ -72,7 +72,7 @@ else()
         PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR} && TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> && ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
+        BUILD_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build <BINARY_DIR> && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --build ${TTMLIR_BUILD_DIR} -- explorer
         INSTALL_COMMAND TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib && TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component explorer
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
