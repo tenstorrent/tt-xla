@@ -5,9 +5,11 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities.torch_multichip_utils import get_mesh
+
 from third_party.tt_forge_models.config import Parallelism
 
 from .dynamic_loader import TorchDynamicLoader
@@ -70,9 +72,14 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
             if isinstance(inputs, collections.abc.Mapping):
-                inputs = {k: self.dynamic_loader.batch_tensor(v, num_devices) for k, v in inputs.items()}
+                inputs = {
+                    k: self.dynamic_loader.batch_tensor(v, num_devices)
+                    for k, v in inputs.items()
+                }
             elif isinstance(inputs, collections.abc.Sequence):
-                inputs = [self.dynamic_loader.batch_tensor(inp, num_devices) for inp in inputs]
+                inputs = [
+                    self.dynamic_loader.batch_tensor(inp, num_devices) for inp in inputs
+                ]
             else:
                 inputs = self.dynamic_loader.batch_tensor(inputs, num_devices)
 

@@ -20,11 +20,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> LongT5Tester:
     return LongT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=failed_runtime(
@@ -32,7 +35,6 @@ def training_tester() -> LongT5Tester:
         "https://github.com/tenstorrent/tt-xla/issues/580"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

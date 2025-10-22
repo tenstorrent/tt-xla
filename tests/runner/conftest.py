@@ -6,8 +6,8 @@ import difflib
 
 import pytest
 
-from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_config.jax import test_config as jax_test_config
+from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
@@ -130,8 +130,14 @@ def pytest_sessionfinish(session, exitstatus):
 
     # Determine which configs to validate based on collected tests
     # Check if we collected torch tests, jax tests, or both
-    has_torch_tests = any("pytorch" in nodeid or "test_all_models_torch" in nodeid for nodeid in _collected_nodeids)
-    has_jax_tests = any("jax" in nodeid and "test_all_models_jax" in nodeid for nodeid in _collected_nodeids)
+    has_torch_tests = any(
+        "pytorch" in nodeid or "test_all_models_torch" in nodeid
+        for nodeid in _collected_nodeids
+    )
+    has_jax_tests = any(
+        "jax" in nodeid and "test_all_models_jax" in nodeid
+        for nodeid in _collected_nodeids
+    )
 
     # Only validate configs for the framework(s) that were actually collected
     if has_torch_tests and has_jax_tests:

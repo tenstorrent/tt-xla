@@ -31,11 +31,14 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> Mistral7BTester:
     return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.skip(
     reason=failed_runtime(
@@ -44,7 +47,6 @@ def training_tester() -> Mistral7BTester:
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

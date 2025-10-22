@@ -26,11 +26,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> FlaxCLIPTester:
     return FlaxCLIPTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=incorrect_result(
@@ -38,7 +41,6 @@ def training_tester() -> FlaxCLIPTester:
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
-
 @pytest.mark.push
 @pytest.mark.training
 @pytest.mark.record_test_properties(

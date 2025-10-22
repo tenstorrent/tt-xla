@@ -22,6 +22,7 @@ from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
+
 class ModelTestStatus(Enum):
     # Passing tests
     EXPECTED_PASSING = "expected_passing"

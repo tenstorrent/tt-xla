@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import os
 import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
-import inspect
+
 import jax
 import jax.numpy as jnp
 from flax import linen, nnx
@@ -150,9 +151,11 @@ class JaxModelTester(ModelTester):
             # Only add 'deterministic' if the model accepts it
             try:
                 sig = inspect.signature(self._model.__call__)
-                if 'deterministic' in sig.parameters:
+                if "deterministic" in sig.parameters:
                     # deterministic=True means inference (no dropout), deterministic=False means training
-                    kwargs["deterministic"] = True if self._run_mode == RunMode.INFERENCE else False
+                    kwargs["deterministic"] = (
+                        True if self._run_mode == RunMode.INFERENCE else False
+                    )
             except:
                 pass
         else:
@@ -182,7 +185,7 @@ class JaxModelTester(ModelTester):
             # Check if model accepts 'deterministic' parameter
             try:
                 sig = inspect.signature(self._model.__call__)
-                if 'deterministic' in sig.parameters:
+                if "deterministic" in sig.parameters:
                     # If it accepts deterministic, it needs to be static for control flow
                     return ["deterministic"]
             except:

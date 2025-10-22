@@ -19,11 +19,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> RegNetTester:
     return RegNetTester(VARIANT_NAME, RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=failed_runtime(
@@ -32,7 +35,6 @@ def training_tester() -> RegNetTester:
         "(https://github.com/tenstorrent/tt-xla/issues/187)"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

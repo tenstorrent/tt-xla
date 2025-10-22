@@ -155,13 +155,16 @@ def load_framework_test_configs(framework: Framework) -> Dict[str, Any]:
             data = yaml.load(fh) or {}
         tests = data.get("test_config", {}) or {}
         for test_id, cfg in tests.items():
-            _validate_allowed_keys(cfg, ctx=f"test '{test_id}' in {framework.value}/{yaml_file.name}")
+            _validate_allowed_keys(
+                cfg, ctx=f"test '{test_id}' in {framework.value}/{yaml_file.name}"
+            )
             merged_test_config[test_id] = _normalize_enums_in_cfg(cfg)
 
     return {
         "PLACEHOLDER_MODELS": merged_placeholders,
         "test_config": merged_test_config,
     }
+
 
 # Load placeholders from dedicated YAML and merge test entries from other YAMLs while validating contents.
 def load_all_test_configs() -> Dict[str, Any]:
@@ -180,7 +183,9 @@ def load_all_test_configs() -> Dict[str, Any]:
     jax_configs = load_framework_test_configs(Framework.JAX)
 
     # Merge everything together
-    merged_placeholders = torch_configs["PLACEHOLDER_MODELS"] | jax_configs["PLACEHOLDER_MODELS"]
+    merged_placeholders = (
+        torch_configs["PLACEHOLDER_MODELS"] | jax_configs["PLACEHOLDER_MODELS"]
+    )
     merged_test_config = torch_configs["test_config"] | jax_configs["test_config"]
 
     return {

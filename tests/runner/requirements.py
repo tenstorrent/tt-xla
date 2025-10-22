@@ -83,9 +83,15 @@ class RequirementsManager:
             os.path.dirname(self.requirements_path), "uninstall_first.txt"
         )
         if os.path.isfile(uninstall_path):
-            _dbg(f"[Requirements] __enter__: uninstalling packages from {uninstall_path}")
+            _dbg(
+                f"[Requirements] __enter__: uninstalling packages from {uninstall_path}"
+            )
             with open(uninstall_path, "r") as f:
-                packages_to_uninstall = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                packages_to_uninstall = [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.startswith("#")
+                ]
             if packages_to_uninstall:
                 self._pip_uninstall(packages_to_uninstall)
 
@@ -253,7 +259,9 @@ class RequirementsManager:
             if not self._is_system_package_installed(pkg):
                 packages_to_install.append(pkg)
             else:
-                _dbg(f"[Requirements] System package '{pkg}' already installed, skipping")
+                _dbg(
+                    f"[Requirements] System package '{pkg}' already installed, skipping"
+                )
 
         if not packages_to_install:
             return

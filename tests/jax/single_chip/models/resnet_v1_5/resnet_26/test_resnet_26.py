@@ -27,9 +27,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> ResNetTester:
     return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+
 
 @pytest.fixture
 def inference_tester_optimizer() -> ResNetTester:
@@ -39,7 +41,9 @@ def inference_tester_optimizer() -> ResNetTester:
         compiler_config=CompilerConfig(enable_optimizer=True),
     )
 
+
 # ----- Tests -----
+
 
 @pytest.mark.training
 @pytest.mark.record_test_properties(
@@ -59,6 +63,7 @@ def inference_tester_optimizer() -> ResNetTester:
 )
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):
     training_tester.test()
+
 
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(

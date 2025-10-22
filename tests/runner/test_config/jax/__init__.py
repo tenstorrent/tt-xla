@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from tests.infra.utilities.types import Framework
+
 from ..config_loader import load_framework_test_configs
 
 # Load JAX test configs using the centralized loader

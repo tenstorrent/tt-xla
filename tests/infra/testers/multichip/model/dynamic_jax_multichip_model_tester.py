@@ -59,7 +59,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
             # Determine number of devices
             if num_devices is None:
-                device_connector = DeviceConnectorFactory.create_connector(Framework.JAX)
+                device_connector = DeviceConnectorFactory.create_connector(
+                    Framework.JAX
+                )
                 num_devices = device_connector.get_number_of_tt_devices()
 
             self.num_devices = num_devices
@@ -256,7 +258,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 train_mode=self._run_mode == RunMode.TRAINING,
             )
         else:
-            raise NotImplementedError("Must provide model_loader or override _get_model")
+            raise NotImplementedError(
+                "Must provide model_loader or override _get_model"
+            )
 
     def _get_forward_method_name(self) -> str:
         """Get the forward method name."""
@@ -270,14 +274,20 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         if self._model_loader is not None:
             return self._model_loader.load_inputs(mesh=self._cpu_mesh)
         else:
-            raise NotImplementedError("Must provide model_loader or override _get_input_activations")
+            raise NotImplementedError(
+                "Must provide model_loader or override _get_input_activations"
+            )
 
     def _get_input_activations_partition_spec(self) -> PartitionSpec:
         """Returns partition specs for the input activations."""
         if self._model_loader is not None:
-            return self._model_loader.get_input_activations_partition_spec(self.main_axis_name)
+            return self._model_loader.get_input_activations_partition_spec(
+                self.main_axis_name
+            )
         else:
-            raise NotImplementedError("Must provide model_loader or override _get_input_activations_partition_spec")
+            raise NotImplementedError(
+                "Must provide model_loader or override _get_input_activations_partition_spec"
+            )
 
     def _get_input_parameters_partition_spec(self) -> PyTree:
         """Returns partition specs for the parameters."""
@@ -286,17 +296,19 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 model_for_multichip=self._model,
                 cpu_mesh=self._cpu_mesh,
                 input_activations_partition_specs=self._input_activations_partition_specs,
-                inputs=self._input_activations,  
+                inputs=self._input_activations,
             )
         else:
-            raise NotImplementedError("Must provide model_loader or override _get_input_parameters_partition_spec")
+            raise NotImplementedError(
+                "Must provide model_loader or override _get_input_parameters_partition_spec"
+            )
 
     def _get_input_parameters(self) -> PyTree:
         """Returns the input parameters."""
         if self._model_loader is not None:
             return self._model_loader.load_parameters(
                 train=self._run_mode == RunMode.TRAINING,
-                inputs=self._input_activations, 
+                inputs=self._input_activations,
                 model_for_multichip=self._model,
                 cpu_mesh=self._cpu_mesh,
                 input_activations_partition_specs=self._input_activations_partition_specs,

@@ -19,11 +19,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> PegasusTester:
     return PegasusTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
@@ -31,7 +34,6 @@ def training_tester() -> PegasusTester:
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

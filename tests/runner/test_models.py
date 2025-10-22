@@ -85,15 +85,28 @@ def test_all_models_torch(
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     import sys
-    venv_site = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'venv', 'lib', 'python3.11', 'site-packages')
+
+    venv_site = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "..",
+        "venv",
+        "lib",
+        "python3.11",
+        "site-packages",
+    )
     if os.path.exists(venv_site) and venv_site not in sys.path:
         sys.path.insert(0, os.path.abspath(venv_site))
 
     # Remove system packages from path to ensure proper isolation
-    sys.path = [p for p in sys.path if '/usr/local/lib/python3.11/dist-packages' not in p or p == '/usr/local/lib/python3.11/dist-packages']
+    sys.path = [
+        p
+        for p in sys.path
+        if "/usr/local/lib/python3.11/dist-packages" not in p
+        or p == "/usr/local/lib/python3.11/dist-packages"
+    ]
     # Re-add at the end as fallback
-    if '/usr/local/lib/python3.11/dist-packages' not in sys.path:
-        sys.path.append('/usr/local/lib/python3.11/dist-packages')
+    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
+        sys.path.append("/usr/local/lib/python3.11/dist-packages")
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
@@ -213,15 +226,28 @@ def test_all_models_jax(
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     import sys
-    venv_site = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'venv', 'lib', 'python3.11', 'site-packages')
+
+    venv_site = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "..",
+        "venv",
+        "lib",
+        "python3.11",
+        "site-packages",
+    )
     if os.path.exists(venv_site) and venv_site not in sys.path:
         sys.path.insert(0, os.path.abspath(venv_site))
 
     # Remove system packages from path to ensure proper isolation
-    sys.path = [p for p in sys.path if '/usr/local/lib/python3.11/dist-packages' not in p or p == '/usr/local/lib/python3.11/dist-packages']
+    sys.path = [
+        p
+        for p in sys.path
+        if "/usr/local/lib/python3.11/dist-packages" not in p
+        or p == "/usr/local/lib/python3.11/dist-packages"
+    ]
     # Re-add at the end as fallback
-    if '/usr/local/lib/python3.11/dist-packages' not in sys.path:
-        sys.path.append('/usr/local/lib/python3.11/dist-packages')
+    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
+        sys.path.append("/usr/local/lib/python3.11/dist-packages")
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info

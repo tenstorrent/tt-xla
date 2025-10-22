@@ -26,11 +26,14 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester(request) -> MNISTMLPTester:
     return MNISTMLPTester(request.param, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.push
 @pytest.mark.training

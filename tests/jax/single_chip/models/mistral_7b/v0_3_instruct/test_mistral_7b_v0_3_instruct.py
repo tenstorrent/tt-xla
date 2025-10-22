@@ -33,6 +33,7 @@ MODEL_NAME = build_model_name(
 
 # ----- Tests -----
 
+
 @pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, "
@@ -40,7 +41,6 @@ MODEL_NAME = build_model_name(
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

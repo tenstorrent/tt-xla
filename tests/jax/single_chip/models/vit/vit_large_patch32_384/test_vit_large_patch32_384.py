@@ -19,11 +19,14 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> ViTTester:
     return ViTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=failed_runtime(
@@ -32,7 +35,6 @@ def training_tester() -> ViTTester:
         "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

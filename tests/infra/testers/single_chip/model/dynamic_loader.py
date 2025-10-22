@@ -5,13 +5,13 @@
 """Dynamic loader helper class for model testers."""
 
 import importlib.util
+import inspect
 import os
 import sys
-import inspect
-import torch
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+import torch
 from loguru import logger
 
 
@@ -381,7 +381,7 @@ class TorchDynamicLoader(DynamicLoader):
             cls.get_model_variants(path, loader_paths, models_root)
 
         return loader_paths
-    
+
     def batch_tensor(self, tensor, num_devices):
         if isinstance(tensor, torch.Tensor):
             if tensor.dim() == 0:
@@ -391,7 +391,7 @@ class TorchDynamicLoader(DynamicLoader):
                     tensor = tensor.unsqueeze(0)
                 return tensor.repeat_interleave(num_devices, dim=0)
         return tensor
-    
+
     def load_shard_spec_data_parallel(self, args, kwargs):
         shard_specs = {}
         for arg in args:

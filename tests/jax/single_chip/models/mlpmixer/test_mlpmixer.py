@@ -35,6 +35,7 @@ MODEL_NAME = build_model_name(
     ModelSource.CUSTOM,
 )
 
+
 class MlpMixerTester(JaxModelTester):
     """Tester for MlpMixer model."""
 
@@ -70,13 +71,17 @@ class MlpMixerTester(JaxModelTester):
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
         return []
 
+
 # ----- Fixtures -----
+
 
 @pytest.fixture
 def training_tester() -> MlpMixerTester:
     return MlpMixerTester(run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=incorrect_result(
@@ -84,7 +89,6 @@ def training_tester() -> MlpMixerTester:
         "https://github.com/tenstorrent/tt-xla/issues/379"
     )
 )
-
 @pytest.mark.push
 @pytest.mark.training
 @pytest.mark.record_test_properties(

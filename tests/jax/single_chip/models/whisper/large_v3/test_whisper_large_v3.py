@@ -19,11 +19,14 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
+
 @pytest.fixture
 def training_tester() -> WhisperTester:
     return WhisperTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
+
 # ----- Tests -----
+
 
 @pytest.mark.xfail(
     reason=failed_fe_compilation(
@@ -32,7 +35,6 @@ def training_tester() -> WhisperTester:
     )
 )
 @pytest.mark.large
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
