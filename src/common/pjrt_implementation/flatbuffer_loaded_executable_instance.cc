@@ -504,7 +504,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 // implemented here for now.
 void FlatbufferLoadedExecutableInstance::dumpInputs(
     const std::vector<tt::runtime::Tensor> &input_tensors) {
-  DLOG_F(DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::dumpInputs");
 
   assert(m_executable_image->getCompileOptions().export_path.has_value() &&
          "Export path must be set when dumping inputs");
