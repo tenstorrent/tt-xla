@@ -92,40 +92,6 @@ def build_full_args_for_gm(ep: ExportedProgram, *user_args):
         total_args += (state[spec.target],)
 
     return total_args
-    # Params
-    for spec in sig.parameters:
-        print(f"parameter: {spec}")
-        lookup[spec] = state[spec]
-    # Buffers
-    for spec in getattr(sig, "buffers", []):
-        print(f"buffer: {spec}")
-        lookup[spec] = state[spec]
-    # Constant tensors (if any)
-    for spec in getattr(sig, "constants", []):
-        print(f"const: {spec}")
-        lookup[spec] = constants[spec]
-
-    print(f"code:\n{gm.code}")
-    print(f"gm.buffers(): {[name for (name, _) in gm.named_buffers()]}")
-
-    for name, buffer in ep.named_buffers():
-        print(f"buffer: {name}")
-        lookup[name] = buffer
-    # Now assemble args in the exact placeholder order
-    full_args = []
-    user_it = iter(user_args)
-    for n in gm.graph.nodes:
-        if n.op != "placeholder":
-            continue
-        name = n.target
-        if name in lookup and lookup[name] is not None:
-            full_args.append(lookup[name])  # lifted thing
-        else:
-            print(f"Using user arg for placeholder '{name}'")
-            full_args.append(next(user_it))  # user input
-
-    return tuple(full_args)
->>>>>>> 30984e2a (hack: remove rt overhead)
 
 
 class XLAExecutor:
