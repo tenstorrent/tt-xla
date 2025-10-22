@@ -36,13 +36,18 @@ set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
 set(CMAKE_C_COMPILER clang-17)
-set(DCMAKE_CXX_COMPILER clang++-17)
+set(CMAKE_CXX_COMPILER clang++-17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
+
+if(TTXLA_ENABLE_EXPLORER)
+    set(TTMLIR_ENABLE_PERF_TRACE ON)
+endif()
 
 # ----- coverage_config -----
 
