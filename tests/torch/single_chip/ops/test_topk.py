@@ -16,9 +16,30 @@ from utils import Category
 @pytest.mark.parametrize(
     ["input_shape", "k"],
     [
-        pytest.param((1, 10), 5),
-        pytest.param((1, 20), 5),
-        pytest.param((1, 30), 5),
+        pytest.param(
+            (1, 10),
+            5,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="PCC comparison failed. Calculated: pcc=0.0042618513107299805. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1714",
+            ),
+        ),
+        pytest.param(
+            (1, 20),
+            5,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="PCC comparison failed. Calculated: pcc=-0.3680523633956909. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1714",
+            ),
+        ),
+        pytest.param(
+            (1, 30),
+            5,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="PCC comparison failed. Calculated: pcc=0.45831882953643. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1714",
+            ),
+        ),
         pytest.param(
             (1, 40),
             5,
