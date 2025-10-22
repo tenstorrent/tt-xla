@@ -62,7 +62,9 @@ class OpTester(BaseTester):
             )
 
         def compile_torch_workload(workload: Workload) -> None:
-            assert (workload.executable is None) != (workload.model is None)
+            assert (workload.executable is None) ^ (
+                workload.model is None
+            ), "Either executable or model must be set, but not both"
 
             to_compile = (
                 workload.model if workload.model is not None else workload.executable
