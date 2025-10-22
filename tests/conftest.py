@@ -190,6 +190,13 @@ def pytest_addoption(parser):
         help="Enable memory usage tracking for tests",
     )
 
+    parser.addoption(
+        "--log-pid",
+        action="store_true",
+        default=False,
+        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE and TT_LOGGER_FILE environment variables, to facilitiate multiprocess debug logging.",
+    )
+
 
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
 # TODO: Consider using a more explicit way to differentiate CIv2-specific environment
@@ -233,6 +240,62 @@ def newline_logger():
             format=default_format,
             level="INFO",
         )
+
+
+@pytest.fixture(autouse=True)
+def setup_pid_logging(request):
+    """
+    A pytest fixture that monkeypatch TT_XLA_LOGGER_FILE and TT_LOGGER_FILE environment
+    variables to include the process PID before the file extension when --log-pid
+    is passed to pytest.
+
+    TT_LOGGER_FILE controls tt-metal's tt-logger log output filepath, see
+    https://github.com/tenstorrent/tt-logger?tab=readme-ov-file#environment-variables
+    for more information about tt-logger.
+    """
+    if not request.config.getoption("--log-pid"):
+        yield
+        return
+
+    # Store original values for restoration
+    original_tt_xla_logger_file = os.environ.get("TT_XLA_LOGGER_FILE")
+    original_tt_logger_file = os.environ.get("TT_LOGGER_FILE")
+
+    def add_pid_to_filename(filepath):
+        """Add PID before file extension"""
+        if not filepath:
+            return filepath
+
+        path = Path(filepath)
+        pid = os.getpid()
+
+        if path.suffix:
+            # File has extension, insert PID before it
+            new_name = f"{path.stem}.{pid}{path.suffix}"
+        else:
+            # No extension, just append PID
+            new_name = f"{path.name}.{pid}"
+
+        return str(path.parent / new_name)
+
+    # Modify environment variables if they exist
+    if original_tt_xla_logger_file:
+        os.environ["TT_XLA_LOGGER_FILE"] = add_pid_to_filename(
+            original_tt_xla_logger_file
+        )
+
+    if original_tt_logger_file:
+        os.environ["TT_LOGGER_FILE"] = add_pid_to_filename(original_tt_logger_file)
+
+    try:
+        yield
+    finally:
+        # Restore original values
+        if original_tt_xla_logger_file:
+            os.environ["TT_XLA_LOGGER_FILE"] = original_tt_xla_logger_file
+
+        if original_tt_logger_file:
+            os.environ["TT_LOGGER_FILE"] = original_tt_logger_file
 
 
 @pytest.fixture(autouse=True)
