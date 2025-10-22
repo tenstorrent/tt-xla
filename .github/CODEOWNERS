@@ -1,8 +1,7 @@
 # Owners in each line are sorted alphabetically, with area owners at the start.
 
-# Global, these owners will be the default owners for everything in the repo
-# unless a later match takes precedence:
-* @AleksKnezevic @mrakitaTT @nvukobratTT
+# Global, these owners will be the default owners for everything in the repo unless a later match takes precedence:
+* @mrakitaTT @nvukobratTT @AleksKnezevic
 
 # Source
 /inc/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
@@ -17,14 +16,17 @@
 pytest.ini @mrakitaTT @ajakovljevicTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 .test_durations @mrakitaTT @ajakovljevicTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 
+# Model tests configs
+/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @LPanosTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
+
 # Python package
 /python_package/ @mrakitaTT @pilkicTT @ajakovljevicTT @sgligorijevicTT
-/python_package/tt_jax @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-/python_package/tt_torch @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @mstojkovicTT @ppadjinTT @vkovinicTT
+/python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @mstojkovicTT @ppadjinTT @vkovinicTT
 
 # Third Party
 /third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
-integrations/vllm_plugin - @AleksKnezevic @LPanosTT @mmanzoorTT
+/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT
