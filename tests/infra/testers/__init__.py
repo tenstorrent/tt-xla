@@ -4,7 +4,7 @@
 
 from .base_tester import BaseTester
 from .multichip import (
-    JaxMultichipModelTester,
+    DynamicJaxMultiChipModelTester,
     run_jax_multichip_graph_test_with_random_inputs,
     run_jax_multichip_op_test_with_random_inputs,
 )

@@ -6,7 +6,8 @@ import difflib
 
 import pytest
 
-from tests.runner.test_config import test_config
+from tests.runner.test_config.jax import test_config as jax_test_config
+from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
@@ -52,6 +53,18 @@ def pytest_collection_modifyitems(config, items):
     deselected = []
 
     for item in items:
+        # Determine which test config to use based on the test function
+        if "test_all_models_torch" in item.nodeid:
+            test_config = torch_test_config
+        elif "test_all_models_jax" in item.nodeid:
+            test_config = jax_test_config
+        elif "test_placeholder_models" in item.nodeid:
+            # Placeholder tests use torch config (they're defined in torch/__init__.py)
+            test_config = torch_test_config
+        else:
+            # Skip configuration for other tests
+            continue
+
         nodeid = item.nodeid
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
@@ -115,9 +128,32 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
+    # Determine which configs to validate based on collected tests
+    # Check if we collected torch tests, jax tests, or both
+    has_torch_tests = any(
+        "pytorch" in nodeid or "test_all_models_torch" in nodeid
+        for nodeid in _collected_nodeids
+    )
+    has_jax_tests = any(
+        "jax" in nodeid and "test_all_models_jax" in nodeid
+        for nodeid in _collected_nodeids
+    )
+
+    # Only validate configs for the framework(s) that were actually collected
+    if has_torch_tests and has_jax_tests:
+        combined_test_config = torch_test_config | jax_test_config
+    elif has_torch_tests:
+        combined_test_config = torch_test_config
+    elif has_jax_tests:
+        combined_test_config = jax_test_config
+    else:
+        # No model tests collected, nothing to validate
+        combined_test_config = {}
+        print("No model tests collected, skipping validation")
+
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []
-    for test_name, cfg in test_config.items():
+    for test_name, cfg in combined_test_config.items():
         if not isinstance(cfg, dict):
             continue
         overrides = cfg.get("arch_overrides")
@@ -144,7 +180,7 @@ def pytest_sessionfinish(session, exitstatus):
 
     # Validate that entries in test_config yaml files are found in the collected tests. They can diverge if
     # model variants are renamed, removed, have import errors, etc.
-    declared_nodeids = set(test_config.keys())
+    declared_nodeids = set(combined_test_config.keys())
     unknown = declared_nodeids - _collected_nodeids
     unlisted = _collected_nodeids - declared_nodeids
     print(

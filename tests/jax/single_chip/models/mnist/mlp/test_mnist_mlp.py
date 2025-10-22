@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -15,8 +14,6 @@ from utils import (
     build_model_name,
 )
 
-from tests.infra.utilities.utils import create_jax_inference_tester
-
 from .tester import MNISTMLPTester
 
 MODEL_NAME = build_model_name(
@@ -27,18 +24,7 @@ MODEL_NAME = build_model_name(
     ModelSource.CUSTOM,
 )
 
-
 # ----- Fixtures -----
-
-
-def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
-    """Create inference tester with specified hidden sizes and data format."""
-    return create_jax_inference_tester(MNISTMLPTester, hidden_sizes, format)
-
-
-@pytest.fixture
-def inference_tester(request) -> MNISTMLPTester:
-    return MNISTMLPTester(request.param)
 
 
 @pytest.fixture
@@ -47,59 +33,6 @@ def training_tester(request) -> MNISTMLPTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.nightly
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.parametrize(
-    "inference_tester",
-    [
-        (128,),
-        (128, 128),
-        (192, 128),
-        (512, 512),
-        (128, 128, 128),
-    ],
-    indirect=True,
-    ids=lambda val: f"{val}",
-)
-def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
-    inference_tester.test()
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.parametrize("hidden_sizes", [(256, 128, 64)], ids=lambda val: f"{val}")
-@pytest.mark.parametrize(
-    "format",
-    [
-        "float32",
-        "bfloat16",
-        pytest.param(
-            "bfp8",
-            marks=pytest.mark.skip(
-                reason="Skip until mixed-precision is supported in MLIR. https://github.com/tenstorrent/tt-mlir/issues/5252"
-            ),
-        ),
-    ],
-)
-def test_mnist_mlp_inference(hidden_sizes: tuple, format: str):
-    tester = create_inference_tester(hidden_sizes, format)
-    tester.test()
 
 
 @pytest.mark.push

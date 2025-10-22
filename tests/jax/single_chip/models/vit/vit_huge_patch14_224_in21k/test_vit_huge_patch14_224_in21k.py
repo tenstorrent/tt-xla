@@ -23,30 +23,11 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ViTTester:
-    return ViTTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> ViTTester:
     return ViTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_vit_huge_patch14_224_in21k_inference(
-    inference_tester: ViTTester,
-):
-    inference_tester.test()
 
 
 @pytest.mark.training

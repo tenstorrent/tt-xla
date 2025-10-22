@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import os
 import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -144,9 +145,19 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, FlaxPreTrainedModel):
             kwargs = {
                 "params": self._input_parameters,
-                "train": False if self._run_mode == RunMode.INFERENCE else True,
                 **self._input_activations,
             }
+
+            # Only add 'deterministic' if the model accepts it
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if "deterministic" in sig.parameters:
+                    # deterministic=True means inference (no dropout), deterministic=False means training
+                    kwargs["deterministic"] = (
+                        True if self._run_mode == RunMode.INFERENCE else False
+                    )
+            except:
+                pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
@@ -165,7 +176,24 @@ class JaxModelTester(ModelTester):
         By default no arguments are static.
         """
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
+            # FlaxPreTrainedModel uses 'deterministic', other models use 'train'
+            if isinstance(self._model, FlaxPreTrainedModel):
+                return ["mutable", "deterministic"]
             return ["mutable", "train"]
+
+        if isinstance(self._model, FlaxPreTrainedModel):
+            # Check if model accepts 'deterministic' parameter
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if "deterministic" in sig.parameters:
+                    # If it accepts deterministic, it needs to be static for control flow
+                    return ["deterministic"]
+            except:
+                pass
+            # If we can't determine or it doesn't have deterministic, no static args
+            return []
+
+        # For non-HuggingFace models, 'train' parameter is typically static
         return ["train"]
 
     # @override

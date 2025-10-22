@@ -17,13 +17,7 @@ from ..tester import Wav2Vec2Tester
 VARIANT_NAME = ModelVariant.LARGE_LV_60
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> Wav2Vec2Tester:
-    return Wav2Vec2Tester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -34,24 +28,12 @@ def training_tester() -> Wav2Vec2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
 @pytest.mark.xfail(
     reason=failed_fe_compilation(
         "NotImplementedError: Could not run 'torchcodec_ns::create_from_tensor'"
         "https://github.com/tenstorrent/tt-xla/issues/1635"
     )
 )
-def test_wav2vec2_large_lv60_inference(inference_tester: Wav2Vec2Tester):
-    inference_tester.test()
-
-
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

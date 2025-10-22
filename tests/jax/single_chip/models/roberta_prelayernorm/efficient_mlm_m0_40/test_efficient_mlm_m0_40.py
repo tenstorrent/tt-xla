@@ -51,11 +51,6 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
 
 
 @pytest.fixture
-def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
     return FlaxRobertaPreLayerNormForMaskedLMTester(
         VARIANT_NAME, run_mode=RunMode.TRAINING
@@ -63,20 +58,6 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_flax_roberta_prelayernorm_inference(
-    inference_tester: FlaxRobertaPreLayerNormForMaskedLMTester,
-):
-    inference_tester.test()
 
 
 @pytest.mark.training

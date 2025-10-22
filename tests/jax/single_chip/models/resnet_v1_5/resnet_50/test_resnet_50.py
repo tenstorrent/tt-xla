@@ -29,11 +29,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
     # These need to be set before the tester is created
     monkeypatch.setenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE", "1")
@@ -49,20 +44,6 @@ def training_tester() -> ResNetTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.large
-def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
-    inference_tester.test()
 
 
 @pytest.mark.push
