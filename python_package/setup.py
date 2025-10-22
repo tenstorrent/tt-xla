@@ -194,7 +194,7 @@ class BdistWheel(bdist_wheel):
     """
 
     user_options = bdist_wheel.user_options + [
-        ("build-type", None, "Enable code coverage for the build")
+        ("build-type=", None, "Build type: release, codecov, or debug")
     ]
 
     def initialize_options(self):
