@@ -109,7 +109,7 @@ else()
             WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
         )
         ExternalProject_Add_Step(tt-mlir install_explorer
-            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component explorer
+            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install ${TTMLIR_LIB_DIR} --component explorer
             DEPENDEES install
             WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
         )
