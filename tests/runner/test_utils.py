@@ -5,6 +5,7 @@
 import collections
 import importlib.util
 import inspect
+import numbers
 import os
 import sys
 from dataclasses import dataclass
@@ -253,6 +254,45 @@ class DynamicTorchModelTester(TorchModelTester):
         return get_mesh(mesh_shape, mesh_names)
 
 
+# This is needed for combination of pytest-forked and using ruamel.yaml
+# ruamel returns ScalarFloat/ScalarString types (subclasses of float/str).
+# pytest-forked uses Python's marshal, which rejects non-builtin subclasses inside the
+# test report's user_properties, causing ValueError: unmarshallable object.
+def _to_marshal_safe(value):
+    """Recursively convert values to marshal-safe builtin types for pytest-forked."""
+    # None stays None
+    if value is None:
+        return None
+
+    # Enums -> string representation
+    if isinstance(value, Enum):
+        return str(value)
+
+    # Numpy scalar types -> corresponding python scalar
+    if isinstance(value, np.generic):
+        return value.item()
+
+    # Primitive scalars, ensure builtin types
+    # Note: bool must be checked before Integral (since bool is a subclass of int)
+    if isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return float(value)
+    if isinstance(value, (str, bytes)):
+        return value.decode() if isinstance(value, bytes) else value
+
+    # Collections
+    if isinstance(value, dict):
+        return {str(k): _to_marshal_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_marshal_safe(v) for v in value]
+
+    # Fallback to string to avoid unmarshallable objects
+    return str(value)
+
+
 def record_model_test_properties(
     record_property,
     request,
@@ -350,10 +390,10 @@ def record_model_test_properties(
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("error_message", reason)
+        record_property("error_message", _to_marshal_safe(reason))
 
     # Write properties
-    record_property("tags", tags)
+    record_property("tags", _to_marshal_safe(tags))
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))

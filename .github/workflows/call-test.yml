@@ -208,7 +208,7 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models_torch run_forge_models_jax; do
+        for n in run_torch run_large_jax_models run_forge_models_torch run_forge_models_jax run_jax_training run_large_jax_training; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -223,7 +223,7 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
-        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' || "${{ matrix.build.name }}" == 'run_forge_models_jax' ]]; then
+        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' || "${{ matrix.build.name }}" == 'run_forge_models_torch_multichip' || "${{ matrix.build.name }}" == 'run_forge_models_jax' ]]; then
           ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
@@ -251,7 +251,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax' }}
+      if: ${{ matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax' || matrix.build.name == 'run_forge_models_torch_multichip' }}
       shell: bash
       run: |
         apt-get update
@@ -260,7 +260,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ (matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax') && strategy.job-index == 0 }}
+      if: ${{ (matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_jax' || matrix.build.name == 'run_forge_models_torch_multichip') && strategy.job-index == 0 }}
       shell: bash
       run: |
         source venv/activate

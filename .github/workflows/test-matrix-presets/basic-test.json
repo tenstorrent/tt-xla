@@ -1,13 +1,13 @@
 [
   { "runs-on": "wormhole_b0",        "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 2 },
-  { "runs-on": "wormhole_b0",        "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test-mark": "push", "parallel-groups": 3  },
+  { "runs-on": "n150",               "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test-mark": "push", "parallel-groups": 3, "shared-runners": "true" },
   { "runs-on": "wormhole_b0",        "name": "run_meta_infra_tests",  "dir": "./tests/infra_tests/single_chip",         "test-mark": "push" },
   { "runs-on": "n150",               "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",                 "test-mark": "push and large", "shared-runners": "true" },
   { "runs-on": "p150",               "name": "run_jax",               "dir": "./tests/jax/single_chip",                 "test-mark": "push and not large", "parallel-groups": 2 },
   { "runs-on": "p150",               "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test-mark": "push", "parallel-groups": 3  },
   { "runs-on": "p150",               "name": "run_large_jax_models",  "dir": "./tests/jax/single_chip",                 "test-mark": "push and large", "shared-runners": "true" },
   { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test-mark": "push", "codecov": "true" },
-  { "runs-on": "n300",               "name": "run_torch",             "dir": "./tests/torch/multi_chip/n300",           "test-mark": "push" },
+  { "runs-on": "n300",               "name": "torch_multichip",       "dir": "./tests/torch/multi_chip/n300",           "test-mark": "push" },
   { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "push", "shared-runners": "true" },
   { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "push", "shared-runners": "true" }
 ]

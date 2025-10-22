@@ -348,6 +348,8 @@ test_config:
 
   mnist/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
+    # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
+    required_pcc: 0.99
     markers: ["push"]
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference:
@@ -1136,6 +1138,9 @@ test_config:
   stable_diffusion_unet/pytorch-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
+
+  unet_for_conditional_generation/pytorch-base-single_device-full-inference:
+    status: EXPECTED_PASSING
 
   mlp_mixer/pytorch-mixer_github-single_device-full-inference:
     status: EXPECTED_PASSING

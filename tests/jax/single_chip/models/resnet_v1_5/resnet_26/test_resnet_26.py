@@ -50,6 +50,7 @@ def inference_tester_optimizer() -> ResNetTester:
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
+@pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "error: failed to legalize operation 'stablehlo.pad' "

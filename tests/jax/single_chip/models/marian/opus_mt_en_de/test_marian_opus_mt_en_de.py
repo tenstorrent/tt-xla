@@ -44,7 +44,7 @@ def training_tester() -> MarianTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
+        "error: failed to legalize operation 'ttir.scatter' "
         "https://github.com/tenstorrent/tt-xla/issues/911"
     )
 )
