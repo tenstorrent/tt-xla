@@ -72,7 +72,7 @@ else()
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
 
         # Installing the python dependencies before the build
-        PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR} 
+        PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR}
         COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
 
         CMAKE_GENERATOR Ninja
