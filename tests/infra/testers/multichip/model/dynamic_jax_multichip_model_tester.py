@@ -237,17 +237,13 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
-        # Get partition spec for activations first (doesn't need actual activations)
         self._input_activations_partition_specs = (
             self._get_input_activations_partition_spec()
         )
-        # Then get actual activations
         self._input_activations = self._get_input_activations()
-        # Now get parameter partition specs (which needs the activations)
         self._input_parameters_partition_specs = (
             self._get_input_parameters_partition_spec()
         )
-        # Finally get parameters (which needs both activations and parameter specs)
         self._input_parameters = self._get_input_parameters()
 
     # Override abstract methods to use model_loader when available
@@ -267,12 +263,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         if self._model_loader is not None:
             return self._model_loader.get_forward_method_name()
         else:
-            return "apply"  # Default for Flax models
+            return "apply"
 
     def _get_input_activations(self):
         """Get input activations."""
         if self._model_loader is not None:
-            # Pass the CPU mesh to load_inputs so it can determine appropriate configuration
             return self._model_loader.load_inputs(mesh=self._cpu_mesh)
         else:
             raise NotImplementedError("Must provide model_loader or override _get_input_activations")
@@ -291,7 +286,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 model_for_multichip=self._model,
                 cpu_mesh=self._cpu_mesh,
                 input_activations_partition_specs=self._input_activations_partition_specs,
-                inputs=self._input_activations,  # Pass the cached inputs
+                inputs=self._input_activations,  
             )
         else:
             raise NotImplementedError("Must provide model_loader or override _get_input_parameters_partition_spec")
@@ -301,7 +296,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         if self._model_loader is not None:
             return self._model_loader.load_parameters(
                 train=self._run_mode == RunMode.TRAINING,
-                inputs=self._input_activations,  # Pass the cached inputs
+                inputs=self._input_activations, 
                 model_for_multichip=self._model,
                 cpu_mesh=self._cpu_mesh,
                 input_activations_partition_specs=self._input_activations_partition_specs,
@@ -312,10 +307,8 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        # We do not handle training yet, so we return empty dict
         return {}
 
     # @override
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
-        # We do not handle training yet, so we return empty list
         return []

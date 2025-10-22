@@ -142,7 +142,6 @@ class JaxModelTester(ModelTester):
         """
         kwargs = {}
         if isinstance(self._model, FlaxPreTrainedModel):
-            # Start with params and input activations
             kwargs = {
                 "params": self._input_parameters,
                 **self._input_activations,
@@ -179,7 +178,6 @@ class JaxModelTester(ModelTester):
                 return ["mutable", "deterministic"]
             return ["mutable", "train"]
 
-        # For inference mode with FlaxPreTrainedModel
         if isinstance(self._model, FlaxPreTrainedModel):
             # Check if model accepts 'deterministic' parameter
             try:

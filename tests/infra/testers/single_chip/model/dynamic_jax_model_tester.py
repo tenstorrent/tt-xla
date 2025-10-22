@@ -96,12 +96,10 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
         """
-        # Get number of devices available
         num_devices = jax.device_count()
         mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
         if mesh_shape and mesh_names:
-            # Create JAX mesh from the configuration
             devices = jax.devices()[:num_devices]
             devices_array = jnp.array(devices).reshape(mesh_shape)
             return Mesh(devices_array, mesh_names)
@@ -113,11 +111,9 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Forward method args from loader if available, otherwise from parent
         """
-        # Check if loader has specific forward method args
         if hasattr(self.dynamic_loader.loader, "get_forward_method_args"):
             return self.dynamic_loader.loader.get_forward_method_args()
 
-        # Otherwise delegate to parent implementation
         return super()._get_forward_method_args()
 
     def _get_forward_method_kwargs(self):
@@ -144,11 +140,9 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Static argnames from loader if available, otherwise from parent
         """
-        # Check if loader has specific static argnames
         if hasattr(self.dynamic_loader.loader, "get_static_argnames"):
             return self.dynamic_loader.loader.get_static_argnames()
 
-        # Otherwise delegate to parent implementation
         return super()._get_static_argnames()
 
     def _get_forward_method_name(self):
@@ -157,9 +151,7 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Forward method name from loader if available, otherwise "__call__"
         """
-        # Check if loader has specific forward method name
         if hasattr(self.dynamic_loader.loader, "get_forward_method_name"):
             return self.dynamic_loader.loader.get_forward_method_name()
 
-        # Default forward method for JAX models
         return "__call__"
