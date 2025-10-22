@@ -12,9 +12,9 @@
 /.github/ @vmilosevic @jmcgrathTT @kmabeeTT @nsumrakTT @vvukomanTT
 
 # Tests
-/tests/ @mrakitaTT @ajakovljevicTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-pytest.ini @mrakitaTT @ajakovljevicTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-.test_durations @mrakitaTT @ajakovljevicTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+/tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+.test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 
 # Model tests configs
 /tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @LPanosTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
