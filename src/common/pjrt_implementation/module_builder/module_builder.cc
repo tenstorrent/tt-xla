@@ -960,13 +960,12 @@ tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
 void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                                 const std::optional<std::string> &export_path,
                                 const std::string &stage_name) {
-  if (loguru::g_stderr_verbosity < LOG_DEBUG) {
-    return;
+  if (loguru::g_stderr_verbosity >= LOG_DEBUG) {
+    VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
+    mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+    llvm::errs()
+        << "------------------ END OF MLIR MODULE ------------------\n";
   }
-
-  VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
-  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
-  llvm::errs() << "------------------ END OF MLIR MODULE ------------------\n";
 
   if (!export_path.has_value()) {
     return;
