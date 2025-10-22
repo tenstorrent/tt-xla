@@ -60,20 +60,29 @@ else()
     # ----- tt-mlir -----
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
-    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/build")
-    set(TTMLIR_LIB_DIR ${TTMLIR_SOURCE_DIR}/install)
-    set(TT_RUNTIME_DEBUG OFF CACHE BOOL "Enable ttmlir runtime debugging")
+    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
+    set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
+    set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
+    set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
+
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
         tt-mlir
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tt-mlir
+
         # Installing the python dependencies before the build
-        PATCH_COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
+        PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR}
+        COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
+
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
-        BUILD_COMMAND cmake --build <BINARY_DIR> && cmake --build <BINARY_DIR> --target tt-alchemist
-        INSTALL_COMMAND ${CMAKE_COMMAND} --install ${TTMLIR_BUILD_DIR} --component SharedLib
+
+        BUILD_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
+        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
+
+        INSTALL_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
+
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_C_COMPILER=clang-17
@@ -83,14 +92,23 @@ else()
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=OFF
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTXLA_ENABLE_EXPLORER}
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
+          -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
     )
+
+    if(TTXLA_ENABLE_EXPLORER)
+        ExternalProject_Add_Step(tt-mlir build_explorer
+            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
+            DEPENDEES build
+            WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
+        )
+    endif()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
