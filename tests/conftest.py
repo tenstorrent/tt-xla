@@ -194,7 +194,7 @@ def pytest_addoption(parser):
         "--log-pid",
         action="store_true",
         default=False,
-        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE and TT_LOGGER_FILE environment variables, to facilitiate multiprocess debug logging.",
+        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitiate multiprocess debug logging.",
     )
 
 
@@ -245,13 +245,15 @@ def newline_logger():
 @pytest.fixture(autouse=True)
 def setup_pid_logging(request):
     """
-    A pytest fixture that monkeypatch TT_XLA_LOGGER_FILE and TT_LOGGER_FILE environment
+    A pytest fixture that monkeypatch TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
     variables to include the process PID before the file extension when --log-pid
     is passed to pytest.
 
     TT_LOGGER_FILE controls tt-metal's tt-logger log output filepath, see
     https://github.com/tenstorrent/tt-logger?tab=readme-ov-file#environment-variables
     for more information about tt-logger.
+
+    TTMLIR_RUNTIME_LOGGER_FILE controls tt-mlir-runtime's logging output filepath.
     """
     if not request.config.getoption("--log-pid"):
         yield
@@ -260,6 +262,7 @@ def setup_pid_logging(request):
     # Store original values for restoration
     original_tt_xla_logger_file = os.environ.get("TT_XLA_LOGGER_FILE")
     original_tt_logger_file = os.environ.get("TT_LOGGER_FILE")
+    original_ttmlir_runtime_logger_file = os.environ.get("TTMLIR_RUNTIME_LOGGER_FILE")
 
     def add_pid_to_filename(filepath):
         """Add PID before file extension"""
@@ -287,6 +290,11 @@ def setup_pid_logging(request):
     if original_tt_logger_file:
         os.environ["TT_LOGGER_FILE"] = add_pid_to_filename(original_tt_logger_file)
 
+    if original_ttmlir_runtime_logger_file:
+        os.environ["TTMLIR_RUNTIME_LOGGER_FILE"] = add_pid_to_filename(
+            original_ttmlir_runtime_logger_file
+        )
+
     try:
         yield
     finally:
@@ -296,6 +304,11 @@ def setup_pid_logging(request):
 
         if original_tt_logger_file:
             os.environ["TT_LOGGER_FILE"] = original_tt_logger_file
+
+        if original_ttmlir_runtime_logger_file:
+            os.environ["TTMLIR_RUNTIME_LOGGER_FILE"] = (
+                original_ttmlir_runtime_logger_file
+            )
 
 
 @pytest.fixture(autouse=True)
