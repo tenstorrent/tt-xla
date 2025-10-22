@@ -79,10 +79,8 @@ else()
 
         BUILD_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
         COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
-        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
 
         INSTALL_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
-        COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component explorer
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
@@ -93,15 +91,28 @@ else()
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTXLA_ENABLE_EXPLORER}
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
-          -DTTMLIR_ENABLE_EXPLORER=ON
+          -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
     )
+
+    if(TTXLA_ENABLE_EXPLORER)
+        ExternalProject_Add_Step(tt-mlir build_explorer
+            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
+            DEPENDEES build
+            WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
+        )
+        ExternalProject_Add_Step(tt-mlir install_explorer
+            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --install <BINARY_DIR> --component explorer
+            DEPENDEES install
+            WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
+        )
+    endif()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
