@@ -27,7 +27,7 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+) -> Tuple[torch.export.ExportedProgram, torch.export.ExportGraphSignature, list[str]]:
 
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
@@ -62,7 +62,70 @@ def torch_pass_pipeline(
     # Extract metadata from FX nodes in order to inject them into locs
     node_info = extract_nodes_info(compiled_graph)
 
-    return compiled_graph, program.graph_signature, node_info
+    program = torch.export.export_for_training(
+        compiled_graph, tuple(example_inputs), strict=False
+    )
+    return program, program.graph_signature, node_info
+
+
+from collections import defaultdict
+
+
+def build_full_args_for_gm(ep: ExportedProgram, *user_args):
+    gm = ep.graph_module
+    sig = ep.graph_signature
+
+    # Export keeps a state dict for lifted params/buffers
+    state = ep.state_dict  # { "p_...": tensor, "b_...": tensor, ... }
+    for k, v in state.items():
+        print(f"state: {k}")
+
+    # Some exports also have constant tensors; include them if present
+    constants = getattr(ep, "constants", {})  # may be {} on your version
+
+    # Map from placeholder name -> tensor
+    lookup = defaultdict(lambda: None)
+    total_args = tuple()
+    for spec in sig.input_specs:
+        if spec.kind == InputKind.USER_INPUT:
+            continue
+        total_args += (state[spec.target],)
+
+    return total_args
+    # Params
+    for spec in sig.parameters:
+        print(f"parameter: {spec}")
+        lookup[spec] = state[spec]
+    # Buffers
+    for spec in getattr(sig, "buffers", []):
+        print(f"buffer: {spec}")
+        lookup[spec] = state[spec]
+    # Constant tensors (if any)
+    for spec in getattr(sig, "constants", []):
+        print(f"const: {spec}")
+        lookup[spec] = constants[spec]
+
+    print(f"code:\n{gm.code}")
+    print(f"gm.buffers(): {[name for (name, _) in gm.named_buffers()]}")
+
+    for name, buffer in ep.named_buffers():
+        print(f"buffer: {name}")
+        lookup[name] = buffer
+    # Now assemble args in the exact placeholder order
+    full_args = []
+    user_it = iter(user_args)
+    for n in gm.graph.nodes:
+        if n.op != "placeholder":
+            continue
+        name = n.target
+        if name in lookup and lookup[name] is not None:
+            full_args.append(lookup[name])  # lifted thing
+        else:
+            print(f"Using user arg for placeholder '{name}'")
+            full_args.append(next(user_it))  # user input
+
+    return tuple(full_args)
+>>>>>>> 30984e2a (hack: remove rt overhead)
 
 
 class XLAExecutor:
@@ -75,7 +138,7 @@ class XLAExecutor:
 
     def __init__(
         self,
-        module: torch.fx.GraphModule,
+        module: torch.export.ExportedProgram,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
     ):
@@ -86,23 +149,36 @@ class XLAExecutor:
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
 
+        self.compiled_graph = None
+        self.full_args = None
+
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
-        self.devices = set()
-        for _, tensor in module.state_dict().items():
-            self.devices.add(tensor.device.type)
-        self.devices = list(self.devices)
+        self.module.devices = set()
+        for _, tensor in module.graph_module.state_dict().items():
+            self.module.devices.add(tensor.device.type)
+        self.devices = list(self.module.devices)
 
     def __call__(self, *args):
 
-        if self.inject_metadata:
-            # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
-            # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
-            with MetadataDispatchMode(self.node_info):
-                output = self.module(*args)
-        else:
-            output = self.module(*args)
+        # if self.inject_metadata:
+        #     # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
+        #     # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
+        #     with MetadataDispatchMode(self.node_info):
+        #         output = self.module(*args)
+        # else:
+        #     output = self.module(*args)
+
+        if self.compiled_graph is None:
+            import torch_xla.core.dynamo_bridge as bridge
+
+            self.full_args = build_full_args_for_gm(self.module, *args)
+            self.compiled_graph = bridge.extract_compiled_graph(
+                self.module.graph_module, self.full_args + args
+            )
+
+        output = self.compiled_graph(*(self.full_args + args))
 
         gm_has_functional_output_kind: bool = True
 
@@ -111,17 +187,17 @@ class XLAExecutor:
                 gm_has_functional_output_kind = False
                 break
 
-        if gm_has_functional_output_kind:
-            # This tells torch-xla to cut the graph at only what is required to
-            # compute all tensors in the `output` list.
-            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
-        else:
-            # Some graphs have side effects not included in graph output.
-            # In these cases we must call sync() to force materialization of non-user-output
-            # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
-            # This causes buffer mutations to show up as graph outputs in MLIR.
-            torch_xla.sync()
-
+        # if gm_has_functional_output_kind:
+        #     # This tells torch-xla to cut the graph at only what is required to
+        #     # compute all tensors in the `output` list.
+        #     torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+        # else:
+        #     # Some graphs have side effects not included in graph output.
+        #     # In these cases we must call sync() to force materialization of non-user-output
+        #     # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
+        #     # This causes buffer mutations to show up as graph outputs in MLIR.
+        #     torch_xla.sync()
+        #
         return output
 
 
