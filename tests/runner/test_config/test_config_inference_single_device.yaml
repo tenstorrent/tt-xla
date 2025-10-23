@@ -498,7 +498,6 @@ test_config:
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    assert_pcc: false
     reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
     bringup_status: FAILED_RUNTIME
 
@@ -1388,7 +1387,6 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
-    assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
     reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
     bringup_status: FAILED_RUNTIME
@@ -1496,19 +1494,16 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
     reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
     bringup_status: FAILED_RUNTIME
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
     reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
     bringup_status: FAILED_RUNTIME
@@ -1688,7 +1683,6 @@ test_config:
   mistral/pytorch-7b-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: KNOWN_FAILURE_XFAIL
         reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
         bringup_status: FAILED_RUNTIME
@@ -1708,7 +1702,6 @@ test_config:
   mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: KNOWN_FAILURE_XFAIL
         reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
         bringup_status: FAILED_RUNTIME
