@@ -125,15 +125,7 @@ BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
 }
 
 std::string BufferInstance::toShapeStr() const {
-  std::string result = "[";
-  for (size_t i = 0; i < m_dimensions.size(); ++i) {
-    if (i > 0) {
-      result += ",";
-    }
-    result += std::to_string(m_dimensions[i]);
-  }
-  result += "]";
-  return result;
+  return tt::pjrt::utils::to_string(m_dimensions);
 }
 
 bool BufferInstance::isDataDeleted() {
