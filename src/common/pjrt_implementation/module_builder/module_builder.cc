@@ -1096,7 +1096,7 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     CompileOptions &&compile_options) {
-  tt_pjrt_status status = performCodegen(ttir_mlir, compile_options);
+  tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -1115,7 +1115,7 @@ ModuleBuilder::buildModuleForTTNNCodegen(
 }
 
 tt_pjrt_status
-ModuleBuilder::performCodegen(std::string_view ttir_mlir,
+ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                               const CompileOptions &compile_options) {
   assert(compile_options.export_path.has_value() &&
          "export_path compile option is not set.");
@@ -1128,9 +1128,9 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
   std::string folder = compile_options.export_path.value();
   std::filesystem::create_directories(folder);
 
-  std::ofstream ttir_file(folder + "/ttir.mlir");
-  ttir_file << ttir_mlir;
-  ttir_file.close();
+  std::ofstream ttnn_file(folder + "/ttnn.mlir");
+  ttnn_file << ttnn_mlir;
+  ttnn_file.close();
 
   void *instance = m_tt_alchemist_handler.getInstanceFunc()();
   if (!instance) {
@@ -1138,7 +1138,7 @@ ModuleBuilder::performCodegen(std::string_view ttir_mlir,
     return tt_pjrt_status::kInternal;
   }
 
-  std::string input_file = folder + "/ttir.mlir";
+  std::string input_file = folder + "/ttnn.mlir";
   // Controls wether the generated solution is designed
   // for standalone execution(is_local=false)
   // or for execution within an existing development environment that already
