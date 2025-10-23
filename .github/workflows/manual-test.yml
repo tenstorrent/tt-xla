@@ -43,13 +43,33 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
 
-  build-ttxla:
+  fetch-wheel-n150:
+    runs-on: n150
     needs: build-image
+    steps:
+      - name: Download wheel from /mnt/dockercache
+        run: |
+          mkdir -p wheels
+          if [ ! -f wheels/torch_xla-2.9.0+git1f21467-*.whl ]; then
+            cp /mnt/dockercache/models/tt-ci-models-private/wheels/torch_xla-2.9.0+git1f21467-*.whl wheels/
+            echo "Wheel file copied"
+          else
+            echo "Wheel file already exists, skipping copy"
+          fi
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-xla-wheel
+          path: wheels/*.whl
+
+  build-ttxla:
+    needs: [build-image, fetch-wheel-n150]
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+      wheel_artifact: torch-xla-wheel 
 
   test:
     if: always() && !cancelled() && inputs.preset != 'tt_forge_models'

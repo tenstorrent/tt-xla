@@ -28,22 +28,27 @@ else
 fi
 
 if [ -n "$DOCKER_CACHE_ROOT" ]; then
-  EXPECTED_VERSION="2.9.0+git1f21467"
-  INSTALLED_VERSION=$(pip show torch-xla 2>/dev/null | grep "Version:" | cut -d' ' -f2)
+  mkdir -p $(pwd)/dist
+  cp "$DOCKER_CACHE_ROOT"/models/tt-ci-models-private/wheels/torch_xla-2.9.0+git1f21467-*.whl $(pwd)/dist/
+else
+  echo "DOCKER_CACHE_ROOT not set, assuming wheel is already present in dist/"
+fi
 
-  if [ "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]; then
-    if [ -n "$INSTALLED_VERSION" ]; then
-      echo "Removing torch-xla version $INSTALLED_VERSION"
-      pip uninstall -y torch-xla
-    fi
-    
-    echo "Installing torch-xla version $EXPECTED_VERSION"
-    mkdir -p ./dist
-    cp "$DOCKER_CACHE_ROOT"/models/tt-ci-models-private/wheels/torch_xla-2.9.0+git1f21467-*.whl ./dist/
-    pip install ./dist/torch_xla-2.9.0+git1f21467-*.whl
-  else
-    echo "Correct torch-xla version already installed: $INSTALLED_VERSION"
+echo "Checking torch-xla installation..."
+EXPECTED_VERSION="2.9.0+git1f21467"
+INSTALLED_VERSION=$(pip show torch-xla 2>/dev/null | grep "Version:" | cut -d' ' -f2)
+
+if [ "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]; then
+  echo "torch-xla version mismatch. Expected: $EXPECTED_VERSION, Found: ${INSTALLED_VERSION:-none}"
+  if [ -n "$INSTALLED_VERSION" ]; then
+    echo "Removing torch-xla version $INSTALLED_VERSION"
+    pip uninstall -y torch-xla
   fi
+  
+  echo "Installing torch-xla version $EXPECTED_VERSION"
+  pip install $(pwd)/dist/torch_xla-2.9.0+git1f21467-*.whl
+else
+  echo "Correct torch-xla version already installed: $INSTALLED_VERSION"
 fi
 
 export TTXLA_ENV_ACTIVATED=1

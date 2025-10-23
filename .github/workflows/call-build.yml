@@ -19,6 +19,9 @@ on:
             description: 'Is this debug build (or release)'
             required: false
             type: boolean
+        wheel_artifact:  # Add this input
+          required: false
+          type: string
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -120,12 +123,20 @@ jobs:
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
             echo "build-name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)" >> "$GITHUB_OUTPUT"
+            mkdir $(pwd)/dist
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
+
+      - name: Download wheel artifact
+        if: ${{ inputs.wheel_artifact }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.wheel_artifact }}
+          path: ${{ steps.strings.outputs.work-dir }}/dist
 
       - name: Build the wheel
         shell: bash
