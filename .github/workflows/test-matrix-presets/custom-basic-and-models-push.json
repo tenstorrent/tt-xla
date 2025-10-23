@@ -9,6 +9,8 @@
   { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test-mark": "push", "codecov": "true" },
   { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "push", "shared-runners": "true" },
   { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "push", "shared-runners": "true" },
-  { "runs-on": "n150",               "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "n150 and expected_passing and push" },
-  { "runs-on": "p150",               "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "p150 and expected_passing and push" }
+  { "runs-on": "n150",               "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and expected_passing and push" },
+  { "runs-on": "p150",               "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and expected_passing and push" },
+  { "runs-on": "n150",               "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and expected_passing and push" },
+  { "runs-on": "p150",               "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and expected_passing and push" }
 ]
