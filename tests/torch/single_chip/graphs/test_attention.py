@@ -18,8 +18,8 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
-from tests.utils import is_llmbox
 
+from tests.utils import is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
