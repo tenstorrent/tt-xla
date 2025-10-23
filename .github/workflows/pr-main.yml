@@ -26,6 +26,7 @@ jobs:
       skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
+      only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/inspect-changes
@@ -42,7 +43,7 @@ jobs:
     name: "Build tt-xla with code coverage"
     secrets: inherit
     needs: [ inspect-changes, build-image ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       debug_build: true
@@ -58,7 +59,7 @@ jobs:
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
@@ -72,7 +73,7 @@ jobs:
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
