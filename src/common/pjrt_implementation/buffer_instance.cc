@@ -27,6 +27,7 @@
 #include "common/pjrt_implementation/device_instance.h"
 #include "common/pjrt_implementation/error_instance.h"
 #include "common/pjrt_implementation/memory_instance.h"
+#include "common/pjrt_implementation/utils.h"
 #include "common/status.h"
 
 namespace tt::pjrt {
@@ -124,15 +125,7 @@ BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
 }
 
 std::string BufferInstance::toShapeStr() const {
-  std::string result = "[";
-  for (size_t i = 0; i < m_dimensions.size(); ++i) {
-    if (i > 0) {
-      result += ",";
-    }
-    result += std::to_string(m_dimensions[i]);
-  }
-  result += "]";
-  return result;
+  return tt::pjrt::utils::to_string(m_dimensions);
 }
 
 bool BufferInstance::isDataDeleted() {
