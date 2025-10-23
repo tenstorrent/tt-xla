@@ -83,12 +83,6 @@ def training_tester() -> MlpMixerTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-0.006597555708140135. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 @pytest.mark.push
 @pytest.mark.training
 @pytest.mark.record_test_properties(

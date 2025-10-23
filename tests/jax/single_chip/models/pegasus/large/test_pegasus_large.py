@@ -28,12 +28,6 @@ def training_tester() -> PegasusTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
-        "https://github.com/tenstorrent/tt-xla/issues/911"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

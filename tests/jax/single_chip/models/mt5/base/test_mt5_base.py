@@ -34,12 +34,6 @@ def training_tester() -> MT5Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.7113243341445923. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

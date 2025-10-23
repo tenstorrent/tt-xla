@@ -35,12 +35,6 @@ def training_tester() -> FlaxCLIPTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 @pytest.mark.push
 @pytest.mark.training
 @pytest.mark.record_test_properties(

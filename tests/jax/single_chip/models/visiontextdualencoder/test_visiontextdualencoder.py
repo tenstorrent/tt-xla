@@ -36,12 +36,6 @@ def training_tester() -> VisionTextDualEncoderTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

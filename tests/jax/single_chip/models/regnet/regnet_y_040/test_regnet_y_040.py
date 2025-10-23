@@ -34,12 +34,6 @@ def training_tester() -> RegNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.3722558617591858. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

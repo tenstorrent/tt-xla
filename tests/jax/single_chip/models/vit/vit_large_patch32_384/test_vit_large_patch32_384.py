@@ -28,13 +28,6 @@ def training_tester() -> ViTTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate  7782400 B L1 buffer across 5 banks, "
-        "where each bank needs to store 1556480 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/918)"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

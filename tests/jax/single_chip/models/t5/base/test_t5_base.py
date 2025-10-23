@@ -31,12 +31,6 @@ def training_tester() -> T5Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed on Blackhole. Calculated: pcc=0.7276687622070312. Required: pcc=0.99."
-        "https://github.com/tenstorrent/tt-xla/issues/1038"
-    )
-)
 @pytest.mark.push
 @pytest.mark.training
 @pytest.mark.record_test_properties(

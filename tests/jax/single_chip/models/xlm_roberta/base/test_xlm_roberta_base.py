@@ -28,11 +28,6 @@ def training_tester() -> XLMRobertaTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

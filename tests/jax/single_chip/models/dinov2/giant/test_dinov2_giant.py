@@ -28,14 +28,6 @@ def training_tester() -> Dinov2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Statically allocated circular buffers in program 1331 clash with "
-        "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
-        "L1 buffer allocated at 1069056 and static circular buffer region ends at 1117312"
-        "(https://github.com/tenstorrent/tt-xla/issues/1066)"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

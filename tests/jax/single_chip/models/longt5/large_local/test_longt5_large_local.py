@@ -29,12 +29,6 @@ def training_tester() -> LongT5Tester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/580"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

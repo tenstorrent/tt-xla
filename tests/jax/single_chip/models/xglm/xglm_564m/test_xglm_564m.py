@@ -25,12 +25,6 @@ def training_tester() -> XGLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Invalid data size. numElements * elementSize == data->size(). "
-        "Issue: https://github.com/tenstorrent/tt-xla/issues/1313"
-    )
-)
 @pytest.mark.training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
