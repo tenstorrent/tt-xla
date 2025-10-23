@@ -65,10 +65,14 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   xglm/pytorch-xglm-1.7B-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   resnet/pytorch-resnet_50_hf-single_device-full-inference:
     required_pcc: 0.98
@@ -109,7 +113,9 @@ test_config:
     status: EXPECTED_PASSING
 
   musicgen_small/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -151,7 +157,9 @@ test_config:
     status: EXPECTED_PASSING
 
   bart/pytorch-large-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-full-inference:
     status: EXPECTED_PASSING
