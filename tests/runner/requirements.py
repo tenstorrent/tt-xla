@@ -106,7 +106,10 @@ class RequirementsManager:
         )
         if os.path.isfile(nodeps_path):
             _dbg(f"[Requirements] __enter__: installing (no-deps) -r {nodeps_path}")
-            self._pip(("install", "--no-input", "--no-deps", "-r", nodeps_path))
+            if "yolox" in nodeps_path:
+                self._pip(("install", "--no-input", "--no-deps", "--no-build-isolation", "-r", nodeps_path))
+            else:
+                self._pip(("install", "--no-input", "--no-deps", "-r", nodeps_path))
 
         _dbg("[Requirements] __enter__: running pip freeze (after)")
         self._after_freeze = self._pip_freeze()

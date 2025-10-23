@@ -11,9 +11,8 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.comparators.torch_comparator import TorchComparator
+from infra.comparators.torch_comparator import TorchComparator, AtolConfig, ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
-from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
