@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch_xla.core.xla_model as xm
+import torch_xla
 import torch_xla.runtime as xr
 
 from diffusers import StableDiffusionXLPipeline, AutoencoderKL, UNet2DConditionModel
@@ -224,7 +225,7 @@ def run_sdxl_unet_text_encoder():
 
     print("DONE")
 
-def run_sdxl_unet_vae():
+def run_sdxl_vae():
     xr.set_device_type("TT")
     pipeline = StableDiffusionXLPipeline.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0",
@@ -265,64 +266,70 @@ def run_sdxl_vae_encoder():
 
     print(output)
 
-def temp():
+def run_sdxl_vae_decoder():
     xr.set_device_type("TT")
-
-    torch.random.manual_seed(0)
-    
-    # Load only the UNet component instead of the entire pipeline
-    model = UNet2DConditionModel.from_pretrained(
+    pipeline = StableDiffusionXLPipeline.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0",
-        subfolder="unet",
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
         variant="fp16"
     )
-    
-    # Generate inputs for SDXL UNet
-    # sample: (batch_size, in_channels=4, height, width)
-    sample = torch.rand((1, 4, 64, 64), dtype=torch.bfloat16)
-    
-    # timestep: scalar or tensor representing the denoising step
-    timestep = torch.randint(0, 1000, (1,))
-    
-    # encoder_hidden_states: (batch_size, sequence_length, cross_attention_dim=2048)
-    encoder_hidden_states = torch.rand((1, 77, 2048), dtype=torch.bfloat16)
-    
-    # SDXL requires additional conditioning arguments
-    added_cond_kwargs = {
-        "text_embeds": torch.rand((1, 1280), dtype=torch.bfloat16),  # Pooled text embeddings
-        "time_ids": torch.rand((1, 6), dtype=torch.bfloat16)  # Time conditioning
-    }
-
+    # VAE decoder takes latent representation (batch_size, latent_channels=4, latent_height=64, latent_width=64)
+    # SDXL VAE has a latent dimension of 4 channels and spatial compression factor of 8 (512/8 = 64)
+    latent = torch.randn(1, 4, 64, 64, dtype=torch.bfloat16)
+    model = pipeline.vae.decoder
+    model = model.to(torch.bfloat16)
     model = model.eval()
 
+    model.compile(backend="tt")
+
+    device = xm.xla_device()
+
+    latent = latent.to(device)
+    model = model.to(device)
+    #model.eval()
+
     with torch.no_grad():
-        torch_output = model(sample, timestep, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs)
-    
-    torch_output = torch_output[0].cpu()
+        output = model(latent)
 
+    print(output)
 
+def run_sdxl_vae_encoder_conv():
+    xr.set_device_type("TT")
+    pipeline = StableDiffusionXLPipeline.from_pretrained(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        torch_dtype=torch.float16,
+        variant="fp16"
+    )
+    model = pipeline.vae.encoder.down_blocks[0].resnets[0].conv1
+    model = model.to(torch.bfloat16)
+    model = model.eval()
+
+    # Generate input for the conv layer
+    # The input shape depends on the conv layer's expected input
+    sample = torch.randn(1, 128, 512, 512, dtype=torch.bfloat16)
+
+    # Run PyTorch eager mode inference
+    with torch.no_grad():
+        torch_output = model(sample)
+
+    # Compile for TT device
     model.compile(backend="tt")
 
     device = xm.xla_device()
 
     # Move inputs and model to device
     sample = sample.to(device)
-    timestep = timestep.to(device)
-    encoder_hidden_states = encoder_hidden_states.to(device)
-    added_cond_kwargs["text_embeds"] = added_cond_kwargs["text_embeds"].to(device)
-    added_cond_kwargs["time_ids"] = added_cond_kwargs["time_ids"].to(device)
     model = model.to(device)
 
+    # Run inference on TT device
     with torch.no_grad():
-        output = model(sample, timestep, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs)
+        output = model(sample)
 
-    output = output[0].cpu()
-
-    print(f"torch.allclose(torch_output, output, atol=1e-4): {torch.allclose(torch_output, output, atol=1e-4)}")
-    print(f"compute_pcc(torch_output, output): {compute_pcc(torch_output, output)}")
-
+    # Compare outputs
+    print(f"torch.allclose(torch_output, output, atol=1e-2): {torch.allclose(torch_output.cpu(), output.cpu(), atol=1e-2)}")
+    print(f"compute_pcc(torch_output, output): {compute_pcc(torch_output.cpu(), output.cpu())}")
+    print("DONE")
 
 
 if __name__ == "__main__":
-    temp()
+    run_sdxl_vae_decoder()
