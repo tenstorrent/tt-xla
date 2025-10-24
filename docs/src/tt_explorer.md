@@ -52,4 +52,3 @@ module attributes {} {
 For detailed documentation on how to use Explorer, including tutorials and advanced features, see the [TT-MLIR Explorer Documentation](https://docs.tenstorrent.com/tt-mlir/tt-explorer/tt-explorer.html).
 
 Explorer is based on [Google's Model Explorer](https://github.com/google-ai-edge/model-explorer) with added support for Tenstorrent hardware compilation and execution.
-
