@@ -908,19 +908,28 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        attn_metadata = TTMetadata(
-            context_lens=seq_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            attn_mask=generate_attn_mask(
+        # Default options: only valid for single input per batch.
+        attn_mask = None
+        is_causal = True
+
+        # Use custom mask if number of request per batch can exceed one.
+        if self.max_num_reqs > 1:
+            attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
-            ),
-            is_causal=False,
+            )
+            is_causal = False
+
+        attn_metadata = TTMetadata(
+            context_lens=seq_lens,
+            query_start_loc=query_start_loc,
+            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
+            attn_mask=attn_mask,
+            is_causal=is_causal,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1281,19 +1290,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
         num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
-        attn_metadata = TTMetadata(
-            context_lens=context_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=num_seqs,
-            attn_mask=generate_attn_mask(
+
+        # Default options: only valid for single input per batch.
+        attn_mask = None
+        is_causal = True
+
+        # Use custom mask if number of request per batch can exceed one.
+        if self.max_num_reqs > 1:
+            attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
-            ),
-            is_causal=False,
+            )
+            is_causal = False
+
+        attn_metadata = TTMetadata(
+            context_lens=context_lens,
+            query_start_loc=query_start_loc,
+            num_seqs=num_seqs,
+            attn_mask=attn_mask,
+            is_causal=is_causal,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
