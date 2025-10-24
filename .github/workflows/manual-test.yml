@@ -52,29 +52,10 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
 
-  # create-custom-test-name:
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     test_job_name: ${{ steps.set-test-job-name.outputs.test_job_name }}
-  #   steps:
-  #     - name: Set custom test job name based on the test preset file
-  #       id: set-test-job-name
-  #       shell: bash
-  #       run: |
-  #         test_job_name="test"
-  #         if [ "${{ inputs.test_suite }}" == "model-test-training.json" ]; then
-  #           test_job_name="test_forge_models_training"
-  #         fi
-  #         echo "test_job_name=$test_job_name" >> $GITHUB_OUTPUT
-
   test:
     if: always() && !cancelled()
-    # name: "testing"
-    # name: ${{ inputs.test_suite == 'model-test-training.json' && 'test_forge_models_training' || 'test' }}
-    # name: ${{ needs.create-custom-test-name.outputs.test_job_name }}
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla ]
-    # needs: [ build-image, build-ttxla, create-custom-test-name ]
     secrets: inherit
     with:
       test_suite: ${{ inputs.test_suite }}
