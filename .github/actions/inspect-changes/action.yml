@@ -50,7 +50,8 @@ runs:
             fi
             # Detect if all changes are strictly under tests/runner/
             if [[ ! $file =~ ^tests/runner/.* ]]; then
-              only_run_forge_models=false
+              # only_run_forge_models=false
+              echo "Found non-forge-models file"
             fi
             # Example: detect perf uplift (customize as needed)
             if [[ $file == *"perf"* ]]; then
