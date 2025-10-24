@@ -9,3 +9,5 @@
 - [Code Generation](./getting_started_codegen.md)
     - [Tutorial: Generate Python Code from Your Model](./emitpy_tutorial.md)
     - [Troubleshooting](./troubleshooting_codegen.md)
+- Tools
+    - [Explorer](./tt_explorer.md)

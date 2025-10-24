@@ -7,9 +7,9 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
   echo "WARNING: TTMLIR_TOOLCHAIN_DIR not set. Using default value /opt/ttmlir-toolchain"
   export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 fi
-export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
+export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
 export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/python_packages"
 # pytest alias for venv interpreter
 alias pytest='python -m pytest'
 
@@ -32,5 +32,5 @@ export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 
-export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
+export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/bin:$PATH
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
