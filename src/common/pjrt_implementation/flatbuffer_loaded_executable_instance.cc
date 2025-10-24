@@ -516,7 +516,7 @@ void FlatbufferLoadedExecutableInstance::dumpInputs(
   std::filesystem::create_directories(dump_dir);
 
   for (int i = 0; i < input_tensors.size(); ++i) {
-    std::string filename = "input_" + std::to_string(i) + ".tensorbin";
+    std::string filename = "arg_" + std::to_string(i) + ".tensorbin";
     std::filesystem::path filepath = dump_dir / filename;
 
     tt::runtime::dumpTensor(input_tensors[i], filepath.string());
