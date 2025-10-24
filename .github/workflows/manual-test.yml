@@ -53,9 +53,9 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
 
   test:
-    if: always() && !cancelled()
+    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla ]
+    needs: [ build-image, build-ttxla]
     secrets: inherit
     with:
       test_suite: ${{ inputs.test_suite }}
