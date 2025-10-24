@@ -360,7 +360,7 @@ jobs:
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
       run: |
-        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/gcov_for_clang.sh
+        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
         lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
         sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
         lcov --list coverage.info
