@@ -68,7 +68,7 @@ jobs:
           echo "test_job_name=$test_job_name" >> $GITHUB_OUTPUT
 
   test:
-    if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: success() && !cancelled()
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla, create-custom-test-name ]
     secrets: inherit
