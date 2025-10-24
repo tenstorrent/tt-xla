@@ -624,13 +624,13 @@ test_config:
 
   mlp_mixer/pytorch-mixer_l16_224_in21k-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9550153017044067. Required: pcc=0.99.
 
   retinanet/pytorch-retinanet_rn50fpn-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.956940770149231. Required: pcc=0.99.
 
@@ -651,7 +651,7 @@ test_config:
 
   albert/token_classification/pytorch-xlarge_v2-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8890893459320068. Required: pcc=0.99.
 
@@ -729,7 +729,7 @@ test_config:
 
   albert/token_classification/pytorch-xxlarge_v2-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9272822141647339. Required: pcc=0.99.
 
@@ -794,7 +794,7 @@ test_config:
 
   mlp_mixer/pytorch-mixer_b16_224-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8825544118881226. Required: pcc=0.99.
 
@@ -806,7 +806,7 @@ test_config:
 
   autoencoder/pytorch-conv-data_parallel-full-inference:
     supported_archs: [n300]
-    assert_ppc: false
+    assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.5767203569412231. Required: pcc=0.99.
 
