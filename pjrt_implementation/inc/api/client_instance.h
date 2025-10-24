@@ -163,8 +163,8 @@ private:
   // Used to identify the platform.
   const std::string m_platform_name = "tt";
 
-  // Used to identify the platform version.
-  const std::string m_platform_version;
+  // We don't have a versioning system for our software stack yet.
+  const std::string m_platform_version = "0.0.0";
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.

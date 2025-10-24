@@ -16,12 +16,12 @@
 
 namespace tt::pjrt {
 
+// Binds all the PJRT API functions implementations.
+void bindApi(PJRT_Api *api);
+
 // This is a bare implementation throwing UNDEFINED errors. This way new
 // functions will not segmentation fault on invocation.
 void bindUndefineds(PJRT_Api *api);
-
-// Binds all the PJRT API functions implementations.
-void bindApi(PJRT_Api *api);
 
 } // namespace tt::pjrt
 
