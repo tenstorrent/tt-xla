@@ -336,7 +336,7 @@ private:
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
   // independently of the frontend. In the future, this will also prepare
   // everything to generate an .so file for execution.
-  tt_pjrt_status performCodegen(std::string_view ttir_mlir,
+  tt_pjrt_status performCodegen(std::string_view ttnn_mlir,
                                 const CompileOptions &compile_options);
 
   // MLIR context handle.

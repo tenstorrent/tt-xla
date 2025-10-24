@@ -65,10 +65,14 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   xglm/pytorch-xglm-1.7B-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   resnet/pytorch-resnet_50_hf-single_device-full-inference:
     required_pcc: 0.98
@@ -109,7 +113,9 @@ test_config:
     status: EXPECTED_PASSING
 
   musicgen_small/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -151,7 +157,9 @@ test_config:
     status: EXPECTED_PASSING
 
   bart/pytorch-large-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "loc(\"add.1846_decomp_matmul\"(\"add.1846\")): error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](256) - https://github.com/tenstorrent/tt-xla/issues/1781"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -497,9 +505,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+    bringup_status: FAILED_RUNTIME
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1387,9 +1395,9 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+    bringup_status: FAILED_RUNTIME
 
   bi_lstm_crf/pytorch-default-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1494,25 +1502,24 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+    bringup_status: FAILED_RUNTIME
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+    bringup_status: FAILED_RUNTIME
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+    bringup_status: FAILED_RUNTIME
 
   glpn_kitti/pytorch-single_device-full-inference:
     arch_overrides:
@@ -1684,10 +1691,9 @@ test_config:
   mistral/pytorch-7b-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+        bringup_status: FAILED_RUNTIME
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1704,10 +1710,9 @@ test_config:
   mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Unsupported binary op for FPU BinaryOpType::BITWISE_OR. - https://github.com/tenstorrent/tt-xla/issues/1783"
+        bringup_status: FAILED_RUNTIME
 
       n150:
         status: NOT_SUPPORTED_SKIP
