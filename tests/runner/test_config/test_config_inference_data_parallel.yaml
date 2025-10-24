@@ -4,16 +4,93 @@
 
 test_config:
 
+  #==============================================================================
+  # KNOWN ISSUE: SEQ CLASSIFICATION TOKEN NEEDED
+  #==============================================================================
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1/sequence_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # KNOWN ISSUE: Dynamo failed to run FX node with fake tensors
+  #==============================================================================
+  # nbeats/pytorch-generic_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # nbeats/pytorch-seasonality_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # nbeats/pytorch-trend_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  #==============================================================================
+  # KNOWN ISSUE: 'GenerationConfig' object has no attribute 'rep
+  #==============================================================================
+  # gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # KNOWN ISSUE: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-ml…
+  #==============================================================================
+  # dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # TO BE TESTED
+  #==============================================================================
+
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -159,15 +236,6 @@ test_config:
     status: EXPECTED_PASSING
 
   dla/pytorch-dla60x-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -371,18 +439,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  phi2/sequence_classification/pytorch-microsoft/phi-2-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -416,10 +472,6 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v1-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  phi1/sequence_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -746,18 +798,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  nbeats/pytorch-generic_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  nbeats/pytorch-seasonality_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  nbeats/pytorch-trend_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   gpt2/pytorch-gpt2_sequence_classification-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -970,32 +1010,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   glpn_kitti/pytorch-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
   qwen_3/embedding/pytorch-embedding_8b-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
