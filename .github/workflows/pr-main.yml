@@ -93,6 +93,15 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
 
+  build-docs:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: ./.github/workflows/call-build-docs.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      deploy_docs: false
+
   check-all-green:
     if: always()
     needs:
@@ -102,10 +111,11 @@ jobs:
       - build-ttxla-release
       - test
       - test_forge_models_push
+      - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test, test_forge_models_push
+        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test, test_forge_models_push, build-docs
         jobs: ${{ toJSON(needs) }}

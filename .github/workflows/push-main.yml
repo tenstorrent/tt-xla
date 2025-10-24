@@ -70,3 +70,4 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      deploy_docs: true
