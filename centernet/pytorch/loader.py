@@ -110,7 +110,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="centernet",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.HOURGLASS_COCO
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.GITHUB,
             framework=Framework.TORCH,

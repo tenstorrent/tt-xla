@@ -66,10 +66,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="flux",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.SCHNELL
+            else ModelGroup.GENERALITY,
             task=ModelTask.MM_IMAGE_TTT,  # FIXME: Update task to Text to Image
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

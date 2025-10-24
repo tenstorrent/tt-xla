@@ -108,7 +108,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="maptr",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.TINY_R50_24E_BEVFORMER
+            else ModelGroup.GENERALITY,
             task=ModelTask.REALTIME_MAP_CONSTRUCTION,
             source=ModelSource.GITHUB,
             framework=Framework.TORCH,

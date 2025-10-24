@@ -70,10 +70,15 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant."""
 
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="bevdepth",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.BEVDEPTH_LSS_R50_256X704_128X128_24E_2KEY
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
