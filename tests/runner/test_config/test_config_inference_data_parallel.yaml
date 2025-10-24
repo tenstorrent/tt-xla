@@ -318,3 +318,819 @@ test_config:
   alexnet/pytorch-alexnet-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+  xception/pytorch-xception65-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla60-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla102x-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_040-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_320-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_16gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  t5/pytorch-google/flan-t5-large-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov4/pytorch-base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  xception/pytorch-xception71-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  fpn/pytorch-resnet50_fpn_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla60x-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla102x2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  xception/pytorch-xception71.tf_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla60x_c-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv1/pytorch-mobilenet_v1-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla34-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  wide_resnet/pytorch-wide_resnet101_2.timm-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  dla/pytorch-dla34.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  unet/pytorch-carvana_unet-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov8/pytorch-yolov8n-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  wide_resnet/pytorch-wide_resnet50_2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  regnet/pytorch-regnet_y_160-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_800mf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_400mf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  inception/pytorch-inception_v4-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  ssd300_resnet50/pytorch-base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hardnet/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  dla/pytorch-dla46_c-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  unet/pytorch-torchhub_brain_unet-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov8/pytorch-yolov8x-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  wide_resnet/pytorch-wide_resnet50_2.timm-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  xception/pytorch-xception41-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla46x_c-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla102-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/pytorch-dla169-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_3_2gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_8gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  hrnet/pytorch-hrnet_w18_small-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w44-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  albert/masked_lm/pytorch-xxlarge_v1-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov6/pytorch-yolov6n-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-timm_vgg19_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  ghostnet/pytorch-ghostnet_100-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  monodepth2/pytorch-mono_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv3/pytorch-mobilenet_v3_small-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  resnet/pytorch-resnet50-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  efficientnet/pytorch-efficientnet_b6-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  wide_resnet/pytorch-wide_resnet101_2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  regnet/pytorch-regnet_y_064-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_400mf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  t5/pytorch-google/flan-t5-base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w48-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  albert/token_classification/pytorch-base_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov6/pytorch-yolov6s-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vgg/pytorch-torchvision_vgg11_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vovnet/pytorch-ese_vovnet39b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  ghostnet/pytorch-ghostnet_100.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  monodepth2/pytorch-mono_no_pt_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet50_timm-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  efficientnet/pytorch-efficientnet_b0-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  efficientnet/pytorch-efficientnet_b7-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnext/pytorch-resnext50_32x4d-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mlp_mixer/pytorch-mixer_l16_224_in21k-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9550153017044067. Required: pcc=0.99.
+
+  retinanet/pytorch-retinanet_rn50fpn-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.956940770149231. Required: pcc=0.99.
+
+  vovnet/pytorch-vovnet57_th-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  yolos/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/pytorch-ese_vovnet99b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  albert/token_classification/pytorch-xlarge_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8890893459320068. Required: pcc=0.99.
+
+  regnet/pytorch-regnet_y_080-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_y_8gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  inception/pytorch-inception_v4.tf_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  t5/pytorch-google/flan-t5-small-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18_small_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w64-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vgg/pytorch-torchvision_vgg13_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  monodepth2/pytorch-stereo_1024x320-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv3/pytorch-mobilenetv3_small_100-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  resnet/pytorch-resnet_50_hf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  efficientnet/pytorch-efficientnet_b1-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  retinanet/pytorch-retinanet_rn101fpn-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9655160903930664. Required: pcc=0.99.
+
+  albert/token_classification/pytorch-xxlarge_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9272822141647339. Required: pcc=0.99.
+
+  regnet/pytorch-regnet_y_120-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_1_6gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mobilenetv2/pytorch-mobilenet_v2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  t5/pytorch-t5-base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg16_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  yolov10/pytorch-yolov10n-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  monodepth2/pytorch-stereo_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  monodepth2/pytorch-mono+stereo_1024x320-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet101-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  efficientnet/pytorch-efficientnet_b2-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnext/pytorch-resnext101_32x8d-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mlp_mixer/pytorch-mixer_b16_224-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8825544118881226. Required: pcc=0.99.
+
+  retinanet/pytorch-retinanet_rn152fpn-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9571177363395691. Required: pcc=0.99.
+
+  autoencoder/pytorch-conv-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_ppc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.5767203569412231. Required: pcc=0.99.
+
+  regnet/pytorch-regnet_y_16gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_32gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mobilenetv2/pytorch-mobilenet_v2_torchvision-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  t5/pytorch-t5-large-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b2_finetuned_ade_512_512-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w30-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  googlenet/pytorch-googlenet-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg19_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  yolov10/pytorch-yolov10x-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  monodepth2/pytorch-mono+stereo_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  monodepth2/pytorch-stereo_no_pt_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet152-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  efficientnet/pytorch-efficientnet_b3-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnext/pytorch-resnext101_32x8d_wsl-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mlp_mixer/pytorch-mixer_b16_224_in21k-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9302667379379272. Required: pcc=0.99.
+
+  retinanet/pytorch-retinanet_rn18fpn-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9567028880119324. Required: pcc=0.99.
+
+  vovnet/pytorch-vovnet39_th-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  centernet/pytorch-hourglass_coco-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.25450941920280457. Required: pcc=0.99.
+
+  openpose/v2/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9093026518821716. Required: pcc=0.99.
+
+  retinanet/pytorch-retinanet_rn34fpn-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9525967836380005. Required: pcc=0.99.
+
+  regnet/pytorch-regnet_y_1_6gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_3_2gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mobilenetv2/pytorch-mobilenetv2_100-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b3_finetuned_ade_512_512-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w32-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-bn_vgg19-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vgg/pytorch-vgg19_bn-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  monodepth2/pytorch-mono+stereo_no_pt_640x192-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet18-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-efficientnet_b4-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov3/pytorch-base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  distilbert/masked_lm/pytorch-distilbert-base-multilingual-cased-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-efficientnet_b5-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18.ms_aug_in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w40-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  opt/qa/pytorch-facebook/opt-350m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  monodepth2/pytorch-mono_1024x320-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  yolov6/pytorch-yolov6m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mobilenetv3/pytorch-mobilenet_v3_large-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  resnet/pytorch-resnet34-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  regnet/pytorch-regnet_y_32gf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  regnet/pytorch-regnet_x_800mf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/pytorch-ese_vovnet19b_dw-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-timm_efficientnet_b0-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-bn_vgg19b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  phi1/causal_lm/pytorch-microsoft/phi-1-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  roberta/masked_lm/pytorch-xlm_base-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  codegen/pytorch-Salesforce/codegen-350M-multi-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/pytorch-0_5b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  qwen_2_5/casual_lm/pytorch-0_5b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  phi1/token_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  codegen/pytorch-Salesforce/codegen-350M-nl-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  opt/qa/pytorch-facebook/opt-125m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  opt/causal_lm/pytorch-facebook/opt-125m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  qwen_1_5/causal_lm/pytorch-0_5b_chat-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mamba/pytorch-mamba-370m-hf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  codegen/pytorch-Salesforce/codegen-350M-mono-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  nanogpt/pytorch-FinancialSupport/NanoGPT-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  gemma/pytorch-google/gemma-1.1-2b-it-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/pytorch-1_5b_instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  qwen_3/embedding/pytorch-embedding_0_6b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  opt/causal_lm/pytorch-facebook/opt-350m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  phi1_5/causal_lm/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  distilbert/masked_lm/pytorch-distilbert-base-cased-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  distilbert/question_answering/pytorch-distilbert-base-cased-distilled-squad-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
