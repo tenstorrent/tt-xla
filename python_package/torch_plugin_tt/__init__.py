@@ -25,9 +25,6 @@ class TTPlugin(DevicePlugin):
         super().__init__()
         setup_tt_metal_home()
 
-        # Set device type to TT
-        xr.set_device_type("TT")
-
         # For using the PJRT plugin with `torch_xla` we need to set
         # `XLA_STABLEHLO_COMPILE` env variable to `1` to enable stablehlo compilation.
         # NOTE: This variable should soon be on by-default in `torch_xla`, but for now we need it.

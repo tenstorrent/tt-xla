@@ -18,6 +18,7 @@ class TorchDeviceConnector(DeviceConnector):
 
     def __init__(self) -> None:
         super().__init__()
+        xr.runtime.set_device_type("TT")
         xr.initialize_cache(self.get_cache_dir())
 
     @staticmethod
