@@ -185,7 +185,7 @@ def is_llmbox(request):
 def is_galaxy(request):
     return request.node.get_closest_marker("galaxy") is not None
 
-def get_tt_device_arch() -> TTArch:
+def get_torch_device_arch() -> TTArch:
     """Returns the architecture of the connected TT device."""
     device_kind = torch_xla._XLAC._xla_device_kind("xla")
     if "Wormhole_b0" in device_kind:

@@ -5,7 +5,7 @@
 import pytest
 import torch
 from infra import Framework, run_op_test_with_random_inputs
-from utils import Category, TTArch, get_tt_device_arch
+from utils import Category, TTArch, get_torch_device_arch
 
 
 def check_device_compatibility(input_shape: tuple, k: int):
@@ -14,7 +14,7 @@ def check_device_compatibility(input_shape: tuple, k: int):
     - All tests are xfailed on Blackhole
     - Last only some are skipped on Wormhole
     """
-    device_arch = get_tt_device_arch()
+    device_arch = get_torch_device_arch()
 
     if device_arch == TTArch.BLACKHOLE:
         pytest.xfail(
