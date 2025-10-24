@@ -95,10 +95,6 @@ python -c "import jax; print(jax.devices('tt'))"
 # Verify PyTorch/XLA with TT plugin
 python -c "import torch_xla.core.xla_model as xm; print(xm.get_xla_supported_devices('tt'))"
 
-# Check hardware status
-tt-smi
-```
-
 ## Test Structure and Markers
 
 ### Test Categories (pytest markers)
@@ -132,6 +128,3 @@ Use `@pytest.mark.record_test_properties()` to tag tests with:
 ### Python Requirements
 - jax==0.7.1, jaxlib==0.7.1, torch==2.7.0
 - torch-xla (custom build from Tenstorrent PyPI)
-
-## Hardware Support
-Currently supports Tenstorrent Nebula boards only. Hardware must be configured with TT-Installer and hugepages enabled.
