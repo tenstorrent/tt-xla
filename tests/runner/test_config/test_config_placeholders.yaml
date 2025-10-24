@@ -29,10 +29,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   panoptic deeplab:
     bringup_status: NOT_STARTED
-  oft-net:
-    bringup_status: NOT_STARTED
-  ssr-net:
-    bringup_status: NOT_STARTED
   mistralai/Mistral-Small-3.1-24B-Instruct-2503:
     bringup_status: NOT_STARTED
   mistralai/Devstral-Small-2505:
@@ -49,8 +45,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   openbmb/MiniCPM-o-2_6:
     bringup_status: NOT_STARTED
-  Qwen/Qwen2.5-VL-7B-Instruct:
-    bringup_status: NOT_STARTED
   mistralai/Mixtral-8x7B-Instruct-v0.1:
     bringup_status: NOT_STARTED
   openai/gpt-oss-20b:
@@ -65,8 +59,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   mistralai/Mistral-Nemo-Instruct-2407:
     bringup_status: NOT_STARTED
-  Qwen/QVQ-72B-Preview:
-    bringup_status: NOT_STARTED
   Sentencizer:
     bringup_status: NOT_STARTED
   MiniMaxAI/MiniMax-Text-01:
@@ -75,11 +67,11 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   mistralai/Pixtral-Large-Instruct-2411:
     bringup_status: NOT_STARTED
-  mistralai/Pixtral-12B-2409:
-    bringup_status: NOT_STARTED
   upstage/SOLAR-10.7B-Instruct-v1.0:
     bringup_status: NOT_STARTED
   Gaussian Splatting:
     bringup_status: NOT_STARTED
-  Open VLA:
+  Boltz2:
+    bringup_status: NOT_STARTED
+  Qwen-Image:
     bringup_status: NOT_STARTED
