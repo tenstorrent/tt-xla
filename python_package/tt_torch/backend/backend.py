@@ -78,6 +78,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
+        auto_to_xla: bool = False,
     ):
         self.module = module
         self.signature = signature
@@ -89,12 +90,26 @@ class XLAExecutor:
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
-        self.devices = set()
+        """self.devices = set()
         for _, tensor in module.state_dict().items():
             self.devices.add(tensor.device.type)
+        self.devices = list(self.devices)"""
+        self.devices = set()
+        self.auto_to_xla = auto_to_xla
+        if self.auto_to_xla:
+            self.module = self.module.to("xla")
+        for _, tensor in module.state_dict().items():
+            if hasattr(tensor, "device"):
+                self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
     def __call__(self, *args):
+
+        args = list(args)
+        for idx, arg in enumerate(args):
+            if self.auto_to_xla and arg.device.type != "xla":
+                args[idx] = arg.to("xla")
+        args = tuple(args)
 
         if self.inject_metadata:
             # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
@@ -122,11 +137,20 @@ class XLAExecutor:
             # This causes buffer mutations to show up as graph outputs in MLIR.
             torch_xla.sync()
 
+        output = list(output)
+        for idx, out in enumerate(output):
+            if hasattr(out, "to"):
+                output[idx] = out.to("cpu")
+        output = tuple(output)
+        # assert False
+
         return output
 
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
+    auto_to_xla = options.get("auto_to_xla", True)
+
     module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature, node_info)
+    return XLAExecutor(module, graph_signature, node_info, auto_to_xla)

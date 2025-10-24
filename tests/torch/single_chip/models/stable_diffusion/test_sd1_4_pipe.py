@@ -63,7 +63,9 @@ class UnetWrapper(torch.nn.Module):
 
 
 @pytest.mark.parametrize("sample_dim", [8, 16, 32, 64])
-@pytest.mark.parametrize("num_inf_steps", [1, 20, 50])  # default is 50 for the model
+@pytest.mark.parametrize(
+    "num_inf_steps", [1, 2, 5, 20, 50]
+)  # default is 50 for the model
 def test_sd1_4_pipe(sample_dim, num_inf_steps):
     torch.manual_seed(42)
 
@@ -90,9 +92,9 @@ def test_sd1_4_pipe(sample_dim, num_inf_steps):
     # by default sample_size is 64, which produces a 512x512 image
     # VAE upsamples output from Unet by factor of 8
     pipe.unet.to(device)
-    pipe.unet = UnetWrapper(pipe.unet, device)
-    pipe.unet = torch.compile(pipe.unet, backend="tt")
-    print("Unet compiled for TT device, device type: ", pipe.unet.unet.device)
+    # pipe.unet = UnetWrapper(pipe.unet, device)
+    pipe.unet = torch.compile(pipe.unet, backend="tt", options={"auto_to_xla": True})
+    print("Unet compiled for TT device, device type")
 
     # Keep everything else on CPU
     pipe.text_encoder.to("cpu")
@@ -118,7 +120,7 @@ def test_sd1_4_pipe(sample_dim, num_inf_steps):
             low_cpu_mem_usage=True,
             num_inference_steps=num_inf_steps,
         ).images[0]
-        image.save(f"sd1_4_output_{sample_dim}.png")
+        image.save(f"sd1_4_output_{sample_dim}_{num_inf_steps}.png")
 
     print("Hybrid pipeline completed successfully!")
     print(f"Generated image size: {image.size}")

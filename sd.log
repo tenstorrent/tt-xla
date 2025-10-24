@@ -1,4 +1,0 @@
-ImportError while loading conftest '/localdev/ssalice/tt-xla/tests/conftest.py'.
-tests/conftest.py:17: in <module>
-    from infra import DeviceConnectorFactory, Framework
-E   ModuleNotFoundError: No module named 'infra'
