@@ -4,9 +4,9 @@
 * @mrakitaTT @nvukobratTT @AleksKnezevic
 
 # Source
-/inc/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
-/src/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
-/src/compile/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
+/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
+/pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
+/pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
 
 # CI
 /.github/ @vmilosevic @jmcgrathTT @kmabeeTT @nsumrakTT @vvukomanTT

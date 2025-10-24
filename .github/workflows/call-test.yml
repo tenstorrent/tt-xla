@@ -361,8 +361,8 @@ jobs:
       if: steps.strings.outputs.do_codecov && (success() || failure())
       run: |
         lcov --directory build --capture --output-file coverage.info
-        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
-        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
+        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
         lcov --list coverage.info
 
     - name: Upload coverage reports to Codecov
