@@ -28,3 +28,5 @@ venv/*
 
 # Packaging scripts write artifacts here.
 bindist/
+
+logs/
