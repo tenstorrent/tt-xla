@@ -994,8 +994,9 @@ test_config:
     status: EXPECTED_PASSING
 
   mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9846240878105164. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
 
   mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-inference:
     status: EXPECTED_PASSING
