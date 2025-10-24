@@ -69,7 +69,8 @@ jobs:
 
   test:
     if: always() && !cancelled()
-    name: ${{ inputs.test_suite == 'model-test-training.json' && 'test_forge_models_training' || 'test' }}
+    name: "testing"
+    # name: ${{ inputs.test_suite == 'model-test-training.json' && 'test_forge_models_training' || 'test' }}
     # name: ${{ needs.create-custom-test-name.outputs.test_job_name }}
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla ]
