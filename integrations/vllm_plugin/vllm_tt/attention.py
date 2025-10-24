@@ -49,7 +49,7 @@ torch._dynamo.config.reorderable_logging_functions.add(print)
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
     def get_name() -> str:
-        return "PALLAS_VLLM_V1"
+        return "TT_VLLM_V1"
 
     @staticmethod
     def get_impl_cls() -> type["TTAttentionBackendImpl"]:
