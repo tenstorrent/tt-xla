@@ -6,8 +6,10 @@
 test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99."
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]

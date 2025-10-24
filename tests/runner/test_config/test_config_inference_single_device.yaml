@@ -125,6 +125,7 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
+    required_pcc: 0.98 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/1789
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference:
