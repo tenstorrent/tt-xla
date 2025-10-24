@@ -2192,3 +2192,13 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+
+  sentencizer/pytorch-xlm-roberta-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    bringup_status: FAILED_FE_COMPILATION
+
+  sentencizer/pytorch-xlm-roberta-large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    bringup_status: FAILED_FE_COMPILATION
