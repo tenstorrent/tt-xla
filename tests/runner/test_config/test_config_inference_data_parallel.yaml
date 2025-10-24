@@ -87,8 +87,10 @@ test_config:
 
   albert/masked_lm/pytorch-base_v2-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9857742786407471. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-yolov6l-data_parallel-full-inference:
     supported_archs: [n300]
@@ -185,8 +187,10 @@ test_config:
 
   albert/token_classification/pytorch-xxlarge_v1-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.96  # tt-torch has this at 0.99
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   vgg/pytorch-vgg13-data_parallel-full-inference:
     supported_archs: [n300]

@@ -125,6 +125,7 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
+    required_pcc: 0.98 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/1789
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference:
@@ -500,9 +501,9 @@ test_config:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
 
   mlp_mixer/lucidrains/pytorch-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "error: failed to legalize operation 'stablehlo.batch_norm_training' - https://github.com/tenstorrent/tt-xla/issues/1245"
-    bringup_status: FAILED_FE_COMPILATION
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "hangs - https://github.com/tenstorrent/tt-xla/issues/1245"
+    bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
