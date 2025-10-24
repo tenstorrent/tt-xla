@@ -1186,7 +1186,9 @@ test_config:
     bringup_status: NOT_STARTED
 
   nbeats/pytorch-generic_basis-single_device-full-training:
-    bringup_status: NOT_STARTED
+    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Calculated: pcc=0.9751636385917664. Required: pcc=0.99."
 
   nbeats/pytorch-seasonality_basis-single_device-full-training:
     bringup_status: NOT_STARTED
