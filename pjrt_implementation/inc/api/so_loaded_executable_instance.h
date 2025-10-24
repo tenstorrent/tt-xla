@@ -10,24 +10,23 @@
 // c++ standard library includes
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
+// tt-mlir includes
+#include "mlir/Support/LogicalResult.h"
+#include "tt/runtime/types.h"
+
 // tt-xla includes
+#include "api/buffer_instance.h"
+#include "api/executable_image.h"
 #include "api/loaded_executable_instance.h"
 #include "utils/status.h"
-
-// Forward declarations
-namespace tt::runtime {
-class Device;
-class Tensor;
-} // namespace tt::runtime
-
-namespace tt::pjrt {
-class SOExecutableImage;
-} // namespace tt::pjrt
 
 namespace tt::pjrt {
 
@@ -49,12 +48,26 @@ public:
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
 
-protected:
+private:
+  // Returns an input tensor constructed from the provided buffer instances,
+  // prepared for execution. If we cannot reuse the already prepared tensor
+  // contained within the buffer instances, this will involve calling
+  // `toLayout()` which in most cases involves moving the data to the device.
+  std::optional<tt::runtime::Tensor>
+  prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
+                     tt::runtime::Device device, size_t num_devices,
+                     std::uint32_t program_index, size_t arg_index) override;
+
   // Converts input tensor to desired layout. This might move it on device.
+  // For SO path, this is a hack that just returns host tensors.
   tt::runtime::Tensor
   convertTensorLayout(tt::runtime::Tensor input_tensor,
                       std::uint32_t program_index, size_t arg_index,
                       const tt::runtime::Device &runtime_device);
+
+  // Create default-initialized output buffers for SO execution
+  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
+                                  size_t num_devices);
 
 private:
   // Creates SO loaded executable instance from the executable image.
