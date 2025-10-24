@@ -67,6 +67,9 @@ else()
         set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     endif()
     set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
+    if(TTXLA_ENABLE_EXPLORER)
+        set(TT_RUNTIME_DEBUG ON)
+    endif()
 
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
