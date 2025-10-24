@@ -11,7 +11,6 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
-#include <sstream>
 #include <stdexcept>
 #include <thread>
 
@@ -75,10 +74,7 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device(device), m_memory(memory), m_host_runtime_tensor(std::nullopt),
       m_data_ready(false), m_data_ready_event(nullptr),
       m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
-      m_prepared_runtime_tensor(std::nullopt) {
-  DLOG_F(LOG_DEBUG, "BufferInstance input constructor: UID=%lu, shape=%s",
-         m_uid, getShapeStr().c_str());
-}
+      m_prepared_runtime_tensor(std::nullopt) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
@@ -93,28 +89,9 @@ BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
-  DLOG_F(LOG_DEBUG, "BufferInstance output constructor: UID=%lu, shape=%s",
-         m_uid, getShapeStr().c_str());
 }
 
-BufferInstance::~BufferInstance() {
-  DLOG_F(LOG_DEBUG, "BufferInstance destructor: UID=%lu, shape=%s", m_uid,
-         getShapeStr().c_str());
-  deleteData();
-}
-
-std::string BufferInstance::getShapeStr() const {
-  std::ostringstream oss;
-  oss << "[";
-  for (size_t i = 0; i < m_dimensions.size(); ++i) {
-    if (i > 0) {
-      oss << ",";
-    }
-    oss << m_dimensions[i];
-  }
-  oss << "]";
-  return oss.str();
-}
+BufferInstance::~BufferInstance() { deleteData(); }
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
