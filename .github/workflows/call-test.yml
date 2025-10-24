@@ -72,7 +72,7 @@ jobs:
       DOCKER_CACHE_ROOT: ${{ !matrix.build.shared-runners && '/mnt/dockercache' || '' }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+    name: "${{ matrix.build.job-name || 'test' }} ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
