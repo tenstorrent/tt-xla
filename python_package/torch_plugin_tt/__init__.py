@@ -7,7 +7,7 @@ from logging import Logger
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
+import tt_torch  # registers "tt" backend for torch.compile
 from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
 from torch_xla.experimental.plugins import DevicePlugin
 
