@@ -182,8 +182,10 @@ def is_dual_chip(request):
 def is_llmbox(request):
     return request.node.get_closest_marker("llmbox") is not None
 
+
 def is_galaxy(request):
     return request.node.get_closest_marker("galaxy") is not None
+
 
 def get_torch_device_arch() -> TTArch:
     """Returns the architecture of the connected TT device."""
