@@ -17,12 +17,16 @@ def check_device_compatibility(input_shape: tuple, k: int):
     device_arch = get_tt_device_arch()
 
     if device_arch == TTArch.BLACKHOLE:
-        pytest.xfail("All topk tests are xfailed on Blackhole architecture")
+        pytest.xfail(
+            "All topk tests are xfailed on Blackhole architecture with bad PCC - https://github.com/tenstorrent/tt-xla/issues/1797"
+        )
     elif device_arch == TTArch.WORMHOLE_B0:
         if (input_shape == (1, 40) and k == 5) or (
             input_shape == (1, 8400) and k == 300
         ):
-            pytest.xfail("Test skipped on Wormhole architecture")
+            pytest.xfail(
+                "Test skipped on Wormhole architecture with bad PCC - https://github.com/tenstorrent/tt-xla/issues/1797"
+            )
 
 
 @pytest.mark.nightly
