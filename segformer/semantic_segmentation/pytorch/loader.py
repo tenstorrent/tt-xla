@@ -79,15 +79,13 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
 
-        if variant in [ModelVariant.B0_FINETUNED]:
-            group = ModelGroup.RED
-        else:
-            group = ModelGroup.GENERALITY
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
             model="segformer_semantic_segmentation",
             variant=variant,
-            group=group,
+            group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

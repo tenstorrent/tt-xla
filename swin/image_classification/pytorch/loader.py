@@ -89,7 +89,7 @@ class ModelLoader(ForgeModel):
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.SWIN_T
+    DEFAULT_VARIANT = ModelVariant.SWIN_S
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -111,7 +111,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="swin",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED
+            if variant == ModelVariant.SWIN_S
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
