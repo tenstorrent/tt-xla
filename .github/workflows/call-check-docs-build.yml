@@ -1,0 +1,66 @@
+
+# This workflow builds the project documentation using a specified Docker image to verify docs build correctly.
+# It does not deploy the docs - use call-build-and-deploy-docs.yml for deployment.
+
+name: Build Docs
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for build'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  checks: write
+
+jobs:
+
+  build-docs:
+    runs-on: ubuntu-latest
+
+    container:
+      image: ${{ inputs.docker_image }}
+
+    env:
+      MDBOOK_VERSION: 0.4.36
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+
+    - name: Git safe dir
+      run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+    - name: Install system deps (Doxygen, Rust, Cargo)
+      shell: bash
+      run: |
+        apt-get update
+        apt-get install -y doxygen curl
+
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        source "$HOME/.cargo/env"
+
+        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build Docs
+      shell: bash
+      run: |
+        source venv/activate
+        source "$HOME/.cargo/env"
+        cmake -G Ninja -B build
+        cmake --build build -- docs

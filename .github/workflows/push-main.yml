@@ -66,8 +66,7 @@ jobs:
 
   deploy-docs:
     needs: [ build-image, build-ttxla ]
-    uses: ./.github/workflows/call-build-docs.yml
+    uses: ./.github/workflows/call-build-and-deploy-docs.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      deploy_docs: true

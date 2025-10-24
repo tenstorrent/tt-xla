@@ -1,6 +1,6 @@
 
 # This workflow builds the project documentation using a specified Docker image, installs necessary dependencies,
-# and optionally deploys the generated docs to GitHub Pages.
+# and deploys the generated docs to GitHub Pages.
 
 name: Build Docs
 
@@ -11,11 +11,6 @@ on:
         description: 'Docker image to use for build'
         required: true
         type: string
-      deploy_docs:
-        description: 'Whether to deploy docs to GitHub Pages'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -66,7 +61,6 @@ jobs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Setup Pages
-      if: ${{ inputs.deploy_docs }}
       id: pages
       uses: actions/configure-pages@v5
 
@@ -79,13 +73,11 @@ jobs:
         cmake --build build -- docs
 
     - name: Upload artifact
-      if: ${{ inputs.deploy_docs }}
       uses: actions/upload-pages-artifact@v3
       with:
         path: ./build/docs/book
 
   deploy:
-    if: ${{ inputs.deploy_docs }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
