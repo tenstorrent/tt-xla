@@ -38,13 +38,13 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        tt_workload = workload
-        self._compile_for_tt_device(tt_workload)
-        tt_res = self._device_runner.run_on_tt_device(tt_workload)
-
         cpu_workload = workload
         self._compile_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+
+        tt_workload = workload
+        self._compile_for_tt_device(tt_workload)
+        tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
         self._comparator.compare(tt_res, cpu_res)
 
@@ -62,16 +62,20 @@ class OpTester(BaseTester):
             )
 
         def compile_torch_workload(workload: Workload) -> None:
-            assert workload.executable is not None
+            assert (workload.executable is None) ^ (
+                workload.model is None
+            ), "Either executable or model must be set, but not both"
+
+            to_compile = (
+                workload.model if workload.model is not None else workload.executable
+            )
             # Set custom compile options if provided.
             # Use explicit API for passing compiler options.
             if self._compiler_config is not None:
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            workload.compiled_executable = torch.compile(
-                workload.executable, backend="tt"
-            )
+            workload.compiled_executable = torch.compile(to_compile, backend="tt")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
@@ -92,10 +96,12 @@ class OpTester(BaseTester):
             )
 
         def compile_torch_workload(workload: Workload) -> None:
-            assert workload.executable is not None
-            workload.compiled_executable = torch.compile(
-                workload.executable, backend="inductor"
+            assert (workload.executable is None) != (workload.model is None)
+
+            to_compile = (
+                workload.model if workload.model is not None else workload.executable
             )
+            workload.compiled_executable = torch.compile(to_compile, backend="inductor")
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"

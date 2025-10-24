@@ -9,6 +9,7 @@ import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
+from infra.workloads.torch_workload import TorchWorkload
 from torch.utils._pytree import tree_map
 
 from .device_runner import DeviceRunner
@@ -94,11 +95,15 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
         kwargs_on_device = tree_map(lambda x: to_device(x, device), workload.kwargs)
 
-        if workload.model is not None:
+        if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
 
         shard_specs = None
-        if workload.shard_spec_fn:
+        if (
+            device.type != "cpu"
+            and hasattr(workload, "shard_spec_fn")
+            and workload.shard_spec_fn
+        ):
             sig = inspect.signature(workload.shard_spec_fn)
             param_names = list(sig.parameters.keys())
 
@@ -110,10 +115,27 @@ class TorchDeviceRunner(DeviceRunner):
             ):
                 shard_specs = workload.shard_spec_fn(args_on_device, kwargs_on_device)
             else:
-                # pass the model (tensor parallel)
-                shard_specs = workload.shard_spec_fn(workload.model)
+                assert (
+                    workload.model is not None
+                ), "Tensor parallel workloads require a nn.Module to shard weights"
+                # Do we need to shard actications as well?
+                shard_activations = (
+                    len(param_names) == 3
+                    and "args" in param_names
+                    and "kwargs" in param_names
+                )
+                if shard_activations:
+                    shard_specs = workload.shard_spec_fn(
+                        workload.model, args_on_device, kwargs_on_device
+                    )
+                else:
+                    shard_specs = workload.shard_spec_fn(workload.model)
 
-        is_multichip = workload.mesh and len(workload.mesh.device_ids) > 1
+        is_multichip = (
+            hasattr(workload, "mesh")
+            and workload.mesh
+            and len(workload.mesh.device_ids) > 1
+        )
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
             for tensor, shard_spec in shard_specs.items():
@@ -126,8 +148,7 @@ class TorchDeviceRunner(DeviceRunner):
         # which doesn't have `.to()` method (function is not loaded on device).
         workload.compiled_executable = to_device(workload.compiled_executable, device)
 
-        return Workload(
-            framework=workload.framework,
+        return TorchWorkload(
             model=workload.model,  # Moved to device if not None.
             executable=workload.executable,  # Unchanged.
             compiled_executable=workload.compiled_executable,  # Unchanged.
