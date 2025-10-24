@@ -112,6 +112,10 @@ public:
   // Returns the unique identifier for this buffer instance.
   uint64_t getUID() const { return m_uid; }
 
+  // Returns a string representation of the buffer shape in the format
+  // [dim1,dim2,...].
+  std::string getShapeStr() const;
+
   // Returns the size of the tensor in the data type that the host expects.
   // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
   // runtime/ttnn. And so, the true data type of the runtime tensor may be
