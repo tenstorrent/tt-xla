@@ -2,9 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-import gc
-from torch.fx.experimental import const_fold
-from torch.export.graph_signature import InputKind
+from torch.export.graph_signature import InputKind, OutputKind
+from tt_torch import composite_ops
+
+
+def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
+    """
+    Replaces torch ops with composite ops if we have a proper replacement.
+
+    This must be done before graph decompositions because we are replacing
+    torch operations directly.
+    """
+    for node in gm.graph.nodes:
+        if node.target in composite_ops.replacements:
+            node.target = composite_ops.replacements[node.target]
 
 
 def insert_argument_type_markers(
@@ -15,6 +26,14 @@ def insert_argument_type_markers(
         op="placeholder"
     )
     input_signature = graph_signature.input_specs
+    output_signature = graph_signature.output_specs
+
+    # Keep track of buffers which are mutated as we do not want these arguments to be hoisted into a consteval graph.
+    mutated_buffer_targets = set()
+    for out_spec in output_signature:
+        if out_spec.kind == OutputKind.BUFFER_MUTATION:
+            mutated_buffer_targets.add(out_spec.target)
+
     get_attr_target_type_dict = {}
     placeholder_target_type_dict = {}
     for in_spec in input_signature:
@@ -23,15 +42,21 @@ def insert_argument_type_markers(
             type_str = "input"
         # We do not model these argument types in tt-mlir. To avoid graph transformations that would
         # impact how these inputs are handled (i.e. consteval), we will mark them as "input".
-        elif in_spec.kind in [InputKind.BUFFER, InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
+        elif in_spec.kind in [InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
             type_str = "input"
         elif in_spec.kind == InputKind.PARAMETER:
             type_str = "parameter"
-        # There are two more types of input InputKind.CONSTANT_TENSOR, and InputKind.BUFFER
-        # We do not model the concept of a "buffer" tensor in tt-mlir yet, for now we will mark
-        # them both as "constant".
         elif in_spec.kind == InputKind.CONSTANT_TENSOR:
             type_str = "constant"
+        # If a buffer is mutated, we do not want to hoist the argument into a consteval graph.
+        # This is because the argument will be mutated in place, and we do not want to used the cached
+        # version of the input from the first iteration of the graph. If it is not mutated then we can
+        # mark it as a constant.
+        elif in_spec.kind == InputKind.BUFFER:
+            if in_spec.target in mutated_buffer_targets:
+                type_str = "input"
+            else:
+                type_str = "constant"
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
@@ -93,27 +118,6 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
-def run_shape_prop(gm, example_inputs):
-    """
-    Propagates shape information for each node through the graph based on
-    The inputs in `example_inputs`. This will also populate the meta data
-    for each node, which is useful for debugging.
-
-    Runs quickly as only metadata is propagated, no compute is performed.
-    """
-    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
-    if shape_prop.fake_mode is not None:
-        fake_args = [
-            shape_prop.fake_mode.from_tensor(act, static_shapes=True)
-            if isinstance(act, torch.Tensor)
-            else act
-            for act in example_inputs
-        ]
-    else:
-        fake_args = example_inputs
-    shape_prop.run(*fake_args)
-
-
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
@@ -127,41 +131,58 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
-def bypass_redundant_cast(gm):
+def run_shape_prop(gm, example_inputs):
     """
-    Removes data type casting operations which are applied to tensors
-    which are already of the desired dtype.
+    Propagates shape and dtype information through the graph.
     """
+    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
+    if shape_prop.fake_mode is not None:
+        fake_args = [
+            (
+                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
+                if isinstance(act, torch.Tensor)
+                else act
+            )
+            for act in example_inputs
+        ]
+    else:
+        fake_args = example_inputs
+    shape_prop.run(*fake_args)
+
+
+def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
+    """
+    Removes casting of nodes to float32 unless they were explicitly set by the user.
+    Pytorch insists on casting nodes to float32 during decompositions, even though the
+    user may have specified a different dtype.
+    Also removes redundant casts.
+    """
+    removed_non_redundant_casts = False
     for node in gm.graph.nodes:
         if (
             node.op == "call_function"
             and hasattr(node.target, "name")
             and "prims::convert_element_type" in node.target.name()
         ):
-            if "tensor_meta" not in node.args[0].meta:
-                continue
-            if node.args[1] == node.args[0].meta["tensor_meta"].dtype:
-                node.replace_all_uses_with(node.args[0])
-
-    return gm
-
-
-def bypass_dtype_promotion(gm):
-    """
-    Removes casting of nodes to float32 unless they were explicitly cast by the user.
-    Pytorch insists on casting params to float32, even though the user may have specified a different dtype,
-    and forcing certain decomposition (i.e. adaptive_avg_pool2d) to be in float32
-    """
-    for node in gm.graph.nodes:
-        if (
-            node.op == "call_function"
-            and hasattr(node.target, "name")
-            and "prims::convert_element_type" in node.target.name()
-        ):
-            if (
+            is_unwanted_dtype_promotion = (
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
-            ):
+            )
+            is_redundant_cast = (
+                "tensor_meta" in node.args[0].meta
+                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
+            )
+
+            if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
+                removed_non_redundant_casts |= is_unwanted_dtype_promotion
+
+    gm.graph.eliminate_dead_code()
+    gm.graph.lint()
+
+    if removed_non_redundant_casts:
+        # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
+        run_shape_prop(gm, example_inputs)
+        gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
 
     return gm

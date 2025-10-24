@@ -27,8 +27,8 @@ runs:
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           for file in $CHANGED_FILES; do
-            # Only allow docs, markdown, gitignore, LICENSE to skip build/test
-            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* && $file != docs/* ]]; then
+            # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS to skip build/test
+            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* && $file != docs/* && $file != *"CODEOWNERS"* ]]; then
               skip_build_and_test=false
               run_pr_tests=true
             fi

@@ -3,25 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode, enable_shardy
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+from infra import RunMode, enable_shardy
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from .tester import AlexNetMultichipTester
 
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "alexnet",
-    "multichip_n300",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.CUSTOM,
-)
+VARIANT_NAME = ModelVariant.CUSTOM_1X2
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -44,9 +38,9 @@ def training_tester() -> AlexNetMultichipTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
     bringup_status=BringupStatus.PASSED,
 )
 def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTester):
@@ -57,9 +51,9 @@ def test_alexnet_multichip_n300_inference(inference_tester: AlexNetMultichipTest
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 def test_alexnet_multichip_n300_inference_shardy(
     inference_tester: AlexNetMultichipTester,
@@ -72,9 +66,9 @@ def test_alexnet_multichip_n300_inference_shardy(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.TENSOR_PARALLEL,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_alexnet_multichip_n300_training(training_tester: AlexNetMultichipTester):

@@ -15,8 +15,17 @@ class CompilerConfig:
     applied during model compilation for TT device.
     """
 
-    # Enable optimizer passes
+    # Enables optimizer passes in MLIR. This includes various optimizations
+    # such as improving tensor memory layouts, operation configurations etc.
     enable_optimizer: bool = False
+
+    # Enables memory layout analysis to allow sharded memory layouts in optimizer passes.
+    enable_memory_layout_analysis: bool = False
+
+    # Enables L1 interleaved fallback analysis in optimizer passes.
+    # This analysis attempts to move tensors from DRAM to L1 memory with
+    # interleaved layout when beneficial for performance.
+    enable_l1_interleaved: bool = False
 
     # Enables automatic MLIR graph conversion into block fp8 format. This is
     # supported only when the graph is in bfloat16 format, to avoid loss in precision.
@@ -26,6 +35,14 @@ class CompilerConfig:
     # wrapping is done because block formats are TT hardware specific, and user
     # should provide and get tensors of common dtype.
     enable_bfp8_conversion: bool = False
+
+    # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+    # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
+    # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
+    enable_fusing_conv2d_with_multiply_pattern: bool = False
+
+    # Enables trace hoisting for TTNN pipeline.
+    enable_trace: bool = False
 
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
@@ -39,8 +56,20 @@ class CompilerConfig:
         if self.enable_optimizer:
             options["enable_optimizer"] = "true"
 
+        if self.enable_memory_layout_analysis:
+            options["enable_memory_layout_analysis"] = "true"
+
+        if self.enable_l1_interleaved:
+            options["enable_l1_interleaved"] = "true"
+
         if self.enable_bfp8_conversion:
             options["enable_bfp8_conversion"] = "true"
+
+        if self.enable_fusing_conv2d_with_multiply_pattern:
+            options["enable_fusing_conv2d_with_multiply_pattern"] = "true"
+
+        if self.enable_trace:
+            options["enable_trace"] = "true"
 
         return options
 

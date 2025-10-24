@@ -5,8 +5,8 @@
 from typing import Any, Dict, Sequence
 
 import torch
-
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+
 from third_party.tt_forge_models.swin.image_classification.pytorch import (
     ModelLoader,
     ModelVariant,

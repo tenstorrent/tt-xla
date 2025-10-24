@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import difflib
+
 import pytest
+
 from tests.runner.test_config import test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
-import difflib
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150"}
+ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
 
 
 def pytest_addoption(parser):
@@ -40,9 +42,14 @@ def test_metadata(request) -> ModelTestConfig:
 
 
 def pytest_collection_modifyitems(config, items):
-    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config."""
+    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config.
+
+    Also deselect tests explicitly marked with EXCLUDE_MODEL so they do not run.
+    """
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
+
+    deselected = []
 
     for item in items:
         nodeid = item.nodeid
@@ -57,6 +64,16 @@ def pytest_collection_modifyitems(config, items):
         # Uncomment this to print info for each test collected.
         # print(f"DEBUG nodeid: {nodeid} meta.status: {meta.status}")
 
+        # Skip auto-marking if test already has the placeholder marker. This simplifies the running
+        # on -m unspecified tests in experimental nightly, don't need to exclude placeholder
+        if item.get_closest_marker("placeholder") is not None:
+            continue
+
+        # Ability to mark models we don't want to run via test_models.py.
+        if meta.status == ModelTestStatus.EXCLUDE_MODEL:
+            deselected.append(item)
+            continue
+
         if meta.status == ModelTestStatus.EXPECTED_PASSING:
             item.add_marker(pytest.mark.expected_passing)
         elif meta.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
@@ -69,6 +86,20 @@ def pytest_collection_modifyitems(config, items):
         # Apply any custom/extra markers from config (e.g., "push", "nightly")
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
+
+        # Define default set of supported archs, which can be optionally overridden in test_config.py
+        # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
+        default_archs = ["n150", "p150"]
+        archs_to_mark = getattr(meta, "supported_archs", None) or default_archs
+        for arch_marker in archs_to_mark:
+            # Prefer the exact string; if it contains a hyphen and pytest disallows it, also add underscore variant
+            item.add_marker(getattr(pytest.mark, arch_marker))
+            if "-" in arch_marker:
+                item.add_marker(getattr(pytest.mark, arch_marker.replace("-", "_")))
+
+    # Exclude deselected tests from the collected items.
+    if deselected:
+        items[:] = [i for i in items if i not in deselected]
 
     # If validating config, clear all items so no tests run
     if validate_config:

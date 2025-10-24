@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,7 +26,8 @@
 #define TT_XLA_INC_COMMON_PJRT_IMPLEMENTATION_EXECUTABLE_IMAGE_H_
 
 // tt-xla includes
-#include "common/pjrt_implementation/module_builder/compile_options.h"
+#include "common/pjrt_implementation/compile_options.h"
+#include "common/pjrt_implementation/module_builder/module_builder.h"
 
 namespace tt::pjrt {
 
@@ -34,25 +36,8 @@ namespace tt::pjrt {
 class ExecutableImage {
 
 public:
-  // Creates new executable image instance from the information given by the
-  // compiler.
-  static std::shared_ptr<ExecutableImage> createInstance(
-      const tt::runtime::Binary &flatbuffer_binary,
-      std::string original_mlir_code, std::string ttir_mlir_code,
-      std::string ttnn_mlir_code, std::string executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
-      const std::vector<std::uint32_t> &devices_mesh_shape,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_sharding,
-      const std::vector<bool> &is_output_scalar,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
-
-  // Returns flatbuffer binary produced by the compiler.
-  const tt::runtime::Binary &getFlatbufferBinary() const {
-    return m_flatbuffer_binary;
-  }
+  // Virtual destructor for proper cleanup of derived classes
+  virtual ~ExecutableImage() = default;
 
   // Returns original mlir code produced by the xla plugin.
   const std::string &getOriginalMlirCode() const {
@@ -89,6 +74,19 @@ public:
   // Returns the vector of output data types.
   std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
 
+  // Returns the vector of output dimensions.
+  std::vector<std::vector<std::uint32_t>> &getOutputDimensions() {
+    return m_output_dimensions;
+  }
+
+  // Returns the vector of output ranks.
+  std::vector<size_t> &getOutputRanks() { return m_output_ranks; }
+
+  // Returns the vector of output dimensions concatenated in a flat array.
+  std::vector<std::int64_t> &getOutputDimensionsFlat() {
+    return m_output_dimensions_flat;
+  }
+
   // Returns raw pointer to data types for each output buffer.
   PJRT_Buffer_Type *getOutputTypesRaw() { return m_output_types.data(); }
 
@@ -122,35 +120,43 @@ public:
   }
 
   // Returns the compile options used to create this executable.
-  const module_builder::CompileOptions &getCompileOptions() const {
-    return m_compile_options;
-  }
+  const CompileOptions &getCompileOptions() const { return m_compile_options; }
 
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
-private:
+  // Creates a LoadedExecutableInstance from this executable image.
+  virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
+      std::vector<class DeviceInstance *> &&addressable_devices,
+      ClientInstance *client_instance) = 0;
+
+protected:
   // Constructs executable image instance from the information given by the
   // compiler.
   ExecutableImage(
-      const tt::runtime::Binary &flatbuffer_binary,
       std::string &&original_mlir_code, std::string &&ttir_mlir_code,
       std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_partitions, size_t num_replicas, size_t num_devices_to_utilize,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> &&output_dimensions,
+      std::vector<size_t> &&output_ranks,
+      std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
       const std::vector<std::uint32_t> &devices_mesh_shape,
       const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_sharding,
-      const std::vector<bool> &is_output_scalar,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
-      module_builder::CompileOptions &&compile_options);
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
+      CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
-  std::string generateFingerprint() const;
+  virtual std::string generateFingerprint() const;
 
-  // Flatbuffer binary produced by the compiler.
-  tt::runtime::Binary m_flatbuffer_binary;
+  // Cached fingerprint for this executable.
+  std::string m_fingerprint;
 
+private:
   // Original mlir code produced by the compiler, stored for debugging
   // purposes.
   std::string m_original_mlir_code;
@@ -212,10 +218,139 @@ private:
   std::vector<size_t> m_output_memory_kinds_sizes;
 
   // Compile options used to create this executable.
-  const module_builder::CompileOptions m_compile_options;
+  CompileOptions m_compile_options;
+};
 
-  // Cached fingerprint for this executable.
-  std::string m_fingerprint;
+/*
+Brief context:
+Our primary flow involves exporting TTNN MLIR to a flatbuffer which is then
+basically interpreted op-by-op by the mlir runtime. We have an alternative flow
+where we export TTNN MLIR as compileable code(either C++ or Python) targetting
+TT-NN library(a part of Metalium). These two can be considered separate paths
+from tt-xla to our hardware. ExecutableImage and LoadedExecutableInstance
+classes have been split up into respective versions for each path, with
+Flatbuffer* versions denoting the primary flow going trough flatbuffers and
+runtime and SO* versions denoting the flow where we compile to shared object
+files. SO emitting is not implemented yet.
+*/
+
+// Derived class for executables going trough the default path of packing ops
+// into a flatbuffer.
+class FlatbufferExecutableImage
+    : public ExecutableImage,
+      public std::enable_shared_from_this<FlatbufferExecutableImage> {
+public:
+  // Creates new executable image instance from the information given by the
+  // compiler.
+  static std::shared_ptr<FlatbufferExecutableImage> createInstance(
+      const tt::runtime::Binary &flatbuffer_binary,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> &&output_dimensions,
+      std::vector<size_t> &&output_ranks,
+      std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> output_memory_kinds,
+      std::vector<size_t> output_memory_kinds_sizes,
+      CompileOptions &&compile_options);
+
+  // Returns flatbuffer binary produced by the compiler.
+  const tt::runtime::Binary &getFlatbufferBinary() const {
+    return m_flatbuffer_binary;
+  }
+
+  // Creates a LoadedExecutableInstance from this executable image.
+  std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
+      std::vector<class DeviceInstance *> &&addressable_devices,
+      ClientInstance *client_instance) override;
+
+private:
+  // Constructs executable image instance from the information given by the
+  // compiler.
+  FlatbufferExecutableImage(
+      const tt::runtime::Binary &flatbuffer_binary,
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> output_dimensions,
+      std::vector<size_t> output_ranks,
+      std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
+      CompileOptions &&compile_options);
+
+  // Generates the fingerprint for this executable based on compilation inputs.
+  std::string generateFingerprint() const final;
+
+  // Flatbuffer binary produced by the compiler.
+  tt::runtime::Binary m_flatbuffer_binary;
+};
+
+// Derived class for executables backed by shared object files emitted via
+// TT-Alchemist.
+class SOExecutableImage
+    : public ExecutableImage,
+      public std::enable_shared_from_this<SOExecutableImage> {
+public:
+  static std::shared_ptr<SOExecutableImage> createInstance(
+      std::string original_mlir_code, std::string ttir_mlir_code,
+      std::string ttnn_mlir_code, std::string executable_name,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> output_dimensions,
+      std::vector<size_t> output_ranks,
+      std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> output_memory_kinds,
+      std::vector<size_t> output_memory_kinds_sizes,
+      CompileOptions &&compile_options);
+
+  // Creates a LoadedExecutableInstance from this executable image.
+  std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
+      std::vector<class DeviceInstance *> &&addressable_devices,
+      ClientInstance *client_instance) override;
+
+private:
+  // Constructs executable image instance from the information given by the
+  // compiler.
+  SOExecutableImage(
+      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+      std::string &&ttnn_mlir_code, std::string &&executable_name,
+      size_t num_inputs, size_t num_outputs,
+      std::vector<std::vector<std::uint32_t>> output_dimensions,
+      std::vector<size_t> output_ranks,
+      std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
+      size_t num_replicas, size_t num_devices_to_utilize,
+      const std::vector<std::uint32_t> &devices_mesh_shape,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_sharding,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_sharding,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
+      CompileOptions &&compile_options);
+
+  // Generates the fingerprint for this executable based on compilation inputs.
+  std::string generateFingerprint() const final;
+
+  // Logically so_path is part of SOExecutableImage, but it is already stored in
+  // compile_options.export_path
 };
 
 } // namespace tt::pjrt

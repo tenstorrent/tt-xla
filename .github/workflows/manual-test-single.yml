@@ -8,7 +8,11 @@ on:
         required: true
         type: string
       mark:
-        description: 'Mark passed to pytest'
+        description: 'Mark passed to pytest (-m)'
+        required: false
+        type: string
+      contains:
+        description: 'Execute test that contains the specified string (-k)'
         required: false
         type: string
       args:
@@ -76,17 +80,15 @@ jobs:
     steps:
       - id: generate
         run: |
-          TEST_CONFIG='[
-            {
-              "runs-on": "${{ inputs.runs_on }}",
-              "name": "Test",
-              "dir": "${{ inputs.dir }}",
-              "test-mark": "${{ inputs.mark }}",
-              "shared-runners": "${{ inputs.shared_runners }}",
-              "args": "${{ inputs.args }}",
-              "parallel-groups": ${{ fromJSON(inputs.parallel_groups) }}
-            }
-          ]'
+          TEST_CONFIG=$(jq -n \
+            --arg runs_on '${{ inputs.runs_on }}' \
+            --arg dir '${{ inputs.dir }}' \
+            --arg mark '${{ inputs.mark }}' \
+            --arg shared_runners '${{ inputs.shared_runners }}' \
+            --arg args '${{ inputs.args }}' \
+            --arg contains '${{ inputs.contains }}' \
+            --argjson parallel_groups '${{ inputs.parallel_groups }}' \
+            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"parallel-groups": $parallel_groups}]')
 
           echo $TEST_CONFIG
 

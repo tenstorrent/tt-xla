@@ -6,7 +6,7 @@
 
 <h1>
 
-[Hardware](https://tenstorrent.com/cards/) | [Documentation](docs/src) | [Discord](https://discord.gg/tenstorrent) | [Join Us](https://job-boards.greenhouse.io/tenstorrent?gh_src=22e462047us)
+[Hardware](https://tenstorrent.com/cards/) | [Documentation](https://docs.tenstorrent.com/tt-xla/) | [Discord](https://discord.gg/tenstorrent) | [Join Us](https://job-boards.greenhouse.io/tenstorrent?gh_src=22e462047us)
 
 </h1>
 <picture>
@@ -32,12 +32,12 @@ The tt-xla repository is primarily used to enable running JAX models on Tenstorr
   - A TVM based graph compiler designed to optimize and transform computational graphs for deep learning models. Supports ingestion of PyTorch, ONNX, TensorFlow, PaddlePaddle and similar ML frameworks via TVM ([TT-TVM](https://github.com/tenstorrent/tt-tvm)).
   - See [docs pages](https://github.com/tenstorrent/tt-forge-fe/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
-- [TT-Torch](https://github.com/tenstorrent/tt-torch)
+- [TT-Torch](https://github.com/tenstorrent/tt-torch) - Deprecated, use TT-XLA
   - A MLIR-native, open-source, PyTorch 2.X and torch-mlir based front-end. It provides stableHLO (SHLO) graphs to `tt-mlir`. Supports ingestion of PyTorch models via PT2.X compile and ONNX models via torch-mlir (ONNX->SHLO)
   - See [docs pages](https://github.com/tenstorrent/tt-torch/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
 - [TT-XLA](https://github.com/tenstorrent/tt-xla)
-  - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR, and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to TT-MLIR compiler
+  - Leverages a PJRT interface to integrate JAX (and in the future other frameworks), TT-MLIR, and Tenstorrent hardware. Supports ingestion of JAX models via jit compile, providing StableHLO (SHLO) graph to TT-MLIR compiler. Supports PyTorch through Torch-XLA.
   - See [docs pages](https://github.com/tenstorrent/tt-xla/blob/main/docs/src/getting_started.md) for an overview and getting started guide.
 
 -----

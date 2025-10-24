@@ -28,7 +28,6 @@ jobs:
     needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-experimental.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       use-shared-runners: false # Run full model tests on Civ1

@@ -3,14 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from jax import grad, jit, vmap
-import jax.numpy as jnp
-from sklearn.datasets import make_regression
-from sklearn.model_selection import train_test_split
-import jax
 import os
 import sys
+
+import jax
 import jax._src.xla_bridge as xb
+import jax.numpy as jnp
+from jax import grad, jit, vmap
+from sklearn.datasets import make_regression
+from sklearn.model_selection import train_test_split
+
 
 # Create random inputs (weights) on cpu and move them to tt device if requested.
 def random_input_tensor(shape, key=42, on_device=False):

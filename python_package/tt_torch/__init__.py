@@ -8,8 +8,8 @@ import tt_torch.backend.backend
 # Import module so custom operations are registered
 import tt_torch.custom_ops
 
-from .tools import mark_module_user_inputs
 from .serialization import (
     parse_compiled_artifacts_from_cache,
     parse_compiled_artifacts_from_cache_to_disk,
 )
+from .tools import mark_module_user_inputs

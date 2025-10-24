@@ -3,14 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-from typing import Any, Dict, Mapping, Sequence
+import os
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 import torch
 import torch_xla
+import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities import Framework
+from infra.utilities.torch_multichip_utils import enable_spmd
 from infra.workloads import Workload
+
+from tests.infra.comparators.comparator import ComparisonResult
+from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.config import Parallelism
 
 from .model_tester import ModelTester, RunMode
 
@@ -33,9 +39,11 @@ class TorchModelTester(ModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        parallelism=None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._parallelism = parallelism
 
         super().__init__(comparison_config, run_mode, Framework.TORCH, compiler_config)
         # Set custom compile options if provided.
@@ -44,6 +52,11 @@ class TorchModelTester(ModelTester):
             torch_xla.set_custom_compile_options(
                 compiler_config.to_torch_compile_options()
             )
+
+    # @override
+    def _configure_model(self) -> None:
+        self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
+        super()._configure_model()
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -74,6 +87,23 @@ class TorchModelTester(ModelTester):
         self._workload = Workload(
             framework=self._framework, model=self._model, args=args, kwargs=kwargs
         )
+        self._workload.mesh = self._get_mesh()
+        self._workload.shard_spec_fn = self._get_shard_specs_function()
+
+        self._enable_xla_spmd_if_needed()
+
+    # If model has shard specs and running on multichip mesh, then convert StableHLO
+    # to Shardy dialect and initialize XLA SPMD runtime.
+    def _enable_xla_spmd_if_needed(self) -> None:
+        has_shard_specs = self._workload.shard_spec_fn is not None
+        is_multichip = self._workload.mesh and len(self._workload.mesh.device_ids) > 1
+
+        if self._parallelism == Parallelism.TENSOR_PARALLEL:
+            assert has_shard_specs, "Tensor parallel requires shard specs function"
+            assert is_multichip, "Tensor parallel requires multi-chip mesh"
+
+        if has_shard_specs and is_multichip:
+            enable_spmd()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
@@ -111,3 +141,52 @@ class TorchModelTester(ModelTester):
         assert workload.is_torch and workload.model is not None
 
         workload.model.compile(backend=backend)
+
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        # Run forward on CPU
+        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
+
+        # Generate random gradient
+        random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
+
+        # Create and run backward on CPU
+        cpu_backward_workload = Workload(
+            framework=self._framework,
+            executable=cpu_res.backward,
+            args=[],
+            kwargs={"gradient": random_grad},
+        )
+        self._run_on_cpu(cpu_backward_workload)
+
+        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
+        self._workload.model.zero_grad()
+
+        # Run forward on TT
+        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # self._compile_for_tt_device(self._workload)
+        tt_res = self._run_on_tt_device(self._workload)
+        # Force graph break so we can differentiate between forward and backward
+        torch_xla.sync(wait=True)
+
+        # Run backward on TT
+        tt_backward_workload = Workload(
+            framework=self._framework,
+            executable=tt_res.backward,
+            args=[],
+            kwargs={"gradient": random_grad},
+        )
+        self._run_on_tt_device(tt_backward_workload)
+        torch_xla.sync(wait=True)
+
+        tt_grads = {
+            name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
+        }
+
+        forward_result = self._compare(tt_res, cpu_res)
+        backward_result = self._compare(tt_grads, cpu_grads)
+
+        # Only the first result is recorded in the report properties,
+        # and only want to report on the backward result
+        return backward_result, forward_result

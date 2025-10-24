@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     incorrect_result,
 )
+
 from third_party.tt_forge_models.autoencoder.pytorch.loader import ModelVariant
+
 from .tester import AutoencoderLinearTester
 
 VARIANT_NAME = ModelVariant.LINEAR

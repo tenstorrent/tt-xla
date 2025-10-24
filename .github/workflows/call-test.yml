@@ -37,11 +37,6 @@ on:
         description: 'Name of the build artifact (codecov)'
         required: false
         type: string
-      timeout_minutes:
-        description: 'Timeout minutes for the test job'
-        required: false
-        default: 120
-        type: number
       test_suite:
         description: 'Test suite preset options or custom'
         required: true
@@ -67,7 +62,6 @@ jobs:
   # Run tests on TT hardware
   run-tests:
     needs: generate-matrix-test
-    timeout-minutes: ${{ inputs.timeout_minutes || 120 }}
     strategy:
       fail-fast: false
       matrix:
@@ -76,13 +70,13 @@ jobs:
     runs-on: ${{ (matrix.build.shared-runners == true || matrix.build.shared-runners == 'true') && matrix.build.runs-on || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     env:
-      DOCKER_CACHE_ROOT: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && '' || '/mnt/dockercache' }}
+      DOCKER_CACHE_ROOT: ${{ (!inputs.use-shared-runners && !matrix.build.shared-runners) && '/mnt/dockercache' || '' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      image: ${{ (inputs.use-shared-runners || matrix.build.shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -98,10 +92,20 @@ jobs:
         git config --global --add safe.directory /__w/tt-xla/tt-xla
         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
+    - name: Log disk space
+      run: df -h
+
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-        lfs: true
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pytest.ini
+          python_package/requirements.txt
+          tests
+          venv
 
     - name: Fetch job id
       id: fetch-job-id
@@ -118,6 +122,12 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        cat << 'EOF' > _test_matrix.json
+          ${{ needs.generate-matrix-test.outputs.test_matrix }}
+        EOF
+        cat _test_matrix.json
+        echo "matrix-hash=$(cat _test_matrix.json | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        rm -f _test_matrix.json
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
@@ -173,7 +183,7 @@ jobs:
             echo "Downloading test reports from attempt $attempt"
             gh run download ${{ github.run_id }} \
               --repo ${{ github.repository }} \
-              --pattern "test-reports-$attempt.${{ strategy.job-index }}-*" \
+              --pattern "test-reports-${{ steps.strings.outputs.matrix-hash }}-$attempt.${{ strategy.job-index }}-*" \
               -D old-reports
             result=$?
             if [ $result -eq 0 ]; then
@@ -234,14 +244,16 @@ jobs:
             --splitting-algorithm least_duration"
         fi
 
-        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory $VERBOSITY \
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" \
-          ${{ matrix.build.args }} \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
+
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
       if: ${{ matrix.build.name == 'run_forge_models_torch' }}
@@ -257,16 +269,29 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv tests/runner/test_models.py --validate-test-config
+        python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
 
     - name: Collect Tests
+      id: collect-tests
       shell: bash
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only ${{ env.BASE_PYTEST_CMD }}
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+          --collected-output collected_tests.txt \
+          --durations-file .test_durations \
+          --default-timeout 240)
+        echo "$SCRIPT_OUTPUT"
+
+        ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
     - name: Run tests
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -274,7 +299,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest ${{ env.BASE_PYTEST_CMD }} \
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
@@ -298,7 +323,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
     - name: Show Test Report

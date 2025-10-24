@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
-
-from torch.utils._pytree import tree_map, PyTree
 import functools
+
+import torch
+from torch.utils._pytree import PyTree, tree_map
 
 
 def _apply_user_input_markers(tensors: PyTree):

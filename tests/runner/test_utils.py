@@ -2,16 +2,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import collections
+import importlib.util
+import inspect
 import os
 import sys
-import importlib.util
-import torch
-import inspect
-from enum import Enum
-import collections
 from dataclasses import dataclass
+from enum import Enum
+
+import numpy as np
+import torch
+import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.utilities.torch_multichip_utils import get_mesh
+from torch_xla.distributed.spmd import Mesh
+
+from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
+from third_party.tt_forge_models.config import Parallelism
 
 
 @dataclass
@@ -29,6 +37,8 @@ class ModelTestStatus(Enum):
     NOT_SUPPORTED_SKIP = "not_supported_skip"
     # New model, awaiting triage
     UNSPECIFIED = "unspecified"
+    # Avoid import and auto discovery. Can be used if model test is hand written.
+    EXCLUDE_MODEL = "exclude_model"
 
 
 class ModelTestConfig:
@@ -59,6 +69,11 @@ class ModelTestConfig:
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
+
+        # Optional list of supported architectures (e.g. ["p150", "n300", "n300-llmbox"]) - normalized to list[str]
+        self.supported_archs = self._normalize_markers(
+            self._resolve("supported_archs", default=[])
+        )
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -103,6 +118,8 @@ class ModelTestConfig:
                 config.pcc.allclose.rtol = self.allclose_rtol
             if self.allclose_atol is not None:
                 config.pcc.allclose.atol = self.allclose_atol
+
+        config.assert_on_failure = False
         return config
 
     def _normalize_markers(self, markers_value):
@@ -237,12 +254,16 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         self.loader = loader
+        # Optional: store requested parallelism for reporting/consumers
+        self.parallelism = parallelism
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
+            parallelism=self.parallelism,
         )
 
     # --- TorchModelTester interface implementations ---
@@ -258,6 +279,14 @@ class DynamicTorchModelTester(TorchModelTester):
         if "dtype_override" in sig.parameters:
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         return self.loader.load_inputs()
+
+    def _get_shard_specs_function(self):
+        return self.loader.load_shard_spec
+
+    def _get_mesh(self):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
+        return get_mesh(mesh_shape, mesh_names)
 
 
 def setup_models_path(project_root):
@@ -304,9 +333,18 @@ def create_test_entries(loader_paths):
     """Create test entries combining loader paths and variants."""
     test_entries = []
 
+    # Development / Debug workaround to collect only red models.
+    red_only = os.environ.get("TT_XLA_RED_ONLY", "0") == "1"
+
     # Store variant tuple along with the ModelLoader
     for loader_path, variant_tuples in loader_paths.items():
         for variant_info in variant_tuples:
+
+            if red_only:
+                model_info = variant_info[1].get_model_info(variant_info[0])
+                if model_info.group.value != "red":
+                    continue
+
             test_entries.append(
                 ModelTestEntry(path=loader_path, variant_info=variant_info)
             )
@@ -338,8 +376,11 @@ def record_model_test_properties(
     *,
     model_info,
     test_metadata,
-    run_mode: RunMode = RunMode.INFERENCE,
+    run_mode: RunMode,
+    parallelism: Parallelism,
     test_passed: bool = False,
+    comparison_result=None,
+    comparison_config=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -387,7 +428,28 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "parallelism": str(parallelism),
     }
+
+    # Add comparison result metrics if available
+    if comparison_result is not None:
+        tags.update(
+            {
+                "pcc": comparison_result.pcc,
+                "atol": comparison_result.atol,
+                "comparison_passed": comparison_result.passed,
+                "comparison_error_message": comparison_result.error_message,
+            }
+        )
+    if comparison_config is not None:
+        tags.update(
+            {
+                "pcc_threshold": comparison_config.pcc.required_pcc,
+                "atol_threshold": comparison_config.atol.required_atol,
+                "pcc_assertion_enabled": comparison_config.pcc.enabled,
+                "atol_assertion_enabled": comparison_config.atol.enabled,
+            }
+        )
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)

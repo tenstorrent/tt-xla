@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def init_torch_model(model_name: str, config):

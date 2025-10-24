@@ -9,5 +9,5 @@ from .jax_multichip_utils import (
     make_flax_linen_parameters_partition_specs_on_cpu,
     make_partition_spec,
 )
-from .types import Device, Framework, Model, PyTree, Tensor
+from .types import Device, Framework, Mesh, Model, PyTree, ShardSpec, Tensor
 from .utils import random_image, random_tensor

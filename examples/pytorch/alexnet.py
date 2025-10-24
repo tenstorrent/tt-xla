@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
+
 # --------------------------------
 # Test run
 # --------------------------------

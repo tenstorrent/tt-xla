@@ -6,29 +6,17 @@ from typing import Dict
 
 import jax
 import pytest
-from infra import ComparisonConfig, Framework, JaxModelTester, RunMode
-from transformers import (
-    AutoTokenizer,
-    FlaxPreTrainedModel,
-    FlaxRobertaPreLayerNormForMaskedLM,
-)
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.roberta_prelayernorm.masked_lm.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
-MODEL_PATH = "andreasmadsen/efficient_mlm_m0.40"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "roberta_prelayernorm",
-    "efficient_mlm_m0.40",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.EFFICIENT_MLM_M0_40
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
@@ -36,26 +24,22 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        return FlaxRobertaPreLayerNormForMaskedLM.from_pretrained(
-            self._model_path, from_pt=True
-        )
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model()
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer("Hello <mask>.", return_tensors="jax")
-        return inputs
+        return self._model_loader.load_inputs()
 
-    # @ override
+    # @override
     def _get_static_argnames(self):
         return ["train"]
 
@@ -65,12 +49,12 @@ class FlaxRobertaPreLayerNormForMaskedLMTester(JaxModelTester):
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(MODEL_PATH)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
-    return FlaxRobertaPreLayerNormForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxRobertaPreLayerNormForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -79,8 +63,8 @@ def training_tester() -> FlaxRobertaPreLayerNormForMaskedLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -93,8 +77,8 @@ def test_flax_roberta_prelayernorm_inference(
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

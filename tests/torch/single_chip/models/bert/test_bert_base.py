@@ -13,11 +13,13 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
-from third_party.tt_forge_models.config import ModelInfo, Parallelism
+
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
-    ModelVariant,
     ModelLoader,
+    ModelVariant,
 )
+from third_party.tt_forge_models.config import ModelInfo, Parallelism
+
 from .tester import BertTester
 
 VARIANT_NAME = ModelVariant.BERT_BASE_UNCASED

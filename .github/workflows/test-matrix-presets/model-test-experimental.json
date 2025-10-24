@@ -1,4 +1,4 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "unspecified", "parallel-groups": 3 },
-  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "unspecified", "parallel-groups": 3 }
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "unspecified and inference and single_device", "parallel-groups": 3 },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "unspecified and inference and single_device", "parallel-groups": 3 }
 ]

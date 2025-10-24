@@ -1,21 +1,25 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import pytest
 import os
+
+import pytest
+from infra import RunMode
+
+from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.runner.requirements import RequirementsManager
+from tests.runner.test_config import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
-    ModelTestStatus,
     DynamicTorchModelTester,
-    setup_test_discovery,
+    ModelTestConfig,
+    ModelTestStatus,
     create_test_id_generator,
     record_model_test_properties,
+    setup_test_discovery,
     update_test_metadata_for_exception,
-    ModelTestConfig,
 )
-from tests.runner.requirements import RequirementsManager
-from infra import RunMode
 from tests.utils import BringupStatus
-from tests.runner.test_config import PLACEHOLDER_MODELS
+from third_party.tt_forge_models.config import Parallelism
 
 # Setup test discovery using utility functions
 TEST_DIR = os.path.dirname(__file__)
@@ -27,8 +31,10 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
     "run_mode",
-    [RunMode.INFERENCE],
-    ids=["inference"],
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
 )
 @pytest.mark.parametrize(
     "op_by_op",
@@ -36,12 +42,40 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ids=["full"],  # When op-by-op flow is required/supported, add here.
 )
 @pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        # TODO(kmabee): Add when data_parallel is supported next.
+        # pytest.param(
+        #     Parallelism.DATA_PARALLEL,
+        #     id="data_parallel",
+        #     marks=pytest.mark.data_parallel,
+        # ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
     "test_entry",
     test_entries,
     ids=create_test_id_generator(MODELS_ROOT),
 )
 def test_all_models(
-    test_entry, run_mode, op_by_op, record_property, test_metadata, request, capfd
+    test_entry,
+    run_mode,
+    op_by_op,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    capteesys,
 ):
 
     loader_path = test_entry.path
@@ -56,6 +90,7 @@ def test_all_models(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         succeeded = False
+        comparison_result = None
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -64,17 +99,32 @@ def test_all_models(
                     run_mode,
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
+                    parallelism=parallelism,
                 )
 
-                tester.test()
-                succeeded = True
+                comparison_result = tester.test()
+
+                # All results must pass for the test to succeed
+                succeeded = all(result.passed for result in comparison_result)
+
+                # Trigger assertion after comparison_result is cached, and
+                #     fallthrough to finally block on failure.
+                Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
-            err = capfd.readouterr().err
+            err = capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
+            # If there are multiple comparison results, only record the first one because the
+            #     DB only supports single comparison result for now
+            if len(comparison_result) > 1:
+                print(
+                    f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
+                )
+            comparison_result = comparison_result[0]
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -83,7 +133,10 @@ def test_all_models(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
+                parallelism=parallelism,
                 test_passed=succeeded,
+                comparison_result=comparison_result,
+                comparison_config=tester._comparison_config,
             )
 
 
@@ -130,4 +183,5 @@ def test_placeholder_models(model_name, record_property, request):
         model_info=model_info,
         test_metadata=test_metadata,
         run_mode=RunMode.INFERENCE,
+        parallelism=Parallelism.SINGLE_DEVICE,
     )

@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.clip.pytorch.loader import ModelVariant
+
 from .tester import ClipTester
 
 VARIANT_NAME = ModelVariant.CLIP_VIT_BASE_PATCH32

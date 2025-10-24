@@ -14,7 +14,6 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-
 import vllm.envs as envs
 from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
@@ -783,9 +782,9 @@ class TPUModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_tables = self.block_table_cpu[
                 : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
             ]
-            block_tables[
-                :num_reqs, : self.max_num_blocks_per_req
-            ] = self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
+            block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
+                self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
+            )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
@@ -794,11 +793,11 @@ class TPUModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_tables = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
             ]
-            block_tables[
-                :num_reqs, : self.num_blocks_per_most_len_req
-            ] = self.input_batch.block_table[0].get_cpu_tensor()[
-                :num_reqs, : self.num_blocks_per_most_len_req
-            ]
+            block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
+                self.input_batch.block_table[0].get_cpu_tensor()[
+                    :num_reqs, : self.num_blocks_per_most_len_req
+                ]
+            )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
@@ -1180,9 +1179,9 @@ class TPUModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.input_batch.num_tokens[:num_reqs] += gen_lens
             for i, req_state, seq_len in request_seq_lens:
                 target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
-                self.input_batch.token_ids_cpu[
-                    i, target_slice
-                ] = valid_sampled_token_ids[i]
+                self.input_batch.token_ids_cpu[i, target_slice] = (
+                    valid_sampled_token_ids[i]
+                )
                 req_state.output_token_ids.extend(valid_sampled_token_ids[i])
 
         kv_connector_output = (

@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
-import sys
-import subprocess
-import tempfile
 import fcntl
-from typing import Dict, Tuple, Set, Optional
+import os
+import subprocess
+import sys
+import tempfile
+from typing import Dict, Optional, Set, Tuple
 
 # Debug flag: set TT_XLA_REQS_DEBUG=1 to see detailed output
 DEBUG_ENV = "TT_XLA_REQS_DEBUG"

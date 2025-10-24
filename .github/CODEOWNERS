@@ -6,10 +6,15 @@
 /src/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
 
 # CI
-/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT @vvukomanTT @kmabeeTT @jameszianxuTT
+/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT @vvukomanTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
 
 # Tests
-/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT
+/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+pytest.ini @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+.test_durations @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
 
 # Python package
-/python_package/ @ajakovljevicTT @mrakitaTT @pilkicTT
+/python_package/ @ajakovljevicTT @mrakitaTT @pilkicTT @AleksKnezevic
+
+# Third Party
+/third_party/ @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic

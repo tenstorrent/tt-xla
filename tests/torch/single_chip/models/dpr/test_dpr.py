@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.dpr.context_encoder.pytorch.loader import ModelVariant
+
 from .tester import DprTester
 
 VARIANT_NAME = ModelVariant.DPR_MULTISET_BASE

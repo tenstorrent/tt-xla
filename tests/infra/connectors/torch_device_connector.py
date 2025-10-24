@@ -5,6 +5,7 @@
 import os
 
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra.utilities import Device

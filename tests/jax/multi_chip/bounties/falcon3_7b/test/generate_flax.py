@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from utils.flax_utils import *
 
 MODEL_NAME = "tiiuae/Falcon3-7B-Instruct"

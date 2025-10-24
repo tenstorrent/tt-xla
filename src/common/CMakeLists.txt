@@ -41,9 +41,12 @@ add_library(TTPJRTCommon
     "pjrt_implementation/executable_image.cc"
     "pjrt_implementation/executable_instance.cc"
     "pjrt_implementation/loaded_executable_instance.cc"
+    "pjrt_implementation/flatbuffer_loaded_executable_instance.cc"
+    "pjrt_implementation/so_loaded_executable_instance.cc"
     "pjrt_implementation/memory_instance.cc"
-    "pjrt_implementation/module_builder/compile_options.cc"
+    "pjrt_implementation/compile_options.cc"
     "pjrt_implementation/module_builder/frontend_passes/shlo_input_role_propagation.cc"
+    "pjrt_implementation/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.cc"
     "pjrt_implementation/module_builder/module_builder.cc"
     "pjrt_implementation/serialized_executable_instance.cc"
 )
@@ -64,6 +67,7 @@ target_include_directories(TTPJRTCommon PUBLIC
 )
 
 target_link_libraries(TTPJRTCommon PUBLIC
+    dl
     libprotobuf
     loguru
     coverage_config

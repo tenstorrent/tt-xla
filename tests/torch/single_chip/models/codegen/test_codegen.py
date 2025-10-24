@@ -13,7 +13,9 @@ from utils import (
     build_model_name,
     failed_ttmlir_compilation,
 )
+
 from third_party.tt_forge_models.codegen.pytorch.loader import ModelVariant
+
 from .tester import CodegenTester
 
 VARIANT_NAME = ModelVariant.CODEGEN_350M_MONO

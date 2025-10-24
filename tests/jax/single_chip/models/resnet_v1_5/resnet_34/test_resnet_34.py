@@ -3,28 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
+from infra import RunMode
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.resnet.image_classification.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 from ..tester import ResNetTester
-from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
 VARIANT_NAME = ModelVariant.RESNET_34
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "resnet_v1.5",
-    "34",
-    ModelTask.CV_IMAGE_CLS,
-    ModelSource.HUGGING_FACE,
-)
-
+MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -45,9 +36,9 @@ def training_tester() -> ResNetTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
+    parallelism=Parallelism.SINGLE_DEVICE,
     bringup_status=BringupStatus.PASSED,
 )
 def test_resnet_v1_5_34_inference(inference_tester: ResNetTester):
@@ -57,9 +48,9 @@ def test_resnet_v1_5_34_inference(inference_tester: ResNetTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
+    parallelism=Parallelism.SINGLE_DEVICE,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_resnet_v1_5_34_training(training_tester: ResNetTester):

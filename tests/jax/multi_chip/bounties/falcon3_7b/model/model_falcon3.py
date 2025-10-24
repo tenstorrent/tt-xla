@@ -4,27 +4,26 @@
 # coding=utf-8
 """Flax Falcon3 model."""
 
-from functools import partial
-from dataclasses import dataclass
-from typing import Optional, Tuple, Union
 import json
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
+from typing import Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
-from jax import lax
 import jax.numpy as jnp
 import numpy as np
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.linen import combine_masks, make_causal_mask
 from flax.linen.attention import dot_product_attention_weights
 from flax.traverse_util import flatten_dict, unflatten_dict
-from jax.sharding import PartitionSpec as P
+from jax import lax
 from jax.sharding import Mesh, NamedSharding
-
+from jax.sharding import PartitionSpec as P
 from model.configuration_falcon3 import Falcon3Config
-from transformers.models.llama.configuration_llama import LlamaConfig
 from safetensors.flax import load_file
+from transformers.models.llama.configuration_llama import LlamaConfig
 
 
 def create_sinusoidal_positions(num_pos, theta, dim):
@@ -539,7 +538,6 @@ class FlaxFalcon3ForCausalLM:
         position_ids: Optional[jax.Array] = None,
         init_cache: bool = True,
     ) -> FrozenDict:
-
         """
         Initialize the model weights.
 

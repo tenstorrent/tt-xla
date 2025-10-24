@@ -15,8 +15,9 @@ from utils import (
     failed_fe_compilation,
 )
 
+from third_party.tt_forge_models.mnist.image_classification.jax import ModelVariant
+
 from ..tester import MNISTCNNTester
-from third_party.tt_forge_models.mnist.image_classification.jax import ModelArchitecture
 
 MODEL_NAME = build_model_name(
     Framework.JAX,
@@ -32,12 +33,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM)
+    return MNISTCNNTester(ModelVariant.CNN_BATCHNORM)
 
 
 @pytest.fixture
 def training_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelArchitecture.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
+    return MNISTCNNTester(ModelVariant.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -57,7 +58,7 @@ def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

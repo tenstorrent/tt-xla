@@ -1,18 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from jax import Array
-from flax import nnx
 import jax
 import jax.numpy as jnp
-
+from flax import nnx
 from flax.linen import combine_masks, make_causal_mask
-from jax import lax
-from dataclasses import dataclass
-from transformers.models.mixtral.configuration_mixtral import MixtralConfig
+from jax import Array, lax
 from transformers.modeling_flax_utils import ACT2FN
+from transformers.models.mixtral.configuration_mixtral import MixtralConfig
 
 
 @dataclass

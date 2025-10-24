@@ -4,18 +4,15 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    failed_ttmlir_compilation,
+from utils import BringupStatus, Category, failed_ttmlir_compilation
+
+from third_party.tt_forge_models.blenderbot.summarization.jax.loader import (
+    ModelLoader,
+    ModelVariant,
 )
+from third_party.tt_forge_models.config import Parallelism
 
 from ..tester import BlenderBotTester
-from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.blenderbot.summarization.jax.loader import (
-    ModelVariant,
-    ModelLoader,
-)
 
 VARIANT_NAME = ModelVariant.BLENDERBOT_400M_DISTILL
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)

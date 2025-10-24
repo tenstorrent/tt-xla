@@ -5,13 +5,12 @@
 from typing import Dict
 
 import jax
-import jax.numpy as jnp
-from infra import ComparisonConfig, JaxModelTester, RunMode
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
 from jaxtyping import PyTree
-from transformers import (
-    AutoTokenizer,
-    FlaxMT5ForConditionalGeneration,
-    FlaxPreTrainedModel,
+
+from third_party.tt_forge_models.mt5.nlp_summarization.jax import (
+    ModelLoader,
+    ModelVariant,
 )
 
 
@@ -20,39 +19,25 @@ class MT5Tester(JaxModelTester):
 
     def __init__(
         self,
-        model_path: str,
+        variant_name: ModelVariant,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        self._model_path = model_path
+        self._model_loader = ModelLoader(variant_name)
         super().__init__(comparison_config, run_mode)
 
     # @override
-    def _get_model(self) -> FlaxPreTrainedModel:
-        model = FlaxMT5ForConditionalGeneration.from_pretrained(
-            self._model_path, dtype=jnp.bfloat16
-        )
-        model.params = model.to_bf16(model.params)
-        return model
+    def _get_model(self) -> Model:
+        return self._model_loader.load_model(dtype_override=jax.numpy.bfloat16)
 
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        inputs = tokenizer(
-            "UN Offizier sagt, dass weiter verhandelt werden muss in Syrien.",
-            return_tensors="jax",
-        )
-        return inputs
+        return self._model_loader.load_inputs(dtype_override=jax.numpy.bfloat16)
 
     # @overridde
     def _get_forward_method_kwargs(self) -> Dict[str, PyTree]:
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path)
-        decoder_input_ids = tokenizer(
-            text_target="Weiter Verhandlung in Syrien.", return_tensors="jax"
-        ).input_ids
         return {
             "params": self._input_parameters,
-            "decoder_input_ids": decoder_input_ids,
             **self._input_activations,
         }
 

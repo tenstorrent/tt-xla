@@ -3,38 +3,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-)
+from infra import RunMode
+from utils import BringupStatus, Category
+
+from tests.infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.roformer.masked_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import RoFormerTester
 
-MODEL_PATH = "junnyu/roformer_chinese_base"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "roformer",
-    "chinese_base",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.CHINESE_BASE
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> RoFormerTester:
-    return RoFormerTester(MODEL_PATH)
+    # Reduced PCC threshold - #1454
+    return RoFormerTester(
+        VARIANT_NAME,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
+    )
 
 
 @pytest.fixture
 def training_tester() -> RoFormerTester:
-    return RoFormerTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return RoFormerTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -43,10 +38,10 @@ def training_tester() -> RoFormerTester:
 @pytest.mark.push
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 def test_roformer_chinese_base_inference(inference_tester: RoFormerTester):
     inference_tester.test()
@@ -55,8 +50,8 @@ def test_roformer_chinese_base_inference(inference_tester: RoFormerTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

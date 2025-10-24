@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-from contextlib import contextmanager
 import gc
 import os
 import shutil
 import sys
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
-import torch
 import psutil
 import pytest
+import torch
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
-from pathlib import Path
+
 from third_party.tt_forge_models.config import ModelInfo
-from typing import Any
 
 
 def pytest_configure(config: pytest.Config):
@@ -191,11 +192,16 @@ def pytest_addoption(parser):
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
 # TODO: Consider using a more explicit way to differentiate CIv2-specific environment
 # Issue: https://github.com/tenstorrent/github-ci-infra/issues/772
+# Users of IRD may not have DOCKER_CACHE_ROOT set locally, but do have IRD_ARCH_NAME
+# set so also consider that variable and expect it not to be set.
 def _is_on_CIv2() -> bool:
     """
     Check if we are on CIv2.
     """
-    return not bool(os.environ.get("DOCKER_CACHE_ROOT"))
+    is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
+    is_user_ird = bool(os.environ.get("IRD_ARCH_NAME"))
+    is_on_civ2 = not is_on_civ1 and not is_user_ird
+    return is_on_civ2
 
 
 @contextmanager
@@ -302,29 +308,49 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-@pytest.fixture(autouse=True)
+CACHE_DIRECTORIES = [
+    Path.home() / ".cache" / "lfcache",
+    Path.home() / ".cache" / "url_cache",
+    Path("/mnt/dockercache/huggingface"),
+    Path.home() / ".cache" / "huggingface",
+    Path("/tmp") / "huggingface",
+    Path.home() / ".cache" / "jax",
+    Path.home() / ".cache" / "jaxlib",
+    Path("/tmp") / f"torchinductor_{os.environ.get('USER', '')}",
+]
+
+
 def cleanup_cache():
     """
-    Pytest fixture that cleans up cache directories after each test.
-    Only runs if we are running on CIv2.
+    Cleans up cache directories if we are running on CIv2.
     """
-    yield
     if not _is_on_CIv2():
         return
 
-    cache_dirs = [
-        Path.home().joinpath(".cache", "lfcache"),
-        Path.home().joinpath(".cache", "url_cache"),
-        Path("/mnt/dockercache/huggingface"),
-    ]
+    for cache_dir in CACHE_DIRECTORIES:
+        if not cache_dir.exists():
+            continue
 
-    for cache_dir in cache_dirs:
-        if cache_dir.exists():
-            try:
-                shutil.rmtree(cache_dir)
-                logger.debug(f"Cleaned up cache directory: {cache_dir}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+        try:
+            shutil.rmtree(cache_dir)
+            logger.debug(f"Cleaned up cache directory: {cache_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+
+
+@pytest.fixture(autouse=True)
+def cleanup_cache_fixture():
+    """
+    Pytest fixture that cleans up cache directories before and after each test.
+    Only runs if we are running on CIv2.
+    """
+    # Cleanup before test
+    cleanup_cache()
+
+    yield
+
+    # Cleanup after test
+    cleanup_cache()
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will

@@ -3,38 +3,28 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-)
+from infra import RunMode
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.roberta.masked_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import FlaxRobertaForMaskedLMTester
 
-MODEL_PATH = "FacebookAI/roberta-large"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "roberta",
-    "large",
-    ModelTask.NLP_MASKED_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant.LARGE
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
 
 @pytest.fixture
 def inference_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(MODEL_PATH, RunMode.TRAINING)
+    return FlaxRobertaForMaskedLMTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -43,8 +33,8 @@ def training_tester() -> FlaxRobertaForMaskedLMTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -55,8 +45,8 @@ def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTe
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")

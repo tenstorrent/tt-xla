@@ -3,26 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-)
+from infra import RunMode
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.opt.causal_lm.jax import ModelLoader, ModelVariant
 
 from ..tester import OPTTester
 
-MODEL_PATH = "facebook/opt-350m"
-MODEL_NAME = build_model_name(
-    Framework.JAX,
-    "opt",
-    "350m",
-    ModelTask.NLP_CAUSAL_LM,
-    ModelSource.HUGGING_FACE,
-)
+VARIANT_NAME = ModelVariant._350M
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 # ----- Fixtures -----
@@ -30,12 +20,12 @@ MODEL_NAME = build_model_name(
 
 @pytest.fixture
 def inference_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH)
+    return OPTTester(VARIANT_NAME)
 
 
 @pytest.fixture
 def training_tester() -> OPTTester:
-    return OPTTester(MODEL_PATH, run_mode=RunMode.TRAINING)
+    return OPTTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -44,8 +34,8 @@ def training_tester() -> OPTTester:
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
@@ -56,8 +46,8 @@ def test_opt_350m_inference(inference_tester: OPTTester):
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
 )
 @pytest.mark.skip(reason="Support for training not implemented")
