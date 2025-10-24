@@ -68,7 +68,7 @@ jobs:
           echo "test_job_name=$test_job_name" >> $GITHUB_OUTPUT
 
   test:
-    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: always() && !cancelled()
     name: ${{ needs.create-custom-test-name.outputs.test_job_name }}
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla, create-custom-test-name ]
