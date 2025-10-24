@@ -90,7 +90,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99."
+    reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-yolov6l-data_parallel-full-inference:
     supported_archs: [n300]
@@ -190,7 +190,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99."
+    reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   vgg/pytorch-vgg13-data_parallel-full-inference:
     supported_archs: [n300]

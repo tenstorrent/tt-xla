@@ -9,7 +9,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99."
+    reason: "PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
