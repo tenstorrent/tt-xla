@@ -25,6 +25,16 @@ runs:
         run_pr_tests=false
         run_perf_tests=false
         if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # Check for skip flag in PR head commit message
+          git fetch origin ${{ github.event.pull_request.head.sha }}
+          COMMIT_MSG=$(git log -1 --pretty=%B ${{ github.event.pull_request.head.sha }})
+          if [[ "$COMMIT_MSG" == *"#skip-onpr-tests"* ]]; then
+            echo "User requested skip via commit message."
+            echo "skip-build-and-test=true" >> "$GITHUB_OUTPUT"
+            echo "run-pr-tests=false" >> "$GITHUB_OUTPUT"
+            echo "run-perf-tests=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           for file in $CHANGED_FILES; do
             # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS to skip build/test
