@@ -146,6 +146,11 @@ def build_models_dict(
 
 def print_short_summary(models: ModelsDict) -> None:
     # For each family, count bringup_status across all contained entries
+    # Compute label width for aligned output
+    max_label_len = 0
+    for name in models.keys():
+        max_label_len = max(max_label_len, len(f"{name}:"))
+
     for family_name in sorted(models.keys()):
         status_counter: Counter[str] = Counter()
         total = 0
@@ -160,8 +165,9 @@ def print_short_summary(models: ModelsDict) -> None:
 
         # Stable print: Family, total, and counts per status alphabetically
         statuses_sorted = sorted(status_counter.items(), key=lambda kv: kv[0])
-        counts_str = " ".join([f"{k}:{v}" for k, v in statuses_sorted])
-        print(f"{family_name}: total={total} {counts_str}")
+        counts_str = "  ".join([f"{k}:{v}" for k, v in statuses_sorted])
+        label = f"{family_name}:"
+        print(f"{label:<{max_label_len}}  total={total:<4}  {counts_str}")
 
 
 def print_detailed(models: ModelsDict) -> None:
