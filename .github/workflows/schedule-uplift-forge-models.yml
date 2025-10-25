@@ -51,16 +51,15 @@ jobs:
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
-        if: ${{ github.event_name == 'schedule' }}
         id: create-pr
         with:
           branch: uplift-forge-models
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: "ajakovljevicTT <ajakovljevic@tenstorrent.com>"
           base: main
-          commit-message: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ env.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"
-          title: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ env.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"
-          body: "This PR uplifts the ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to the ${{ env.LATEST_TT_FORGE_MODELS_VERSION }}"
+          commit-message: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"
+          title: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"
+          body: "This PR uplifts the ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to the ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }}"
           labels: uplift,forge-models
           delete-branch: true
           token: ${{ github.token }}
