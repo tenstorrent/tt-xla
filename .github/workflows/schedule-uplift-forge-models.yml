@@ -47,7 +47,9 @@ jobs:
           git clone https://github.com/tenstorrent/tt-forge-models.git tt-forge-models
           cd tt-forge-models
           # Fetch commit history between $COMMIT_SHA and LATEST_SHA
-          git log --oneline ${{ steps.set-env-variables.outputs.CURRENT_COMMIT_SHA}}..${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} >> ${{ runner.temp }}/commit_list.txt
+          echo '```' >> ${{ runner.temp }}/commit_list.txt
+          git log --format='%cd (%h) by %cn (Author %ae) : %s' --date=short ${{ steps.set-env-variables.outputs.CURRENT_COMMIT_SHA}}..${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} >> ${{ runner.temp }}/commit_list.txt
+          echo '```' >> ${{ runner.temp }}/commit_list.txt
           cd ${{ runner.temp }}
           cat commit_list.txt
 
