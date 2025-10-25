@@ -132,6 +132,8 @@ class ModelLoader(ForgeModel):
 
         self.config = model.config
 
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):

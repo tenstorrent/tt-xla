@@ -87,9 +87,11 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="qwen_3_embedding",
             variant=variant,
-            group=ModelGroup.GENERALITY
-            if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B
-            else ModelGroup.RED,
+            group=(
+                ModelGroup.GENERALITY
+                if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B
+                else ModelGroup.RED
+            ),
             task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -141,6 +143,8 @@ class ModelLoader(ForgeModel):
 
         model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
+        self.model = model
+        self.config = model.config
 
         return model
 
@@ -204,3 +208,27 @@ class ModelLoader(ForgeModel):
         scores = embeddings[:num_queries] @ embeddings[num_queries:].T
 
         return scores.tolist()
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        if self._variant in [
+            ModelVariant.QWEN_3_EMBEDDING_0_6B,
+            ModelVariant.QWEN_3_EMBEDDING_4B,
+        ]:
+            return None
+
+        shard_specs = {}
+        for layer in model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs

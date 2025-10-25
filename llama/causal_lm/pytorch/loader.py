@@ -211,6 +211,7 @@ class ModelLoader(ForgeModel):
 
         model.eval()
         self.model = model
+        self.config = model.config
 
         return model
 
@@ -289,3 +290,30 @@ class ModelLoader(ForgeModel):
         valid_tokens = inputs[0][:, self.seq_len : current_pos].view(-1).tolist()
         answer = tokenizer.decode(valid_tokens, skip_special_tokens=True)
         return answer
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        if self._variant in [
+            ModelVariant.LLAMA_3_2_1B,
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT,
+            ModelVariant.LLAMA_3_2_3B,
+            ModelVariant.LLAMA_3_2_3B_INSTRUCT,
+            ModelVariant.HUGGYLLAMA_7B,
+        ]:
+            return None
+
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs

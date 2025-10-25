@@ -76,6 +76,8 @@ class ModelLoader(ForgeModel):
         model = LlavaForConditionalGeneration.from_pretrained(
             self.model_name, **model_kwargs
         )
+        self.model = model
+        self.config = model.config
         return model
 
     def load_inputs(self, batch_size=1):
@@ -108,3 +110,31 @@ class ModelLoader(ForgeModel):
         }
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.language_model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+        for layer in model.vision_tower.transformer.layers:
+            shard_specs[layer.feed_forward.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.feed_forward.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.feed_forward.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.attention.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.o_proj.weight] = ("batch", "model")
+
+        return shard_specs
