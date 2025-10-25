@@ -2066,7 +2066,7 @@ test_config:
 
   vilt/masked_lm/pytorch-mlm-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Check failed: data()->tensor_data: ' - https://github.com/tenstorrent/tt-xla/issues/1651"
+    reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
     bringup_status: FAILED_RUNTIME
 
   mplug_owl2/pytorch-llama2_7b-single_device-full-inference:
@@ -2159,3 +2159,21 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     bringup_status: FAILED_RUNTIME
+
+  mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9816039800643921. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+
+  regnet/pytorch-regnet_y_128gf-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9861325025558472. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+
+  detr/object_detection/pytorch-resnet_50-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
