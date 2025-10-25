@@ -15,7 +15,6 @@ jobs:
 
     env:
       TT_FORGE_MODELS_SUBMODULE_PATH: third_party/tt_forge_models
-      GH_TOKEN: ${{ github.token }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +25,8 @@ jobs:
 
       - name: Fetch commit history and set env variables
         id: set-env-variables
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "TODAY=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
           echo "CURRENT_COMMIT_SHA=$(cd ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} && git rev-parse HEAD)" >> $GITHUB_OUTPUT
