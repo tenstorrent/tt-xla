@@ -4,6 +4,7 @@
 name: Daily Forge Models Uplift
 
 on:
+  push:
   schedule:
     - cron: '0 7 * * *'  # Runs at 07:00 UTC every day
   workflow_dispatch:  # Manual trigger
