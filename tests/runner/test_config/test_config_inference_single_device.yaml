@@ -2159,3 +2159,15 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     bringup_status: FAILED_RUNTIME
+
+  whisper/pytorch-openai/whisper-tiny-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  whisper/pytorch-openai/whisper-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9304133057594299. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
