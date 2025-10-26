@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, Iterable, Tuple
 
 # Nested structure:
-# models[family][model][parallelism][arch] = { "status": str, "task": str, "type": str }
+# models[family][model][parallelism][arch] = { "status": str, "task": str, "type": str, "group": str }
 ModelsDict = Dict[str, Dict[str, Dict[str, Dict[str, Dict[str, str]]]]]
 
 
@@ -94,7 +94,10 @@ def task_to_type(task: str | None) -> str:
 
 
 def build_models_dict(
-    xml_file: str, models: ModelsDict, desired_type: str | None = None
+    xml_file: str,
+    models: ModelsDict,
+    desired_type: str | None = None,
+    desired_group: str | None = None,
 ) -> None:
     try:
         tree = ET.parse(xml_file)
@@ -127,6 +130,13 @@ def build_models_dict(
         if desired_type is not None and type_value != desired_type:
             continue
 
+        # Filter by requested group if provided
+        if (
+            desired_group is not None
+            and (group_value or "").lower() != desired_group.lower()
+        ):
+            continue
+
         # family_name: prefer model_arch; fallback to group
         family_name = model_arch or group_value or "unknown_family"
         model_name = tags.get("model_name") or variant_name or "unknown_model"
@@ -141,6 +151,7 @@ def build_models_dict(
             "status": str(bringup_status),
             "task": str(task_value) if task_value is not None else "unknown_task",
             "type": type_value,
+            "group": group_value or "unknown_group",
         }
 
 
@@ -243,6 +254,10 @@ def main() -> None:
         choices=["llm", "vision", "other"],
         help="Filter results by model type derived from task",
     )
+    parser.add_argument(
+        "--group",
+        help="Filter results by testcase property 'group' (e.g., generality, red)",
+    )
     args = parser.parse_args()
 
     files = load_xml_files(args.xml)
@@ -252,7 +267,7 @@ def main() -> None:
 
     models: ModelsDict = {}
     for f in files:
-        build_models_dict(f, models, desired_type=args.type)
+        build_models_dict(f, models, desired_type=args.type, desired_group=args.group)
 
     if args.detailed:
         print_detailed(models)
