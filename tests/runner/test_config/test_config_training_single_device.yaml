@@ -4,7 +4,9 @@
 
 test_config:
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
-    bringup_status: NOT_STARTED
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.batch_norm_training'"
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
     bringup_status: NOT_STARTED
@@ -1191,10 +1193,14 @@ test_config:
     reason: "Calculated: pcc=0.9751636385917664. Required: pcc=0.99."
 
   nbeats/pytorch-seasonality_basis-single_device-full-training:
-    bringup_status: NOT_STARTED
+    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Calculated: pcc=0.38206756114959717. Required: pcc=0.99."
 
   nbeats/pytorch-trend_basis-single_device-full-training:
-    bringup_status: NOT_STARTED
+    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-training:
     bringup_status: NOT_STARTED

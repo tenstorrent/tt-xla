@@ -168,7 +168,8 @@ class TorchModelTester(ModelTester):
         )
         self._run_on_cpu(cpu_backward_workload)
 
-        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
+        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters() if p.requires_grad and p.grad is not None}
+        cpu_not_sure = set((name for name, p in self._model.named_parameters() if p.requires_grad and p.grad is None))
         self._workload.model.zero_grad()
 
         # Run forward on TT
@@ -188,11 +189,15 @@ class TorchModelTester(ModelTester):
             kwargs={"gradient": random_grad},
         )
         self._run_on_tt_device(tt_backward_workload)
-        torch_xla.sync(wait=True)
+        torch_xla._XLAC._xla_sync_multi([p.grad for p in self._model.parameters() if p.grad is not None], ["xla:0"], wait=True)
 
         tt_grads = {
-            name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
+            name: p.grad.cpu().clone() for name, p in self._model.named_parameters() if p.requires_grad and p.grad is not None
         }
+
+        tt_not_sure = set((name for name, p in self._model.named_parameters() if p.requires_grad and p.grad is None))
+
+        assert cpu_not_sure == tt_not_sure, f"CPU and TT have different None grad parameters: {cpu_not_sure} != {tt_not_sure}"
 
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
