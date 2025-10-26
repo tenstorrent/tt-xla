@@ -145,7 +145,43 @@ def build_models_dict(
 
 
 def print_short_summary(models: ModelsDict) -> None:
-    # For each family, count bringup_status across all contained entries
+    # Executive summary: totals and pass rates (overall and per type)
+    overall_total = 0
+    overall_pass = 0
+    type_totals: Counter[str] = Counter()
+    type_pass: Counter[str] = Counter()
+
+    for family_name in models.keys():
+        status_counter: Counter[str] = Counter()
+        for model_name in models[family_name].keys():
+            for parallelism in models[family_name][model_name].keys():
+                for arch, result in models[family_name][model_name][
+                    parallelism
+                ].items():
+                    status = result.get("status", str(result))
+                    mtype = result.get("type", "other")
+                    status_counter[str(status)] += 1
+                    overall_total += 1
+                    type_totals[mtype] += 1
+                    if str(status) == "PASSED":
+                        overall_pass += 1
+                        type_pass[mtype] += 1
+
+    # Print executive summary
+    pass_rate = (overall_pass / overall_total * 100.0) if overall_total else 0.0
+    print(
+        f"Overall:  total={overall_total:<5}  passed={overall_pass:<5}  pass_rate={pass_rate:5.1f}%"
+    )
+    for mtype in ["llm", "vision", "other"]:
+        t_total = type_totals.get(mtype, 0)
+        t_pass = type_pass.get(mtype, 0)
+        t_rate = (t_pass / t_total * 100.0) if t_total else 0.0
+        print(
+            f"  {mtype:<6} total={t_total:<5}  passed={t_pass:<5}  pass_rate={t_rate:5.1f}%"
+        )
+    print("")
+
+    # Family breakdown: count bringup_status across all contained entries
     # Compute label width for aligned output
     max_label_len = 0
     for name in models.keys():
