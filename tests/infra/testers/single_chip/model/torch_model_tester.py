@@ -99,9 +99,13 @@ class TorchModelTester(ModelTester):
         )
 
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            assert (
-                self._workload.shard_spec_fn is not None
-            ), "Tensor parallel requires shard specs function"
+            # Not all models/variants' loaders have load_shard_spec() defined or returning shard specs, verify here.
+            fn = self._workload.shard_spec_fn
+            assert callable(fn), "Tensor parallel requires shard specs function"
+            assert bool(
+                fn(self._model)
+            ), "Tensor parallel requires shard specs function to return shard specs"
+
             assert (
                 self._workload.mesh and len(self._workload.mesh.device_ids) > 1
             ), "Tensor parallel requires multi-chip mesh"

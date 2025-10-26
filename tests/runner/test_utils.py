@@ -323,7 +323,13 @@ class DynamicTorchModelTester(TorchModelTester):
 
             return load_shard_spec
         else:
-            return self.loader.load_shard_spec
+
+            # Only provide a shard spec function if the loader overrides the base implementation
+            return (
+                self.loader.load_shard_spec
+                if ("load_shard_spec" in type(self.loader).__dict__)
+                else None
+            )
 
     def _get_mesh(self):
         num_devices = xr.global_runtime_device_count()
