@@ -28,9 +28,11 @@ MODEL_NAME = build_model_name(
 
 # ----- Fixtures -----
 
+
 def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
     """Create inference tester with specified hidden sizes and data format."""
     return create_jax_inference_tester(MNISTMLPTester, hidden_sizes, format)
+
 
 @pytest.fixture
 def training_tester(request) -> MNISTMLPTester:
@@ -38,6 +40,7 @@ def training_tester(request) -> MNISTMLPTester:
 
 
 # ----- Tests -----
+
 
 @pytest.mark.push
 @pytest.mark.model_test
