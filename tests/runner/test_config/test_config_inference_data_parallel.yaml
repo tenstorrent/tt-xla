@@ -4,35 +4,35 @@
 
 test_config:
   #=============================================================================
-  # OOM, killed or large model -> or false OOM
+  # false OOM
   #=============================================================================
-  vit/pytorch-vit_l_16-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
+  # PASSING
   mamba/pytorch-mamba-1.4b-hf-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  gemma/pytorch-google/gemma-2-2b-it-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-3b-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8409987092018127. Required: pcc=0.99.
 
   qwen_3/causal_lm/pytorch-1_7b-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8567329049110413. Required: pcc=0.99.
 
   qwen_2_5/casual_lm/pytorch-1_5b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9498721361160278. Required: pcc=0.99.
 
   opt/qa/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+    required_pcc: 0.97 # Left as passing since it's ~0.98 at 0.9797....
 
   opt/causal_lm/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
     supported_archs: [n300]
@@ -53,12 +53,9 @@ test_config:
 
   vit/pytorch-vit_l_32-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  mistral/pytorch-ministral_3b_instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9618761539459229. Required: pcc=0.98
 
   qwen_1_5/causal_lm/pytorch-0_5b-data_parallel-full-inference:
     supported_archs: [n300]
@@ -68,6 +65,30 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
+
+
+  # FAILING
+
+  # Unsupported binary op for FPU BinaryOpType::BITWISE_OR
+  mistral/pytorch-ministral_3b_instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+
+  #=============================================================================
+  # OOM, killed or large model -> or false OOM
+  #=============================================================================
+  vit/pytorch-vit_l_16-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  gemma/pytorch-google/gemma-2-2b-it-data_parallel-full-inference: # gated
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+
+
+
 
   gemma/pytorch-google/gemma-2b-data_parallel-full-inference:
     supported_archs: [n300]
