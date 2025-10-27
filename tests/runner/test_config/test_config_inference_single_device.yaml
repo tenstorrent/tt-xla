@@ -821,7 +821,22 @@ test_config:
   qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+      bringup_status: FAILED_TTMLIR_COMPILATION
+
+  qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-inference:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+      bringup_status: FAILED_TTMLIR_COMPILATION
+
+  qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-inference:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+      bringup_status: FAILED_TTMLIR_COMPILATION
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
