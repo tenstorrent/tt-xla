@@ -47,6 +47,9 @@ class ModelVariant(StrEnum):
     # HuggingFace community variants
     HUGGYLLAMA_7B = "huggyllama_7b"
 
+    # TinyLlama variants
+    TINYLLAMA_V1_1 = "TinyLlama_v1.1"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -104,6 +107,11 @@ class ModelLoader(ForgeModel):
         # HuggingFace community variants
         ModelVariant.HUGGYLLAMA_7B: LLMModelConfig(
             pretrained_model_name="huggyllama/llama-7b",
+            max_length=128,
+        ),
+        # TinyLlama variants
+        ModelVariant.TINYLLAMA_V1_1: LLMModelConfig(
+            pretrained_model_name="TinyLlama/TinyLlama_v1.1",
             max_length=128,
         ),
     }
@@ -226,10 +234,6 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors suitable for causal LM.
         """
-
-        # Get max_length from the variant config
-        max_length = self._variant_config.max_length
-
         # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
