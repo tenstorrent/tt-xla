@@ -43,3 +43,58 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Not enough space to allocate 41295872 B DRAM buffer across 12 banks, where each bank needs to store 3442688 B - https://github.com/tenstorrent/tt-xla/issues/1755"
     bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_8b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  mistral/pixtral/pytorch-tensor_parallel-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1473
+
+  mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_3/causal_lm/pytorch-8b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
