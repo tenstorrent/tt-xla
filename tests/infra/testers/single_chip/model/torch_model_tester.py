@@ -4,14 +4,17 @@
 
 import collections
 import os
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
+from infra.utilities.torch_multichip_utils import enable_spmd
 from infra.workloads import TorchWorkload, Workload
+from loguru import logger
+from torch_xla.debug import metrics as xla_metrics
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -143,13 +146,32 @@ class TorchModelTester(ModelTester):
 
         workload.compiled_executable = torch.compile(workload.model, backend=backend)
 
-    def _unwrap_model_output(self, output: Any) -> torch.Tensor:
+    def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """
         Unwraps model output to a single tensor.
         """
         raise NotImplementedError("Subclasses must implement this method")
 
+    def _extract_grads(
+        self, model: torch.nn.Module
+    ) -> Tuple[Dict[str, torch.Tensor], Set[str]]:
+        """
+        Extracts gradients from a model and returns a dictionary of gradients and a dictionary of None gradients.
+        """
+        existing_grads = {
+            name: p.grad.clone()
+            for name, p in model.named_parameters()
+            if p.requires_grad and p.grad is not None
+        }
+        none_grads = set(
+            name
+            for name, p in model.named_parameters()
+            if p.requires_grad and p.grad is None
+        )
+        return existing_grads, none_grads
+
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        xla_metrics.clear_counters()
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
@@ -168,9 +190,13 @@ class TorchModelTester(ModelTester):
         )
         self._run_on_cpu(cpu_backward_workload)
 
-        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters() if p.requires_grad and p.grad is not None}
-        cpu_not_sure = set((name for name, p in self._model.named_parameters() if p.requires_grad and p.grad is None))
+        cpu_grads, cpu_none_grads = self._extract_grads(self._model)
         self._workload.model.zero_grad()
+
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == None
+        ), f"UncachedCompile counter is not 0: {comp_counter} before forward on TT"
 
         # Run forward on TT
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
@@ -180,6 +206,10 @@ class TorchModelTester(ModelTester):
 
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 1
+        ), f"UncachedCompile counter is not 1: {comp_counter} after forward on TT"
 
         # Run backward on TT
         tt_backward_workload = Workload(
@@ -189,19 +219,30 @@ class TorchModelTester(ModelTester):
             kwargs={"gradient": random_grad},
         )
         self._run_on_tt_device(tt_backward_workload)
-        torch_xla._XLAC._xla_sync_multi([p.grad for p in self._model.parameters() if p.grad is not None], ["xla:0"], wait=True)
+        # HACK: Adding explicit sync to ensure no view of gradients is computed without reason
+        # https://github.com/tenstorrent/tt-xla/issues/1466
+        torch_xla._XLAC._xla_sync_multi(
+            [p.grad for p in self._model.parameters() if p.grad is not None],
+            ["xla:0"],
+            wait=True,
+        )
+        tt_grads, tt_none_grads = self._extract_grads(self._model)
 
-        tt_grads = {
-            name: p.grad.cpu().clone() for name, p in self._model.named_parameters() if p.requires_grad and p.grad is not None
-        }
-
-        tt_not_sure = set((name for name, p in self._model.named_parameters() if p.requires_grad and p.grad is None))
-
-        assert cpu_not_sure == tt_not_sure, f"CPU and TT have different None grad parameters: {cpu_not_sure} != {tt_not_sure}"
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 2
+        ), f"UncachedCompile counter is not 2: {comp_counter} after backward on TT"
+        assert (
+            cpu_none_grads == tt_none_grads
+        ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
+        logger.warning(f"Grads: {cpu_none_grads} are None")
 
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
-
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 2
+        ), f"UncachedCompile counter is not 2: {comp_counter} after comparing forward and backward results"
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result
