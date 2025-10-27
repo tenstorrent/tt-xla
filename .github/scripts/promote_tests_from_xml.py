@@ -14,10 +14,11 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
 try:
-    import yaml
+    from ruamel.yaml import YAML
+    from ruamel.yaml.comments import CommentedMap
 except Exception as e:
     print(
-        "PyYAML is required to run this script. Please install with: pip install pyyaml",
+        "ruamel.yaml is required. Please install with: pip install ruamel.yaml",
         file=sys.stderr,
     )
     raise
@@ -188,21 +189,32 @@ def map_test_to_config_file(test_key: str) -> Optional[str]:
 # -----------------------------
 
 
-def load_yaml_config(path: str) -> Dict[str, object]:
+def _new_yaml_loader() -> YAML:
+    yaml = YAML(typ="rt")
+    yaml.allow_duplicate_keys = False
+    yaml.preserve_quotes = True
+    return yaml
+
+
+def load_yaml_config(path: str) -> CommentedMap:
     if not os.path.exists(path):
-        return {}
+        return CommentedMap()
+    yaml = _new_yaml_loader()
     with open(path, "r") as f:
         try:
-            data = yaml.safe_load(f) or {}
+            data = yaml.load(f) or CommentedMap()
         except Exception as e:
             print(f"Failed to read YAML {path}: {e}", file=sys.stderr)
-            return {}
+            return CommentedMap()
+    if not isinstance(data, CommentedMap):
+        data = CommentedMap(data or {})
     return data
 
 
-def write_yaml_config(path: str, data: Dict[str, object]) -> None:
+def write_yaml_config(path: str, data: CommentedMap) -> None:
+    yaml = _new_yaml_loader()
     with open(path, "w") as f:
-        yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+        yaml.dump(data, f)
 
 
 # -----------------------------
@@ -229,9 +241,7 @@ def build_promotion_plan(results: Dict[str, TestResult]) -> PromotionPlan:
 
         def make_entry_for_passed() -> Dict[str, object]:
             new_entry = dict(current_entry or {})
-            # Ensure EXPECTED_PASSING status and bringup_status: PASSED
             new_entry["status"] = "EXPECTED_PASSING"
-            new_entry["bringup_status"] = "PASSED"
             return new_entry
 
         def make_entry_for_incorrect_result() -> Dict[str, object]:
@@ -315,12 +325,22 @@ def apply_plan(plan: PromotionPlan, write_files: bool) -> List[str]:
             continue
         data = load_yaml_config(config_path)
         if "test_config" not in data or data["test_config"] is None:
-            data["test_config"] = {}
-        test_config: Dict[str, Dict[str, object]] = data["test_config"]  # type: ignore
+            data["test_config"] = CommentedMap()
+        test_config = data["test_config"]  # type: ignore
+        if not isinstance(test_config, CommentedMap):
+            test_config = CommentedMap(test_config or {})
+            data["test_config"] = test_config
 
         for key in sorted(changes.keys()):
             change = changes[key]
+            is_add = change.get("action") == "add"
             test_config[key] = change["new_entry"]  # type: ignore
+            if is_add:
+                try:
+                    # Insert a blank line before newly added entry to keep spacing readable
+                    test_config.yaml_set_comment_before_after_key(key, before="\n")
+                except Exception:
+                    pass
 
         if write_files:
             write_yaml_config(config_path, data)
