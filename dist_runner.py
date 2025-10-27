@@ -19,7 +19,6 @@ REMOTE_DIR = "/localdev/ndrakulic/tt-xla"
 def make_remote_script(pytest_cmd, remote_dir=REMOTE_DIR):
     long_cmd = (
         # "set -euo pipefail; "
-        "source /home/ndrakulic/.bashrc; "
         f"cd {remote_dir}; "
         "git pull; "
         "git submodule update --init --recursive; "
@@ -49,7 +48,7 @@ def get_ssh_cmd(host, port=PORT):
     ]
 
 def get_pytest_cmd(pytest_targets, report_file):
-    return f"pytest --junitxml={report_file} " + " ".join([f"tests/runner/test_models.py::test_all_models[{pytest_target}]" for pytest_target in pytest_targets])
+    return f"pytest -vv --junitxml={report_file} " + " ".join([f"tests/runner/test_models.py::test_all_models[{pytest_target}]" for pytest_target in pytest_targets])
 
 import subprocess
 
@@ -107,7 +106,7 @@ def get_remote_script(host, pytest_targets):
     venv_activate = "venv/activate"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    pytest_report_file = f"pytest_reports/{host}_{timestamp}.xml"
+    pytest_report_file = f"/proj_sw/training_artifacts/torch_forge_models_dump/pytest_reports/{host}_{timestamp}.xml"
 
     pytest_cmd = get_pytest_cmd(pytest_targets, pytest_report_file)
 
