@@ -194,7 +194,7 @@ def pytest_addoption(parser):
         "--log-pid",
         action="store_true",
         default=False,
-        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitiate multiprocess debug logging.",
+        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
 
 
