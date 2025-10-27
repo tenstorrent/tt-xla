@@ -141,7 +141,7 @@ class TorchModelTester(ModelTester):
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
 
-        workload.model.compile(backend=backend)
+        workload.compiled_executable = torch.compile(workload.model, backend=backend)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
