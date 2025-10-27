@@ -43,9 +43,9 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
-      - uses: actions/checkout@v4
       - name: printenv
         run: printenv | grep TT
+      - uses: actions/checkout@v4
       - name: Generate artifact name
         id: generate-name
         shell: bash
