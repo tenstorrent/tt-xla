@@ -11,18 +11,14 @@ import torch.nn as nn
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.comparators.comparison_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
-
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-)
-from tests.torch.multi_chip.utils import data_parallel_inference_generic
+from utils import data_parallel_inference_generic
 
 
+# these examples should be moved to the test infra once this issue is closed: https://github.com/tenstorrent/tt-xla/issues/1822
 class MNISTLinear(nn.Module):
     """Simple linear MNIST model for inference testing."""
 
@@ -45,8 +41,6 @@ class MNISTLinear(nn.Module):
         return torch.log_softmax(x, dim=1)
 
 
-@pytest.mark.nightly
-@pytest.mark.push
 @pytest.mark.parametrize(
     "batch_size,input_size",
     [

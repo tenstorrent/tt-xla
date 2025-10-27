@@ -11,25 +11,16 @@ import torch.nn as nn
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.comparators.comparison_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.comparators.torch_comparator import TorchComparator
+from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
+from utils import tensor_parallel_inference_mnist
 
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-)
-from tests.infra.utilities.torch_multichip_utils import enable_spmd
-from tests.torch.multi_chip.n300.models.data_parallel.batch_sharded.test_mnist_dp_inference import (
-    MNISTLinear,
-)
-from tests.torch.multi_chip.n300.models.tensor_parallel.mnist_mlp.utils import (
-    tensor_parallel_inference_mnist,
-)
+from examples.pytorch.multichip.n300.mnist_dp_inference import MNISTLinear
 
 
-@pytest.mark.nightly
-@pytest.mark.push
+# these examples should be moved to the test infra once this issue is closed: https://github.com/tenstorrent/tt-xla/issues/1822
 @pytest.mark.parametrize(
     "batch_size,input_size",
     [

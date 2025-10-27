@@ -12,17 +12,13 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.comparators.comparison_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.comparators.torch_comparator import TorchComparator
+from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-)
-from tests.infra.utilities.torch_multichip_utils import enable_spmd
 
-
+# these examples should be moved to the test infra once this issue is closed: https://github.com/tenstorrent/tt-xla/issues/1822
 def create_device_mesh(mesh_shape, mesh_names):
     assert len(mesh_shape) == len(
         mesh_names
@@ -42,6 +38,9 @@ def test_all_reduce(shard_dim):
     Args:
         shard_dim: Dimension to shard on (0 for batch, 1 for model)
     """
+    # XLA won't insert all-reduce (only for xm.all_reduce) op unless this is set.
+    # when shardy is generating all-reduce ops, this is not needed.
+    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     xr.set_device_type("TT")
     enable_spmd()
     # Create tensor with values that make reduction easy to verify
