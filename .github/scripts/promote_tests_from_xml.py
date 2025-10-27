@@ -193,6 +193,8 @@ def _new_yaml_loader() -> YAML:
     yaml = YAML(typ="rt")
     yaml.allow_duplicate_keys = False
     yaml.preserve_quotes = True
+    # Prevent ruamel from wrapping long scalars (keeps single-line strings intact)
+    yaml.width = 100000
     return yaml
 
 
