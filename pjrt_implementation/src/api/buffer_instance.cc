@@ -29,6 +29,7 @@
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
+#include "utils/utils.h"
 
 namespace tt::pjrt {
 
