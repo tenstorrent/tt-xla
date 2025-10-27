@@ -284,6 +284,7 @@ def build_promotion_plan(results: Dict[str, TestResult]) -> PromotionPlan:
                 "new_entry": new_entry,
                 "old_entry": current_entry,
                 "reason": reason,
+                "group": res.model_group,
             }
 
     return plan
@@ -298,8 +299,9 @@ def print_plan(plan: PromotionPlan) -> None:
         for key, change in plan[config_path].items():
             action = change["action"]
             reason = change["reason"]
-            print(f"  - {action.upper():<6} {key}")
-            print(f"      reason: {reason}")
+            group = change.get("group") or "unknown"
+            print(f"  - {action.upper():<6} {group:<8} {key}")
+            print(f"    reason: {reason}")
 
 
 def apply_plan(plan: PromotionPlan, write_files: bool) -> List[str]:
