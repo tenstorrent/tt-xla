@@ -112,8 +112,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   bloom/causal_lm/jax-7b-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, where each bank needs to store 171270144 B, but bank size is only 1073741792 B"
+    markers: [large]
     bringup_status: FAILED_RUNTIME
 
   clip/image_classification/jax-base_patch16-single_device-full-inference:
@@ -176,9 +177,8 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_j/causal_lm/jax-6b-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [large]
 
   gpt_neo/causal_lm/jax-_125m-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -188,17 +188,17 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [large]
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3b-v2-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 110592000 B DRAM buffer across 12 banks, where each bank needs to store 9216000 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   longt5/text_classification/jax-base-tglobal-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -211,9 +211,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   longt5/text_classification/jax-xl-tglobal-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   marian_mt/text_classification/jax-opus-mt-en-de-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -226,9 +227,10 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   mistral/causal_lm/jax-v0_1-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Can't load the model for 'mistralai/Mistral-7B-v0.1'."
+    markers: [large]
+    bringup_status: FAILED_FE_COMPILATION
 
   mistral/causal_lm/jax-v0_1_tiny-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -236,14 +238,16 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_2_instruct-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: " Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   mistral/causal_lm/jax-v0_3_instruct-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   mlp_mixer/image_classification/jax-base_16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -280,9 +284,10 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   mt5/nlp_summarization/jax-xl-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 2048917504 B DRAM buffer across 12 banks, where each bank needs to store 170745856 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   opt/causal_lm/jax-125M-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -299,9 +304,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/causal_lm/jax-6.7B-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11186176 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   pegasus/summarization/jax-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -330,9 +336,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   resnet/image_classification/jax-resnet-18-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [large]
 
   resnet/image_classification/jax-resnet-26-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -450,9 +455,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   whisper/audio_classification/jax-large_v3-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [large]
 
   xglm/causal_lm/jax-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL

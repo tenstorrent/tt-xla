@@ -222,11 +222,21 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_jax_training run_large_jax_training; do
-          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
-            PYTEST_FORKED="--forked"; break
-          fi
-        done
+
+        # Check if this is a multichip architecture (n300 or n300-llmbox)
+        IS_MULTICHIP=false
+        if [[ "${{ matrix.build.runs-on }}" == "n300" ]] || [[ "${{ matrix.build.runs-on }}" == "n300-llmbox" ]]; then
+          IS_MULTICHIP=true
+        fi
+
+        # Only add --forked flag if not on multichip architecture
+        if [[ "$IS_MULTICHIP" == "false" ]]; then
+          for n in run_torch run_forge_models run_jax_training run_large_jax_training; do
+            if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+              PYTEST_FORKED="--forked"; break
+            fi
+          done
+        fi
 
         # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
         if [[ -n "$PYTEST_FORKED" ]]; then
