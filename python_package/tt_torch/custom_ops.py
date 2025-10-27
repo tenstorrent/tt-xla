@@ -385,6 +385,36 @@ def fill_cache_fake(
     return torch.zeros_like(cache)
 
 
+@torch.library.custom_op("tt::paged_update_cache", mutates_args=[], device_types=["xla"])
+def paged_update_cache(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    update_indices: torch.Tensor,
+    page_table: torch.Tensor,
+    share_cache: bool = False
+) -> torch.Tensor:
+    device = cache.device
+    if device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [cache, fill_value, update_indices, page_table],
+            "tt.paged_update_cache",
+            [cache.shape],
+            [cache.dtype],
+            frontend_attributes={"share_cache": str(share_cache)},
+        )
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+@paged_update_cache.register_fake
+def paged_update_cache_fake(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    update_indices: torch.Tensor,
+    page_table: torch.Tensor,
+    share_cache = False
+) -> torch.Tensor:
+    return torch.zeros_like(cache)
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):
