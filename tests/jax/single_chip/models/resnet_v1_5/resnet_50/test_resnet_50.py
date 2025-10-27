@@ -4,7 +4,6 @@
 
 import pytest
 from infra import RunMode
-from infra.comparators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
@@ -46,11 +45,7 @@ def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(
-        VARIANT_NAME,
-        run_mode=RunMode.TRAINING,
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.985)),
-    )
+    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
