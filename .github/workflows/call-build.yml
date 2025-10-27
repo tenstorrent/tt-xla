@@ -35,7 +35,7 @@ on:
 
 jobs:
   check-existing-artifact:
-    runs-on: ubuntu-latest
+    runs-on: wormhole_b0
     name: "Check for existing artifact"
     outputs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
@@ -44,7 +44,8 @@ jobs:
       build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
       - uses: actions/checkout@v4
-
+      - name: printenv
+        run: printenv | grep TT
       - name: Generate artifact name
         id: generate-name
         shell: bash
