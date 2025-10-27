@@ -36,16 +36,16 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         ModelVariant.V0_1: LLMModelConfig(
-            pretrained_model_name="ksmcg/Mistral-7B-v0.1",
+            pretrained_model_name="mistralai/Mistral-7B-v0.1",
         ),
         ModelVariant.V0_1_TINY: LLMModelConfig(
             pretrained_model_name="ksmcg/Mistral-tiny",
         ),
         ModelVariant.V0_2_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="unsloth/mistral-7b-instruct-v0.2",
+            pretrained_model_name="mistralai/Mistral-7B-Instruct-v0.2",
         ),
         ModelVariant.V0_3_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="unsloth/mistral-7b-instruct-v0.3",
+            pretrained_model_name="mistralai/Mistral-7B-Instruct-v0.3",
         ),
     }
 
