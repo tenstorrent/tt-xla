@@ -303,7 +303,7 @@ def print_plan(plan: PromotionPlan) -> None:
 
 
 def apply_plan(plan: PromotionPlan, write_files: bool) -> List[str]:
-    """Apply the plan into .promoted.yaml files next to originals if write_files is True.
+    """Apply the plan. If write_files is True, write back to the original YAML files.
     Returns list of written files.
     """
     written: List[str] = []
@@ -319,10 +319,9 @@ def apply_plan(plan: PromotionPlan, write_files: bool) -> List[str]:
             test_config[key] = change["new_entry"]  # type: ignore
 
         if write_files:
-            out_path = f"{config_path}.promoted.yaml"
-            write_yaml_config(out_path, data)
-            written.append(out_path)
-            print(f"WROTE: {out_path}")
+            write_yaml_config(config_path, data)
+            written.append(config_path)
+            print(f"UPDATED: {config_path}")
     return written
 
 
@@ -344,7 +343,7 @@ def main() -> None:
     parser.add_argument(
         "--promote-tests",
         action="store_true",
-        help="When set, write .promoted.yaml files with proposed changes. Otherwise, dry-run only.",
+        help="When set, write proposed changes back to original YAML. Otherwise, dry-run only.",
     )
 
     args = parser.parse_args()
