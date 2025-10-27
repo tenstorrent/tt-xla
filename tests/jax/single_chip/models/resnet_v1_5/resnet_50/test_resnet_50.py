@@ -49,7 +49,9 @@ def training_tester() -> ResNetTester:
     return ResNetTester(
         VARIANT_NAME,
         run_mode=RunMode.TRAINING,
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.985)),
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.985)
+        ),  # Blackhole only regression after uplift of metal https://github.com/tenstorrent/tt-xla/pull/1808
     )
 
 
