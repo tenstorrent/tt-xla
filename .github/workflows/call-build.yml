@@ -50,11 +50,19 @@ jobs:
         shell: bash
         run: |
           build_name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)
-          # Add commit SHA to artifact name if not a merge commit
-          if [[ "${{ github.event_name }}" != "pull_request" && $(git cat-file -p HEAD | grep -c "^parent ") -eq 1 ]]; then
+
+          # Add commit SHA to artifact name only when all conditions are met:
+          # - Not a pull request event
+          # - Not a merge commit (has exactly 1 parent)
+          # - No MLIR override specified
+          if [[ "${{ github.event_name }}" != "pull_request" && \
+                $(git cat-file -p HEAD | grep -c "^parent ") -eq 1 && \
+                "${{ inputs.mlir_override }}" == "" ]]; then
             artifact_suffix="-$(git rev-parse --short HEAD)"
+            echo "reusable_artifact=true" >> "$GITHUB_OUTPUT"
           else
             artifact_suffix=""
+            echo "reusable_artifact=false" >> "$GITHUB_OUTPUT"
           fi
           wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
           wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
@@ -65,7 +73,7 @@ jobs:
           echo "Generated artifact name: $wheel_artifact_name"
 
       - name: Check if artifact exists
-        if: ${{ github.event_name != 'pull_request' && inputs.mlir_override == null }}
+        if: ${{ steps.generate-name.outputs.reusable_artifact == 'true' }}
         id: check-artifact
         shell: bash
         run: |
