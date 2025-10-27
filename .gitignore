@@ -25,6 +25,7 @@ venv/*
 .env.sh
 *.egg-info
 *.whl
+*.log
 
 # Packaging scripts write artifacts here.
 bindist/
