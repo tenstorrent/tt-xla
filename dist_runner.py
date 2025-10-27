@@ -175,6 +175,7 @@ def main():
         start_group(host, group)
         state["next_idx"] += 1
 
+    time.sleep(1)
     # main scheduler loop
     while True:
         all_done = True
