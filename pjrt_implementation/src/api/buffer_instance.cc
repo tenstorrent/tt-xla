@@ -98,7 +98,11 @@ BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
   tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 }
 
-BufferInstance::~BufferInstance() { deleteData(); }
+BufferInstance::~BufferInstance() {
+  deleteData();
+  assert(m_client && "Client instance should always be valid in destructor");
+  m_client->decrementBufferRefCount();
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
