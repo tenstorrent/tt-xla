@@ -16,7 +16,9 @@ from jax.experimental import serialize_executable
 from ttxla_tools import parse_executable
 
 
-def serialize_compiled_artifacts(func: Callable, *args, **kwargs):
+def serialize_compiled_artifacts(
+    func: Callable, *args, compiler_options=None, **kwargs
+):
     """
     Compiles JAX function for invocation with the provided arguments and serializes the compilation artifacts (TTIR graph, TTNN graph and Flatbuffer binary).
     Returns tuple of serialized artifacts in-memory.
@@ -25,6 +27,7 @@ def serialize_compiled_artifacts(func: Callable, *args, **kwargs):
     Args:
         func: The function to serialize
         *args: Sample arguments for compilation
+        compiler_options: Optional JAX compiler options dict
         **kwargs: Sample keyword arguments for compilation
 
     Returns:
@@ -56,7 +59,7 @@ def serialize_compiled_artifacts(func: Callable, *args, **kwargs):
 
         return data
 
-    jitted_func = jax.jit(func)
+    jitted_func = jax.jit(func, compiler_options=compiler_options)
     compiled = jitted_func.lower(*args, **kwargs).compile()
     payload, _, _ = serialize_executable.serialize(compiled)
 
@@ -72,7 +75,7 @@ def serialize_compiled_artifacts(func: Callable, *args, **kwargs):
 
 
 def serialize_compiled_artifacts_to_disk(
-    func: Callable, *args, output_prefix: str, **kwargs
+    func: Callable, *args, output_prefix: str, compiler_options=None, **kwargs
 ):
     """
     Compiles JAX function for invocation with the provided arguments and serializes the compilation artifacts (TTIR graph, TTNN graph and Flatbuffer binary).
@@ -91,12 +94,13 @@ def serialize_compiled_artifacts_to_disk(
     Args:
         func (callable): The function to serialize
         *args: Positional arguments for compilation
-        **kwargs: Keyword arguments for compilation
         output_prefix (str): Base path and filename prefix for output files
+        compiler_options: Optional JAX compiler options dict
+        **kwargs: Keyword arguments for compilation
     """
 
     ttir_mlir, ttnn_mlir, flatbuffer_binary = serialize_compiled_artifacts(
-        func, *args, **kwargs
+        func, *args, compiler_options=compiler_options, **kwargs
     )
 
     dirname = os.path.dirname(output_prefix)

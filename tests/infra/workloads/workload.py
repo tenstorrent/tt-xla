@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, Model
+from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.utilities import Framework, Mesh, Model
+from tt_jax import serialize_compiled_artifacts_to_disk
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
 
 class Workload:
@@ -51,9 +54,6 @@ class Workload:
         # Consider reworking _safely_put_workload_on_device to eliminate the need for static_argnames in Workload.
         self.static_argnames = static_argnames or []
 
-        self.shard_spec_fn = None
-        self.mesh = None
-
     @property
     def is_jax(self) -> bool:
         return self.framework == Framework.JAX
@@ -73,4 +73,35 @@ class Workload:
         else:
             raise ValueError(
                 "No model, compiled_executable, or executable provided in Workload."
+            )
+
+    def serialize(self, output_prefix: str, compiler_options=None) -> None:
+        """Serialize the workload compilation artifacts to disk.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files.
+            compiler_options: Optional JAX compiler options dict (ignored for Torch)
+        """
+        if self.is_jax:
+            # Get the executable to serialize
+            executable = self.model if self.model else self.executable
+            if executable is None:
+                raise ValueError("No executable or model to serialize")
+
+            # Serialize with the workload's args and kwargs
+            serialize_compiled_artifacts_to_disk(
+                executable,
+                *self.args,
+                output_prefix=output_prefix,
+                compiler_options=compiler_options,
+                **self.kwargs,
+            )
+        elif self.is_torch:
+            cache_dir = TorchDeviceConnector.get_cache_dir()
+            self.execute()
+            parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+        else:
+            raise ValueError(
+                f"Unsupported framework for serialization: {self.framework}"
             )

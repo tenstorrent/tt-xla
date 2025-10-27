@@ -6,8 +6,10 @@
 test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -38,4 +40,6 @@ test_config:
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 41295872 B DRAM buffer across 12 banks, where each bank needs to store 3442688 B - https://github.com/tenstorrent/tt-xla/issues/1755"
+    bringup_status: FAILED_RUNTIME

@@ -4,12 +4,14 @@
 
 from typing import Callable
 
+import numpy as np
 import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
+from torch_xla.distributed.spmd import Mesh
 from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
 from transformers.models.llama.modeling_llama import (
@@ -17,10 +19,9 @@ from transformers.models.llama.modeling_llama import (
     eager_attention_forward,
 )
 
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
+from tests.utils import is_llmbox
+from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
+    ModelLoader as BertModelLoader,
 )
 from third_party.tt_forge_models.bge_m3.pytorch.loader import (
     ModelLoader as BgeModelLoader,
@@ -31,6 +32,9 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as QwenModelLoader,
 )
+from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+    ModelVariant as Qwen3ModelVariant,
+)
 
 # To see all available models and variants, run:
 # pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants
@@ -39,6 +43,7 @@ MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
     "qwen3": QwenModelLoader,
     "bge_m3": BgeModelLoader,
+    "bert": BertModelLoader,
 }
 
 
@@ -279,13 +284,14 @@ def test_llama_sdpa(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention_prefill(seq_len, variant, variant_config):
+def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
     if str(variant) == "qwq_32b":
         pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
@@ -297,19 +303,115 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
     hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+    cos_sin = torch.rand(
+        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
+    )
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
 
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+# Add single push test to ensure multi-chip graph tester has coverage.
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "is_llmbox",
+    [
+        pytest.param(True, marks=pytest.mark.llmbox),
+        pytest.param(False, marks=pytest.mark.single_device),
+    ],
+)
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize("variant", [Qwen3ModelVariant.QWEN_3_8B])
+def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
+    xr.set_device_type("TT")
+
+    if is_llmbox:
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    loader = QwenModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(
+        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
+    )
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
     )
 
 
@@ -636,5 +738,48 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
     run_graph_test(
         create_heads,
         [hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("bert").items(),
+    ids=[str(k) for k in get_available_variants("bert").keys()],
+)
+def test_bert_create_heads(variant, variant_config, seq_len):
+
+    def create_heads(hidden_states, hidden_shape, query_proj, key_proj, value_proj):
+        query_states = query_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = key_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = value_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        return query_states, key_states, value_states
+
+    loader = BertModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+
+    attention = model.bert.encoder.layer[0].attention.self
+
+    batch_size = 1
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    head_dim = attention.attention_head_size
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
+    )
+
+    input_shape = hidden_states.shape[:-1]
+    hidden_shape = (*input_shape, -1, head_dim)
+
+    query_proj = attention.query
+    key_proj = attention.key
+    value_proj = attention.value
+
+    run_graph_test(
+        create_heads,
+        [hidden_states, hidden_shape, query_proj, key_proj, value_proj],
         framework=Framework.TORCH,
     )

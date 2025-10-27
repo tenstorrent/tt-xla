@@ -1,20 +1,32 @@
-# Global
-* @ajakovljevicTT @mrakitaTT
+# Owners in each line are sorted alphabetically, with area owners at the start.
+
+# Global, these owners will be the default owners for everything in the repo unless a later match takes precedence:
+* @mrakitaTT @nvukobratTT @AleksKnezevic
 
 # Source
-/inc/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
-/src/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT
+/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
+/pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
+/pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
 
 # CI
-/.github/ @vmilosevic @jmcgrathTT @nsumrakTT @ajakovljevicTT @mrakitaTT @vvukomanTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+/.github/ @vmilosevic @jmcgrathTT @kmabeeTT @nsumrakTT @vvukomanTT
 
 # Tests
-/tests/ @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
-pytest.ini @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
-.test_durations @sdjukicTT @sgligorijevicTT @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic @ndrakulicTT
+/tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+.test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+
+# Model tests configs
+/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @LPanosTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
 
 # Python package
-/python_package/ @ajakovljevicTT @mrakitaTT @pilkicTT @AleksKnezevic
+/python_package/ @mrakitaTT @pilkicTT @ajakovljevicTT @sgligorijevicTT
+/python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @mstojkovicTT @ppadjinTT @vkovinicTT
 
 # Third Party
-/third_party/ @ajakovljevicTT @mrakitaTT @kmabeeTT @jameszianxuTT @AleksKnezevic
+/third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
+/third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
+
+# Integrations
+/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT

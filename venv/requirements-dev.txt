@@ -32,7 +32,7 @@ soundfile
 tabulate
 timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
-torchvision==0.22.0
+torchvision==0.22.1
 torchxrayvision
 transformers>=4.50.0,<4.53.0
 
@@ -66,3 +66,8 @@ qwen-vl-utils[decord]==0.0.8
 
 # whisper and wav2vec2 models
 torchcodec
+
+# Qwen2.5 VL AWQ variants
+triton==3.3.0
+intel_extension_for_pytorch==2.7.0
+autoawq[cpu]==0.2.9

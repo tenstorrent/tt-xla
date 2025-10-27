@@ -28,6 +28,10 @@ on:
         description: 'Name of the wheel artifact (codecov)'
         required: false
         type: string
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Name of the wheel artifact (release vllm-tt)'
+        required: false
+        type: string
       build_artifact_name:
         description: 'Name of the build artifact (codecov)'
         required: false
@@ -99,6 +103,7 @@ jobs:
           .test_durations
           pytest.ini
           python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
           tests
           venv
 
@@ -126,21 +131,30 @@ jobs:
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
         else
           echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Download and install wheel
+    - name: Download and install wheels
       shell: bash
       run: |
-        echo "=== Downloading wheel ==="
+        echo "=== Downloading wheels ==="
         echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
         gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
+        fi
         echo "Downloaded wheel files:"
         ls -la wheels
 
@@ -296,9 +310,18 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+          pip freeze
+        fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
+
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          $(pwd)/venv/bin/pip uninstall -y vllm transformers
+          $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
+        fi
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -339,9 +362,9 @@ jobs:
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
       run: |
-        lcov --directory build --capture --output-file coverage.info
-        lcov --extract coverage.info '**/tt-xla/src/*' --output-file coverage.info
-        sed -i 's|SF:/__w/tt-xla/tt-xla/src/|SF:src/|' coverage.info
+        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
         lcov --list coverage.info
 
     - name: Upload coverage reports to Codecov

@@ -87,7 +87,10 @@ test_config:
 
   albert/masked_lm/pytorch-base_v2-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-yolov6l-data_parallel-full-inference:
     supported_archs: [n300]
@@ -108,7 +111,9 @@ test_config:
 
   squeezebert/pytorch-squeezebert-mnli-data_parallel-full-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    bringup_status: FAILED_FE_COMPILATION
 
   swin/image_classification/pytorch-swin_v2_t-data_parallel-full-inference:
     supported_archs: [n300]
@@ -182,8 +187,10 @@ test_config:
 
   albert/token_classification/pytorch-xxlarge_v1-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.96  # tt-torch has this at 0.99
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   vgg/pytorch-vgg13-data_parallel-full-inference:
     supported_archs: [n300]

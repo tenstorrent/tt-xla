@@ -136,6 +136,9 @@ def test_all_models_torch(
 
                 comparison_result = tester.test()
 
+                if request.config.getoption("--serialize", default=False):
+                    tester.serialize_compilation_artifacts(request.node.name)
+
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
