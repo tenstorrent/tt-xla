@@ -11,7 +11,7 @@ Apache-2.0 License: https://github.com/fundamentalvision/BEVFormer/blob/master/L
 import copy
 import math
 import re
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
@@ -26,7 +26,7 @@ from addict import Dict
 from collections import OrderedDict
 import torch.utils.checkpoint as cp
 from PIL import Image
-from detectron2.layers import Conv2d, get_norm, ShapeSpec
+from dataclasses import dataclass
 from packaging.version import parse
 
 # ============================================================================
@@ -4162,6 +4162,120 @@ class LearnedPositionalEncoding(BaseModule):
             .repeat(mask.shape[0], 1, 1, 1)
         )
         return pos
+
+
+class Conv2d(torch.nn.Conv2d):
+    def __init__(self, *args, **kwargs):
+        norm = kwargs.pop("norm", None)
+        activation = kwargs.pop("activation", None)
+        super().__init__(*args, **kwargs)
+
+        self.norm = norm
+        self.activation = activation
+
+    def forward(self, x):
+        x = F.conv2d(
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+        if self.norm is not None:
+            x = self.norm(x)
+        if self.activation is not None:
+            x = self.activation(x)
+        return x
+
+
+BatchNorm2d = torch.nn.BatchNorm2d
+
+
+class CycleBatchNormList(nn.ModuleList):
+    def __init__(self, length: int, bn_class=nn.BatchNorm2d, **kwargs):
+        self._affine = kwargs.pop("affine", True)
+        super().__init__([bn_class(**kwargs, affine=False) for k in range(length)])
+        if self._affine:
+            # shared affine, domain-specific BN
+            channels = self[0].num_features
+            self.weight = nn.Parameter(torch.ones(channels))
+            self.bias = nn.Parameter(torch.zeros(channels))
+        self._pos = 0
+
+    def forward(self, x):
+        ret = self[self._pos](x)
+        self._pos = (self._pos + 1) % len(self)
+
+        if self._affine:
+            w = self.weight.reshape(1, -1, 1, 1)
+            b = self.bias.reshape(1, -1, 1, 1)
+            return ret * w + b
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, normalized_shape, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.bias = nn.Parameter(torch.zeros(normalized_shape))
+        self.eps = eps
+        self.normalized_shape = (normalized_shape,)
+
+    def forward(self, x):
+        u = x.mean(1, keepdim=True)
+        s = (x - u).pow(2).mean(1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.eps)
+        x = self.weight[:, None, None] * x + self.bias[:, None, None]
+        return x
+
+
+class FrozenBatchNorm2d(nn.Module):
+    _version = 3
+
+    def __init__(self, num_features, eps=1e-5):
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.register_buffer("weight", torch.ones(num_features))
+        self.register_buffer("bias", torch.zeros(num_features))
+        self.register_buffer("running_mean", torch.zeros(num_features))
+        self.register_buffer("running_var", torch.ones(num_features) - eps)
+        self.register_buffer("num_batches_tracked", None)
+
+    def forward(self, x):
+        return F.batch_norm(
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            training=False,
+            eps=self.eps,
+        )
+
+
+def get_norm(norm, out_channels):
+    if norm is None:
+        return None
+    if isinstance(norm, str):
+        if len(norm) == 0:
+            return None
+        norm = {
+            "BN": BatchNorm2d,
+            "SyncBN": nn.SyncBatchNorm,
+            "FrozenBN": FrozenBatchNorm2d,
+            "GN": lambda channels: nn.GroupNorm(32, channels),
+        }[norm]
+    return norm(out_channels)
+
+
+@dataclass
+class ShapeSpec:
+    channels: Optional[int] = None
+    height: Optional[int] = None
+    width: Optional[int] = None
+    stride: Optional[int] = None
 
 
 class FCOS2DHead(nn.Module):
