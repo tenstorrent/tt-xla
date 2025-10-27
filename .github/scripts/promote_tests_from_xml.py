@@ -172,9 +172,9 @@ def map_test_to_config_file(test_key: str) -> Optional[str]:
     """Minimal mapping from test key suffix to a config YAML path."""
     suffix_to_config = {
         "-single_device-full-inference": "tests/runner/test_config/test_config_inference_single_device.yaml",
-        "-tensor_parallel-full-inference": "tests/runner/test_config/test_config_inference_single_device.yaml",
-        "-data_parallel-full-inference": "tests/runner/test_config/test_config_inference_single_device.yaml",
-        "-full-inference": "tests/runner/test_config/test_config_inference_single_device.yaml",
+        "-tensor_parallel-full-inference": "tests/runner/test_config/test_config_inference_tensor_parallel.yaml",
+        "-data_parallel-full-inference": "tests/runner/test_config/test_config_inference_data_parallel.yaml",
+        "-single_device-full-training": "tests/runner/test_config/test_config_training_single_device.yaml",
     }
 
     for suffix, rel_path in suffix_to_config.items():
