@@ -344,7 +344,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
               output_tensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index]);
+              expected_output_data_types[output_index], m_client_instance);
 
       output_buffer->markAsDataReady();
 

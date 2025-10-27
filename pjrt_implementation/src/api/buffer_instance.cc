@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cassert>
 #include <stdexcept>
 #include <thread>
 
@@ -23,6 +24,7 @@
 #include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
+#include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
@@ -34,53 +36,63 @@ namespace tt::pjrt {
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
-    DeviceInstance *device, MemoryInstance *memory) {
+    DeviceInstance *device, MemoryInstance *memory, ClientInstance *client) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                         size_t num_dims, DeviceInstance *device,
-                        MemoryInstance *memory)
-        : BufferInstance(data_type, dims, num_dims, device, memory) {}
+                        MemoryInstance *memory, ClientInstance *client)
+        : BufferInstance(data_type, dims, num_dims, device, memory, client) {}
   };
 
   return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
-                                               device, memory);
+                                               device, memory, client);
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
     const tt::runtime::Tensor &tensor, std::vector<std::uint32_t> &&dimensions,
-    DeviceInstance *device, MemoryInstance *memory,
-    PJRT_Buffer_Type data_type) {
+    DeviceInstance *device, MemoryInstance *memory, PJRT_Buffer_Type data_type,
+    ClientInstance *client) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(const tt::runtime::Tensor &tensor,
                         std::vector<std::uint32_t> &&dimensions,
                         DeviceInstance *device, MemoryInstance *memory,
-                        PJRT_Buffer_Type data_type)
+                        PJRT_Buffer_Type data_type, ClientInstance *client)
         : BufferInstance(tensor, std::move(dimensions), device, memory,
-                         data_type) {}
+                         data_type, client) {}
   };
 
-  return std::make_unique<make_unique_enabler>(tensor, std::move(dimensions),
-                                               device, memory, data_type);
+  return std::make_unique<make_unique_enabler>(
+      tensor, std::move(dimensions), device, memory, data_type, client);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
-                               DeviceInstance *device, MemoryInstance *memory)
+                               DeviceInstance *device, MemoryInstance *memory,
+                               ClientInstance *client)
     : m_data_type(data_type), m_dimensions(dims, dims + num_dims),
       m_device(device), m_memory(memory), m_host_runtime_tensor(std::nullopt),
       m_data_ready(false), m_data_ready_event(nullptr),
       m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
-      m_prepared_runtime_tensor(std::nullopt) {}
+      m_prepared_runtime_tensor(std::nullopt), m_client(client) {
+  assert(m_client &&
+         "Client instance must always be provided to BufferInstance");
+  m_client->incrementBufferRefCount();
+}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
                                DeviceInstance *device, MemoryInstance *memory,
-                               PJRT_Buffer_Type data_type)
+                               PJRT_Buffer_Type data_type,
+                               ClientInstance *client)
     : m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_host_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
+      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt),
+      m_client(client) {
+  assert(m_client &&
+         "Client instance must always be provided to BufferInstance");
+  m_client->incrementBufferRefCount();
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
@@ -365,7 +377,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
   std::unique_ptr<BufferInstance> dst_buffer_instance =
       BufferInstance::createInputBufferInstance(
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
-          dst_device, dst_memory);
+          dst_device, dst_memory, m_client);
 
   dst_buffer_instance->copyFromBuffer(this);
 

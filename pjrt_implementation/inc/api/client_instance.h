@@ -96,6 +96,15 @@ public:
   tt::runtime::Device
   getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
 
+  // Releases the mesh devices when all buffers are destroyed.
+  void ReleaseMeshes();
+
+  // Increments the buffer reference count.
+  void incrementBufferRefCount();
+
+  // Decrements the buffer reference count.
+  void decrementBufferRefCount();
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -171,6 +180,9 @@ private:
   static tt_pjrt_status extractCustomProtobufFields(
       const google::protobuf::UnknownFieldSet &unknown_fields,
       std::unordered_map<std::string, std::string> &out_compile_options);
+
+  // Reference count for buffers owned by this client.
+  int m_buffer_ref_count = 0;
 };
 
 namespace internal {

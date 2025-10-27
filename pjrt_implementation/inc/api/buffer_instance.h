@@ -30,6 +30,7 @@
 
 namespace tt::pjrt {
 
+class ClientInstance;
 class DeviceInstance;
 class MemoryInstance;
 
@@ -48,17 +49,17 @@ class MemoryInstance;
 class BufferInstance {
 public:
   // Creates new buffer instance for input buffer.
-  static std::unique_ptr<BufferInstance>
-  createInputBufferInstance(PJRT_Buffer_Type data_type,
-                            const std::int64_t *dims, size_t num_dims,
-                            DeviceInstance *device, MemoryInstance *memory);
+  static std::unique_ptr<BufferInstance> createInputBufferInstance(
+      PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
+      DeviceInstance *device, MemoryInstance *memory, ClientInstance *client);
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
   createOutputBufferInstance(const tt::runtime::Tensor &tensor,
                              std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
-                             PJRT_Buffer_Type data_type);
+                             PJRT_Buffer_Type data_type,
+                             ClientInstance *client);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -107,6 +108,9 @@ public:
 
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
+
+  // Returns the client instance that owns this buffer.
+  ClientInstance *getClient() { return m_client; }
 
   // Returns the size of the tensor in the data type that the host expects.
   // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
@@ -157,13 +161,13 @@ private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                  size_t num_dims, DeviceInstance *device,
-                 MemoryInstance *memory);
+                 MemoryInstance *memory, ClientInstance *client);
 
   // Constructor used for the output buffers.
   BufferInstance(const tt::runtime::Tensor &tensor,
                  const std::vector<std::uint32_t> &dimensions,
                  DeviceInstance *device, MemoryInstance *memory,
-                 PJRT_Buffer_Type expected_data_type);
+                 PJRT_Buffer_Type expected_data_type, ClientInstance *client);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   void copyFromBuffer(const BufferInstance *src_buffer);
@@ -228,6 +232,9 @@ private:
 
   // Thread for copying data to host.
   std::unique_ptr<std::thread> m_copy_to_host_thread;
+
+  // Client instance that owns this buffer.
+  ClientInstance *m_client;
 };
 
 namespace internal {

@@ -58,14 +58,7 @@ ClientInstance::ClientInstance()
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
-  if (m_optimizer_submesh.has_value()) {
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-  }
-
-  if (m_parent_mesh.has_value()) {
-    tt::runtime::closeMeshDevice(*m_parent_mesh);
-  }
-
+  ReleaseMeshes();
   std::remove(m_cached_system_descriptor_path.data());
 }
 
@@ -143,8 +136,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  m_parent_mesh =
-      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  // Mesh device creation is deferred until the first buffer is created
 
   return tt_pjrt_status::kSuccess;
 }
@@ -470,9 +462,48 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
   DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
                     "creating optimizer submesh");
   m_optimizer_submesh =
-      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
+      tt::runtime::createSubMeshDevice(*m_parent_mesh, target_mesh_shape);
 
   return *m_optimizer_submesh;
+}
+
+void ClientInstance::ReleaseMeshes() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::ReleaseMeshes");
+  // Close the optimizer submesh if it exists
+  if (m_optimizer_submesh.has_value()) {
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
+  }
+
+  // Close the parent mesh if it exists
+  if (m_parent_mesh.has_value()) {
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+    m_parent_mesh.reset();
+  }
+}
+
+void ClientInstance::incrementBufferRefCount() {
+  int prev_count = m_buffer_ref_count++;
+  DLOG_F(LOG_DEBUG, "ClientInstance::incrementBufferRefCount - count: %d",
+         m_buffer_ref_count);
+
+  // If this is the first buffer, create the mesh device
+  if (prev_count == 0) {
+    // Use default shape {1, num_devices}
+    const auto &devices = getDevicesRaw();
+    getOrCreateMeshDevice({1, static_cast<uint32_t>(devices.size())});
+  }
+}
+
+void ClientInstance::decrementBufferRefCount() {
+  int prev_count = m_buffer_ref_count--;
+  DLOG_F(LOG_DEBUG, "ClientInstance::decrementBufferRefCount - count: %d",
+         m_buffer_ref_count);
+
+  // If this was the last buffer, release the meshes
+  if (prev_count == 1) {
+    ReleaseMeshes();
+  }
 }
 
 namespace internal {
@@ -705,10 +736,12 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
+  ClientInstance *client = ClientInstance::unwrap(args->client);
+
   std::unique_ptr<BufferInstance> buffer =
       BufferInstance::createInputBufferInstance(args->type, args->dims,
                                                 args->num_dims, device_instance,
-                                                memory_instance);
+                                                memory_instance, client);
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
