@@ -99,16 +99,7 @@ class TorchModelTester(ModelTester):
         )
 
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            # Not all models/variants' loaders have load_shard_spec() defined or returning shard specs, verify here.
-            fn = self._workload.shard_spec_fn
-            assert callable(fn), "Tensor parallel requires shard specs function"
-            assert bool(
-                fn(self._model)
-            ), "Tensor parallel requires shard specs function to return shard specs"
-
-            assert (
-                self._workload.mesh and len(self._workload.mesh.device_ids) > 1
-            ), "Tensor parallel requires multi-chip mesh"
+            self._assert_tensor_parallel_valid()
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
@@ -140,6 +131,23 @@ class TorchModelTester(ModelTester):
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
         self._compile_for_backend(workload, backend="tt")
+
+    def _assert_tensor_parallel_valid(self) -> bool:
+        """Ensure the workload supports tensor parallelism (multi-chip mesh and shard specs)."""
+        fn = self._workload.shard_spec_fn
+        assert callable(fn), "Tensor parallel requires shard specs function"
+
+        shard_specs = fn(self._model)
+        assert (
+            shard_specs
+        ), "Tensor parallel requires shard specs function to return non-empty specs"
+
+        mesh = self._workload.mesh
+        assert (
+            mesh and len(mesh.device_ids) > 1
+        ), "Tensor parallel requires multi-chip mesh"
+
+        return True
 
     def _compile_for_backend(self, workload: Workload, backend: str) -> None:
         """JIT-compiles model into optimized kernels."""
