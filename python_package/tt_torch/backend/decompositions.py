@@ -262,10 +262,7 @@ def groupnorm(input, weight, bias, N, C, HxW, group, eps):
     _, _, H, W = input.shape
     newshape = [N, group, H * (C//group), W]
     input = input.reshape(newshape)
-    out_mean = input.mean(dim=[2, 3], keepdim=True)
-    out_var = input.var(dim=[2, 3], keepdim=True, unbiased=False)
-    out_rstd = torch.rsqrt(out_var + eps)
-    input = (input - out_mean) * out_rstd
+    input, out_mean, out_rstd = torch.ops.aten.native_layer_norm.default(input, newshape[-2:], weight=None, bias=None, eps=eps)
     input = input.reshape(N, C, H, W)
     if weight is None:
         weight = torch.ones(C)
