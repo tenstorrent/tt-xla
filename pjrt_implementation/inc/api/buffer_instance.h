@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -82,6 +83,9 @@ public:
 
   // Returns number of buffer's dimensions.
   size_t getNumberOfDimensions() const { return m_dimensions.size(); }
+
+  // Returns a string representation of the buffer's shape.
+  std::string toShapeStr() const;
 
   // Returns device instance on which this buffer resides.
   DeviceInstance *getDevice() { return m_device; }

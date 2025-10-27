@@ -139,6 +139,11 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(
       return tt_pjrt_status::kInternal;
     }
 
+    DLOG_F(LOG_DEBUG,
+           "Adding prepared input tensor to input_tensors for argument index "
+           "%zu with shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+
     input_tensors.push_back(*prepared_tensor);
   }
 
@@ -150,13 +155,29 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
+  DLOG_F(LOG_DEBUG,
+         "prepareInputTensor called for argument index %zu, program_index %u, "
+         "num_devices %zu, num_buffers %zu",
+         arg_index, program_index, num_devices, arg_buffers.size());
+
   // Assert that all buffer instances have the same prepared tensor.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
   assert(!arg_buffers.empty());
+
+  // Log information about the input buffer(s)
+  if (!arg_buffers.empty()) {
+    DLOG_F(LOG_DEBUG,
+           "Input buffer for argument index %zu has shape %s, %zu buffer "
+           "instance(s)",
+           arg_index, arg_buffers[0]->toShapeStr().c_str(), arg_buffers.size());
+  }
   std::optional<tt::runtime::Tensor> prepared_tensor =
       arg_buffers[0]->getPreparedTensor();
+
+  DLOG_F(LOG_DEBUG, "Argument index %zu: prepared_tensor %s", arg_index,
+         prepared_tensor.has_value() ? "exists" : "does not exist");
   for (size_t i = 1; i < arg_buffers.size(); ++i) {
     assert(arg_buffers[i]->getPreparedTensor().has_value() ==
            prepared_tensor.has_value());
@@ -174,11 +195,18 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // expecting. If so, we can just reuse this tensor.
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
-  if (prepared_tensor.has_value() &&
-      tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
+
+  bool has_matching_layout =
+      prepared_tensor.has_value() &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout);
+  DLOG_F(LOG_DEBUG, "Argument index %zu: has_matching_layout=%s", arg_index,
+         has_matching_layout ? "true" : "false");
+
+  if (has_matching_layout) {
     DLOG_F(LOG_DEBUG,
-           "Reusing already prepared input tensor for argument index %zu",
-           arg_index);
+           "Reusing already prepared input tensor for argument index %zu with "
+           "shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
     return *prepared_tensor;
   }
 
@@ -188,6 +216,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   //   according to the sharding strategy (if needed).
   // 2) Convert the layout of the tensor to the layout expected by the
   //  executable.
+  DLOG_F(LOG_DEBUG,
+         "Argument index %zu: creating new prepared tensor (not cached or "
+         "layout mismatch)",
+         arg_index);
+
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       FlatbufferLoadedExecutableInstance::fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
@@ -196,11 +229,31 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
+  // Log the sharding strategy being used
+  std::string strategy_str = "{ ";
+  for (const auto &[key, value] : *strategy) {
+    strategy_str += key + ": " + value + " ";
+  }
+  strategy_str += "}";
+  DLOG_F(LOG_DEBUG, "Argument index %zu: using sharding strategy %s", arg_index,
+         strategy_str.c_str());
+
   tt::runtime::Tensor input_tensor =
       getTensorFromStrategy(arg_buffers, *strategy);
 
+  // Log the shape of the input tensor created from strategy
+  DLOG_F(LOG_DEBUG,
+         "Created input tensor from strategy for argument index %zu with "
+         "shape %s",
+         arg_index, arg_buffers[0]->toShapeStr().c_str());
+
   tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
       input_tensor, program_index, arg_index, runtime_device);
+
+  // Log the shape of the laid out tensor
+  DLOG_F(LOG_DEBUG,
+         "Converted input tensor layout for argument index %zu, final shape %s",
+         arg_index, arg_buffers[0]->toShapeStr().c_str());
 
   // Save the prepared tensor (properly laid out tensor) inside of the buffer
   // instance(s), so we can reuse it on subsequent executions of the same
