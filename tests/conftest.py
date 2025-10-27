@@ -245,7 +245,7 @@ def newline_logger():
 @pytest.fixture(autouse=True)
 def setup_pid_logging(request):
     """
-    A pytest fixture that monkeypatch TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
+    A pytest fixture that monkeypatches TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
     variables to include the process PID before the file extension when --log-pid
     is passed to pytest.
 
