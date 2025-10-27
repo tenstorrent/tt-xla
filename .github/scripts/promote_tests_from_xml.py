@@ -296,7 +296,8 @@ def print_plan(plan: PromotionPlan) -> None:
         return
     for config_path in sorted(plan.keys()):
         print(f"\nConfig: {config_path}")
-        for key, change in plan[config_path].items():
+        for key in sorted(plan[config_path].keys()):
+            change = plan[config_path][key]
             action = change["action"]
             reason = change["reason"]
             group = change.get("group") or "unknown"
@@ -317,7 +318,8 @@ def apply_plan(plan: PromotionPlan, write_files: bool) -> List[str]:
             data["test_config"] = {}
         test_config: Dict[str, Dict[str, object]] = data["test_config"]  # type: ignore
 
-        for key, change in changes.items():
+        for key in sorted(changes.keys()):
+            change = changes[key]
             test_config[key] = change["new_entry"]  # type: ignore
 
         if write_files:
