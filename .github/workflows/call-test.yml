@@ -111,7 +111,7 @@ jobs:
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+        job_name: "${{ matrix.build.job-name || 'test' }} ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     - name: Set reusable strings
       id: strings
