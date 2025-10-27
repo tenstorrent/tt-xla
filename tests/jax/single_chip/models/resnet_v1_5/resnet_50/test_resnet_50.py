@@ -31,11 +31,12 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME,
-                        comparison_config=ComparisonConfig(
-                            pcc=PccConfig(required_pcc=0.985)
-                        ),  # Blackhole only regression after uplift of metal https://github.com/tenstorrent/tt-xla/pull/1808
-                    )
+    return ResNetTester(
+        VARIANT_NAME,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.985)
+        ),  # Blackhole only regression after uplift of metal https://github.com/tenstorrent/tt-xla/pull/1808
+    )
 
 
 @pytest.fixture
