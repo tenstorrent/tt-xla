@@ -445,6 +445,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
   if (!tt_pjrt_status_is_ok(status)) {
+    // Clean up input_tensors if allocation failed
+    for (size_t i = 0; i < input_tensors.size(); ++i) {
+      tt::runtime::deallocateTensor(input_tensors[i], /*force=*/true);
+    }
     return status;
   }
 
@@ -455,45 +459,79 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      *runtime_device, executable_image->getFlatbufferBinary(), program_index,
-      input_tensors);
+  std::vector<tt::runtime::Tensor> output_tensors;
+  try {
+    output_tensors = tt::runtime::submit(
+        *runtime_device, executable_image->getFlatbufferBinary(), program_index,
+        input_tensors);
 
-  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
-    DLOG_F(ERROR,
-           "Runtime produced different number of output tensors (%zu) than the "
-           "compiler estimated number of outputs (%zu)",
-           output_tensors.size(), m_executable_image->getNumOutputs());
-    return tt_pjrt_status::kInternal;
-  }
-
-  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
-  untilized_output_tensors.reserve(output_tensors.size());
-  status = untilizeToHost(output_tensors, args->num_devices,
-                          untilized_output_tensors);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return status;
-  }
-
-  fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists, m_executable_image->getOutputTypes());
-
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
-  }
-
-  if (args->device_complete_events) {
-    for (int device_num = 0; device_num < args->num_devices; ++device_num) {
-      std::unique_ptr<EventInstance> device_complete_event =
-          EventInstance::createInstance();
-      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
-
-      // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling `PJRT_Event_Destroy` on the event.
-      args->device_complete_events[device_num] =
-          *device_complete_event.release();
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      DLOG_F(
+          ERROR,
+          "Runtime produced different number of output tensors (%zu) than the "
+          "compiler estimated number of outputs (%zu)",
+          output_tensors.size(), m_executable_image->getNumOutputs());
+      // Clean up both input and output tensors
+      for (size_t i = 0; i < input_tensors.size(); ++i) {
+        tt::runtime::deallocateTensor(input_tensors[i], /*force=*/true);
+      }
+      for (size_t i = 0; i < output_tensors.size(); ++i) {
+        tt::runtime::deallocateTensor(output_tensors[i], /*force=*/true);
+      }
+      return tt_pjrt_status::kInternal;
     }
+
+    std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
+    untilized_output_tensors.reserve(output_tensors.size());
+    status = untilizeToHost(output_tensors, args->num_devices,
+                            untilized_output_tensors);
+    if (!tt_pjrt_status_is_ok(status)) {
+      // Clean up both input and output tensors
+      for (size_t i = 0; i < input_tensors.size(); ++i) {
+        tt::runtime::deallocateTensor(input_tensors[i], /*force=*/true);
+      }
+      for (size_t i = 0; i < output_tensors.size(); ++i) {
+        tt::runtime::deallocateTensor(output_tensors[i], /*force=*/true);
+      }
+      return status;
+    }
+
+    fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
+                        args->output_lists,
+                        m_executable_image->getOutputTypes());
+
+    for (size_t output_index = 0; output_index < output_tensors.size();
+         ++output_index) {
+      tt::runtime::deallocateTensor(output_tensors[output_index],
+                                    /*force=*/true);
+    }
+    for (size_t input_index = 0; input_index < input_tensors.size();
+         ++input_index) {
+      tt::runtime::deallocateTensor(input_tensors[input_index], /*force=*/true);
+    }
+
+    if (args->device_complete_events) {
+      for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+        std::unique_ptr<EventInstance> device_complete_event =
+            EventInstance::createInstance();
+        device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+
+        // Releasing the ownership to the PJRT API caller since the caller is
+        // responsible for calling `PJRT_Event_Destroy` on the event.
+        args->device_complete_events[device_num] =
+            *device_complete_event.release();
+      }
+    }
+  } catch (...) {
+    // Ensure both input_tensors and output_tensors are deallocated even if an
+    // exception is thrown
+    for (size_t i = 0; i < input_tensors.size(); ++i) {
+      tt::runtime::deallocateTensor(input_tensors[i], /*force=*/true);
+    }
+    for (size_t i = 0; i < output_tensors.size(); ++i) {
+      tt::runtime::deallocateTensor(output_tensors[i], /*force=*/true);
+    }
+    throw;
   }
 
   return tt_pjrt_status::kSuccess;
