@@ -1,3 +1,3 @@
 [
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_torch_multichip", "dir": "./tests/runner/test_models.py", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 5 }
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_torch_multichip", "dir": "./tests/runner/test_models.py", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 4 }
 ]
