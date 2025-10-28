@@ -66,20 +66,24 @@ ClientInstance::~ClientInstance() {
 PJRT_Error *ClientInstance::initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
 
-  // const char *metal_home = std::getenv("TT_METAL_HOME");
-  // assert(metal_home);
-  // tt::runtime::setMetalHome(metal_home);
+  const char *metal_home = std::getenv("TT_METAL_HOME");
+  assert(metal_home);
+  tt::runtime::setMetalHome(metal_home);
 
-  // const char *mlir_home = std::getenv("TT_MLIR_HOME");
-  // assert(mlir_home);
-  // tt::runtime::setMlirHome(mlir_home);
+  const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  assert(mlir_home);
+  tt::runtime::setMlirHome(mlir_home);
 
-  // const std::string rank_binding_path = std::string(mlir_home) + "/tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml";
+  const std::string rank_binding_path = std::string(metal_home) + "/tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml";
 
-  // auto mp_args = ::tt::runtime::MultiProcessArgs::create(rank_binding_path);
-  // ::tt::runtime::DistributedOptions distributed_options;
-  // distributed_options.mode = ::tt::runtime::DistributedMode::MultiProcess;
-  // distributed_options.multiProcessArgs = mp_args;
+  assert(std::filesystem::exists(rank_binding_path));
+
+  ::tt::runtime::DistributedOptions distributed_options;
+  distributed_options.mode = ::tt::runtime::DistributedMode::MultiProcess;
+  distributed_options.multiProcessArgs = ::tt::runtime::MultiProcessArgs::create(rank_binding_path);
+
+  tt::runtime::setCurrentHostRuntime(::tt::runtime::HostRuntime::Distributed);
+  tt::runtime::launchDistributedRuntime(distributed_options);
 
   tt_pjrt_status device_status = populateDevices();
   if (!tt_pjrt_status_is_ok(device_status)) {
