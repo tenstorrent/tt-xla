@@ -1145,8 +1145,8 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   bool is_local = false;
   // Long term solution is for alchemist to ingest TTNN, that will unify passing
   // options to alchemist. For now, hardcode to load input tensors from disk.
-  std::string pipeline_options = "load-input-tensors-from-disk=true";
-  bool result;
+  std::string pipeline_options = "load-input-tensors-from-disk=true tensor-load-directory='./input_tensors'";
+  bool result; 
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     result = m_tt_alchemist_handler.generateCppFunc()(
