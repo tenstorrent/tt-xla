@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from typing import Callable
 
 import numpy as np
@@ -23,7 +22,7 @@ from transformers.models.llama.modeling_llama import (
 )
 from utils import failed_runtime
 
-from tests.utils import get_tt_device_count, is_llmbox
+from tests.utils import is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -975,9 +974,9 @@ def test_qwen2_5_create_heads(variant, variant_config, seq_len, request):
             shard_specs[args[0]] = ("batch", None, "model")
             # shard_specs[args[1]] = ("batch", None, "model") # Does not need to be sharded
             # Projection weights are sharded on output dimension (which becomes heads)
-            shard_specs[args[2]] = ("model", None)
-            shard_specs[args[3]] = ("model", None)
-            shard_specs[args[4]] = ("model", None)
+            shard_specs[args[2].weight] = ("model", None)
+            shard_specs[args[3].weight] = ("model", None)
+            shard_specs[args[4].weight] = ("model", None)
             return shard_specs
 
     else:
@@ -1072,7 +1071,7 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
     scaling = attention.scaling
 
     if is_llmbox(request):
-        num_devices = 2  # xr.global_runtime_device_count()
+        num_devices = xr.global_runtime_device_count()
         mesh_shape = (2, num_devices // 2)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -1275,3 +1274,6 @@ def test_bert_create_heads(variant, variant_config, seq_len):
         [hidden_states, hidden_shape, query_proj, key_proj, value_proj],
         framework=Framework.TORCH,
     )
+
+
+"""Falcon attention tests"""
