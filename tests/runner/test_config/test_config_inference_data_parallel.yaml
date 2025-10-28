@@ -5,8 +5,22 @@
 test_config:
 
   #==============================================================================
-  # KNOWN ISSUE: SEQ CLASSIFICATION TOKEN NEEDED
+  # KNOWN ISSUE: error: 'sdy.all_reduce' op reduction axis "_axis_0" overlaps
+  # with operand dimension sharding or replicated axes
+  # STATUS: Het is investigating InsertExplicitReshardsPass
   #==============================================================================
+  opt/sequence_classification/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  opt/sequence_classification/pytorch-facebook/opt-350m-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -79,6 +93,8 @@ test_config:
 
   #==============================================================================
   # KNOWN ISSUE: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-ml…
+  #    ERROR | All dimensions are overlapping, cannot find non-overlapping dimension for mesh composer.
+  # critical |          Always | dims must be unique (assert.hpp:103)
   #==============================================================================
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
     supported_archs: [n300]
@@ -91,7 +107,7 @@ test_config:
 
   #==============================================================================
   # KNOWN ISSUE: Too much memory leaked/Large model/OOM
-  # TO BE TESTED LATER
+  # STATUS: James is investigating memory leaks on device
   #==============================================================================
 
   # True OOM (hits OOM DRAM locally) ============================================
@@ -419,7 +435,7 @@ test_config:
 
 
   #==============================================================================
-  # FAILED - but no/minimal memory leak observed
+  # FAILED AND UNSORTED - not OOM tho
   #==============================================================================
   mlp_mixer/pytorch-mixer_l16_224-data_parallel-full-inference:
     supported_archs: [n300]
@@ -468,10 +484,6 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  opt/sequence_classification/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   stereo/pytorch-large-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING # leaking a lot (+15 000 MB)
@@ -489,19 +501,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.985
 
-  opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
   resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  opt/sequence_classification/pytorch-facebook/opt-350m-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
