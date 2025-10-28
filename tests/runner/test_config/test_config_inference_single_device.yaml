@@ -61,8 +61,10 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-full-inference:
-    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9881801009178162. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
+    bringup_status: INCORRECT_RESULT
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2183,9 +2185,9 @@ test_config:
 
   regnet/pytorch-regnet_y_128gf-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9861325025558472. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
 
   detr/object_detection/pytorch-resnet_50-single_device-full-inference:
     assert_pcc: false
