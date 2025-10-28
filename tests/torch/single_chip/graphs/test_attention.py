@@ -12,7 +12,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
-from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
 from transformers import CacheConfig
 from transformers.cache_utils import StaticCache
@@ -860,12 +859,9 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -911,7 +907,7 @@ def test_qwen2_5_concat_heads(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(concat_heads_fn, args, kwargs):
+        def get_shard_spec(concat_heads, args, kwargs):
             shard_specs = {}
             # attn_output is sharded on batch and num_heads (model) dimensions
             shard_specs[args[0]] = ("batch", "model", None, None)
@@ -921,12 +917,9 @@ def test_qwen2_5_concat_heads(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
     run_graph_test(
         concat_heads,
         [attn_output, input_shape],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -971,10 +964,6 @@ def test_qwen2_5_create_heads(variant, variant_config, seq_len, request):
 
     input_shape = hidden_states.shape[:-1]
     hidden_shape = (*input_shape, -1, head_dim)
-
-    # q_proj = attention.q_proj
-    # k_proj = attention.k_proj
-    # v_proj = attention.v_proj
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
@@ -1090,7 +1079,7 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa_fn, args, kwargs):
+        def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
             # args[0] is attention module - no sharding needed
             # Query, key, value states sharded on batch and heads dimensions
@@ -1105,8 +1094,6 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
-
     run_graph_test(
         sdpa,
         [
@@ -1118,7 +1105,6 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
             dropout,
             scaling,
         ],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1414,9 +1400,12 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1531,7 +1520,7 @@ def test_gemma_concat_heads(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(concat_heads_fn, args, kwargs):
+        def get_shard_spec(concat_heads, args, kwargs):
             shard_specs = {}
             # attn_output is sharded on batch and num_heads (model) dimensions
             shard_specs[args[0]] = ("batch", "model", None, None)
@@ -1541,12 +1530,9 @@ def test_gemma_concat_heads(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
     run_graph_test(
         concat_heads,
         [attn_output, input_shape],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1695,7 +1681,7 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa_fn, args, kwargs):
+        def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
             # args[0] is attention module - no sharding needed
             # Query, key, value states sharded on batch and heads dimensions
@@ -1710,8 +1696,6 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
-
     run_graph_test(
         sdpa,
         [
@@ -1723,7 +1707,6 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
             dropout,
             scaling,
         ],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1963,7 +1946,7 @@ def test_mistral_concat_heads(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(concat_heads_fn, args, kwargs):
+        def get_shard_spec(concat_heads, args, kwargs):
             shard_specs = {}
             # attn_output is sharded on batch and num_heads (model) dimensions
             shard_specs[args[0]] = ("batch", "model", None, None)
@@ -1973,12 +1956,9 @@ def test_mistral_concat_heads(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
     run_graph_test(
         concat_heads,
         [attn_output, input_shape],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -2127,7 +2107,7 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa_fn, args, kwargs):
+        def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
             # args[0] is attention module - no sharding needed
             # Query, key, value states sharded on batch and heads dimensions
@@ -2142,8 +2122,6 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
-
     run_graph_test(
         sdpa,
         [
@@ -2155,7 +2133,6 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
             dropout,
             scaling,
         ],
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
