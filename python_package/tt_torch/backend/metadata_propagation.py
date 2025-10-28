@@ -91,6 +91,7 @@ def _extract_module_hierarchy(node: torch.fx.Node) -> tuple[list[str], list[str]
     modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
 
     for path, class_name in modules:
+        class_name = str(class_name)
         module_class = class_name.split(".")[-1] if "." in class_name else class_name
         module_classes.append(module_class)
 

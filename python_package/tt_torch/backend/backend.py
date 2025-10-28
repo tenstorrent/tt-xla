@@ -21,6 +21,23 @@ from .passes import (
 )
 
 
+def tt_torch_helper(model, fake_tensor_inputs):
+    import torch_xla.core.dynamo_bridge as bridge
+    from functorch.compile import make_boxed_func
+    compiled_graph = None
+    node_info = None
+    def fwd(*args):
+        nonlocal model
+        nonlocal compiled_graph
+        nonlocal node_info
+        if compiled_graph is None:
+            model, _signature, node_info = torch_pass_pipeline(model, args)
+            with MetadataDispatchMode(node_info):
+                compiled_graph = bridge.extract_compiled_graph(model, args)
+            del model
+        return compiled_graph(*args)
+    return make_boxed_func(fwd)
+
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
 # convert a GraphModule into a form which tt-mlir can compile/execute.
@@ -34,18 +51,19 @@ def torch_pass_pipeline(
     # TODO: Fix composite ops to support multi-chip models before uncommenting this.
     # handle_composite_ops(gm)
 
-    decompositions = torch._decomp.core_aten_decompositions()
-    decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
-
+    # decompositions = torch._decomp.core_aten_decompositions()
+    # decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+    #
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     program = torch.export.export_for_training(
         gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    )
 
-    compiled_graph = program.module()
+    # compiled_graph = program.module()
+    compiled_graph = gm
     compiled_graph = insert_argument_type_markers(
         compiled_graph, program.graph_signature
     )
@@ -63,6 +81,8 @@ def torch_pass_pipeline(
     node_info = extract_nodes_info(compiled_graph)
 
     return compiled_graph, program.graph_signature, node_info
+
+from torch._dynamo.backends.torchxla import openxla
 
 
 class XLAExecutor:
@@ -125,8 +145,37 @@ class XLAExecutor:
         return output
 
 
-@register_backend(name="tt")
-def xla_backend(gm, example_inputs, options=None):
-    """TT backend for torch.compile."""
-    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature, node_info)
+class TTBackendCompiler:
+    def __init__(self, **kwargs):
+        from torch._dynamo.backends.common import aot_autograd
+        decompositions = torch._decomp.core_aten_decompositions()
+        decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+        self.aot_autograd = aot_autograd(
+            fw_compiler=tt_torch_helper,
+            decompositions=decompositions,
+        )
+
+    def __call__(self, gm: torch.fx.GraphModule, example_inputs, **kwargs):
+        return self.aot_autograd(gm, example_inputs, **kwargs)
+
+
+def create_compiler_fn() -> TTBackendCompiler:
+    return TTBackendCompiler()
+
+assert callable(create_compiler_fn())
+
+register_backend(name="tt", compiler_fn=create_compiler_fn())
+
+# def xla_backend():
+#     """TT backend for torch.compile."""
+#     from torch._dynamo.backends.common import aot_autograd
+#     decompositions = torch._decomp.core_aten_decompositions()
+#     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+#     return aot_autograd(
+#         fw_compiler=tt_torch_helper,
+#         decompositions=decompositions,
+#     )
+#     # module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+#     # return XLAExecutor(module, graph_signature, node_info)
+#
+# register_backend(name="tt", compiler_fn=xla_backend)
