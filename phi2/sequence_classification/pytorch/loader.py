@@ -99,6 +99,10 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
+        # Set pad token if not already set (PHI models often need this)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
@@ -122,7 +126,9 @@ class ModelLoader(ForgeModel):
         config = PhiConfig.from_pretrained(pretrained_model_name)
         config_dict = config.to_dict()
         config_dict["use_cache"] = False
-        config_dict["pad_token_id"] = None
+        config_dict[
+            "pad_token_id"
+        ] = self.tokenizer.pad_token_id  # Set to match tokenizer
         config = PhiConfig(**config_dict)
 
         # Load the model with dtype override if specified

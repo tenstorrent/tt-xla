@@ -93,6 +93,10 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
+        # Set pad token if not already set (PHI models often need this)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, dtype_override=None):
@@ -120,6 +124,10 @@ class ModelLoader(ForgeModel):
         model = PhiForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+
+        # Set the pad_token_id in the model config to match the tokenizer
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = self.tokenizer.pad_token_id
 
         return model
 
