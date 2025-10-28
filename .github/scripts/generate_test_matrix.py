@@ -119,20 +119,28 @@ def process_test_matrix_list(matrix_file_paths: list[str]):
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
         print(
-            "Usage: python generate_test_matrix.py <file.json[:file2.json:...]>",
+            "Usage: python generate_test_matrix.py <file.json[:file2.json:...]> [path_prefix]",
             file=sys.stderr,
         )
         sys.exit(1)
 
     matrix_file_paths = sys.argv[1]
+    path_prefix = sys.argv[2] if len(sys.argv) == 3 else ""
 
     matrix_file_path_list = matrix_file_paths.split(":")
+
+    # Apply path prefix to each file if provided
+    if path_prefix:
+        matrix_file_path_list = [
+            str(Path(path_prefix) / path) for path in matrix_file_path_list
+        ]
+
     for i, path in enumerate(matrix_file_path_list):
         if not Path(path).exists():
             print(
-                f"Error: File '{path}' not found ({i} of {len(matrix_file_path_list)})",
+                f"Error: File '{path}' not found ({i+1} of {len(matrix_file_path_list)})",
                 file=sys.stderr,
             )
             sys.exit(1)
