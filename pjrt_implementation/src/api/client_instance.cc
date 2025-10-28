@@ -37,6 +37,17 @@
 
 namespace tt::pjrt {
 
+static ClientInstance *g_client_instance = nullptr;
+
+void destroy_pjrt_client() {
+  if (g_client_instance == nullptr) {
+    return;
+  }
+
+  delete g_client_instance;
+  g_client_instance = nullptr;
+}
+
 ClientInstance::ClientInstance()
     : m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
@@ -494,7 +505,10 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
   }
 
   // Successful return.
-  args->client = reinterpret_cast<PJRT_Client *>(client.release());
+  auto client_instance = client.release();
+  assert(!g_client_instance && "Global client instance already exists");
+  g_client_instance = client_instance;
+  args->client = reinterpret_cast<PJRT_Client *>(client_instance);
 
   return nullptr;
 }
@@ -502,7 +516,16 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
-  delete ClientInstance::unwrap(args->client);
+  auto client_instance = ClientInstance::unwrap(args->client);
+  assert(client_instance == g_client_instance || g_client_instance == nullptr &&
+         "PJRT_Client_Destroy called on non-global client instance");
+  if (!g_client_instance) {
+    DLOG_F(LOG_DEBUG, "PJRT_Client_Destroy called with null client");
+    return nullptr;
+  }
+
+  delete client_instance;
+  g_client_instance = nullptr;
 
   return nullptr;
 }

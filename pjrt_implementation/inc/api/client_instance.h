@@ -34,6 +34,14 @@ namespace module_builder {
 class ModuleBuilder;
 }
 
+// This is a public API function to destroy the created global client instance.
+// Existance of this is needed to properly manage client lifetime in torch_xla - they
+// do not call the PJRT ClientDestroy API.
+//
+extern "C"
+__attribute__((visibility("default")))
+void destroy_pjrt_client();
+
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
 
