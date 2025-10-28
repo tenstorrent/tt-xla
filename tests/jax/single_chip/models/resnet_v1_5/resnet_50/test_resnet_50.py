@@ -4,6 +4,7 @@
 
 import pytest
 from infra import RunMode
+from infra.comparators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
@@ -30,7 +31,12 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
+    return ResNetTester(
+        VARIANT_NAME,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(required_pcc=0.985)
+        ),  # Blackhole only regression after uplift of metal https://github.com/tenstorrent/tt-xla/pull/1808
+    )
 
 
 @pytest.fixture
@@ -45,7 +51,10 @@ def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+    return ResNetTester(
+        VARIANT_NAME,
+        run_mode=RunMode.TRAINING,
+    )
 
 
 # ----- Tests -----
