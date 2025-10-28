@@ -385,7 +385,7 @@ def fill_cache_fake(
     return torch.zeros_like(cache)
 
 
-@torch.library.custom_op("tt::paged_update_cache", mutates_args=[], device_types=["xla"])
+@torch.library.custom_op("tt::paged_update_cache", mutates_args=[], device_types=["xla", "cpu"])
 def paged_update_cache(
     cache: torch.Tensor,
     fill_value: torch.Tensor,
@@ -402,6 +402,21 @@ def paged_update_cache(
             [cache.dtype],
             frontend_attributes={"share_cache": str(share_cache)},
         )
+    elif device.type == "cpu":
+        cache = cache.clone()
+        num_users = update_indices.shape[0]
+        block_size = cache.shape[-2]
+        num_heads = cache.shape[-3]
+        
+        block_indices = update_indices // block_size
+        block_offsets = update_indices % block_size
+
+        user_range = torch.arange(num_users)
+
+        fill_values_view = fill_value[0, :, :num_heads, :]
+        cache[page_table[user_range, block_indices], :, block_offsets, :] = fill_values_view
+
+        return cache
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
 
