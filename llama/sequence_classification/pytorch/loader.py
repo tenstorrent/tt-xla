@@ -31,6 +31,8 @@ class ModelVariant(StrEnum):
     LLAMA_3_1_8B_INSTRUCT = "llama_3_1_8b_instruct"
     LLAMA_3_1_70B = "llama_3_1_70b"
     LLAMA_3_1_70B_INSTRUCT = "llama_3_1_70b_instruct"
+    LLAMA_3_1_405B = "llama_3_1_405b"
+    LLAMA_3_1_405B_INSTRUCT = "llama_3_1_405b_instruct"
 
     # Llama 3.2 variants
     LLAMA_3_2_1B = "llama_3_2_1b"
@@ -74,6 +76,14 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_1_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Meta-Llama-3.1-70B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B: LLMModelConfig(
+            pretrained_model_name="meta-llama/Meta-Llama-3.1-405B",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="meta-llama/Meta-Llama-3.1-405B-Instruct",
             max_length=128,
         ),
         # Llama 3.2 variants

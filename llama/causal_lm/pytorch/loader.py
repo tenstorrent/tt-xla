@@ -34,6 +34,8 @@ class ModelVariant(StrEnum):
     LLAMA_3_1_8B_INSTRUCT = "llama_3_1_8b_instruct"
     LLAMA_3_1_70B = "llama_3_1_70b"
     LLAMA_3_1_70B_INSTRUCT = "llama_3_1_70b_instruct"
+    LLAMA_3_1_405B = "llama_3_1_405b"
+    LLAMA_3_1_405B_INSTRUCT = "llama_3_1_405b_instruct"
 
     # Llama 3.2 variants
     LLAMA_3_2_1B = "llama_3_2_1b"
@@ -80,6 +82,14 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_1_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Meta-Llama-3.1-70B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B: LLMModelConfig(
+            pretrained_model_name="meta-llama/Meta-Llama-3.1-405B",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="meta-llama/Meta-Llama-3.1-405B-Instruct",
             max_length=128,
         ),
         # Llama 3.2 variants
@@ -147,10 +157,21 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Set group based on variant (instruct variants are RED priority expect llama_3_8b_instruct variant)
+        # Set group based on variant (instruct variants are RED priority except llama_3_8b_instruct and llama_3_1_405b_instruct variant)
         if (
-            "instruct" in variant.value and variant != ModelVariant.LLAMA_3_8B_INSTRUCT
-        ) or "70b" in variant.value:
+            (
+                "instruct" in variant.value
+                and (
+                    variant
+                    not in [
+                        ModelVariant.LLAMA_3_8B_INSTRUCT,
+                        ModelVariant.LLAMA_3_1_405B_INSTRUCT,
+                    ]
+                )
+            )
+            or "70b" in variant.value
+            or variant == ModelVariant.LLAMA_3_1_405B
+        ):
             group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
