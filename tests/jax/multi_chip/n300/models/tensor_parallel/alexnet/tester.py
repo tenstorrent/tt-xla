@@ -23,7 +23,9 @@ from tests.jax.single_chip.models.alexnet.tester import (
     create_alexnet_random_input_image,
 )
 
-from .model_implementation import AlexNetMultichipModel
+from third_party.tt_forge_models.alexnet.image_classification.jax import (
+    AlexNetMultichipModel,
+)
 
 
 class AlexNetMultichipTester(JaxMultichipModelTester):
