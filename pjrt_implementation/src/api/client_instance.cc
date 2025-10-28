@@ -58,19 +58,29 @@ ClientInstance::ClientInstance()
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
-  if (m_optimizer_submesh.has_value()) {
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-  }
-
   if (m_parent_mesh.has_value()) {
     tt::runtime::closeMeshDevice(*m_parent_mesh);
   }
-
-  std::remove(m_cached_system_descriptor_path.data());
 }
 
 PJRT_Error *ClientInstance::initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
+
+  // const char *metal_home = std::getenv("TT_METAL_HOME");
+  // assert(metal_home);
+  // tt::runtime::setMetalHome(metal_home);
+
+  // const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  // assert(mlir_home);
+  // tt::runtime::setMlirHome(mlir_home);
+
+  // const std::string rank_binding_path = std::string(mlir_home) + "/tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml";
+
+  // auto mp_args = ::tt::runtime::MultiProcessArgs::create(rank_binding_path);
+  // ::tt::runtime::DistributedOptions distributed_options;
+  // distributed_options.mode = ::tt::runtime::DistributedMode::MultiProcess;
+  // distributed_options.multiProcessArgs = mp_args;
+
   tt_pjrt_status device_status = populateDevices();
   if (!tt_pjrt_status_is_ok(device_status)) {
     return *ErrorInstance::makeError(device_status).release();
@@ -103,8 +113,14 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-  m_system_descriptor = tt::runtime::getCurrentSystemDesc();
-  m_system_descriptor.store(m_cached_system_descriptor_path.data());
+  if (std::filesystem::exists(m_cached_system_descriptor_path)) {
+    std::cout << "ClientInstance::populateDevices - loading system descriptor from path: " << m_cached_system_descriptor_path.c_str() << std::endl;
+    m_system_descriptor = tt::runtime::SystemDesc::loadFromPath(m_cached_system_descriptor_path.data());
+  }
+  else {
+    m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+    m_system_descriptor.store(m_cached_system_descriptor_path.data());
+  }
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,
            "Failed to store the system descriptor to the disk using path: %s",
@@ -382,20 +398,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
-  // NOTE: Due to some issues hit when testing, instead of using the reshape
-  // mesh API, we are closing and re-opening the device with the wanted mesh
-  // shape. This should be revisited in the future (#1436).
-  //
-  // Additionally, we are supposed to utilize sub-meshes if the target mesh
-  // shape is contained within the already opened parent mesh. Also, in case
-  // we are running multiple models on different parts of the mesh (pipeline
-  // parallel). However, similar as to the case with reshape API, there were
-  // some issues when testing sub-meshes, so for now we are always closing and
-  // re-opening the whole mesh.
-  if (m_optimizer_submesh.has_value()) {
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-    m_optimizer_submesh.reset();
-  }
   tt::runtime::closeMeshDevice(*m_parent_mesh);
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
@@ -443,36 +445,6 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   };
 
   return tt::runtime::openMeshDevice(options);
-}
-
-tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
-    const std::vector<uint32_t> &target_mesh_shape) {
-
-  // Ensure parent mesh exists with the correct shape
-  tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
-
-  if (m_optimizer_submesh.has_value()) {
-    std::vector<uint32_t> optimizer_submesh_shape =
-        tt::runtime::getMeshShape(*m_optimizer_submesh);
-
-    if (optimizer_submesh_shape == target_mesh_shape) {
-      DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - reusing "
-                        "already created optimizer submesh");
-      return *m_optimizer_submesh;
-    }
-
-    // If shape changed, parent mesh was closed and reopened in
-    // getOrCreateMeshDevice, which automatically closed the submesh.
-    // Clear the stale reference.
-    m_optimizer_submesh.reset();
-  }
-
-  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
-                    "creating optimizer submesh");
-  m_optimizer_submesh =
-      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
-
-  return *m_optimizer_submesh;
 }
 
 namespace internal {

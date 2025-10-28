@@ -840,13 +840,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // Use the `options.devicePtr` to pass the device pointer to the optimizer in
-  // order to avoid closing and reopening the device afterwards.
-  tt::runtime::Device submesh_for_optim =
-      client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-  options.devicePtr =
-      std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-          submesh_for_optim.handle);
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
