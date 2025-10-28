@@ -2,14 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Callable
 
 import numpy as np
 import pytest
 import torch
 import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
 from transformers import CacheConfig
@@ -20,7 +23,7 @@ from transformers.models.llama.modeling_llama import (
 )
 from utils import failed_runtime
 
-from tests.utils import is_llmbox
+from tests.utils import get_tt_device_count, is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -30,10 +33,10 @@ from third_party.tt_forge_models.bge_m3.pytorch.loader import (
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
     ModelLoader as Qwen2_5ModelLoader,
 )
-from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
     ModelVariant as Qwen2_5ModelVariant,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
@@ -655,12 +658,12 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
+    if str(variant) == "72b_instruct":
+        pytest.xfail("Not enough memory to run this test")
 
     xr.set_device_type("TT")
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
@@ -672,9 +675,8 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -702,9 +704,12 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -721,7 +726,7 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     ],
 )
 @pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize("variant", [Qwen2_5ModelVariant.QWEN_3_8B])
+@pytest.mark.parametrize("variant", [Qwen2_5ModelVariant.QWEN_2_5_7B_INSTRUCT])
 def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
@@ -730,16 +735,15 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     else:
         batch_size = 1
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -767,9 +771,12 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -777,32 +784,36 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_attention_decode(variant, variant_config):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
-        pytest.xfail("Variant doesn't fit on device")
+def test_qwen2_5_attention_decode(variant, variant_config, request):
+    if str(variant) == "72b_instruct":
+        pytest.xfail("Not enough memory to run this test")
 
     xr.set_device_type("TT")
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
     seq_len = 1
     hidden_states = torch.randn(
-        (1, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(1, seq_len, model.config.head_dim, dtype=torch.bfloat16)
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
-    batch_size = 1
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
         config=model.config,
@@ -814,78 +825,132 @@ def test_qwen2_5_attention_decode(variant, variant_config):
     cache_position = torch.tensor([0])
     past_key_states = static_cache
 
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
     )
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_concat_heads(variant, variant_config, seq_len):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
-        pytest.xfail("Variant doesn't fit on device")
+def test_qwen2_5_concat_heads(variant, variant_config, seq_len, request):
+    if str(variant) == "72b_instruct":
+        pytest.xfail("Not enough memory to run this test")
 
     xr.set_device_type("TT")
 
     def concat_heads(attn_output, input_shape):
         return attn_output.reshape(*input_shape, -1).contiguous()
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
 
-    batch_size = 1
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
     num_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
-    hidden_size = model.config.hidden_size
+    head_dim = model.config.hidden_size // num_heads
 
     attn_output = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
     input_shape = (batch_size, seq_len)
 
-    run_graph_test(concat_heads, [attn_output, input_shape], framework=Framework.TORCH)
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(concat_heads_fn, args, kwargs):
+            shard_specs = {}
+            # attn_output is sharded on batch and num_heads (model) dimensions
+            shard_specs[args[0]] = ("batch", "model", None, None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
+    run_graph_test(
+        concat_heads,
+        [attn_output, input_shape],
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_create_heads(variant, variant_config, seq_len):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
-        pytest.xfail("Variant doesn't fit on device")
+def test_qwen2_5_create_heads(variant, variant_config, seq_len, request):
+    if str(variant) == "72b_instruct":
+        pytest.xfail("Not enough memory to run this test")
 
     xr.set_device_type("TT")
 
-    def create_heads(
-        hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm
-    ):
-        query_states = q_norm(q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
-        key_states = k_norm(k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
+    def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj):
+        query_states = q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         return query_states, key_states, value_states
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    batch_size = 1
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
     hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    head_dim = hidden_size // model.config.num_attention_heads
 
     hidden_states = torch.randn(
         (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
@@ -894,31 +959,57 @@ def test_qwen2_5_create_heads(variant, variant_config, seq_len):
     input_shape = hidden_states.shape[:-1]
     hidden_shape = (*input_shape, -1, head_dim)
 
-    q_proj = attention.q_proj
-    k_proj = attention.k_proj
-    v_proj = attention.v_proj
-    q_norm = attention.q_norm
-    k_norm = attention.k_norm
+    # q_proj = attention.q_proj
+    # k_proj = attention.k_proj
+    # v_proj = attention.v_proj
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(create_heads, args, kwargs):
+            shard_specs = {}
+            # Input: hidden_states is sharded on batch and hidden_size (model) dimensions
+            shard_specs[args[0]] = ("batch", None, "model")
+            # shard_specs[args[1]] = ("batch", None, "model") # Does not need to be sharded
+            # Projection weights are sharded on output dimension (which becomes heads)
+            shard_specs[args[2]] = ("model", None)
+            shard_specs[args[3]] = ("model", None)
+            shard_specs[args[4]] = ("model", None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
 
     run_graph_test(
         create_heads,
-        [hidden_states, hidden_shape, q_proj, k_proj, v_proj, q_norm, k_norm],
+        [
+            hidden_states,
+            hidden_shape,
+            attention.q_proj,
+            attention.k_proj,
+            attention.v_proj,
+        ],
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
     )
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_sdpa(variant, variant_config, seq_len):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
-        pytest.xfail("Variant doesn't fit on device")
+def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
+    if str(variant) == "72b_instruct":
+        pytest.xfail("Not enough memory to run this test")
 
     xr.set_device_type("TT")
 
@@ -949,15 +1040,21 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len):
         )
         return attn_output, attn_weights
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    batch_size = 1
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
-    num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
-    head_dim = model.config.head_dim
+    num_key_value_heads = (
+        model.config.num_key_value_heads
+    )  # getattr(model.config, "num_key_value_heads", num_heads)
+    head_dim = hidden_size // num_heads
 
     query_states = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -969,10 +1066,33 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(1, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     dropout = 0.0
     scaling = attention.scaling
+
+    if is_llmbox(request):
+        num_devices = 2  # xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa_fn, args, kwargs):
+            shard_specs = {}
+            # args[0] is attention module - no sharding needed
+            # Query, key, value states sharded on batch and heads dimensions
+            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
 
     run_graph_test(
         sdpa,
@@ -985,8 +1105,14 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len):
             dropout,
             scaling,
         ],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
     )
+    # xm.mark_step()
+    torch_xla.sync()
+    xm.wait_device_ops()
 
 
 """BGE-M3 attention (XLM-RoBERTa attention) tests"""
