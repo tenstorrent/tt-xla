@@ -1,10 +1,12 @@
 # Owners in each line are sorted alphabetically, with area owners at the start.
 
-# Global, these owners will be the default owners for everything in the repo unless a later match takes precedence:
+# Global, these owners will be the default owners for everything in the repo unless a later match takes precedence
 * @mrakitaTT @nvukobratTT @AleksKnezevic
 
-# Source
+# PJRT implementation
 /pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
+
+# Compiler integration
 /pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
 /pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
 
@@ -20,7 +22,7 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 /tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @LPanosTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
 
 # Python package
-/python_package/ @mrakitaTT @pilkicTT @ajakovljevicTT @sgligorijevicTT
+/python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT
 /python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 /python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @mstojkovicTT @ppadjinTT @vkovinicTT
 
