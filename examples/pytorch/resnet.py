@@ -27,6 +27,7 @@ def get_model():
     return model
 
 def get_input():
+    torch.manual_seed(4)
     input = torch.rand((1, 3, 224, 224))
 
     return input
