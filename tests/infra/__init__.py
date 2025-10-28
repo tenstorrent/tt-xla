@@ -10,6 +10,7 @@ from .testers import (
     JaxModelTester,
     JaxMultichipModelTester,
     RunMode,
+    ExecutionGranularity,
     TorchModelTester,
     run_graph_test,
     run_graph_test_with_random_inputs,

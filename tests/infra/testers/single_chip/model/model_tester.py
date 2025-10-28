@@ -12,6 +12,9 @@ from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 
+from op_by_op_infra.pydantic_models import OpTest
+from op_by_op_infra.workflow import run_op_by_op_workflow
+
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
@@ -25,6 +28,14 @@ class RunMode(Enum):
         return self.value
 
 
+class ExecutionGranularity(Enum):
+    FULL = "full"
+    OP_BY_OP = "op_by_op"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class ModelTester(BaseTester, ABC):
     """Abstract base class all single chip model testers must inherit."""
 
@@ -32,6 +43,7 @@ class ModelTester(BaseTester, ABC):
         self,
         comparison_config: ComparisonConfig,
         run_mode: RunMode,
+        execution_granularity: ExecutionGranularity,
         framework: Framework,
         compiler_config: CompilerConfig = None,
         dtype_override=None,
@@ -41,6 +53,7 @@ class ModelTester(BaseTester, ABC):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._run_mode = run_mode
+        self._execution_granularity = execution_granularity
         self._dtype_override = dtype_override
 
         self._model: Model = None
@@ -141,10 +154,64 @@ class ModelTester(BaseTester, ABC):
 
     def test(self) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
-        if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference()
-        else:
-            return self._test_training()
+        try:
+            if self._run_mode == RunMode.INFERENCE:
+                result = self._test_inference()
+            else:
+                result = self._test_training()
+        except Exception as e:
+            raise
+        finally:
+            if(self._execution_granularity == ExecutionGranularity.OP_BY_OP and
+               self._compiler_config.enable_ir_dumping_path is not None):
+                import os
+                ir_file_path = os.path.join(self._compiler_config.enable_ir_dumping_path, "irs/shlo_compiler.mlir")
+                try:
+                    with open(ir_file_path, 'r') as f:
+                        module = f.read()
+                except (FileNotFoundError, IOError, OSError) as e:
+                    print(f"Warning: Could not read IR dump file {ir_file_path}: {e}")
+                    module = ""
+                print("Running op by op tests for module:")
+                print(module)
+                results = self._test_op_by_op(module=module)
+                for result in results:
+                    record_property(f"OpTest model for: {result.op_name}", model_to_dict(result))
+        
+        return result
+
+    def _test_op_by_op(self, module: str, compile_before_split: bool = False, compile_each_submodule_after_split: bool = False, *, frontend: Optional[str] = "tt-xla", model_name: Optional[str] = None) -> List[OpTest]:
+        """
+        Tests the model on op by op basis.
+        To enable showing progress of the workflow, set env var `SHOW_WORKFLOW_PROGRESS=ON`.
+
+        Parameters
+        ----------
+        module: Module | str
+            Original MLIR module (or module str) processed by the workflow.
+        compile_before_split: bool
+            If True, compiles the module before splitting.
+            NOTE if True `compile_each_submodule_after_split` cannot be True.
+        compile_each_submodule_after_split: bool
+            If True, compiles each submodule after splitting.
+            NOTE if True `compile_before_split` cannot be True.
+        frontend: Optional[str]
+            Name of the frontend using op by op infra.
+        model_name: Optional[str]
+            Name of the ML model which was passed as original MLIR module to the workflow.
+
+        Returns
+        -------
+        List[OpTest]
+            List of `OpTest` pydantic models
+        """
+        return run_op_by_op_workflow(
+            module=module,
+            compile_before_split=compile_before_split,
+            compile_each_submodule_after_split=compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )
 
     def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """

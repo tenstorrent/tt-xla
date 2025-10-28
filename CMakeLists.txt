@@ -49,6 +49,8 @@ if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_PERF_TRACE ON)
 endif()
 
+option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
+
 # ----- coverage_config -----
 
 add_library(coverage_config INTERFACE)

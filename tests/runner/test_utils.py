@@ -14,7 +14,8 @@ from enum import Enum
 import numpy as np
 import torch
 import torch_xla.runtime as xr
-from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra import ComparisonConfig, RunMode, TorchModelTester, ExecutionGranularity
+from infra.testers.compiler_config import CompilerConfig
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
@@ -252,19 +253,26 @@ class DynamicTorchModelTester(TorchModelTester):
     def __init__(
         self,
         run_mode: RunMode,
+        execution_granularity: ExecutionGranularity,
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
+        ir_dump_path: str = "",
     ) -> None:
         self.loader = loader
         # Optional: store requested parallelism for reporting/consumers
         self.parallelism = parallelism
 
+        # Create CompilerConfig with IR dump path
+        compiler_config = CompilerConfig(enable_ir_dumping_path=ir_dump_path)
+
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
+            execution_granularity=execution_granularity,
             parallelism=self.parallelism,
+            compiler_config=compiler_config,
         )
 
     # --- TorchModelTester interface implementations ---

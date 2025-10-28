@@ -17,7 +17,7 @@ from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
-from .model_tester import ModelTester, RunMode
+from .model_tester import ModelTester, RunMode, ExecutionGranularity
 
 
 class TorchModelTester(ModelTester):
@@ -37,6 +37,7 @@ class TorchModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        execution_granularity: ExecutionGranularity = ExecutionGranularity.FULL,
         compiler_config: CompilerConfig = None,
         parallelism=None,
         dtype_override=None,
@@ -48,6 +49,7 @@ class TorchModelTester(ModelTester):
         super().__init__(
             comparison_config,
             run_mode,
+            execution_granularity,
             Framework.TORCH,
             compiler_config,
             dtype_override,

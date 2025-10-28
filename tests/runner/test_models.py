@@ -4,7 +4,7 @@
 import os
 
 import pytest
-from infra import RunMode
+from infra import RunMode, ExecutionGranularity
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.runner.requirements import RequirementsManager
@@ -37,9 +37,11 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
     ],
 )
 @pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],  # When op-by-op flow is required/supported, add here.
+    "execution_granularity",
+    [
+        pytest.param(ExecutionGranularity.FULL, id="full", marks=pytest.mark.full),
+        pytest.param(ExecutionGranularity.OP_BY_OP, id="op_by_op", marks=pytest.mark.op_by_op),
+    ]
 )
 @pytest.mark.parametrize(
     "parallelism",
@@ -69,7 +71,7 @@ MODELS_ROOT, test_entries = setup_test_discovery(PROJECT_ROOT)
 def test_all_models(
     test_entry,
     run_mode,
-    op_by_op,
+    execution_granularity,
     parallelism,
     record_property,
     test_metadata,
@@ -96,11 +98,20 @@ def test_all_models(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+                # Set IR dump path for op-by-op execution granularity
+                ir_dump_path = (
+                    os.path.join(PROJECT_ROOT, "ir_dumps", model_info.name)
+                    if execution_granularity == ExecutionGranularity.OP_BY_OP
+                    else ""
+                )
+                
                 tester = DynamicTorchModelTester(
                     run_mode,
+                    execution_granularity=execution_granularity,
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
                     parallelism=parallelism,
+                    ir_dump_path=ir_dump_path,
                 )
 
                 comparison_result = tester.test()

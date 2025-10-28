@@ -18,7 +18,7 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .model_tester import ModelTester, RunMode
+from .model_tester import ModelTester, RunMode, ExecutionGranularity
 
 
 class JaxModelTester(ModelTester):
@@ -42,6 +42,7 @@ class JaxModelTester(ModelTester):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        execution_granularity: ExecutionGranularity = ExecutionGranularity.FULL,
         compiler_config: CompilerConfig = None,
         has_batch_norm: bool = False,
         dtype_override=None,
@@ -52,7 +53,7 @@ class JaxModelTester(ModelTester):
         self._has_batch_norm = has_batch_norm
 
         super().__init__(
-            comparison_config, run_mode, Framework.JAX, compiler_config, dtype_override
+            comparison_config, run_mode, execution_granularity, Framework.JAX, compiler_config, dtype_override
         )
 
     # @override

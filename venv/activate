@@ -9,7 +9,7 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
 fi
 export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
 export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/python_packages"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:$(pwd)/third_party/tt-mlir/build/python_packages:$(pwd)/third_party/tt-mlir/build/tools/ttrt"
 # pytest alias for venv interpreter
 alias pytest='python -m pytest'
 
@@ -30,7 +30,10 @@ fi
 export TTXLA_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"
+export LOGGER_LEVEL="INFO"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 
 export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/bin:$PATH
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+export TT_METAL_BUILD_HOME="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"
+export TT_METAL_RUNTIME_ROOT="$TT_MLIR_HOME/third_party/tt-metal/src/tt-metal"

@@ -79,6 +79,7 @@ def pytest_collection_modifyitems(items):
             "model_group",
             "model_info",
             "run_mode",
+            "execution_granularity",
             "parallelism",
             "bringup_status",
             "execution_pass",
