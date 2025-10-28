@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 import shlex
 
-from sample_execution_list import execution_list
+from execution_list_full import execution_list
 
 PORT = 47609
 REMOTE_DIR = "/localdev/ndrakulic/tt-xla"
@@ -38,13 +38,12 @@ tmux send-keys -t tests "{long_cmd}" C-m
 def get_ssh_cmd(host, port=PORT):
     return [
         "ssh",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
         # "-tt",
-        "-p",
-        str(port),
+        "-p", str(port),
         host,
-        "bash",
-        "-lc",
-        "cat | bash",
+        "bash", "-lc", "cat | bash",
     ]
 
 def get_pytest_cmd(pytest_targets, report_file):
@@ -173,6 +172,7 @@ def main():
     for host, state in host_states.items():
         group = state["groups"][state["next_idx"]]
         start_group(host, group)
+        time.sleep(5)
         state["next_idx"] += 1
 
     time.sleep(1)
