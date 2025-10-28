@@ -38,6 +38,13 @@ void initializeLogging() {
   } else {
     LOG_F(ERROR, "Invalid LOGGER_LEVEL: %s", loguru_verbosity);
   }
+
+  // Check for log file configuration - only if LOGGER_LEVEL is set
+  const char *log_file_path = std::getenv("TT_XLA_LOGGER_FILE");
+  if (log_file_path) {
+    // Add file output using the same verbosity level as stderr
+    loguru::add_file(log_file_path, loguru::Append, loguru::g_stderr_verbosity);
+  }
 }
 
 } // namespace tt::pjrt
