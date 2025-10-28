@@ -21,11 +21,26 @@ from transformers.models.llama.modeling_llama import (
 from utils import failed_runtime
 
 from tests.utils import is_llmbox
+from third_party.tt_forge_models.gemma.pytorch.loader import (
+    ModelLoader as GemmaModelLoader,
+)
+from third_party.tt_forge_models.gemma.pytorch.loader import (
+    ModelVariant as GemmaModelVariant,
+)
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
-    ModelVariant as LlamaModelVariant,
+from third_party.tt_forge_models.mistral.pytorch.loader import (
+    ModelLoader as MistralModelLoader,
+)
+from third_party.tt_forge_models.mistral.pytorch.loader import (
+    ModelVariant as MistralModelVariant,
+)
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
+    ModelLoader as Qwen2_5ModelLoader,
+)
+from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
+    ModelVariant as Qwen2_5ModelVariant,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as Qwen3ModelLoader,
@@ -40,6 +55,9 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
     "qwen3": Qwen3ModelLoader,
+    "qwen2_5": Qwen2_5ModelLoader,
+    "gemma": GemmaModelLoader,
+    "mistral": MistralModelLoader,
 }
 
 
@@ -77,6 +95,229 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Llama MLP test"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
+)
+def test_llama_mlp(seq_len, variant, variant_config, request):
+    # Xfail 70B models that don't fit on device
+    if "70b" in str(variant):
+        pytest.xfail("70B models don't fit on device")
+
+    xr.set_device_type("TT")
+
+    loader = LlamaModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Gemma MLP test"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gemma").items(),
+    ids=[str(k) for k in get_available_variants("gemma").keys()],
+)
+def test_gemma_mlp(seq_len, variant, variant_config, request):
+
+    xr.set_device_type("TT")
+
+    loader = GemmaModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Mistral MLP test"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_mlp(seq_len, variant, variant_config, request):
+
+    xr.set_device_type("TT")
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.model.layers[0].mlp
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Qwen2_5 MLP test"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("qwen2_5").items(),
+    ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
+)
+def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
+
+    xr.set_device_type("TT")
+
+    loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     mlp = model.model.layers[0].mlp
 
