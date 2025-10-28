@@ -38,6 +38,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
+from third_party.tt_forge_models.mistral.pytorch.loader import (
+    ModelLoader as MistralModelLoader,
+)
+from third_party.tt_forge_models.mistral.pytorch.loader import (
+    ModelVariant as MistralModelVariant,
+)
 from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
     ModelLoader as Qwen2_5ModelLoader,
 )
@@ -61,6 +67,7 @@ MODEL_LOADER_MAP = {
     "bert": BertModelLoader,
     "qwen2_5": Qwen2_5ModelLoader,
     "gemma": GemmaModelLoader,
+    "mistral": MistralModelLoader,
 }
 
 
@@ -1595,12 +1602,6 @@ def test_gemma_create_heads(variant, variant_config, seq_len, request):
             shard_specs[args[2].weight] = ("model", None)
             shard_specs[args[3].weight] = ("model", None)
             shard_specs[args[4].weight] = ("model", None)
-            if args[2].bias is not None:
-                shard_specs[args[2].bias] = ("model",)
-            if args[3].bias is not None:
-                shard_specs[args[3].bias] = ("model",)
-            if args[4].bias is not None:
-                shard_specs[args[4].bias] = ("model",)
             return shard_specs
 
     else:
@@ -1672,6 +1673,438 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
     num_heads = model.config.num_attention_heads
     num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
     head_dim = model.config.head_dim
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    dropout = 0.0
+    scaling = attention.scaling
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa_fn, args, kwargs):
+            shard_specs = {}
+            # args[0] is attention module - no sharding needed
+            # Query, key, value states sharded on batch and heads dimensions
+            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Mistral attention tests"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_attention_prefill(seq_len, variant, variant_config, request):
+    xr.set_device_type("TT")
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+# Add single push test to ensure multi-chip graph tester has coverage.
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "is_llmbox",
+    [
+        pytest.param(True, marks=pytest.mark.llmbox),
+        pytest.param(False, marks=pytest.mark.single_device),
+    ],
+)
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize("variant", [MistralModelVariant.MISTRAL_7B])
+def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
+    xr.set_device_type("TT")
+
+    if is_llmbox:
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_attention_decode(variant, variant_config, request):
+    xr.set_device_type("TT")
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    seq_len = 1
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    max_cache_len = 16
+    static_cache: StaticCache = StaticCache(
+        config=model.config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_concat_heads(variant, variant_config, seq_len, request):
+    xr.set_device_type("TT")
+
+    def concat_heads(attn_output, input_shape):
+        return attn_output.reshape(*input_shape, -1).contiguous()
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    num_heads = model.config.num_attention_heads
+    head_dim = model.config.hidden_size // num_heads
+
+    attn_output = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    input_shape = (batch_size, seq_len)
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(concat_heads_fn, args, kwargs):
+            shard_specs = {}
+            # attn_output is sharded on batch and num_heads (model) dimensions
+            shard_specs[args[0]] = ("batch", "model", None, None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
+    run_graph_test(
+        concat_heads,
+        [attn_output, input_shape],
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_create_heads(variant, variant_config, seq_len, request):
+    xr.set_device_type("TT")
+
+    def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj):
+        query_states = q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states = k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        return query_states, key_states, value_states
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_size = model.config.hidden_size
+    head_dim = hidden_size // model.config.num_attention_heads
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
+    )
+
+    input_shape = hidden_states.shape[:-1]
+    hidden_shape = (*input_shape, -1, head_dim)
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(create_heads, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[2].weight] = ("model", None)
+            shard_specs[args[3].weight] = ("model", None)
+            shard_specs[args[4].weight] = ("model", None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        create_heads,
+        [
+            hidden_states,
+            hidden_shape,
+            attention.q_proj,
+            attention.k_proj,
+            attention.v_proj,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("mistral").items(),
+    ids=[str(k) for k in get_available_variants("mistral").keys()],
+)
+def test_mistral_sdpa(variant, variant_config, seq_len, request):
+    xr.set_device_type("TT")
+
+    def sdpa(
+        attention_module,
+        query_states,
+        key_states,
+        value_states,
+        attention_mask,
+        dropout,
+        scaling,
+    ):
+        attention_interface: Callable = eager_attention_forward
+        if attention_module.config._attn_implementation != "eager":
+            attention_interface = ALL_ATTENTION_FUNCTIONS[
+                attention_module.config._attn_implementation
+            ]
+
+        attn_output, attn_weights = attention_interface(
+            attention_module,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout,
+            scaling=scaling,
+            sliding_window=getattr(attention_module, "sliding_window", None),
+        )
+        return attn_output, attn_weights
+
+    loader = MistralModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.model.layers[0].self_attn
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_size = model.config.hidden_size
+    num_heads = model.config.num_attention_heads
+    num_key_value_heads = model.config.num_key_value_heads
+    head_dim = hidden_size // num_heads
 
     query_states = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
