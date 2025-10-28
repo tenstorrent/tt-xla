@@ -28,12 +28,12 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-vovnet39_th-single_device-full-inference:
-    assert_pcc: false
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
   vovnet/pytorch-vovnet57_th-single_device-full-inference:
-    assert_pcc: false
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
