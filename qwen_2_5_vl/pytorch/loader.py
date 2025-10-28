@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_7B_INSTRUCT = "7b_instruct"
     QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3b_instruct_awq"
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7b_instruct_awq"
+    QWEN_2_5_VL_72B_INSTRUCT = "72b_instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +48,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_AWQ: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+        ),
+        ModelVariant.QWEN_2_5_VL_72B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-VL-72B-Instruct",
         ),
     }
 
