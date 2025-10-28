@@ -34,6 +34,32 @@ namespace module_builder {
 class ModuleBuilder;
 }
 
+// Singleton class that wraps the PJRT Client Instance.
+// Ensures that we properly destroy the client instance on process termination.
+//
+// NOTE: This is needed since `torch_xla` implementation doesn't call
+// `PJRT_Client_Destroy` API properly and `tt-metal` currently cannot recover
+// (on n300 boards) if we do not properly close all previously opened devices -
+// which is done on client destruction.
+//
+// NOTE: This serves only as a fallback option if `PJRT_Client_Destroy` is not
+// called by the framework.
+class GlobalClientInstanceSingleton {
+public:
+  static ClientInstance *getClientInstance();
+  static PJRT_Error *init_client();
+  static void destroy_client();
+
+private:
+  GlobalClientInstanceSingleton(std::unique_ptr<ClientInstance> client_instance)
+      : m_client_instance(std::move(client_instance)) {}
+
+  bool is_initialized() const { return m_client_instance != nullptr; }
+
+  static GlobalClientInstanceSingleton &getInstance();
+  std::unique_ptr<ClientInstance> m_client_instance;
+};
+
 // Represents PJRT_Client structure and the functionality around it.
 class ClientInstance {
 
@@ -95,6 +121,9 @@ public:
   // adding support for parallel execution.
   tt::runtime::Device
   getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
+
+  // Closes the currently opened optimizer submesh device, if any.
+  void closeOptimizerSubmesh();
 
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
