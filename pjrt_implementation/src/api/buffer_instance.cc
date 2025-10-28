@@ -139,6 +139,15 @@ void BufferInstance::deleteData() {
 
   // Just reset the tensors, deallocation happens automatically when
   // reference count drops to zero.
+
+  // [James] Force reset tensor since refcounted ttnn tensor autodestruction is
+  // sus on n300 src:
+  // https://github.com/tenstorrent/tt-metal/blob/ce00315152981b54f5432c73f1f06fdd878b01f7/ttnn/core/tensor/tensor.cpp#L116-L141
+  if (m_prepared_runtime_tensor.has_value()) {
+    tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/false);
+    tt::runtime::deallocateTensor(*m_prepared_runtime_tensor, /*force=*/true);
+  }
+
   m_host_runtime_tensor = std::nullopt;
   m_prepared_runtime_tensor = std::nullopt;
 
