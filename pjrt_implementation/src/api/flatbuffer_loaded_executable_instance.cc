@@ -209,8 +209,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
 
+  bool available_prepared_tensor = prepared_tensor.has_value();
   bool has_matching_layout =
-      prepared_tensor.has_value() &&
+      available_prepared_tensor &&
       tt::runtime::hasLayout(*prepared_tensor, expected_layout);
   DLOG_F(LOG_DEBUG, "Argument index %zu: has_matching_layout=%s", arg_index,
          has_matching_layout ? "true" : "false");
@@ -232,6 +233,20 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
     tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
+  } else if (!has_matching_layout && available_prepared_tensor) {
+    DLOG_F(LOG_DEBUG,
+           "[James] Prepared tensor for argument index %zu exists but has "
+           "mismatched "
+           "layout. Calling toLayout to the layout to test..",
+           arg_index);
+
+    tt::runtime::Tensor re_laid_out_tensor = convertTensorLayout(
+        *prepared_tensor, program_index, arg_index, runtime_device);
+    tt::runtime::setTensorRetain(re_laid_out_tensor, /*retain=*/true);
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      arg_buffers[i]->setPreparedTensor(re_laid_out_tensor);
+    }
+    return re_laid_out_tensor;
   }
 
   // We don't have an already prepared tensor so we need to prepare it now.
