@@ -19,7 +19,7 @@ on:
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
           - 'model-test-training.json'
-          - 'custom-basic-and-models-push.json'
+          - 'basic-test.json:model-test-push.json' # used for uplifts
           - 'vllm-model-tests.json'
           - 'Custom'
       test_suite_custom:
