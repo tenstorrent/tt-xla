@@ -37,15 +37,39 @@
 
 namespace tt::pjrt {
 
-static ClientInstance *g_client_instance = nullptr;
+bool GlobalClientInstanceSingleton::is_initialized = false;
 
-void destroy_pjrt_client() {
-  if (g_client_instance == nullptr) {
-    return;
+GlobalClientInstanceSingleton GlobalClientInstanceSingleton::init_client() {
+  std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
+  PJRT_Error *error = client->initialize();
+  if (error) {
+    DLOG_F(ERROR, "Failed to initialize global PJRT client instance");
+    std::terminate();
   }
 
-  delete g_client_instance;
-  g_client_instance = nullptr;
+  GlobalClientInstanceSingleton::is_initialized = true;
+  return GlobalClientInstanceSingleton{
+      .m_client_instance = std::move(client),
+  };
+}
+
+void GlobalClientInstanceSingleton::destroy_client() {
+  if (GlobalClientInstanceSingleton::is_initialized) {
+    GlobalClientInstanceSingleton::is_initialized = false;
+    auto &singleton = GlobalClientInstanceSingleton::getInstance();
+    singleton.m_client_instance.reset();
+  }
+}
+
+GlobalClientInstanceSingleton& GlobalClientInstanceSingleton::getInstance() {
+  static GlobalClientInstanceSingleton singleton =
+      GlobalClientInstanceSingleton::init_client();
+  return singleton;
+}
+
+ClientInstance* GlobalClientInstanceSingleton::getClientInstance() {
+  auto &singleton = GlobalClientInstanceSingleton::getInstance();
+  return singleton.m_client_instance.get();
 }
 
 ClientInstance::ClientInstance()
@@ -498,16 +522,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
            args->create_options[i].name);
   }
 
-  std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
-  PJRT_Error *error = client->initialize();
-  if (error) {
-    return error;
-  }
-
-  // Successful return.
-  auto client_instance = client.release();
-  assert(!g_client_instance && "Global client instance already exists");
-  g_client_instance = client_instance;
+  ClientInstance *client_instance = GlobalClientInstanceSingleton::getClientInstance();
   args->client = reinterpret_cast<PJRT_Client *>(client_instance);
 
   return nullptr;
@@ -517,16 +532,10 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
   auto client_instance = ClientInstance::unwrap(args->client);
-  assert(client_instance == g_client_instance || g_client_instance == nullptr &&
-         "PJRT_Client_Destroy called on non-global client instance");
-  if (!g_client_instance) {
-    DLOG_F(LOG_DEBUG, "PJRT_Client_Destroy called with null client");
-    return nullptr;
-  }
-
-  delete client_instance;
-  g_client_instance = nullptr;
-
+  auto global_client_instance = GlobalClientInstanceSingleton::getClientInstance();
+  assert(client_instance == global_client_instance &&
+         "Destroying a non-global client instance is not supported");
+  GlobalClientInstanceSingleton::destroy_client();
   return nullptr;
 }
 

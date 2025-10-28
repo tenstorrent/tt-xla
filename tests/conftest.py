@@ -391,20 +391,6 @@ def initialize_device_connectors():
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def run_around_session():
-    """
-    Autouse fixture that establishes connection to devices by creating connector
-    instances.
-
-    Done to make sure it is executed before any other jax command during tests.
-    """
-    yield
-    print(f"Loading the PJRT library and destroying the global client instance at session end.")
-    pjrt_lib = ctypes.CDLL(str(pjrt_plugin_tt.get_library_path()))
-    pjrt_lib.destroy_pjrt_client()
-
-
 CACHE_DIRECTORIES = [
     Path.home() / ".cache" / "lfcache",
     Path.home() / ".cache" / "url_cache",
@@ -450,54 +436,10 @@ def cleanup_cache_fixture():
     cleanup_cache()
 
 
-# PID of the process that started the pytest session (parent).
-SESSION_PID = os.getpid()
-import logging
-LOG = Path(".forked_probe.log")  # any path you like
-
-# @pytest.hookimpl(hookwrapper=True, tryfirst=True)
-# def pytest_runtest_call(item):
-#     child = in_forked_child()
-#
-#     os.environ["TT_LOGGER_FILE"] = f"metal.{os.getpid()}.log"
-#     os.environ["TTMLIR_RUNTIME_LOGGER_FILE"] = f"ttmlir_runtime.{os.getpid()}.log"
-#
-#     # BEFORE test function runs (in child when --forked)
-#     # avoid stdio capture entirely: append to a logfile
-#     LOG.write_text(LOG.read_text() + f"[BEFORE] {item.nodeid} pid={os.getpid()} child={child}\n" if LOG.exists()
-#                    else f"[BEFORE] {item.nodeid} pid={os.getpid()} child={child}\n")
-#
-#     outcome = yield  # run the actual test function
-#     error_code = 0 if outcome.excinfo is None else 1
-#     # sleep for 10 secs
-#     import time
-#     time.sleep(10)  # ensure logs are flushed
-#
-#     # AFTER test function runs (still in the same process)
-#     suffix = "PASSED" if outcome.excinfo is None else "FAILED"
-#     LOG.write_text(LOG.read_text() + f"[AFTER]  {item.nodeid} pid={os.getpid()} child={child} -> {suffix}\n")
-#
-# def in_forked_child() -> bool:
-#     # In a forked run, each test executes in a new child with a different PID.
-#     global SESSION_PID
-#     return os.getpid() != SESSION_PID
-
-
-
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
 # do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
-@pytest.fixture(autouse=True, scope="function")
-def run_around_tests(request):
+@pytest.fixture(autouse=True)
+def run_around_tests():
     torch.manual_seed(0)
     yield
-    import os, signal
-
-    # os.kill(os.getpid(), signal.SIGSEGV)
-    # raise RuntimeError("Intentional failure to investigate pytest-forked behavior.")
-    # if we are using `pytest-forked` manually destroy the global client instance.
-    # load the pjrt SO library and call `destroy_pjrt_client`
-    # import pjrt_plugin_tt 
-    # pjrt_lib = ctypes.CDLL(str(pjrt_plugin_tt.get_library_path()))
-    # pjrt_lib.destroy_pjrt_client()
     torch._dynamo.reset()
-
