@@ -37,6 +37,37 @@
 
 namespace tt::pjrt {
 
+PJRT_Error *GlobalClientInstanceSingleton::init_client() {
+  std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
+  PJRT_Error *error = client->initialize();
+  if (error) {
+    return error;
+  }
+
+  GlobalClientInstanceSingleton &singleton_instance = getInstance();
+  singleton_instance.m_client_instance = std::move(client);
+
+  return nullptr;
+}
+
+void GlobalClientInstanceSingleton::destroy_client() {
+  GlobalClientInstanceSingleton &singleton_instance = getInstance();
+  if (singleton_instance.is_initialized()) {
+    singleton_instance.m_client_instance.reset();
+  }
+}
+
+GlobalClientInstanceSingleton &GlobalClientInstanceSingleton::getInstance() {
+  static GlobalClientInstanceSingleton singleton =
+      GlobalClientInstanceSingleton(nullptr);
+  return singleton;
+}
+
+ClientInstance *GlobalClientInstanceSingleton::getClientInstance() {
+  auto &singleton = GlobalClientInstanceSingleton::getInstance();
+  return singleton.m_client_instance.get();
+}
+
 ClientInstance::ClientInstance()
     : m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
@@ -446,6 +477,13 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   return tt::runtime::openMeshDevice(options);
 }
 
+void ClientInstance::closeOptimizerSubmesh() {
+  if (m_optimizer_submesh.has_value()) {
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
+  }
+}
+
 tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
     const std::vector<uint32_t> &target_mesh_shape) {
 
@@ -487,14 +525,17 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
            args->create_options[i].name);
   }
 
-  std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
-  PJRT_Error *error = client->initialize();
+  PJRT_Error *error = GlobalClientInstanceSingleton::init_client();
+
   if (error) {
+    DLOG_F(ERROR, "Failed to initialize PJRT client instance");
     return error;
   }
 
-  // Successful return.
-  args->client = reinterpret_cast<PJRT_Client *>(client.release());
+  ClientInstance *client_instance =
+      GlobalClientInstanceSingleton::getClientInstance();
+  assert(client_instance != nullptr);
+  args->client = reinterpret_cast<PJRT_Client *>(client_instance);
 
   return nullptr;
 }
@@ -502,8 +543,11 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
-  delete ClientInstance::unwrap(args->client);
-
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  ClientInstance *global_client_instance =
+      GlobalClientInstanceSingleton::getClientInstance();
+  assert(client_instance == global_client_instance);
+  GlobalClientInstanceSingleton::destroy_client();
   return nullptr;
 }
 
