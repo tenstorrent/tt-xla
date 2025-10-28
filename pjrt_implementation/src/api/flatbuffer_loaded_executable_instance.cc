@@ -186,14 +186,19 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // expecting. If so, we can just reuse this tensor.
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
-  if (prepared_tensor.has_value() &&
-      tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
+
+  bool has_cached_tensor = prepared_tensor.has_value();
+  bool has_expected_layout =
+      has_cached_tensor &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout);
+  if (has_expected_layout) {
     DLOG_F(LOG_DEBUG,
            "Reusing already prepared input tensor for argument index %zu with "
            "shape %s",
            arg_index, arg_buffers[0]->toShapeStr().c_str());
 
-    // This prepared tensor may be from a pure output-aliased-to-input, so
+    // This prepared tensor may be from a previous graph output aliased to
+    // input, so
     //  we should set its retention flag to true.
     if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
       DLOG_F(LOG_DEBUG,
@@ -204,6 +209,27 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
     tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
+  }
+
+  // We might have a cached tensor in the wrong layout, for example
+  // if the cached tensor came from an output from a previous execution
+  // on a differently shaped mesh. An output BufferInstance will not have
+  // a host_runtime_tensor when reused in a future graph as input.
+  // In this case, we re-layout the cached tensor into the expected layout
+  // and return that while saving it back into the buffer instances for future
+  // reuse.
+  else if (!has_expected_layout && has_cached_tensor) {
+    DLOG_F(LOG_DEBUG,
+           "Re-laying out already prepared input tensor for argument index %zu "
+           "with shape %s.",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+    tt::runtime::Tensor relaid_out_tensor = convertTensorLayout(
+        *prepared_tensor, program_index, arg_index, runtime_device);
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      arg_buffers[i]->setPreparedTensor(relaid_out_tensor);
+    }
+    tt::runtime::setTensorRetain(relaid_out_tensor, /*retain=*/true);
+    return relaid_out_tensor;
   }
 
   // We don't have an already prepared tensor so we need to prepare it now.
