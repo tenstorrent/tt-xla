@@ -130,15 +130,13 @@ def test_scaled_dot_product_attention_decode(
         framework=Framework.TORCH,
     )
 
-
-def test_paged_update_cache():
-    max_num_blocks = 1024
-    max_num_blocks_per_seq = 32
-    num_heads = 8
-    block_size = 64
-    head_dim = 128
-    num_users = 32
-
+@pytest.mark.parametrize("num_users", [8, 16, 24, 32])
+@pytest.mark.parametrize("max_num_blocks_per_seq", [16, 32])
+@pytest.mark.parametrize("num_heads", [1, 8, 32])
+@pytest.mark.parametrize("block_size", [32, 64, 128])
+@pytest.mark.parametrize("head_dim", [128, 256])
+def test_paged_update_cache(num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim):
+    max_num_blocks = max_num_blocks_per_seq * num_users
     max_seq_len = max_num_blocks_per_seq * block_size
 
     cache = torch.zeros(max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16)
