@@ -18,6 +18,7 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
+from utils import failed_runtime
 
 from tests.utils import is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
@@ -637,6 +638,11 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
     "variant,variant_config",
     get_available_variants("bge_m3").items(),
     ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Test hangs - https://github.com/tenstorrent/tt-xla/issues/1830"
+    )
 )
 def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
     xr.set_device_type("TT")
