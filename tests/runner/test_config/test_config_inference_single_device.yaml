@@ -2194,3 +2194,48 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
     bringup_status: FAILED_FE_COMPILATION
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  hippynn/pytorch-Hippynn-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  vilt/question_answering/pytorch-vqa-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
+
+  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
