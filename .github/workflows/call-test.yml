@@ -280,7 +280,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-          python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
+        python -m pytest -vv ${{ matrix.build.dir }} --validate-test-config
 
     - name: Collect Tests
       id: collect-tests
