@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import os
+
+import torch
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
+from diffusers import AutoencoderKLMochi
+
+# Enable HLO debug output
+os.environ["XLA_HLO_DEBUG"] = "1"
+
+
+def run_vae_decoder():
+    """
+    Test Mochi VAE decoder in isolation.
+
+    Input: Latent representation [B, 12, t, h, w]
+    Output: Video frames [B, 3, T, H, W]
+
+    Mochi VAE specs:
+    - 12 latent channels
+    - 128x compression: 6x temporal, 8x8 spatial
+    - Example: 37 frames @ 480x848 -> latents [1, 12, 7, 60, 106]
+    """
+    xr.set_device_type("TT")
+    device = xm.xla_device()
+
+    # Load ONLY the VAE (not the full pipeline!)
+    # This loads ~362M params instead of ~15B params
+    vae = AutoencoderKLMochi.from_pretrained(
+        "genmo/mochi-1-preview", subfolder="vae", torch_dtype=torch.bfloat16
+    )
+
+    # VAE decoder: [B, 12, t, h, w] → [B, 3, T, H, W]
+    # For 37 frames at 480x848: latents are [1, 12, 7, 60, 106]
+    # Using smaller test size: 13 frames at 256x256
+    # Latent: [1, 12, 3, 32, 32] (13/6≈3, 256/8=32)
+    latent = torch.randn(1, 12, 3, 32, 32, dtype=torch.bfloat16)
+    latent = latent.to(device)
+
+    # Extract just the decoder
+    model = vae.decoder
+    model = model.eval().to(device)
+    model = torch.compile(model, backend="tt")
+
+    with torch.no_grad():
+        # Normalize latents (VAE expects normalized input)
+        # Mochi normalizes with channel-wise std
+        vae_std = torch.tensor(
+            [
+                0.925,
+                0.934,
+                0.946,
+                0.939,
+                0.961,
+                1.033,
+                0.979,
+                1.024,
+                0.983,
+                1.046,
+                0.964,
+                1.004,
+            ],
+            dtype=torch.bfloat16,
+            device=device,
+        )
+        latent_normalized = latent / vae_std.view(1, 12, 1, 1, 1)
+
+        output = model(latent_normalized)
+
+    print(f"VAE Decoder output shape: {output.shape}")
+    print(f"Expected shape: [1, 3, 18, 256, 256]")
+    print(output)
+
+
+if __name__ == "__main__":
+    print("Running Mochi VAE Decoder test...")
+    run_vae_decoder()
