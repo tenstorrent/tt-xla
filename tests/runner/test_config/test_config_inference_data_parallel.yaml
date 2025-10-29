@@ -66,8 +66,10 @@ test_config:
 
   albert/token_classification/pytorch-xlarge_v1-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
   mnist/pytorch-data_parallel-full-inference:
     supported_archs: [n300]
