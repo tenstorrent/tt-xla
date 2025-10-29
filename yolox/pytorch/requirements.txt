@@ -1,1 +1,2 @@
 datasets>=2.19.0
+yolox==0.3.0
