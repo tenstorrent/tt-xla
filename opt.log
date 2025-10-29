@@ -1,0 +1,31 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+Using TT-Metal from the source tree: /localdev/hshah/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-8.4.2, pluggy-1.6.0 -- /localdev/hshah/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /localdev/hshah/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.11.0, jaxtyping-0.3.3, forked-1.6.0, split-0.10.0
+collecting ... Workaround to exclude model: suryaocr from discovery. Issue #1166
+collected 1 item
+
+tests/runner/test_models.py::test_all_models[opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference] Some weights of OPTForSequenceClassification were not initialized from the model checkpoint at facebook/opt-125m and are newly initialized: ['score.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:37:21.511 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:37:21.552 | critical |          Always | Read unexpected run_mailbox value from core (x=22,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:37:21.591 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:37:21.630 | critical |          Always | Read unexpected run_mailbox value from core (x=22,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:37:23.171 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:38:41.996 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:40:03.967 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2025-10-28 18:41:24.200 | critical |          Always | Read unexpected run_mailbox value from core (x=25,y=16) (assert.hpp:103)
+2025-10-28 18:44:53.773 | critical |          Always | Fabric Router Sync: Timeout after 5000 ms. Device 4: Expected status 0xa2b2c2d2, got 0x49706550 (assert.hpp:103)
