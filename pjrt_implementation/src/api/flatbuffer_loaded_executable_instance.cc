@@ -40,7 +40,7 @@ FlatbufferLoadedExecutableInstance::createInstance(
                                              std::move(addressable_devices),
                                              client_instance) {}
   };
-
+  DLOG_F(LOG_DEBUG, "[James] Created LoadedExecutableInstance")
   return std::make_unique<make_unique_enabler>(std::move(executable_image),
                                                std::move(addressable_devices),
                                                client_instance);
@@ -51,7 +51,19 @@ FlatbufferLoadedExecutableInstance::FlatbufferLoadedExecutableInstance(
     const std::vector<DeviceInstance *> &addressable_devices,
     ClientInstance *client_instance)
     : LoadedExecutableInstance(std::move(executable_image), addressable_devices,
-                               client_instance) {}
+                               client_instance) {
+  DLOG_F(LOG_DEBUG,
+         "FlatbufferLoadedExecutableInstance constructor called for "
+         "executable: %s",
+         m_executable_image->getExecutableName().c_str());
+}
+
+FlatbufferLoadedExecutableInstance::~FlatbufferLoadedExecutableInstance() {
+  DLOG_F(LOG_DEBUG,
+         "FlatbufferLoadedExecutableInstance destructor called for executable: "
+         "%s",
+         m_executable_image->getExecutableName().c_str());
+}
 
 std::optional<tt::runtime::Device>
 FlatbufferLoadedExecutableInstance::getOrCreateMeshDevice(

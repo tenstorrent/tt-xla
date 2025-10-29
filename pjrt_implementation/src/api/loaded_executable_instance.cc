@@ -22,6 +22,12 @@
 
 namespace tt::pjrt {
 
+LoadedExecutableInstance::~LoadedExecutableInstance() {
+  DLOG_F(LOG_DEBUG,
+         "LoadedExecutableInstance destructor called for executable: %s",
+         m_executable_image->getExecutableName().c_str());
+}
+
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
   api->PJRT_LoadedExecutable_GetExecutable =

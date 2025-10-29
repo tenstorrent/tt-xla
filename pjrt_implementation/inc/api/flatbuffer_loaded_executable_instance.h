@@ -51,6 +51,9 @@ public:
                  std::vector<DeviceInstance *> &&addressable_devices,
                  ClientInstance *client_instance);
 
+  // Destructor for logging and cleanup
+  ~FlatbufferLoadedExecutableInstance() override;
+
   // Shares the underlying executable image.
   std::shared_ptr<FlatbufferExecutableImage> getSharedExecutableImage() const;
 

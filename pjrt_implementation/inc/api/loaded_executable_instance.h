@@ -22,6 +22,7 @@
 // tt-xla includes
 #include "api/device_instance.h"
 #include "api/executable_image.h"
+#include "utils/logging.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -36,7 +37,7 @@ public:
   static void bindApi(PJRT_Api *api);
 
   // Virtual destructor for proper cleanup of derived classes
-  virtual ~LoadedExecutableInstance() = default;
+  virtual ~LoadedExecutableInstance();
 
   // Casts this loaded executable instance to PJRT_LoadedExecutable pointer.
   operator PJRT_LoadedExecutable *() {
@@ -77,7 +78,11 @@ protected:
       ClientInstance *client_instance)
       : m_executable_image(std::move(executable_image)),
         m_addressable_devices(addressable_devices), m_deleted(false),
-        m_client_instance(client_instance) {}
+        m_client_instance(client_instance) {
+    DLOG_F(LOG_DEBUG,
+           "LoadedExecutableInstance constructor called for executable: %s",
+           m_executable_image->getExecutableName().c_str());
+  }
 
   // Executable image instance which is shared between executable and loaded
   // executable instances.
