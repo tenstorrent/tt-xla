@@ -171,12 +171,16 @@ def construct_inputs(
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
+    # it is for some reason necessary to pass an attention mask (even though it is not updated/becomes invalid)
+    # to avoid a left padded model from producing degenerate outputs. We do not update the attention mask
+    # during generation, so it will remain technically invalid after the first step, but produced output is still correct.
+
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
-        # "attention_mask": inputs.attention_mask,
+        "attention_mask": inputs.attention_mask,
     }
 
     #   Debug prints
@@ -184,8 +188,8 @@ def construct_inputs(
     print(f"Input prompt: '{input_prompt}'")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
-    # print(f"Attention mask shape: {inputs.attention_mask.shape}")
-    # print(f"Attention mask: {inputs.attention_mask}")
+    print(f"Attention mask shape: {inputs.attention_mask.shape}")
+    print(f"Attention mask: {inputs.attention_mask}")
     print(f"Cache position shape: {cache_position.shape}")
     print(f"Cache position: {cache_position}")
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
@@ -216,7 +220,7 @@ def transfer_to_device(
     ]
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
-    # input_args["attention_mask"] = input_args["attention_mask"].to(device)
+    input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
 
