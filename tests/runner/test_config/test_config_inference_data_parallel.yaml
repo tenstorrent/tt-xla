@@ -82,6 +82,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
+
   #==============================================================================
   # NEW ISSUE: 'GenerationConfig' object has no attribute 'rep
   #==============================================================================
@@ -108,6 +109,239 @@ test_config:
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # NEW ISSUE: error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal
+  #==============================================================================
+  hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
+
+  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  inception/pytorch-inceptionv4-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vovnet/pytorch-vovnet27s-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/pytorch-vovnet39-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
+
+  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/pytorch-vovnet57-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  densenet/pytorch-densenet121-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  densenet/pytorch-densenet161-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  densenet/pytorch-densenet169-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  densenet/pytorch-densenet201-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  yolov9/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # NEW ISSUE: assert len(timesteps.shape) == 1, "Timesteps should be a 1d-array"
+  #==============================================================================
+
+  flux/pytorch-dev-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  flux/pytorch-schnell-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # NEW ISSUE: Unsupported binary op for FPU BinaryOpType::BITWISE_OR (assert.hpp:103)
+  #==============================================================================
+
+  phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING # not OOM but leaking 6000 MB
+
+  # see large models section for more
+
+
+  #==============================================================================
+  # NEW ISSUE: error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match
+  # the expected output shape dimension[2](256)
+  #==============================================================================
+  bart/pytorch-large-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  xglm/pytorch-xglm-564M-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING # not OOM but leaking 3000 MB
+
+  xglm/pytorch-xglm-1.7B-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING # not OOM but leaking 10000 MB
+
+  musicgen_small/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # PASSING
+  #==============================================================================
+  mlp_mixer/pytorch-mixer_l16_224-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8585371971130371. Required: pcc=0.99.
+
+  gpt_neo/causal_lm/pytorch-gpt_neo_125M-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.6451955437660217. Required: pcc=0.99.
+
+  vit/pytorch-vit_b_16-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-0_6b-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8792946338653564. Required: pcc=0.99.
+
+  qwen_2_5/casual_lm/pytorch-1_5b-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9603426456451416. Required: pcc=0.99.
+
+  stereo/pytorch-medium-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.30879345536231995. Required: pcc=0.99.
+
+  stereo/pytorch-large-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.2210359126329422. Required: pcc=0.99.
+
+  mamba/pytorch-mamba-790m-hf-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  qwen_2_5/casual_lm/pytorch-3b_instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9163239002227783. Required: pcc=0.99.
+
+  yoloworld/pytorch-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.45505842566490173. Required: pcc=0.99.
+
+
+  #==============================================================================
+  # TO BE TESTED
+  #==============================================================================
+
+
+  #==============================================================================
+  # FAILED AND UNSORTED
+  #==============================================================================
+
 
   #==============================================================================
   # KNOWN ISSUE: Too much memory leaked/Large model/OOM
@@ -437,231 +671,3 @@ test_config:
   # llama/causal_lm/pytorch-llama_3_2_1b-data_parallel-full-inference:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
-
-  #==============================================================================
-  # NEW ISSUE: error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal
-  #==============================================================================
-  hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.96
-
-  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.985
-
-  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  inception/pytorch-inceptionv4-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.97
-
-  hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  vovnet/pytorch-vovnet27s-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  vovnet/pytorch-vovnet39-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.985
-
-  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  vovnet/pytorch-vovnet57-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  densenet/pytorch-densenet121-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  densenet/pytorch-densenet161-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  densenet/pytorch-densenet169-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  densenet/pytorch-densenet201-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  yolov9/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-
-  #==============================================================================
-  # NEW ISSUE: RuntimeError: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-mlir/sr...
-  # info: Invalid arguments to reshape
-  # STATUS: May be resolved -> retest
-  #==============================================================================
-  yoloworld/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 6000 MB
-
-  #==============================================================================
-  # NEW ISSUE: assert len(timesteps.shape) == 1, "Timesteps should be a 1d-array"
-  #==============================================================================
-
-  flux/pytorch-dev-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  flux/pytorch-schnell-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  #==============================================================================
-  # NEW ISSUE: Unsupported binary op for FPU BinaryOpType::BITWISE_OR (assert.hpp:103)
-  #==============================================================================
-
-  phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 6000 MB
-
-  # see large models section for more
-
-  #==============================================================================
-  # NEW ISSUE: error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match
-  # the expected output shape dimension[2](256)
-  #==============================================================================
-  bart/pytorch-large-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  xglm/pytorch-xglm-564M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 3000 MB
-
-  xglm/pytorch-xglm-1.7B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 10000 MB
-
-
-
-  #==============================================================================
-  # FAILED AND UNSORTED - not OOM tho
-  #==============================================================================
-
-  musicgen_small/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  stereo/pytorch-large-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # leaking a lot (+15 000 MB)
-
-  mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  mamba/pytorch-mamba-790m-hf-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.96 # not OOM but leaking 2000 MB
-
-  qwen_2_5/casual_lm/pytorch-3b_instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  #==============================================================================
-  # PASSING
-  #==============================================================================
-  mlp_mixer/pytorch-mixer_l16_224-data_parallel-full-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8585371971130371. Required: pcc=0.99.
-
-  gpt_neo/causal_lm/pytorch-gpt_neo_125M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-data_parallel-full-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.6451955437660217. Required: pcc=0.99.
-
-  vit/pytorch-vit_b_16-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  qwen_3/causal_lm/pytorch-0_6b-data_parallel-full-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8792946338653564. Required: pcc=0.99.
-
-  qwen_2_5/casual_lm/pytorch-1_5b-data_parallel-full-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9603426456451416. Required: pcc=0.99.
-
-  stereo/pytorch-medium-data_parallel-full-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING # not OOM but leaking 8000 MB
-    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.30879345536231995. Required: pcc=0.99.
-
-
-  #==============================================================================
-  # TO BE TESTED
-  #==============================================================================
