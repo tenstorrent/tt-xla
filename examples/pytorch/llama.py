@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import argparse
 import os
 from typing import List
 
@@ -21,7 +22,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
-def llama():
+def llama(interactive: bool = False):
 
     # Check transformers version
     check_transformers_version()
@@ -29,8 +30,7 @@ def llama():
     # Set up config variables.
     batch_size: int = 1
     max_cache_len: int = 48
-    input_prompt: str = "I like taking walks in the"
-    # input_prompt: str = "Hello, my name is"
+    default_prompt: str = "I like taking walks in the"
 
     model_name: str = "meta-llama/Llama-3.2-3B"
 
@@ -48,34 +48,46 @@ def llama():
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
-    # Construct inputs, including static cache
-    input_args = construct_inputs(
-        input_prompt, tokenizer, model.config, batch_size, max_cache_len
-    )
+    while True:
+        if interactive:
+            user_prompt = input("Enter your prompt or quit() to exit: ")
+            if user_prompt.lower() == "quit()":
+                break
+        else:
+            user_prompt = default_prompt
 
-    # Limit maximum generation count to fit within preallocated static cache
-    max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        # Construct inputs, including static cache
+        input_args = construct_inputs(
+            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+        )
 
-    # Transfer model and inputs to device
-    model, input_args = transfer_to_device(model, input_args, device)
+        # Limit maximum generation count to fit within preallocated static cache
+        max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Mark sharding on inputs and model internals if SPMD is enabled
-    if is_spmd:
-        mark_sharding_on_inputs_and_model(model, input_args, mesh)
+        # Transfer model and inputs to device
+        model, input_args = transfer_to_device(model, input_args, device)
 
-    # Compile model
-    compiled_model = torch.compile(model, backend="tt")
+        # Mark sharding on inputs and model internals if SPMD is enabled
+        if is_spmd:
+            mark_sharding_on_inputs_and_model(model, input_args, mesh)
 
-    # Run generation loop until EOS token generated or max tokens reached
-    run_generate(
-        compiled_model,
-        input_args,
-        tokenizer,
-        device,
-        mesh,
-        is_spmd,
-        max_tokens_to_generate,
-    )
+        # Compile model
+        compiled_model = torch.compile(model, backend="tt")
+
+        # Run generation loop until EOS token generated or max tokens reached
+        run_generate(
+            compiled_model,
+            input_args,
+            tokenizer,
+            device,
+            mesh,
+            is_spmd,
+            max_tokens_to_generate,
+            user_prompt,
+        )
+
+        if not interactive:
+            break
 
 
 def setup_spmd():
@@ -174,6 +186,7 @@ def construct_inputs(
     # it is for some reason necessary to pass an attention mask (even though it is not updated/becomes invalid)
     # to avoid a left padded model from producing degenerate outputs. We do not update the attention mask
     # during generation, so it will remain technically invalid after the first step, but produced output is still correct.
+    # -- just as a test, passing in a randint attention mask also produces degenerate output, so during prefill attn mask does matter.
 
     input_args = {
         "input_ids": inputs.input_ids,
@@ -270,6 +283,7 @@ def run_generate(
     mesh: Mesh = None,
     is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
+    input_prompt: str = "",
 ):
     """
     Run the generation loop.
@@ -317,7 +331,7 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-    print("Output tokens:", output_tokens)
+    print("Result:", input_prompt + "".join(output_tokens))
 
 
 def check_transformers_version():
@@ -343,7 +357,16 @@ def check_transformers_version():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Llama generation example")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Enable interactive mode for entering custom prompts",
+    )
+    args = parser.parse_args()
+
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    llama()
+    llama(interactive=args.interactive)
