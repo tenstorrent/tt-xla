@@ -27,7 +27,7 @@ def llama():
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 1
+    batch_size: int = 32
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Llama-3.2-3B"
@@ -149,10 +149,14 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    inputs = tokenizer.encode_plus(
+    input_prompt = [input_prompt] * batch_size
+
+    inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
+        max_length=max_cache_len,
         truncation=True,
+        padding=True,  # Important for batching
     )
 
     # Static cache should be initialized on CPU and separately transferred to device
