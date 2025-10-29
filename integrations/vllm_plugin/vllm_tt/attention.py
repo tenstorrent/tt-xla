@@ -49,7 +49,7 @@ torch._dynamo.config.reorderable_logging_functions.add(print)
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
     def get_name() -> str:
-        return "PALLAS_VLLM_V1"
+        return "TT_VLLM_V1"
 
     @staticmethod
     def get_impl_cls() -> type["TTAttentionBackendImpl"]:
@@ -219,23 +219,47 @@ class TTAttentionBackendImpl(AttentionImpl):
             attn_metadata: Metadata for attention.
         Returns:
             shape = [num_tokens, num_heads * head_size]
+
+        query/key/value/output tensors have additional dimension 'batch_size'
+        for batched inputs.
+            query: shape = [batch_size, num_tokens, num_heads * head_size]
+            key: shape = [batch_size, num_tokens, num_kv_heads * head_size]
+            value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
+            output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-        num_tokens, hidden_size = query.shape
+        is_batched = query.ndim > 2
+        query_hidden_size = query.shape[-1]
+        query_num_tokens = query.shape[-2]
+        query_batch_size = query.shape[0] if is_batched else 1
+
+        kv_hidden_size = key.shape[-1]
+        kv_num_tokens = key.shape[-2]
+        kv_batch_size = key.shape[0] if is_batched else 1
+
         query = query.reshape(
-            1, query.shape[0], query.shape[1] // self.head_size, self.head_size
+            query_batch_size,
+            query_num_tokens,
+            query_hidden_size // self.head_size,
+            self.head_size,
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_heads, head_size]
+        )  # [batch, num_tokens, num_heads, head_size]
         key = key.reshape(
-            1, key.shape[0], key.shape[1] // self.head_size, self.head_size
+            kv_batch_size,
+            kv_num_tokens,
+            kv_hidden_size // self.head_size,
+            self.head_size,
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
+        )  # [batch, num_tokens, num_kv_heads, head_size]
         value = value.reshape(
-            1, value.shape[0], value.shape[1] // self.head_size, self.head_size
+            kv_batch_size,
+            kv_num_tokens,
+            kv_hidden_size // self.head_size,
+            self.head_size,
         ).transpose(
             -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
+        )  # [batch, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
             cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
@@ -267,20 +291,22 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
-            out = out.reshape(num_tokens, hidden_size)
+            out = out.reshape(query_num_tokens, query_hidden_size)
             return out
         else:
-            return (
-                torch.ops.tt.scaled_dot_product_attention(
-                    query,
-                    key,
-                    value,
-                    is_causal=attn_metadata.is_causal,
-                    attn_mask=attn_metadata.attn_mask,
+            output = torch.ops.tt.scaled_dot_product_attention(
+                query,
+                key,
+                value,
+                is_causal=attn_metadata.is_causal,
+                attn_mask=attn_metadata.attn_mask,
+            ).transpose(-3, -2)
+            if is_batched:
+                return output.reshape(
+                    query_batch_size, query_num_tokens, query_hidden_size
                 )
-                .transpose(-3, -2)
-                .reshape(num_tokens, hidden_size)
-            )
+            else:
+                return output.reshape(query_num_tokens, query_hidden_size)
 
 
 def write_to_kv_cache(
