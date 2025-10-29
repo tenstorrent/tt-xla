@@ -118,11 +118,5 @@ def test_mlpmixer_inference(inference_tester: MlpMixerTester):
     execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
-        "https://github.com/tenstorrent/tt-mlir/issues/5304"
-    )
-)
 def test_mlpmixer_training(training_tester: MlpMixerTester):
     training_tester.test()

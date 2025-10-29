@@ -61,8 +61,10 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-full-inference:
-    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9881801009178162. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
+    bringup_status: INCORRECT_RESULT
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -818,22 +820,17 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  qwen_2_5_vl/pytorch-72b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
-      status: KNOWN_FAILURE_XFAIL
-      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-      bringup_status: FAILED_TTMLIR_COMPILATION
-
-  qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-inference:
-      status: KNOWN_FAILURE_XFAIL
-      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-      bringup_status: FAILED_TTMLIR_COMPILATION
-
-  qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-inference:
       status: KNOWN_FAILURE_XFAIL
       reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
       bringup_status: FAILED_TTMLIR_COMPILATION
@@ -1624,6 +1621,11 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+  llama/causal_lm/pytorch-llama_3_1_405b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
   llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
@@ -2183,9 +2185,9 @@ test_config:
 
   regnet/pytorch-regnet_y_128gf-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9861325025558472. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
 
   detr/object_detection/pytorch-resnet_50-single_device-full-inference:
     assert_pcc: false
@@ -2202,3 +2204,48 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
     bringup_status: FAILED_FE_COMPILATION
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  hippynn/pytorch-Hippynn-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  vilt/question_answering/pytorch-vqa-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
+
+  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
