@@ -1194,6 +1194,11 @@ test_config:
   deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    bringup_status: FAILED_FE_COMPILATION
+
   deepseek/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
     reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
