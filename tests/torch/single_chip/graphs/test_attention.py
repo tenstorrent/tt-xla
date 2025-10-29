@@ -77,6 +77,10 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
 
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn

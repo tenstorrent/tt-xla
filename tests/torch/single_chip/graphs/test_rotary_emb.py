@@ -32,6 +32,10 @@ def test_llama_RoPE(seq_len, variant, variant_config):
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
 
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
 
@@ -61,6 +65,10 @@ def test_llama_apply_rotary_emb(seq_len, variant, variant_config):
     # Xfail 70B models that don't fit on device
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
+
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)

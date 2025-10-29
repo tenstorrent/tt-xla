@@ -820,6 +820,11 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  qwen_2_5_vl/pytorch-72b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
@@ -1615,6 +1620,11 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_405b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
