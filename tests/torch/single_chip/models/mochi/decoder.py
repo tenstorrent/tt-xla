@@ -36,8 +36,8 @@ def run_vae_decoder():
     # VAE decoder: [B, 12, t, h, w] → [B, 3, T, H, W]
     # For 37 frames at 480x848: latents are [1, 12, 7, 60, 106]
     # Using smaller test size: 13 frames at 256x256
-    # Latent: [1, 12, 3, 32, 32] (13/6≈3, 256/8=32)
-    latent = torch.randn(1, 12, 3, 32, 32, dtype=torch.bfloat16)
+    # Latent: [1, 12, 7, 60, 106] (13/6≈3, 256/8=32)
+    latent = torch.randn(1, 12, 7, 60, 106, dtype=torch.bfloat16)
     latent = latent.to(device)
 
     # Extract just the decoder
