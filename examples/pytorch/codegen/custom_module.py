@@ -34,7 +34,14 @@ class Model(nn.Module):
 
 # Set up compile options to trigger code generation.
 options = {
+    # Code generation options
     "backend": "codegen_py",
+    # Optimizer options
+    # "enable_optimizer": True,
+    # "enable_memory_layout_analysis": True,
+    # "enable_l1_interleaved": False,
+    # Tensor dumping options
+    # "dump_inputs": True,
     "export_path": "model",
 }
 torch_xla.set_custom_compile_options(options)
