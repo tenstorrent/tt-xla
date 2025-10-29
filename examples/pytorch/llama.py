@@ -28,8 +28,10 @@ def llama():
 
     # Set up config variables.
     batch_size: int = 1
-    max_cache_len: int = 128
+    max_cache_len: int = 48
     input_prompt: str = "I like taking walks in the"
+    # input_prompt: str = "Hello, my name is"
+
     model_name: str = "meta-llama/Llama-3.2-3B"
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
@@ -152,7 +154,10 @@ def construct_inputs(
     inputs = tokenizer.encode_plus(
         input_prompt,
         return_tensors="pt",
-        truncation=True,
+        max_length=32,
+        padding="max_length",
+        padding_side="left",
+        return_attention_mask=True,
     )
 
     # Static cache should be initialized on CPU and separately transferred to device
@@ -171,7 +176,20 @@ def construct_inputs(
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
+        # "attention_mask": inputs.attention_mask,
     }
+
+    #   Debug prints
+    print("\n=== DEBUG: construct_inputs ===")
+    print(f"Input prompt: '{input_prompt}'")
+    print(f"Input IDs shape: {inputs.input_ids.shape}")
+    print(f"Input IDs: {inputs.input_ids}")
+    # print(f"Attention mask shape: {inputs.attention_mask.shape}")
+    # print(f"Attention mask: {inputs.attention_mask}")
+    print(f"Cache position shape: {cache_position.shape}")
+    print(f"Cache position: {cache_position}")
+    print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
+    print("=" * 50)
 
     return input_args
 
@@ -198,6 +216,7 @@ def transfer_to_device(
     ]
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    # input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
 
