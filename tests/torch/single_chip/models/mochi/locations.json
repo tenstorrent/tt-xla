@@ -1,0 +1,1140 @@
+[
+  {
+    "result": "%32",
+    "location_ref": "#loc81",
+    "location": "Conv3d[conv_in]/forward(autoencoder_kl_mochi.py:623)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%30",
+      "weight": "%arg9",
+      "output": "%31"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x12x7x60x106",
+        "dtype": "bf16",
+        "full": "1x12x7x60x106xbf16"
+      },
+      "weight": {
+        "shape": "768x12x1x1x1",
+        "dtype": "bf16",
+        "full": "768x12x1x1x1xbf16"
+      },
+      "output": {
+        "shape": "1x768x7x60x106",
+        "dtype": "bf16",
+        "full": "1x768x7x60x106xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%32",
+        "location_ref": "#loc81",
+        "location": "Conv3d[conv_in]/forward(autoencoder_kl_mochi.py:623)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%30",
+          "weight": "%arg9",
+          "output": "%31"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%114",
+    "location_ref": "#loc94",
+    "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[0]]/CogVideoXCausalConv3d[block_in.resnets[0].conv1]/pad(functional.py:5209)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%112",
+      "weight": "%arg17",
+      "output": "%113"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x768x9x62x108",
+        "dtype": "bf16",
+        "full": "1x768x9x62x108xbf16"
+      },
+      "weight": {
+        "shape": "768x768x3x3x3",
+        "dtype": "bf16",
+        "full": "768x768x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x768x7x60x106",
+        "dtype": "bf16",
+        "full": "1x768x7x60x106xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%114",
+        "location_ref": "#loc94",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[0]]/CogVideoXCausalConv3d[block_in.resnets[0].conv1]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%112",
+          "weight": "%arg17",
+          "output": "%113"
+        }
+      },
+      {
+        "result": "%196",
+        "location_ref": "#loc109",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[0]]/CogVideoXCausalConv3d[block_in.resnets[0].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%194",
+          "weight": "%arg13",
+          "output": "%195"
+        }
+      },
+      {
+        "result": "%280",
+        "location_ref": "#loc126",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[1]]/CogVideoXCausalConv3d[block_in.resnets[1].conv1]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%278",
+          "weight": "%arg25",
+          "output": "%279"
+        }
+      },
+      {
+        "result": "%362",
+        "location_ref": "#loc141",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[1]]/CogVideoXCausalConv3d[block_in.resnets[1].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%360",
+          "weight": "%arg21",
+          "output": "%361"
+        }
+      },
+      {
+        "result": "%446",
+        "location_ref": "#loc159",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[2]]/SiLU[block_in.resnets[2].nonlinearity]/forward(autoencoder_kl_mochi.py:117)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%444",
+          "weight": "%arg33",
+          "output": "%445"
+        }
+      },
+      {
+        "result": "%528",
+        "location_ref": "#loc176",
+        "location": "MochiMidBlock3D[block_in]/MochiResnetBlock3D[block_in.resnets[2]]/MochiChunkedGroupNorm3D[block_in.resnets[2].norm2]/forward(autoencoder_kl_mochi.py:65)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%526",
+          "weight": "%arg29",
+          "output": "%527"
+        }
+      },
+      {
+        "result": "%612",
+        "location_ref": "#loc195",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[0].norm1]/forward(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%610",
+          "weight": "%arg41",
+          "output": "%611"
+        }
+      },
+      {
+        "result": "%694",
+        "location_ref": "#loc210",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[0].norm2]/GroupNorm[up_blocks[0].resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%692",
+          "weight": "%arg37",
+          "output": "%693"
+        }
+      },
+      {
+        "result": "%778",
+        "location_ref": "#loc227",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[1].norm1]/GroupNorm[up_blocks[0].resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%776",
+          "weight": "%arg49",
+          "output": "%777"
+        }
+      },
+      {
+        "result": "%860",
+        "location_ref": "#loc242",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[1].norm2]/GroupNorm[up_blocks[0].resnets[1].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%858",
+          "weight": "%arg45",
+          "output": "%859"
+        }
+      },
+      {
+        "result": "%944",
+        "location_ref": "#loc257",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[2]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[2].norm1]/GroupNorm[up_blocks[0].resnets[2].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%942",
+          "weight": "%arg57",
+          "output": "%943"
+        }
+      },
+      {
+        "result": "%1026",
+        "location_ref": "#loc273",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[2]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[2].norm2]/GroupNorm[up_blocks[0].resnets[2].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1024",
+          "weight": "%arg53",
+          "output": "%1025"
+        }
+      },
+      {
+        "result": "%1110",
+        "location_ref": "#loc291",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[3]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[3].norm1]/GroupNorm[up_blocks[0].resnets[3].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1108",
+          "weight": "%arg65",
+          "output": "%1109"
+        }
+      },
+      {
+        "result": "%1192",
+        "location_ref": "#loc308",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[3]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[3].norm2]/GroupNorm[up_blocks[0].resnets[3].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1190",
+          "weight": "%arg61",
+          "output": "%1191"
+        }
+      },
+      {
+        "result": "%1276",
+        "location_ref": "#loc325",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[4]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[4].norm1]/GroupNorm[up_blocks[0].resnets[4].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1274",
+          "weight": "%arg73",
+          "output": "%1275"
+        }
+      },
+      {
+        "result": "%1358",
+        "location_ref": "#loc342",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[4]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[4].norm2]/GroupNorm[up_blocks[0].resnets[4].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1356",
+          "weight": "%arg69",
+          "output": "%1357"
+        }
+      },
+      {
+        "result": "%1442",
+        "location_ref": "#loc358",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[5]]/MochiChunkedGroupNorm3D[up_blocks[0].resnets[5].norm1]/forward(autoencoder_kl_mochi.py:63)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1440",
+          "weight": "%arg81",
+          "output": "%1441"
+        }
+      },
+      {
+        "result": "%1524",
+        "location_ref": "#loc372",
+        "location": "MochiUpBlock3D[up_blocks[0]]/MochiResnetBlock3D[up_blocks[0].resnets[5]]/CogVideoXCausalConv3d[up_blocks[0].resnets[5].conv1]/CogVideoXSafeConv3d[up_blocks[0].resnets[5].conv1.conv]/forward(autoencoder_kl_cogvideox.py:66)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1522",
+          "weight": "%arg77",
+          "output": "%1523"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%1741",
+    "location_ref": "#loc414",
+    "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[0].norm1]/GroupNorm[up_blocks[1].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%1739",
+      "weight": "%arg89",
+      "output": "%1740"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x512x23x122x214",
+        "dtype": "bf16",
+        "full": "1x512x23x122x214xbf16"
+      },
+      "weight": {
+        "shape": "512x512x3x3x3",
+        "dtype": "bf16",
+        "full": "512x512x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x512x21x120x212",
+        "dtype": "bf16",
+        "full": "1x512x21x120x212xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%1741",
+        "location_ref": "#loc414",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[0].norm1]/GroupNorm[up_blocks[1].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1739",
+          "weight": "%arg89",
+          "output": "%1740"
+        }
+      },
+      {
+        "result": "%1917",
+        "location_ref": "#loc435",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[0].norm2]/GroupNorm[up_blocks[1].resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%1915",
+          "weight": "%arg85",
+          "output": "%1916"
+        }
+      },
+      {
+        "result": "%2095",
+        "location_ref": "#loc457",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[1].norm1]/GroupNorm[up_blocks[1].resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2093",
+          "weight": "%arg97",
+          "output": "%2094"
+        }
+      },
+      {
+        "result": "%2271",
+        "location_ref": "#loc477",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[1].norm2]/GroupNorm[up_blocks[1].resnets[1].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2269",
+          "weight": "%arg93",
+          "output": "%2270"
+        }
+      },
+      {
+        "result": "%2449",
+        "location_ref": "#loc496",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[2]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[2].norm1]/GroupNorm[up_blocks[1].resnets[2].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2447",
+          "weight": "%arg105",
+          "output": "%2448"
+        }
+      },
+      {
+        "result": "%2625",
+        "location_ref": "#loc514",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[2]]/MochiChunkedGroupNorm3D[up_blocks[1].resnets[2].norm2]/forward(autoencoder_kl_mochi.py:63)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2623",
+          "weight": "%arg101",
+          "output": "%2624"
+        }
+      },
+      {
+        "result": "%2803",
+        "location_ref": "#loc532",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[2]]/CogVideoXCausalConv3d[up_blocks[1].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2801",
+          "weight": "%arg113",
+          "output": "%2802"
+        }
+      },
+      {
+        "result": "%2979",
+        "location_ref": "#loc552",
+        "location": "MochiUpBlock3D[up_blocks[1]]/MochiResnetBlock3D[up_blocks[1].resnets[3]]/SiLU[up_blocks[1].resnets[3].nonlinearity]/forward(autoencoder_kl_mochi.py:117)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%2977",
+          "weight": "%arg109",
+          "output": "%2978"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%3318",
+    "location_ref": "#loc607",
+    "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm1]/GroupNorm[up_blocks[2].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%3316",
+      "weight": "%arg121",
+      "output": "%3317"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x256x22x242x426",
+        "dtype": "bf16",
+        "full": "1x256x22x242x426xbf16"
+      },
+      "weight": {
+        "shape": "256x256x3x3x3",
+        "dtype": "bf16",
+        "full": "256x256x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x256x20x240x424",
+        "dtype": "bf16",
+        "full": "1x256x20x240x424xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%3318",
+        "location_ref": "#loc607",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm1]/GroupNorm[up_blocks[2].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3316",
+          "weight": "%arg121",
+          "output": "%3317"
+        }
+      },
+      {
+        "result": "%3632",
+        "location_ref": "#loc633",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm2]/GroupNorm[up_blocks[2].resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3630",
+          "weight": "%arg117",
+          "output": "%3631"
+        }
+      },
+      {
+        "result": "%3948",
+        "location_ref": "#loc657",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[1].norm1]/GroupNorm[up_blocks[2].resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3946",
+          "weight": "%arg129",
+          "output": "%3947"
+        }
+      },
+      {
+        "result": "%4262",
+        "location_ref": "#loc676",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[1].norm2]/forward(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4260",
+          "weight": "%arg125",
+          "output": "%4261"
+        }
+      },
+      {
+        "result": "%4578",
+        "location_ref": "#loc696",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/CogVideoXCausalConv3d[up_blocks[2].resnets[1].conv2]/CogVideoXSafeConv3d[up_blocks[2].resnets[1].conv2.conv]/<listcomp>(autoencoder_kl_cogvideox.py:56)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4576",
+          "weight": "%arg137",
+          "output": "%4577"
+        }
+      },
+      {
+        "result": "%4892",
+        "location_ref": "#loc719",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/SiLU[up_blocks[2].resnets[2].nonlinearity]/forward(autoencoder_kl_mochi.py:117)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4890",
+          "weight": "%arg133",
+          "output": "%4891"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%3336",
+    "location_ref": "#loc607",
+    "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm1]/GroupNorm[up_blocks[2].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%3334",
+      "weight": "%arg121",
+      "output": "%3335"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x256x24x242x426",
+        "dtype": "bf16",
+        "full": "1x256x24x242x426xbf16"
+      },
+      "weight": {
+        "shape": "256x256x3x3x3",
+        "dtype": "bf16",
+        "full": "256x256x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x256x22x240x424",
+        "dtype": "bf16",
+        "full": "1x256x22x240x424xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%3336",
+        "location_ref": "#loc607",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm1]/GroupNorm[up_blocks[2].resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3334",
+          "weight": "%arg121",
+          "output": "%3335"
+        }
+      },
+      {
+        "result": "%3650",
+        "location_ref": "#loc633",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[0]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[0].norm2]/GroupNorm[up_blocks[2].resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3648",
+          "weight": "%arg117",
+          "output": "%3649"
+        }
+      },
+      {
+        "result": "%3966",
+        "location_ref": "#loc657",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[1].norm1]/GroupNorm[up_blocks[2].resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%3964",
+          "weight": "%arg129",
+          "output": "%3965"
+        }
+      },
+      {
+        "result": "%4280",
+        "location_ref": "#loc676",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/MochiChunkedGroupNorm3D[up_blocks[2].resnets[1].norm2]/forward(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4278",
+          "weight": "%arg125",
+          "output": "%4279"
+        }
+      },
+      {
+        "result": "%4596",
+        "location_ref": "#loc696",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[1]]/CogVideoXCausalConv3d[up_blocks[2].resnets[1].conv2]/CogVideoXSafeConv3d[up_blocks[2].resnets[1].conv2.conv]/<listcomp>(autoencoder_kl_cogvideox.py:56)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4594",
+          "weight": "%arg137",
+          "output": "%4595"
+        }
+      },
+      {
+        "result": "%4910",
+        "location_ref": "#loc719",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/SiLU[up_blocks[2].resnets[2].nonlinearity]/forward(autoencoder_kl_mochi.py:117)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%4908",
+          "weight": "%arg133",
+          "output": "%4909"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%5247",
+    "location_ref": "#loc749",
+    "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%5245",
+      "weight": "%arg145",
+      "output": "%5246"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x128x15x482x850",
+        "dtype": "bf16",
+        "full": "1x128x15x482x850xbf16"
+      },
+      "weight": {
+        "shape": "128x128x3x3x3",
+        "dtype": "bf16",
+        "full": "128x128x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x128x13x480x848",
+        "dtype": "bf16",
+        "full": "1x128x13x480x848xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%5247",
+        "location_ref": "#loc749",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5245",
+          "weight": "%arg145",
+          "output": "%5246"
+        }
+      },
+      {
+        "result": "%5575",
+        "location_ref": "#loc786",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm1]/GroupNorm[block_out.resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5573",
+          "weight": "%arg141",
+          "output": "%5574"
+        }
+      },
+      {
+        "result": "%5905",
+        "location_ref": "#loc820",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm2]/GroupNorm[block_out.resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5903",
+          "weight": "%arg153",
+          "output": "%5904"
+        }
+      },
+      {
+        "result": "%6233",
+        "location_ref": "#loc852",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm1]/GroupNorm[block_out.resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6231",
+          "weight": "%arg149",
+          "output": "%6232"
+        }
+      },
+      {
+        "result": "%6563",
+        "location_ref": "#loc887",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm2]/GroupNorm[block_out.resnets[1].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6561",
+          "weight": "%arg161",
+          "output": "%6562"
+        }
+      },
+      {
+        "result": "%6891",
+        "location_ref": "#loc923",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[2]]/MochiChunkedGroupNorm3D[block_out.resnets[2].norm1]/GroupNorm[block_out.resnets[2].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6889",
+          "weight": "%arg157",
+          "output": "%6890"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%5265",
+    "location_ref": "#loc749",
+    "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%5263",
+      "weight": "%arg145",
+      "output": "%5264"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x128x17x482x850",
+        "dtype": "bf16",
+        "full": "1x128x17x482x850xbf16"
+      },
+      "weight": {
+        "shape": "128x128x3x3x3",
+        "dtype": "bf16",
+        "full": "128x128x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x128x15x480x848",
+        "dtype": "bf16",
+        "full": "1x128x15x480x848xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%5265",
+        "location_ref": "#loc749",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5263",
+          "weight": "%arg145",
+          "output": "%5264"
+        }
+      },
+      {
+        "result": "%5593",
+        "location_ref": "#loc786",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm1]/GroupNorm[block_out.resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5591",
+          "weight": "%arg141",
+          "output": "%5592"
+        }
+      },
+      {
+        "result": "%5923",
+        "location_ref": "#loc820",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm2]/GroupNorm[block_out.resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5921",
+          "weight": "%arg153",
+          "output": "%5922"
+        }
+      },
+      {
+        "result": "%6251",
+        "location_ref": "#loc852",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm1]/GroupNorm[block_out.resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6249",
+          "weight": "%arg149",
+          "output": "%6250"
+        }
+      },
+      {
+        "result": "%6581",
+        "location_ref": "#loc887",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm2]/GroupNorm[block_out.resnets[1].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6579",
+          "weight": "%arg161",
+          "output": "%6580"
+        }
+      },
+      {
+        "result": "%6909",
+        "location_ref": "#loc923",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[2]]/MochiChunkedGroupNorm3D[block_out.resnets[2].norm1]/GroupNorm[block_out.resnets[2].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6907",
+          "weight": "%arg157",
+          "output": "%6908"
+        }
+      }
+    ]
+  },
+  {
+    "result": "%5279",
+    "location_ref": "#loc749",
+    "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+    "operands": {
+      "input": "%5277",
+      "weight": "%arg145",
+      "output": "%5278"
+    },
+    "attributes": {
+      "batch_group_count": 1,
+      "feature_group_count": 1,
+      "convolution_layout": {
+        "input_batch": "0",
+        "input_feature": "1",
+        "input_spatial_dimensions": "2x3x4",
+        "kernel_output_feature": "0",
+        "kernel_input_feature": "1",
+        "kernel_spatial_dimensions": "2x3x4",
+        "output_batch": "0",
+        "output_feature": "0"
+      },
+      "input_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "padding": [
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "weight_dilation": [
+        "1",
+        "1",
+        "1"
+      ],
+      "window_reversal": [
+        "false",
+        "false",
+        "false"
+      ],
+      "window_strides": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    "tensor_types": {
+      "input": {
+        "shape": "1x128x16x482x850",
+        "dtype": "bf16",
+        "full": "1x128x16x482x850xbf16"
+      },
+      "weight": {
+        "shape": "128x128x3x3x3",
+        "dtype": "bf16",
+        "full": "128x128x3x3x3xbf16"
+      },
+      "output": {
+        "shape": "1x128x14x480x848",
+        "dtype": "bf16",
+        "full": "1x128x14x480x848xbf16"
+      }
+    },
+    "occurrences": [
+      {
+        "result": "%5279",
+        "location_ref": "#loc749",
+        "location": "MochiUpBlock3D[up_blocks[2]]/MochiResnetBlock3D[up_blocks[2].resnets[2]]/CogVideoXCausalConv3d[up_blocks[2].resnets[2].conv2]/pad(functional.py:5209)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5277",
+          "weight": "%arg145",
+          "output": "%5278"
+        }
+      },
+      {
+        "result": "%5607",
+        "location_ref": "#loc786",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm1]/GroupNorm[block_out.resnets[0].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5605",
+          "weight": "%arg141",
+          "output": "%5606"
+        }
+      },
+      {
+        "result": "%5937",
+        "location_ref": "#loc820",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[0]]/MochiChunkedGroupNorm3D[block_out.resnets[0].norm2]/GroupNorm[block_out.resnets[0].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%5935",
+          "weight": "%arg153",
+          "output": "%5936"
+        }
+      },
+      {
+        "result": "%6265",
+        "location_ref": "#loc852",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm1]/GroupNorm[block_out.resnets[1].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6263",
+          "weight": "%arg149",
+          "output": "%6264"
+        }
+      },
+      {
+        "result": "%6595",
+        "location_ref": "#loc887",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[1]]/MochiChunkedGroupNorm3D[block_out.resnets[1].norm2]/GroupNorm[block_out.resnets[1].norm2.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6593",
+          "weight": "%arg161",
+          "output": "%6594"
+        }
+      },
+      {
+        "result": "%6923",
+        "location_ref": "#loc923",
+        "location": "MochiMidBlock3D[block_out]/MochiResnetBlock3D[block_out.resnets[2]]/MochiChunkedGroupNorm3D[block_out.resnets[2].norm1]/GroupNorm[block_out.resnets[2].norm1.norm_layer]/<listcomp>(autoencoder_kl_mochi.py:64)/aten__convolution_overrideable",
+        "operands": {
+          "input": "%6921",
+          "weight": "%arg157",
+          "output": "%6922"
+        }
+      }
+    ]
+  }
+]
