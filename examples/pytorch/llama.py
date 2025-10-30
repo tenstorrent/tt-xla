@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import time
 from typing import List
 
 import numpy as np
@@ -22,17 +23,28 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
-def llama(interactive: bool = False):
+def llama(interactive: bool = False, debug: bool = False):
+
+    # options = {
+    #     "enable_optimizer": True,
+    # }
+    # torch_xla.set_custom_compile_options(options)
 
     # Check transformers version
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 16
-    max_cache_len: int = 128
-    default_prompts: List[str] = ["I like taking walks in the", "My name is", "My favorite color is", "Cheese is an excellent"] * (batch_size // 4)
+    batch_size: int = 1
+    max_cache_len: int = 64
+    default_prompt: str = "I like taking walks in the"
+    default_prompts: List[str] = [
+        "I like taking walks in the",
+        "My name is",
+        "My favorite color is",
+        "Cheese is an excellent",
+    ] * (batch_size // 4)
 
-    model_name: str = "meta-llama/Llama-3.2-3B"
+    model_name: str = "Qwen/Qwen3-32B"
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
     # SPMD must be turned off for llama generate on 1x1 mesh - See https://github.com/tenstorrent/tt-xla/issues/1639
@@ -48,17 +60,19 @@ def llama(interactive: bool = False):
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
+    warmed_up = False
+    iteration = 0
     while True:
-        if interactive:
+        if interactive and warmed_up:
             user_prompt = input("Enter your prompt or quit() to exit: ")
             if user_prompt.lower() == "quit()":
                 break
         else:
-            user_prompt = default_prompts
-
+            user_prompt = default_prompt if batch_size == 1 else default_prompts
+        warmed_up = True
         # Construct inputs, including static cache
         input_args = construct_inputs(
-            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+            user_prompt, tokenizer, model.config, batch_size, max_cache_len, debug
         )
 
         # Limit maximum generation count to fit within preallocated static cache
@@ -82,12 +96,14 @@ def llama(interactive: bool = False):
             device,
             mesh,
             is_spmd,
-            max_tokens_to_generate,
+            1,
             user_prompt,
         )
 
         if not interactive:
-            break
+            iteration += 1
+            if iteration > 2:
+                break
 
 
 def setup_spmd():
@@ -149,6 +165,7 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
+    debug: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -159,7 +176,7 @@ def construct_inputs(
         model_config: Model configuration
         batch_size: Batch size
         max_cache_len: Maximum cache length
-
+        debug: Whether to enable debug mode
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
@@ -198,16 +215,19 @@ def construct_inputs(
     }
 
     #   Debug prints
-    print("\n=== DEBUG: construct_inputs ===")
-    print(f"Input prompt: '{input_prompt}'")
-    print(f"Input IDs shape: {inputs.input_ids.shape}")
-    print(f"Input IDs: {inputs.input_ids}")
-    print(f"Attention mask shape: {inputs.attention_mask.shape}")
-    print(f"Attention mask: {inputs.attention_mask}")
-    print(f"Cache position shape: {cache_position.shape}")
-    print(f"Cache position: {cache_position}")
-    print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
-    print("=" * 50)
+    if debug:
+        print("\n=== DEBUG: construct_inputs ===")
+        print(f"Input prompt: '{input_prompt}'")
+        print(f"Input IDs shape: {inputs.input_ids.shape}")
+        print(f"Input IDs: {inputs.input_ids}")
+        print(f"Attention mask shape: {inputs.attention_mask.shape}")
+        print(f"Attention mask: {inputs.attention_mask}")
+        print(f"Cache position shape: {cache_position.shape}")
+        print(f"Cache position: {cache_position}")
+        print(
+            f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}"
+        )
+        print("=" * 50)
 
     return input_args
 
@@ -274,6 +294,7 @@ def mark_sharding_on_inputs_and_model(
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+    xs.mark_sharding(model.lm_head.weight, mesh, ("model", None))
 
 
 def run_generate(
@@ -303,9 +324,12 @@ def run_generate(
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             # Run forward pass
+            start_time = time.time()
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
             next_token_id = output_logits[:, -1].argmax(dim=-1)
+            end_time = time.time()
+            print(f"Time taken for step {step}: {end_time - start_time} seconds")
             # breakpoint()
             output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
             for i, output_tokens_list in enumerate(output_tokens):
@@ -337,6 +361,7 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
+
     for i in range(num_users):
         print(f"Result for user {i}: {input_prompt[i]} {''.join(output_tokens[i])}")
     # print("Result:", input_prompt + "".join(output_tokens))
@@ -372,9 +397,15 @@ if __name__ == "__main__":
         default=False,
         help="Enable interactive mode for entering custom prompts",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug mode",
+    )
     args = parser.parse_args()
 
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    llama(interactive=args.interactive)
+    llama(interactive=args.interactive, debug=args.debug)

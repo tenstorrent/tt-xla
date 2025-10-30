@@ -42,7 +42,7 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/casual_lm/pytorch-1_5b-single_device-full-inference:
-    assert_pcc: false
+    assert_pcc: true
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
