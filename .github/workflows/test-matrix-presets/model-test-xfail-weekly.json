@@ -1,0 +1,4 @@
+[
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "weekly and n150 and (known_failure_xfail or not_supported_skip)", "parallel-groups": 1 },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "weekly and p150 and (known_failure_xfail or not_supported_skip)", "parallel-groups": 1 }
+]

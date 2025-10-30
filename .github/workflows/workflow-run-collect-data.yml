@@ -7,6 +7,7 @@ on:
       - "On PR"
       - "On push"
       - "On nightly"
+      - "On weekly"
       - "Performance Benchmark"
       - "On nightly Experimental"
       - "Run Test Single"
