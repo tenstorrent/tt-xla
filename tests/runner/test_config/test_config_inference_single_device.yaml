@@ -1014,7 +1014,6 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
-    markers: ["weekly"]
 
   mobilenetv2/pytorch-mobilenetv2_100-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1118,7 +1117,6 @@ test_config:
 
   regnet/pytorch-regnet_y_1_6gf-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["weekly"]
 
   regnet/pytorch-regnet_y_3_2gf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1218,7 +1216,6 @@ test_config:
 
   nbeats/pytorch-trend_basis-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["weekly"]
 
   gpt2/pytorch-gpt2-single_device-full-inference:
     markers: ["push"]
@@ -1241,7 +1238,6 @@ test_config:
 
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["weekly"]
 
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
