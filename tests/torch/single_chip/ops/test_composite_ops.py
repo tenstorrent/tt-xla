@@ -7,8 +7,9 @@ import torch
 import torch_xla.core.xla_model as xm
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
+from torch.nn import RMSNorm
 from torch.nn import functional as F
-from tt_torch.composite_ops import composite_gelu
+from tt_torch.composite_ops import composite_gelu, composite_rms_norm
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
@@ -127,3 +128,26 @@ def test_patched_gelu_op_test(approx):
     run_op_test_with_random_inputs(
         gelu_with_approx, [(32, 32)], framework=Framework.TORCH
     )
+
+
+def test_composite_rms_norm():
+
+    input = torch.randn(32, 32)
+
+    class MM(torch.nn.Module):
+        def forward(self, x):
+            return torch.rms_norm(x, input.shape)
+
+    # When created like a module, we can not create composite op from torch.rms_norm,
+    # because there is not torch.rms_norm node in a fx graph, so we need to create op manually within MM module.
+    # model = RMSNorm(normalized_shape=input.shape)
+    model = MM()
+    golden = model(input)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt")
+
+    output = model(input.to(device))
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)

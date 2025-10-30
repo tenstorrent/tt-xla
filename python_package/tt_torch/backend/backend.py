@@ -32,7 +32,7 @@ def torch_pass_pipeline(
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
     # TODO: Fix composite ops to support multi-chip models before uncommenting this.
-    # handle_composite_ops(gm)
+    handle_composite_ops(gm)
 
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)

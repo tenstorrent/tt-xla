@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Dict, Optional, Union
+
 import torch
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
@@ -21,6 +23,16 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 (that we have a direct support for) with composite ops. This way, user will not have to change
 anything in model in order to get performance improvement.
 """
+
+
+def add_attr(attrs, key, value):
+    if value == None:
+        return
+
+    if attrs == None:
+        attrs = {}
+
+    attrs[key] = value
 
 
 def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
@@ -43,7 +55,33 @@ def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     return input
 
 
+def composite_rms_norm(
+    input: Tensor,
+    normalized_shape: list[int],
+    weight: Optional[Tensor] = None,
+    eps: Optional[float] = None,
+) -> Tensor:
+    name = "tenstorrent.rms_norm"
+    attr: Dict[str, Union[int, float, str]] = None
+
+    add_attr(attr, "normalized_shape", normalized_shape)
+    add_attr(attr, "epsilon", eps)
+
+    builder = StableHLOCompositeBuilder(name=name, attr=attr)
+
+    input = builder.mark_inputs(input)
+    input = torch.nn.functional.rms_norm(
+        input, normalized_shape=normalized_shape, weight=weight, eps=eps
+    )
+    input = builder.mark_outputs(input)
+
+    return input
+
+
 """
 Dictionary holding replacement composite functions for torch functions.
 """
-replacements = {torch.nn.functional.gelu: composite_gelu}
+replacements = {
+    torch.nn.functional.gelu: composite_gelu,
+    torch.rms_norm: composite_rms_norm,
+}
