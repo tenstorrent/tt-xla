@@ -339,7 +339,7 @@ test_config:
 
   resnet/image_classification/jax-resnet-18-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: [large]
+    markers: [push, large]
 
   resnet/image_classification/jax-resnet-26-single_device-full-inference:
     status: EXPECTED_PASSING
