@@ -41,8 +41,8 @@ test_config:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-inference:
-    assert_pcc: false
+  qwen_2_5/casual_lm/pytorch-1_5b-single_device-full-inference:
+    assert_pcc: true
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 

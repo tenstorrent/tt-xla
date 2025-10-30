@@ -60,6 +60,12 @@ test_config:
     assert_pcc: false
     bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1473
 
+  mistral/pytorch-ministral_8b_instruct-tensor_parallel-full-inference]:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1473
+
   mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
