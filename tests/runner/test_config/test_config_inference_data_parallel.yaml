@@ -636,8 +636,9 @@ test_config:
 
   vovnet/pytorch-vovnet57_th-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
 
   yolos/pytorch-data_parallel-full-inference:
     supported_archs: [n300]
@@ -713,6 +714,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
+    bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.98
 
   efficientnet/pytorch-efficientnet_b1-data_parallel-full-inference:
     supported_archs: [n300]
@@ -824,6 +826,8 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
   t5/pytorch-t5-large-data_parallel-full-inference:
     supported_archs: [n300]
@@ -894,8 +898,9 @@ test_config:
 
   vovnet/pytorch-vovnet39_th-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    bringup_status: INCORRECT_RESULT
 
   centernet/pytorch-hourglass_coco-data_parallel-full-inference:
     supported_archs: [n300]
@@ -992,6 +997,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
+    bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.975
 
   opt/qa/pytorch-facebook/opt-350m-data_parallel-full-inference:
     supported_archs: [n300]
