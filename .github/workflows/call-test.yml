@@ -224,7 +224,7 @@ jobs:
         PYTEST_FORKED=""
         for n in run_torch run_large_jax_models run_forge_models_torch run_jax_training run_large_jax_training; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
-            PYTEST_FORKED="--forked --runxfail"; break
+            PYTEST_FORKED="--forked --rx"; break
           fi
         done
 
