@@ -861,6 +861,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   printModule(mlir_module, compile_options.export_path, "ttnn");
 
+  client_instance->closeOptimizerSubmesh();
+
   return tt_pjrt_status::kSuccess;
 }
 

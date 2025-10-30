@@ -107,6 +107,8 @@ public:
   tt::runtime::Device
   getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
 
+  void closeOptimizerSubmesh();
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,

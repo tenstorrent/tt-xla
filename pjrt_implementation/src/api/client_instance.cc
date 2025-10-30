@@ -481,6 +481,13 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   return tt::runtime::openMeshDevice(options);
 }
 
+void ClientInstance::closeOptimizerSubmesh() {
+  if (m_optimizer_submesh.has_value()) {
+    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    m_optimizer_submesh.reset();
+  }
+}
+
 tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
     const std::vector<uint32_t> &target_mesh_shape) {
 
