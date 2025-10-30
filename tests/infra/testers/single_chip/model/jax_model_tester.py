@@ -184,7 +184,7 @@ class JaxModelTester(ModelTester):
         if "train" in sig.parameters:
             static_argnames.append("train")
         if "deterministic" in sig.parameters:
-            return static_argnames.append("deterministic")
+            static_argnames.append("deterministic")
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
             static_argnames.append("mutable")
         return static_argnames

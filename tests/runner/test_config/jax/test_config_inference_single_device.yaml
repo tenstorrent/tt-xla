@@ -177,8 +177,10 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_j/causal_lm/jax-6b-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough RAM memory to load the model."
     markers: [large]
+    bringup_status: FAILED_RUNTIME
 
   gpt_neo/causal_lm/jax-_125m-single_device-full-inference:
     status: EXPECTED_PASSING
