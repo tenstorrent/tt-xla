@@ -37,6 +37,41 @@
 
 namespace tt::pjrt {
 
+static tt_pjrt_status launchDistributedRuntime() {
+  const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
+  if (!metal_home) {
+    DLOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+  tt::runtime::setMetalHome(metal_home);
+
+  const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  if (!mlir_home) {
+    DLOG_F(ERROR, "TT_MLIR_HOME environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+  tt::runtime::setMlirHome(mlir_home);
+
+  const std::string rank_binding_path =
+      std::string(metal_home) +
+      "/tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml";
+  if (std::filesystem::exists(rank_binding_path) == false) {
+    DLOG_F(ERROR, "Rank binding file does not exist at path: %s",
+           rank_binding_path.c_str());
+    return tt_pjrt_status::kInternal;
+  }
+
+  ::tt::runtime::DistributedOptions distributed_options;
+  distributed_options.mode = ::tt::runtime::DistributedMode::MultiProcess;
+  distributed_options.multiProcessArgs =
+      ::tt::runtime::MultiProcessArgs::create(rank_binding_path);
+
+  tt::runtime::setCurrentHostRuntime(::tt::runtime::HostRuntime::Distributed);
+  tt::runtime::launchDistributedRuntime(distributed_options);
+
+  return tt_pjrt_status::kSuccess;
+}
+
 ClientInstance::ClientInstance()
     : m_system_descriptor(nullptr),
       m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
@@ -71,6 +106,18 @@ ClientInstance::~ClientInstance() {
 
 PJRT_Error *ClientInstance::initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
+
+  bool distributed_runtime =
+      std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0";
+
+  if (distributed_runtime) {
+    tt_pjrt_status launch_result = launchDistributedRuntime();
+    if (!tt_pjrt_status_is_ok(launch_result)) {
+      return *ErrorInstance::makeError(launch_result).release();
+    }
+  }
+
   tt_pjrt_status device_status = populateDevices();
   if (!tt_pjrt_status_is_ok(device_status)) {
     return *ErrorInstance::makeError(device_status).release();
@@ -103,7 +150,34 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-  m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  tt::runtime::HostRuntime host_runtime = tt::runtime::getCurrentHostRuntime();
+
+  if (host_runtime == tt::runtime::HostRuntime::Local) {
+    m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  } else {
+    // TODO(tt-mlir#5320): Currently for distributed runtime we are loading the
+    // system descriptor from disk because system descriptors cannot be
+    // coalesced across host processes. Once #5320 is implemented, we can remove
+    // this code and get the system descriptor directly through runtime.
+    const char *xla_home = std::getenv("TT_XLA_HOME");
+    if (!xla_home) {
+      DLOG_F(ERROR, "TT_XLA_HOME environment variable is not set");
+      return tt_pjrt_status::kInternal;
+    }
+
+    std::filesystem::path system_descriptor_path =
+        std::filesystem::path(xla_home) / "system_desc" /
+        "llmbox_2x4_system_desc.ttsys";
+    if (std::filesystem::exists(system_descriptor_path) == false) {
+      DLOG_F(ERROR, "System descriptor file does not exist at path: %s",
+             system_descriptor_path.c_str());
+      return tt_pjrt_status::kInternal;
+    }
+
+    m_system_descriptor =
+        tt::runtime::SystemDesc::loadFromPath(system_descriptor_path.c_str());
+  }
+
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,

@@ -6,12 +6,13 @@ import os
 from pathlib import Path
 
 import jax._src.xla_bridge as xb
-from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+from pjrt_plugin_tt import get_library_path, setup_tt_metal_home, setup_tt_xla_home
 
 from .monkeypatch import setup_monkey_patches
 
 
 def initialize():
+    setup_tt_xla_home()
     setup_tt_metal_home()
     library_path = get_library_path()
 
