@@ -64,7 +64,8 @@ static tt_pjrt_status launchDistributedRuntime() {
   ::tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = ::tt::runtime::DistributedMode::MultiProcess;
   distributed_options.multiProcessArgs =
-      ::tt::runtime::MultiProcessArgs::create(rank_binding_path);
+      ::tt::runtime::MultiProcessArgs::create(rank_binding_path)
+          .withAllowRunAsRoot(true);
 
   tt::runtime::setCurrentHostRuntime(::tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
