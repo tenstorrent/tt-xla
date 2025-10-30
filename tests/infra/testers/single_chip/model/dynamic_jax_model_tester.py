@@ -38,7 +38,6 @@ class DynamicJaxModelTester(JaxModelTester):
             run_mode: RunMode.INFERENCE or RunMode.TRAINING
             loader: Loader object that implements load_model and load_inputs methods
             comparison_config: Optional comparison configuration for result validation
-            parallelism: Parallelism mode for model execution
         """
         # Create JaxDynamicLoader instance
         self.dynamic_loader = JaxDynamicLoader(loader)
