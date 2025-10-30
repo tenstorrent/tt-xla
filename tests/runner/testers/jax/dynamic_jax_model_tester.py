@@ -9,13 +9,11 @@ import inspect
 import jax
 import jax.numpy as jnp
 from infra.comparators import ComparisonConfig
+from infra.testers.single_chip.model import JaxModelTester, RunMode
+from infra.testers.utils import JaxDynamicLoader
 from jax.sharding import Mesh
 
 from third_party.tt_forge_models.config import Parallelism
-
-from .dynamic_loader import JaxDynamicLoader
-from .jax_model_tester import JaxModelTester
-from .model_tester import RunMode
 
 
 class DynamicJaxModelTester(JaxModelTester):

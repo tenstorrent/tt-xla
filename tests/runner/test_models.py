@@ -4,11 +4,9 @@
 import os
 
 import pytest
-from infra import DynamicJaxMultiChipModelTester, RunMode
+from infra import RunMode
 from infra.testers.single_chip.model import (
-    DynamicJaxModelTester,
     DynamicLoader,
-    DynamicTorchModelTester,
     JaxDynamicLoader,
     TorchDynamicLoader,
 )
@@ -22,6 +20,11 @@ from tests.runner.test_utils import (
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
+)
+from tests.runner.testers import (
+    DynamicJaxModelTester,
+    DynamicJaxMultiChipModelTester,
+    DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
 from third_party.tt_forge_models.config import Parallelism

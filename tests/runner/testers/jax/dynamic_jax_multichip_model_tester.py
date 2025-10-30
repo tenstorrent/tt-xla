@@ -11,14 +11,13 @@ from flax import linen
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
+from infra.testers.single_chip.model import JaxModelTester, RunMode
 from infra.utilities import Framework, PyTree, ShardingMode, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
 
 from tests.infra.testers.compiler_config import CompilerConfig
-
-from ...single_chip import JaxModelTester, RunMode
 
 
 class DynamicJaxMultiChipModelTester(JaxModelTester):
