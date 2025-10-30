@@ -63,12 +63,12 @@ jobs:
           fi
   perf-benchmark:
     needs: [ set-inputs, build ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/refactor-ttrt-install-perf
     secrets: inherit
     with:
         project: tt-xla
         run_id: ${{ needs.build.outputs.artifacts_run_id }}
         run_id_source: tt-xla
-        ref: ${{ needs.set-inputs.outputs.ref }}
+        ref: vvukoman/refactor-ttrt-install-perf
         test-filter: ${{ inputs.test_filter }}
         sh-runner: ${{ inputs.sh-runner }}
