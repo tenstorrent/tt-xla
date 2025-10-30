@@ -96,15 +96,6 @@ Both examples configure TT-XLA with these options:
 options = {
     # Code generation options
     "backend": "codegen_py",
-
-    # Optimizer options
-    #"enable_optimizer": True,
-    #"enable_memory_layout_analysis": True,
-    #"enable_l1_interleaved": False,
-
-    # Tensor dumping options
-    #"dump_inputs": True,
-
     # Export path
     "export_path": "model",
 }
@@ -151,9 +142,6 @@ options = {
     "enable_optimizer": True,
     "enable_memory_layout_analysis": True,
     "enable_l1_interleaved": False,
-
-    # Tensor dumping options
-    #"dump_inputs": True,
 
     # Export path
     "export_path": "model",
