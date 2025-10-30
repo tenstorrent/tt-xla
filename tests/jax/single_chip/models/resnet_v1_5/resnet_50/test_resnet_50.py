@@ -32,7 +32,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 @pytest.fixture
 def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
     # These need to be set before the tester is created
-    monkeypatch.setenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE", "1")
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
 
     cc = CompilerConfig(enable_optimizer=True, enable_trace=True)

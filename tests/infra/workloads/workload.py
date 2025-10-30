@@ -64,10 +64,10 @@ class Workload:
 
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
-        if self.model is not None:
-            return self.model(*self.args, **self.kwargs)
-        elif self.compiled_executable is not None:
+        if self.compiled_executable is not None:
             return self.compiled_executable(*self.args, **self.kwargs)
+        elif self.model is not None:
+            return self.model(*self.args, **self.kwargs)
         elif self.executable is not None:
             return self.executable(*self.args, **self.kwargs)
         else:

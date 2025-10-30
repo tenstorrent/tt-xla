@@ -18,7 +18,7 @@ import torch_xla.runtime as xr
 from infra import ComparisonConfig, Framework, RunMode
 from infra.comparators.torch_comparator import TorchComparator
 from torch.utils._pytree import tree_map
-from utils import BringupStatus, Category, incorrect_result
+from utils import BringupStatus, Category, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.bge_m3.pytorch.loader import ModelLoader, ModelVariant
 
@@ -194,7 +194,12 @@ def bge_m3_encode():
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1884"
+    )
 )
 def test_bge_m3_custom_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""

@@ -20,10 +20,19 @@ def forward(params, x):
     return model(pixel_values=x, params=params)
 
 
+compiler_options = {
+    "backend": "codegen_py",
+    "export_path": "resnet50_codegen",
+    # "enable_optimizer": True,
+    # "enable_memory_layout_analysis": True,
+    # "enable_l1_interleaved": False,
+    # "enable_fusing_conv2d_with_multiply_pattern": True,
+}
+
 # Compile the model. Make sure to pass the code generation options.
 fun = jax.jit(
     forward,
-    compiler_options={"backend": "codegen_py", "export_path": "resnet50_codegen"},
+    compiler_options=compiler_options,
 )
 
 # Run the model. This triggers code generation.
