@@ -345,6 +345,28 @@ class TorchDynamicLoader(DynamicLoader):
     particularly for discovering PyTorch model loader files.
     """
 
+    def load_model(self) -> Any:
+        """Load model from the loader with dtype override support for bfloat16.
+
+        Returns:
+            Model instance loaded from the loader, using bfloat16 if supported
+        """
+        sig = inspect.signature(self.loader.load_model)
+        if "dtype_override" in sig.parameters:
+            return self.loader.load_model(dtype_override=torch.bfloat16)
+        return self.loader.load_model()
+
+    def load_inputs(self) -> Any:
+        """Load input activations from the loader with dtype override support for bfloat16.
+
+        Returns:
+            Input tensors that can be fed to the model, using bfloat16 if supported
+        """
+        sig = inspect.signature(self.loader.load_inputs)
+        if "dtype_override" in sig.parameters:
+            return self.loader.load_inputs(dtype_override=torch.bfloat16)
+        return self.loader.load_inputs()
+
     @classmethod
     def discover_loader_paths(cls, models_root: str) -> Dict:
         """Discover all PyTorch loader.py files in the models directory, with exclusions.
