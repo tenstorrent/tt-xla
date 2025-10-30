@@ -1,6 +1,6 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "n150 and expected_passing", "parallel-groups": 10 },
-  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "p150 and expected_passing", "parallel-groups": 10 },
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "not weekly and n150 and expected_passing", "parallel-groups": 10 },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py", "test-mark": "not weekly and p150 and expected_passing", "parallel-groups": 10 },
   { "runs-on": "n300-llmbox", "name": "run_forge_models_torch_multichip", "dir": "./tests/runner/test_models.py", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 4 },
   { "runs-on": "n300", "name": "run_forge_models_torch_multichip", "dir": "./tests/runner/test_models.py", "test-mark": "data_parallel and n300 and expected_passing", "parallel-groups": 3 }
 
