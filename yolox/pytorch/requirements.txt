@@ -1,2 +1,4 @@
 datasets>=2.19.0
-yolox==0.3.0
+# Pre-install compatible onnxruntime before yolox to avoid version conflict
+# yolox 0.3.0 requires onnxruntime==1.8.0 which is no longer available on PyPI
+onnxruntime>=1.15.0

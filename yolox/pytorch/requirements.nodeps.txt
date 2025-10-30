@@ -1,0 +1,3 @@
+# Install yolox without dependencies to avoid onnxruntime==1.8.0 conflict
+# The test runner will automatically use --no-deps for this file
+yolox==0.3.0
