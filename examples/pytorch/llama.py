@@ -28,7 +28,7 @@ def llama(interactive: bool = False):
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 32
+    batch_size: int = 16
     max_cache_len: int = 128
     default_prompts: List[str] = ["I like taking walks in the", "My name is", "My favorite color is", "Cheese is an excellent"] * (batch_size // 4)
 
@@ -298,7 +298,6 @@ def run_generate(
         is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
     """
-    breakpoint()
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
     with torch.no_grad():
