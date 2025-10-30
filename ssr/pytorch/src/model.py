@@ -2000,7 +2000,9 @@ class BEVFormerEncoder(TransformerLayerSequence):
         for img_meta in img_metas:
             lidar2img.append(img_meta["lidar2img"])
         lidar2img = np.asarray(lidar2img)
-        lidar2img = reference_points.new_tensor(lidar2img)  # (B, N, 4, 4)
+        lidar2img = torch.from_numpy(lidar2img).to(
+            device=reference_points.device, dtype=reference_points.dtype
+        )  # (B, N, 4, 4)
         reference_points = reference_points.clone()
 
         reference_points[..., 0:1] = (
@@ -2235,12 +2237,24 @@ class SSRPerceptionTransformer(BaseModule):
         )
         shift_y = shift_y * self.use_shift
         shift_x = shift_x * self.use_shift
-        shift = bev_queries.new_tensor([shift_x, shift_y]).permute(
+        shift = torch.stack(
+            [
+                torch.from_numpy(shift_x).to(
+                    device=bev_queries.device, dtype=bev_queries.dtype
+                ),
+                torch.from_numpy(shift_y).to(
+                    device=bev_queries.device, dtype=bev_queries.dtype
+                ),
+            ],
+            dim=0,
+        ).permute(
             1, 0
         )  # xy, bs -> bs, xy
 
-        can_bus = bev_queries.new_tensor(
-            [each["can_bus"] for each in kwargs["img_metas"]]
+        can_bus = torch.as_tensor(
+            np.array([each["can_bus"] for each in kwargs["img_metas"]]),
+            device=bev_queries.device,
+            dtype=bev_queries.dtype,
         )  # [:, :]
         can_bus = self.can_bus_mlp(can_bus)[None, :, :]
         bev_queries = bev_queries + can_bus * self.use_can_bus
