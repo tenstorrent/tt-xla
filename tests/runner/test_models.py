@@ -240,7 +240,6 @@ def test_all_models_jax(
                         run_mode,
                         loader=loader,
                         comparison_config=test_metadata.to_comparison_config(),
-                        parallelism=parallelism,
                     )
 
                 comparison_result = tester.test()

@@ -31,7 +31,6 @@ class DynamicJaxModelTester(JaxModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
-        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         """Initialize DynamicJaxModelTester.
 
@@ -43,8 +42,6 @@ class DynamicJaxModelTester(JaxModelTester):
         """
         # Create JaxDynamicLoader instance
         self.dynamic_loader = JaxDynamicLoader(loader)
-        # Store parallelism for reporting/consumers
-        self.parallelism = parallelism
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
