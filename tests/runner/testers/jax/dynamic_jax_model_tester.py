@@ -10,10 +10,8 @@ import jax
 import jax.numpy as jnp
 from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from infra.testers.utils import JaxDynamicLoader
-from jax.sharding import Mesh
 
-from third_party.tt_forge_models.config import Parallelism
+from tests.runner.utils import JaxDynamicLoader
 
 
 class DynamicJaxModelTester(JaxModelTester):
@@ -76,29 +74,6 @@ class DynamicJaxModelTester(JaxModelTester):
 
         # Otherwise delegate to parent implementation which handles HF models
         return super()._get_input_parameters()
-
-    def _get_shard_specs_function(self):
-        """Get shard specs function from the dynamic loader if available.
-
-        Returns:
-            Shard spec function if loader supports it, None otherwise
-        """
-        return self.dynamic_loader.get_shard_spec_function()
-
-    def _get_mesh(self):
-        """Get mesh configuration from the dynamic loader if available.
-
-        Returns:
-            Mesh object if loader supports mesh configuration, None otherwise
-        """
-        num_devices = jax.device_count()
-        mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
-
-        if mesh_shape and mesh_names:
-            devices = jax.devices()[:num_devices]
-            devices_array = jnp.array(devices).reshape(mesh_shape)
-            return Mesh(devices_array, mesh_names)
-        return None
 
     def _get_forward_method_args(self):
         """Get forward method args, checking loader first then delegating to parent.

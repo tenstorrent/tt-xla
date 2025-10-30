@@ -9,9 +9,9 @@ import collections
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
-from infra.testers.utils import TorchDynamicLoader
 from infra.utilities.torch_multichip_utils import get_mesh
 
+from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
 
 

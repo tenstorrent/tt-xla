@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from infra.testers.utils import (
+from tests.runner.utils import (
     DynamicLoader,
     JaxDynamicLoader,
     ModelTestEntry,
