@@ -38,10 +38,23 @@ def forward(graphdef, state, x):
     return model(x)
 
 
+# Set up compile options to trigger code generation.
+options = {
+    # Code generation options
+    "backend": "codegen_py",
+    # Optimizer options
+    # "enable_optimizer": True,
+    # "enable_memory_layout_analysis": True,
+    # "enable_l1_interleaved": False,
+    # Tensor dumping options
+    # "dump_inputs": True,
+    "export_path": "model",
+}
+
 # Compile the model. Make sure to pass the code generation options.
 fun = jax.jit(
     forward,
-    compiler_options={"backend": "codegen_py", "export_path": "model"},
+    compiler_options=options,
 )
 
 # Run the model. This triggers code generation.
