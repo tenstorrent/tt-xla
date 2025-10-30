@@ -28,9 +28,9 @@ def llama(interactive: bool = False):
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 1
-    max_cache_len: int = 48
-    default_prompt: str = "I like taking walks in the"
+    batch_size: int = 32
+    max_cache_len: int = 128
+    default_prompts: List[str] = ["I like taking walks in the", "My name is", "My favorite color is", "Cheese is an excellent"] * (batch_size // 4)
 
     model_name: str = "meta-llama/Llama-3.2-3B"
 
@@ -54,7 +54,7 @@ def llama(interactive: bool = False):
             if user_prompt.lower() == "quit()":
                 break
         else:
-            user_prompt = default_prompt
+            user_prompt = default_prompts
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
@@ -163,7 +163,8 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    inputs = tokenizer.encode_plus(
+    # breakpoint()
+    inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
         max_length=32,
@@ -297,19 +298,25 @@ def run_generate(
         is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
     """
-    output_tokens: List[str] = []
+    breakpoint()
+    num_users = input_args["input_ids"].shape[0]
+    output_tokens: List[List[str]] = [[] for _ in range(num_users)]
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
             next_token_id = output_logits[:, -1].argmax(dim=-1)
-            output_text = tokenizer.decode(next_token_id)
-            output_tokens.append(output_text)
-            print(output_text, end="", flush=True)
+            # breakpoint()
+            output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
+            for i, output_tokens_list in enumerate(output_tokens):
+                output_tokens_list.append(output_text[i])
+                # for token in output_tokens_list:
+                #     print(token, end="", flush=True)
+                # print()
 
             # Check for EOS token and early exit
-            if next_token_id.item() == tokenizer.eos_token_id:
+            if torch.all(next_token_id == tokenizer.eos_token_id):
                 print()  # Add newline after generation completes
                 break
 
@@ -331,7 +338,9 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-    print("Result:", input_prompt + "".join(output_tokens))
+    for i in range(num_users):
+        print(f"Result for user {i}: {input_prompt[i]} {''.join(output_tokens[i])}")
+    # print("Result:", input_prompt + "".join(output_tokens))
 
 
 def check_transformers_version():
