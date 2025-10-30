@@ -148,6 +148,12 @@ def test_llama_attention_decode(variant, variant_config):
 )
 def test_llama_concat_heads(variant, variant_config, seq_len):
 
+    if (
+        str(variant) == "llama_3_1_405b-1024"
+        or str(variant) == "llama_3_1_405b_instruct-1024"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
+
     def concat_heads(attn_output, input_shape):
         attn_output = attn_output.transpose(1, 2).contiguous()
         return attn_output.reshape(*input_shape, -1).contiguous()
