@@ -13,6 +13,16 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push]
 
+  qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected 291, but got 290. failed in Comparator"
+
+  clip/pytorch-openai/clip-vit-base-patch32-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "runtime/lib/ttnn/operations/utils/utils.cpp:363: numElements * elementSize == data->size() when calling toTTNNTensor"
+
   deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"

@@ -6,6 +6,7 @@
 
 import collections
 
+import torch
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
@@ -109,3 +110,10 @@ class DynamicTorchModelTester(TorchModelTester):
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
         return None
+
+    def _unpack_forward_output(self, output: Any) -> torch.Tensor:
+        """
+        Unwraps model output to a single tensor.
+        Calls the unpack_forward_output method of the dynamic loader.
+        """
+        return self.dynamic_loader.unpack_forward_output(output)
