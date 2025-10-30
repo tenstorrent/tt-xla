@@ -16,7 +16,7 @@ from .comparison_config import (
     EqualConfig,
     PccConfig,
 )
-
+from loguru import logger
 
 @dataclass
 class ComparisonResult:
@@ -47,6 +47,10 @@ class Comparator(ABC):
         Returns ComparisonResult with computed metrics.
         If config.assert_on_failure=True (default), also asserts on failure.
         """
+        
+        logger.info("golden_out={}",golden_out)
+        logger.info("device_out={}",device_out)
+        
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
@@ -95,6 +99,8 @@ class Comparator(ABC):
         """
         passed = True
         error_messages = []
+        
+        logger.info("pcc={}",comparison_result.pcc)
 
         # Check each enabled comparison type and collect all failures
         if self._comparison_config.equal.enabled and comparison_result.equal is False:

@@ -10,7 +10,7 @@ from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
 from tt_jax import serialize_compiled_artifacts_to_disk
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-
+from loguru import logger
 
 class Workload:
     """Class encapsulating workload (executable/model with its inputs).
