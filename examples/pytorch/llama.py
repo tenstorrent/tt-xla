@@ -18,12 +18,21 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+import torch_xla
+
 
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
-def llama(interactive: bool = False):
+def llama(interactive: bool = False, debug: bool = False):
 
+    # options = {
+    #     "enable_optimizer": True,
+    #     "enable_memory_layout_analysis": False,
+    #     "enable_l1_interleaved": True,
+    #     "enable_fusing_conv2d_with_multiply_pattern": False,
+    # }
+    # torch_xla.set_custom_compile_options(options)
     # Check transformers version
     check_transformers_version()
 
@@ -58,7 +67,7 @@ def llama(interactive: bool = False):
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
-            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+            user_prompt, tokenizer, model.config, batch_size, max_cache_len, debug
         )
 
         # Limit maximum generation count to fit within preallocated static cache
@@ -149,6 +158,7 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
+    debug: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -159,7 +169,7 @@ def construct_inputs(
         model_config: Model configuration
         batch_size: Batch size
         max_cache_len: Maximum cache length
-
+        debug: Whether to enable debug mode
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
@@ -197,16 +207,17 @@ def construct_inputs(
     }
 
     #   Debug prints
-    print("\n=== DEBUG: construct_inputs ===")
-    print(f"Input prompt: '{input_prompt}'")
-    print(f"Input IDs shape: {inputs.input_ids.shape}")
-    print(f"Input IDs: {inputs.input_ids}")
-    print(f"Attention mask shape: {inputs.attention_mask.shape}")
-    print(f"Attention mask: {inputs.attention_mask}")
-    print(f"Cache position shape: {cache_position.shape}")
-    print(f"Cache position: {cache_position}")
-    print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
-    print("=" * 50)
+    if debug:
+        print("\n=== DEBUG: construct_inputs ===")
+        print(f"Input prompt: '{input_prompt}'")
+        print(f"Input IDs shape: {inputs.input_ids.shape}")
+        print(f"Input IDs: {inputs.input_ids}")
+        print(f"Attention mask shape: {inputs.attention_mask.shape}")
+        print(f"Attention mask: {inputs.attention_mask}")
+        print(f"Cache position shape: {cache_position.shape}")
+        print(f"Cache position: {cache_position}")
+        print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
+        print("=" * 50)
 
     return input_args
 
@@ -331,7 +342,7 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-    print("Result:", input_prompt + "".join(output_tokens))
+    # print("Result:", input_prompt + "".join(output_tokens))
 
 
 def check_transformers_version():
@@ -364,9 +375,15 @@ if __name__ == "__main__":
         default=False,
         help="Enable interactive mode for entering custom prompts",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug mode",
+    )
     args = parser.parse_args()
 
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    llama(interactive=args.interactive)
+    llama(interactive=args.interactive, debug=args.debug)
