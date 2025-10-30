@@ -77,6 +77,10 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
 
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
@@ -143,6 +147,12 @@ def test_llama_attention_decode(variant, variant_config):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_concat_heads(variant, variant_config, seq_len):
+
+    if (
+        str(variant) == "llama_3_1_405b-1024"
+        or str(variant) == "llama_3_1_405b_instruct-1024"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
 
     def concat_heads(attn_output, input_shape):
         attn_output = attn_output.transpose(1, 2).contiguous()

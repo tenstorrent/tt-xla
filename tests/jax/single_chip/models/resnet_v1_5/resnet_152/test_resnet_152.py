@@ -45,7 +45,12 @@ def training_tester() -> ResNetTester:
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
     parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.9893739223480225. Required: pcc=0.99"
+    )
 )
 @pytest.mark.large
 def test_resnet_v1_5_152_inference(inference_tester: ResNetTester):
