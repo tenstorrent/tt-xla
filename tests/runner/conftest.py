@@ -131,7 +131,16 @@ def pytest_sessionfinish(session, exitstatus):
         for nodeid in _collected_nodeids
     )
 
-    combined_test_config = torch_test_config | jax_test_config
+    # Only validate configs for the frameworks that were actually collected
+    if has_torch_tests and has_jax_tests:
+        combined_test_config = torch_test_config | jax_test_config
+    elif has_torch_tests:
+        combined_test_config = torch_test_config
+    elif has_jax_tests:
+        combined_test_config = jax_test_config
+    else:
+        # No framework-specific tests collected, validate all configs
+        combined_test_config = torch_test_config | jax_test_config
 
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []
