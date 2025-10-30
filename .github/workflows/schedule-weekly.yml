@@ -1,0 +1,125 @@
+name: On nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  packages: write
+  checks: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  nightly_tests:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    with:
+      test_suite: basic-test-nightly.json
+      codecov: false
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  test_full_model:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: model-test-full.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  # This is a single test job that runs all passing tt-forge-models tests.
+  test_forge_models_passing:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: model-test-passing.json
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  # This is a single test job that runs all xfailing, skipped or placeholder tt-forge-models tests.
+  test_forge_models_xfail:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: model-test-xfail.json
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+
+  fail-notify:
+    if: always()
+    needs:
+      - nightly_tests
+      - test_full_model
+      - test_forge_models_passing
+      - test_forge_models_xfail
+      - build-image
+      - build-ttxla
+    runs-on: Ubuntu-latest
+    outputs:
+      is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
+      failed: ${{ steps.check.outputs.failure }}
+    steps:
+      - name: Check if branch is main
+        id: branch-check
+        run: echo "IS_MAIN=$(if [ '${{ github.ref }}' == 'refs/heads/main' ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
+      - name: Check if the needed jobs succeeded or failed
+        id: check
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+
+  fail-send-msg:
+    if: always()
+    needs:
+      - fail-notify
+    runs-on: Ubuntu-latest
+    steps:
+      - name: Send Fail Notification
+        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "channel": "C08GYB57C8M"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+
+      - name: Send Success Notification
+        if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "channel": "C08GYB57C8M"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
