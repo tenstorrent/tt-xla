@@ -33,4 +33,5 @@ else
 
   export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
   export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+  export TT_METAL_RUNTIME_ROOT="$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/"
 fi
