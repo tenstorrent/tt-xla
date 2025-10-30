@@ -50,20 +50,12 @@ def pytest_collection_modifyitems(config, items):
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
 
+    # Merge torch and jax test configs once outside the loop
+    combined_test_config = torch_test_config | jax_test_config
+
     deselected = []
 
     for item in items:
-        # Determine which test config to use based on the test function
-        if "test_all_models_torch" in item.nodeid:
-            test_config = torch_test_config
-        elif "test_all_models_jax" in item.nodeid:
-            test_config = jax_test_config
-        elif "test_placeholder_models" in item.nodeid:
-            # Placeholder tests use torch config (they're defined in torch/__init__.py)
-            test_config = torch_test_config
-        else:
-            # Skip configuration for other tests
-            continue
 
         nodeid = item.nodeid
         if "[" in nodeid:
@@ -71,7 +63,7 @@ def pytest_collection_modifyitems(config, items):
 
         _collected_nodeids.add(nodeid)  # Track for final validation
 
-        meta = ModelTestConfig(test_config.get(nodeid), arch)
+        meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.
@@ -135,21 +127,11 @@ def pytest_sessionfinish(session, exitstatus):
         for nodeid in _collected_nodeids
     )
     has_jax_tests = any(
-        "jax" in nodeid and "test_all_models_jax" in nodeid
+        "jax" in nodeid or "test_all_models_jax" in nodeid
         for nodeid in _collected_nodeids
     )
 
-    # Only validate configs for the framework(s) that were actually collected
-    if has_torch_tests and has_jax_tests:
-        combined_test_config = torch_test_config | jax_test_config
-    elif has_torch_tests:
-        combined_test_config = torch_test_config
-    elif has_jax_tests:
-        combined_test_config = jax_test_config
-    else:
-        # No model tests collected, nothing to validate
-        combined_test_config = {}
-        print("No model tests collected, skipping validation")
+    combined_test_config = torch_test_config | jax_test_config
 
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []

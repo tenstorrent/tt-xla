@@ -23,6 +23,37 @@ from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 
+def fix_venv_isolation():
+    """
+    Fix venv isolation issue: ensure venv packages take precedence over system packages.
+
+    This function adjusts the Python path to prioritize virtual environment packages
+    over system packages, preventing package conflicts and ensuring proper isolation
+    during test execution.
+    """
+    venv_site = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "..",
+        "venv",
+        "lib",
+        "python3.11",
+        "site-packages",
+    )
+    if os.path.exists(venv_site) and venv_site not in sys.path:
+        sys.path.insert(0, os.path.abspath(venv_site))
+
+    # Remove system packages from path to ensure proper isolation
+    sys.path = [
+        p
+        for p in sys.path
+        if "/usr/local/lib/python3.11/dist-packages" not in p
+        or p == "/usr/local/lib/python3.11/dist-packages"
+    ]
+    # Re-add at the end as fallback
+    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
+        sys.path.append("/usr/local/lib/python3.11/dist-packages")
+
+
 class ModelTestStatus(Enum):
     # Passing tests
     EXPECTED_PASSING = "expected_passing"

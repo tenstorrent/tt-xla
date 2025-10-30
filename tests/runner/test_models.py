@@ -19,6 +19,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
 )
@@ -84,29 +85,7 @@ def test_all_models_torch(
     capteesys,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
-    import sys
-
-    venv_site = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "..",
-        "venv",
-        "lib",
-        "python3.11",
-        "site-packages",
-    )
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, os.path.abspath(venv_site))
-
-    # Remove system packages from path to ensure proper isolation
-    sys.path = [
-        p
-        for p in sys.path
-        if "/usr/local/lib/python3.11/dist-packages" not in p
-        or p == "/usr/local/lib/python3.11/dist-packages"
-    ]
-    # Re-add at the end as fallback
-    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
-        sys.path.append("/usr/local/lib/python3.11/dist-packages")
+    fix_venv_isolation()
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
@@ -228,29 +207,7 @@ def test_all_models_jax(
     capteesys,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
-    import sys
-
-    venv_site = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "..",
-        "venv",
-        "lib",
-        "python3.11",
-        "site-packages",
-    )
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, os.path.abspath(venv_site))
-
-    # Remove system packages from path to ensure proper isolation
-    sys.path = [
-        p
-        for p in sys.path
-        if "/usr/local/lib/python3.11/dist-packages" not in p
-        or p == "/usr/local/lib/python3.11/dist-packages"
-    ]
-    # Re-add at the end as fallback
-    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
-        sys.path.append("/usr/local/lib/python3.11/dist-packages")
+    fix_venv_isolation()
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info

@@ -156,6 +156,10 @@ class JaxModelTester(ModelTester):
                     kwargs["deterministic"] = (
                         True if self._run_mode == RunMode.INFERENCE else False
                     )
+                if "train" in sig.parameters:
+                    kwargs["train"] = (
+                        False if self._run_mode == RunMode.INFERENCE else True
+                    )
             except:
                 pass
         else:
@@ -180,8 +184,7 @@ class JaxModelTester(ModelTester):
         if "train" in sig.parameters:
             static_argnames.append("train")
         if "deterministic" in sig.parameters:
-            # If it accepts deterministic, it needs to be static for control flow
-            return ["deterministic"]
+            return static_argnames.append("deterministic")
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
             static_argnames.append("mutable")
         return static_argnames

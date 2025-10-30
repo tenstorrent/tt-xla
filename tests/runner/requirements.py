@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import fcntl
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -277,6 +278,10 @@ class RequirementsManager:
             )
 
             # Install packages
+            if os.geteuid() != 0 and not shutil.which("sudo"):
+                _dbg("Skipping system install: no root access or sudo")
+                return
+
             cmd = ["sudo", "apt-get", "install", "-y", "-qq"] + packages_to_install
             subprocess.run(cmd, check=True, capture_output=True)
 
