@@ -4,7 +4,7 @@
 
 import collections
 import os
-from typing import Any, Dict, Mapping, Sequence, Set, Tuple
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 import torch
 import torch_xla
@@ -12,8 +12,6 @@ import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
 from infra.workloads import TorchWorkload, Workload
-from loguru import logger
-from torch_xla.debug import metrics as xla_metrics
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
