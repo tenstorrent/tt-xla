@@ -1,9 +1,9 @@
-name: On nightly
+name: On weekly
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 8 * * 6'
 
 permissions:
   packages: write
@@ -22,38 +22,15 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  nightly_tests:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    with:
-      test_suite: basic-test-nightly.json
-      codecov: false
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-
-  test_full_model:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
-    with:
-      test_suite: model-test-full.json
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-
   # This is a single test job that runs all passing tt-forge-models tests.
   test_forge_models_passing:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
-    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    # This ensures the job runs regardless of success or failure of `weekly_tests`:
     if: success() || failure()
     with:
-      test_suite: model-test-passing.json
+      test_suite: model-test-passing-weekly.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -63,10 +40,10 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
-    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    # This ensures the job runs regardless of success or failure of `weekly_tests`:
     if: success() || failure()
     with:
-      test_suite: model-test-xfail.json
+      test_suite: model-test-xfail-weekly.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -74,8 +51,6 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - nightly_tests
-      - test_full_model
       - test_forge_models_passing
       - test_forge_models_xfail
       - build-image
@@ -106,11 +81,11 @@ jobs:
         with:
           payload: |
             {
-              "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Bad bad weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M"
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_FAIL }}
 
       - name: Send Success Notification
         if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
@@ -118,8 +93,8 @@ jobs:
         with:
           payload: |
             {
-              "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Good weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M"
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_SUCCESS }}
