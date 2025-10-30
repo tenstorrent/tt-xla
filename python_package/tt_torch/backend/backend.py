@@ -24,19 +24,24 @@ from .passes import (
 def tt_torch_helper(model, fake_tensor_inputs):
     import torch_xla.core.dynamo_bridge as bridge
     from functorch.compile import make_boxed_func
+
     compiled_graph = None
     node_info = None
+
     def fwd(*args):
         nonlocal model
         nonlocal compiled_graph
         nonlocal node_info
         if compiled_graph is None:
-            model, _signature, node_info = torch_pass_pipeline(model, args)
+            model = torch_pass_pipeline(model, args)
+            node_info = extract_nodes_info(model)
             with MetadataDispatchMode(node_info):
                 compiled_graph = bridge.extract_compiled_graph(model, args)
             del model
         return compiled_graph(*args)
+
     return make_boxed_func(fwd)
+
 
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
@@ -58,18 +63,7 @@ def torch_pass_pipeline(
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
-    program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
-    )
-
-    # compiled_graph = program.module()
-    compiled_graph = gm
-    compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
-    )
-    compiled_graph = bypass_dtype_promotion_and_redundant_cast(
-        compiled_graph, example_inputs
-    )
+    compiled_graph = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
@@ -78,9 +72,10 @@ def torch_pass_pipeline(
     compiled_graph.recompile()
 
     # Extract metadata from FX nodes in order to inject them into locs
-    node_info = extract_nodes_info(compiled_graph)
+    # node_info = extract_nodes_info(compiled_graph)
 
-    return compiled_graph, program.graph_signature, node_info
+    return compiled_graph
+
 
 from torch._dynamo.backends.torchxla import openxla
 
@@ -148,6 +143,7 @@ class XLAExecutor:
 class TTBackendCompiler:
     def __init__(self, **kwargs):
         from torch._dynamo.backends.common import aot_autograd
+
         decompositions = torch._decomp.core_aten_decompositions()
         decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
         self.aot_autograd = aot_autograd(
@@ -156,11 +152,17 @@ class TTBackendCompiler:
         )
 
     def __call__(self, gm: torch.fx.GraphModule, example_inputs, **kwargs):
+        program = torch.export.export_for_training(
+            gm, tuple(example_inputs), strict=False
+        )
+        gm = insert_argument_type_markers(program.module(), program.graph_signature)
+
         return self.aot_autograd(gm, example_inputs, **kwargs)
 
 
 def create_compiler_fn() -> TTBackendCompiler:
     return TTBackendCompiler()
+
 
 assert callable(create_compiler_fn())
 
