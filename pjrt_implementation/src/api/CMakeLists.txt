@@ -42,11 +42,11 @@ target_link_libraries(TTPJRTApi
 PRIVATE
     dl
     coverage_config
-    libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
 PUBLIC
     TTPJRTUtils
+    libprotobuf
 )
 
 target_link_directories(TTPJRTApi PUBLIC

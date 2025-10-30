@@ -29,6 +29,7 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
+#include "ttmlir/Conversion/Passes.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 
 // tt-xla includes
@@ -339,8 +340,19 @@ private:
   tt_pjrt_status performCodegen(std::string_view ttnn_mlir,
                                 const CompileOptions &compile_options);
 
+  // Extracts model name from module location for IR dumping.
+  std::string
+  extractModelName(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const;
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
+
+  // IR logger for environment-controlled IR dumping.
+  std::unique_ptr<mlir::tt::MLIRModuleLogger> m_ir_logger;
+
+  // Additional IR loggers for each pipeline stage (kept alive for action
+  // handlers)
+  std::vector<std::unique_ptr<mlir::tt::MLIRModuleLogger>> m_pipeline_loggers;
 
   // tt-alchemist library handler.
   TTAlchemistHandler m_tt_alchemist_handler;

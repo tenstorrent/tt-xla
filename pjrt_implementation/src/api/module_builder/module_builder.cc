@@ -18,6 +18,7 @@
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
@@ -181,7 +182,8 @@ void TTAlchemistHandler::initialize() {
 }
 
 ModuleBuilder::ModuleBuilder()
-    : m_context(std::make_unique<mlir::MLIRContext>()) {
+    : m_context(std::make_unique<mlir::MLIRContext>()),
+      m_ir_logger(std::make_unique<mlir::tt::MLIRModuleLogger>()) {
   // Register all the required dialects and passes.
   mlir::DialectRegistry registry;
 
@@ -345,6 +347,14 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
   mlir::PassManager vhlo_to_shlo_pm(mlir_module.get()->getName());
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
+
+  // Enable IR dumping for this pipeline
+  if (mlir::tt::MLIRModuleLogger::shouldEnableIRDumping()) {
+    auto logger = std::make_unique<mlir::tt::MLIRModuleLogger>();
+    logger->attachContextWithDumping(
+        m_context.get(), extractModelName(mlir_module), "vhlo-to-shlo");
+    m_pipeline_loggers.push_back(std::move(logger));
+  }
 
   enableVerboseIRPrinting(vhlo_to_shlo_pm);
 
@@ -675,6 +685,14 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
+  // Enable IR dumping for this pipeline
+  if (mlir::tt::MLIRModuleLogger::shouldEnableIRDumping()) {
+    auto logger = std::make_unique<mlir::tt::MLIRModuleLogger>();
+    logger->attachContextWithDumping(
+        m_context.get(), extractModelName(mlir_module), "stablehlo-frontend");
+    m_pipeline_loggers.push_back(std::move(logger));
+  }
+
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
@@ -705,6 +723,14 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
+
+  // Enable IR dumping for this pipeline
+  if (mlir::tt::MLIRModuleLogger::shouldEnableIRDumping()) {
+    auto logger = std::make_unique<mlir::tt::MLIRModuleLogger>();
+    logger->attachContextWithDumping(
+        m_context.get(), extractModelName(mlir_module), "shlo-to-ttir");
+    m_pipeline_loggers.push_back(std::move(logger));
+  }
 
   enableVerboseIRPrinting(shlo_to_ttir_pm);
 
@@ -849,6 +875,14 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
           submesh_for_optim.handle);
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  // Enable IR dumping for this pipeline
+  if (mlir::tt::MLIRModuleLogger::shouldEnableIRDumping()) {
+    auto logger = std::make_unique<mlir::tt::MLIRModuleLogger>();
+    logger->attachContextWithDumping(
+        m_context.get(), extractModelName(mlir_module), "ttir-to-ttnn");
+    m_pipeline_loggers.push_back(std::move(logger));
+  }
+
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
@@ -981,6 +1015,16 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   llvm::raw_fd_ostream out_stream(ir_file_path.string(), err_code);
   mlir_module->print(out_stream, mlir::OpPrintingFlags().enableDebugInfo());
   out_stream.close();
+}
+
+std::string ModuleBuilder::extractModelName(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const {
+  // Try to extract model name from location info
+  mlir::Location loc = mlir_module.get()->getLoc();
+  if (auto fileLoc = llvm::dyn_cast<mlir::FileLineColLoc>(loc)) {
+    return llvm::sys::path::stem(fileLoc.getFilename()).str();
+  }
+  return "unknown";
 }
 
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
