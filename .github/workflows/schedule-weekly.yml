@@ -2,6 +2,9 @@ name: On weekly
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - '**'
   schedule:
     - cron: '0 8 * * 6'
 
