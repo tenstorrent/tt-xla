@@ -34,10 +34,10 @@ from third_party.tt_forge_models.mistral.pytorch.loader import (
 from third_party.tt_forge_models.mistral.pytorch.loader import (
     ModelVariant as MistralModelVariant,
 )
-from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
+from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
     ModelLoader as Qwen2_5ModelLoader,
 )
-from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch.loader import (
+from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
     ModelVariant as Qwen2_5ModelVariant,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
