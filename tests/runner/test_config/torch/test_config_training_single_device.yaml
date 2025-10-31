@@ -512,13 +512,3 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
-
-  gemma/pytorch-google/gemma-2b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
-
-  gemma/pytorch-google/gemma-2b-it-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
