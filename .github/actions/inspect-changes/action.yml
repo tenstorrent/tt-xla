@@ -46,7 +46,12 @@ runs:
             ".github/workflows/test-matrix-presets/model-test-experimental.json"
             ".github/workflows/test-matrix-presets/model-test-passing.json"
             ".github/workflows/test-matrix-presets/model-test-xfail.json"
+            ".github/workflows/test-matrix-presets/model-test-passing-weekly.json"
+            ".github/workflows/test-matrix-presets/model-test-xfail-weekly.json"
             ".github/workflows/schedule-*"
+            ".github/workflows/manual-test.yml"
+            ".github/workflows/manual-test-single.yml"
+            ".github/workflows/push-main.yml"
           )
 
           for file in $CHANGED_FILES; do
