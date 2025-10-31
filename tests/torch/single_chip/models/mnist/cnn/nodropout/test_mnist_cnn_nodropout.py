@@ -13,7 +13,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
 from ..tester import MNISTCNNTester
@@ -51,12 +50,7 @@ def training_tester() -> MNISTCNNTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'stablehlo.batch_norm_inference'"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
     inference_tester.test()

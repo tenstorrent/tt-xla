@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.mamba.pytorch import ModelVariant
@@ -51,13 +50,7 @@ def training_tester() -> MambaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_mamba_inference(inference_tester: MambaTester):
     inference_tester.test()
