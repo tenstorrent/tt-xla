@@ -12,3 +12,503 @@ test_config:
   autoencoder/pytorch-linear-single_device-full-training:
     status: EXPECTED_PASSING
     markers: [push]
+
+  deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-7b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-7b_instruct_1m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-14b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-14b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-14b_instruct_1m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-32b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-72b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/casual_lm/pytorch-math_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  seamless_m4t/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mistral/pixtral/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-7b_instruct_v03-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-ministral_3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-ministral_8b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-huggyllama_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_70b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_70b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_2_3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_2_3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-huggyllama_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-4b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-14b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-32b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-30b_a3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/embedding/pytorch-embedding_4b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/embedding/pytorch-embedding_8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi4/seq_cls/pytorch-microsoft/phi-4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi4/token_cls/pytorch-microsoft/phi-4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llava/pytorch-1_5_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  mplug_owl2/pytorch-llama2_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  huggyllama/pytorch-llama_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_v01_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gemma/pytorch-google/gemma-2-9b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  gemma/pytorch-google/gemma-2-27b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_vl/pytorch-3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_vl/pytorch-7b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  deepseek/qwen/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  deepseek/deepseek_math/pytorch-7b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  deepseek/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  flux/pytorch-schnell-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  flux/pytorch-dev-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  fuyu/pytorch-adept/fuyu-8b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  bloom/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/phi_3_5/pytorch-mini_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/phi_3_5/pytorch-microsoft/Phi-3.5-MoE-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/phi_3_5_vision/pytorch-instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-3b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-7b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-32b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
