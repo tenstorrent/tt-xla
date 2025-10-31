@@ -7,6 +7,7 @@ MLP Mixer model loader implementation for image classification.
 """
 
 from typing import Optional
+import inspect
 import jax
 import ml_collections
 import numpy as np
@@ -160,3 +161,61 @@ class ModelLoader(ForgeModel):
             weights = np.load(f, encoding="bytes")
             state_dict = {k: v for k, v in weights.items()}
             return {"params": flax.traverse_util.unflatten_dict(state_dict, sep="/")}
+
+    def get_input_parameters(self, dtype_override=None):
+        """Get input parameters for the model.
+
+        This method provides compatibility with DynamicJaxModelTester which expects
+        a get_input_parameters method.
+
+        Args:
+            dtype_override: Optional dtype to override the default dtype.
+
+        Returns:
+            PyTree: Model parameters loaded from pretrained weights
+        """
+        # Delegate to load_parameters which already implements the logic
+        return self.load_parameters(dtype_override=dtype_override)
+
+    def get_forward_method_kwargs(self, run_mode=None):
+        """Get keyword arguments for the model's forward method.
+
+        This method provides compatibility with DynamicJaxModelTester by returning
+        the appropriate kwargs based on what the model's __call__ method accepts.
+
+        Args:
+            run_mode: Optional RunMode. If not provided, defaults to inference behavior.
+
+        Returns:
+            dict: Keyword arguments for the model's forward method
+        """
+        # Load the model to inspect its signature
+        model = self.load_model()
+
+        # Get the signature of the model's __call__ method
+        try:
+            sig = inspect.signature(model.__call__)
+            params = sig.parameters
+        except (AttributeError, ValueError):
+            # If we can't inspect the signature, return empty kwargs
+            return {}
+
+        kwargs = {}
+
+        # Check if the model accepts a 'train' parameter
+        if "train" in params:
+            # Determine if we're in training mode
+            # RunMode.TRAINING has string representation 'training'
+            is_training = str(run_mode).lower() == "training" if run_mode else False
+            kwargs["train"] = is_training
+
+        # MlpMixer doesn't have a train parameter, so this will return empty dict
+        return kwargs
+
+    def get_forward_method_name(self):
+        """Get the name of the forward method for the model.
+
+        Returns:
+            str: Name of the forward method (typically 'apply' for Flax models)
+        """
+        return "apply"
