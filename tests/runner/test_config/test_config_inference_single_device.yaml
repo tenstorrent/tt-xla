@@ -362,6 +362,7 @@ test_config:
   mnist/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
+    # Hello
     required_pcc: 0.99
     markers: ["push"]
 
