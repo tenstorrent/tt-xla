@@ -193,6 +193,11 @@ class ComponentChecker(Enum):
                             M.contains("forge/test/operators/utils/verify.py:")
                         ),
                         M.last_line(M.contains("infra/comparators/comparator.py:")),
+                        M.last_line(
+                            M.contains(
+                                "infra/testers/single_chip/model/torch_model_tester.py"
+                            )
+                        ),
                     ),
                 ],
             ),
@@ -1135,6 +1140,34 @@ class FailingReasons(Enum):
                 ],
                 error_log=[
                     M.last_line(M.contains("infra/runners/torch_device_runner.py")),
+                ],
+            ),
+        ],
+    )
+
+    CAUSAL_LM_OUTPUT_WITH_PAST_NO_SHAPE = FailingReason(
+        description="CausalLMOutputWithPast object has no attribute shape",
+        checks=[
+            # >       random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
+            # E       AttributeError: 'CausalLMOutputWithPast' object has no attribute 'shape'
+            # tests/infra/testers/single_chip/model/torch_model_tester.py:153: AttributeError
+            ExceptionCheck(
+                class_name="AttributeError",
+                component=ComponentChecker.SWEEPS.value,
+                message=[
+                    M.equals(
+                        "'CausalLMOutputWithPast' object has no attribute 'shape'"
+                    ),
+                ],
+                error_log=[
+                    M.contains(
+                        ">       random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)"
+                    ),
+                    M.last_line(
+                        M.contains(
+                            "tests/infra/testers/single_chip/model/torch_model_tester.py:"
+                        )
+                    ),
                 ],
             ),
         ],

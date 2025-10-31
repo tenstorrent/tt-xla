@@ -16,6 +16,7 @@ import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
+from sweeps.utils.failing_reasons import FailingReasons, FailingReasonsFinder
 from torch_xla.distributed.spmd import Mesh
 
 from tests.infra.comparators import comparison_config
@@ -92,6 +93,8 @@ class ModelTestConfig:
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
         self.bringup_status = self._resolve("bringup_status", default=None)
+
+        self.failing_reason = self._resolve("failing_reason", default=None)
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
@@ -177,6 +180,16 @@ def update_test_metadata_for_exception(
     err = (stderr or "").lower()
     # print(f"Found exception: {repr(exc)} message: {msg} stderr: {err}")
 
+    # Find failing reason by raised exception
+    failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
+
+    # If no failing reason is found, classify as UNCLASSIFIED
+    if not failing_reason:
+        failing_reason = FailingReasons.UNCLASSIFIED
+
+    # Log detected failing reason
+    # logger.warning(f"Update metadata detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
+
     if isinstance(exc, AssertionError) and "comparison failed" in msg:
         status = BringupStatus.INCORRECT_RESULT
     elif isinstance(exc, RuntimeError):
@@ -196,6 +209,7 @@ def update_test_metadata_for_exception(
 
     setattr(test_metadata, "runtime_bringup_status", status)
     setattr(test_metadata, "runtime_reason", message)
+    setattr(test_metadata, "failing_reason", failing_reason)
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -268,6 +282,9 @@ def record_model_test_properties(
     static_bringup_status = getattr(test_metadata, "bringup_status", None)
     static_reason = getattr(test_metadata, "reason", None)
     arch = getattr(test_metadata, "arch", None)
+    failing_reason = getattr(test_metadata, "failing_reason", None)
+
+    # logger.warning(f"Tags detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
 
     if test_passed:
         # If custom bringup_status and reason are provided, use them.
@@ -307,6 +324,15 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "failing_reason": failing_reason.name if failing_reason else None,
+        "failing_reason_desc": (
+            failing_reason.value.description if failing_reason else None
+        ),
+        "failing_reason_component": (
+            failing_reason.value.component_checker_description
+            if failing_reason
+            else None
+        ),
         "parallelism": str(parallelism),
         "arch": arch,
     }

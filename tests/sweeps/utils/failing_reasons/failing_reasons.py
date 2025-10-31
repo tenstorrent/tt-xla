@@ -57,3 +57,17 @@ class FailingReasonsFinder:
             # Checking if exception data matches the failing reason
             if ex in failing_reason.value:
                 yield failing_reason
+
+    @classmethod
+    def find_reason_by_exception(cls, exc: Exception) -> Optional["FailingReasons"]:
+        """Find failing reason by exception"""
+        # Get long representation of exception
+        long_repr = PyTestUtils.get_long_repr(exc)
+
+        # Build ExceptionData from exception
+        ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(exc, long_repr)
+
+        # Find failing reason by ExceptionData
+        failing_reason = FailingReasonsFinder.find_reason_by_ex_data(ex_data)
+
+        return failing_reason
