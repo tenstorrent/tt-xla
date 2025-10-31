@@ -15,23 +15,13 @@ CompileOptions CompileOptions::parse(
     const std::unordered_map<std::string, std::string> &compile_options) {
   CompileOptions options;
 
-  options.enable_optimizer =
-      internal::parseBoolOption(compile_options, "enable_optimizer")
-          .value_or(options.enable_optimizer);
-  options.enable_memory_layout_analysis =
-      internal::parseBoolOption(compile_options,
-                                "enable_memory_layout_analysis")
-          .value_or(options.enable_memory_layout_analysis);
-  options.enable_l1_interleaved =
-      internal::parseBoolOption(compile_options, "enable_l1_interleaved")
-          .value_or(options.enable_l1_interleaved);
+  options.optimization_level = internal::parseOptimizationLevelOption(
+                                   compile_options, "optimization_level")
+                                   .value_or(options.optimization_level);
+
   options.enable_bfp8_conversion =
       internal::parseBoolOption(compile_options, "enable_bfp8_conversion")
           .value_or(options.enable_bfp8_conversion);
-  options.enable_fusing_conv2d_with_multiply_pattern =
-      internal::parseBoolOption(compile_options,
-                                "enable_fusing_conv2d_with_multiply_pattern")
-          .value_or(options.enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(options.backend);
   options.enable_trace =
@@ -105,6 +95,40 @@ std::optional<std::string> parseStringOption(
   auto it = compile_options.find(option_name);
 
   return it == compile_options.end() ? std::nullopt : std::optional(it->second);
+}
+
+std::optional<int> parseOptimizationLevelOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::string &option_name) {
+  static constexpr int max_optimization_level = 2;
+  if (auto it = compile_options.find(option_name);
+      it != compile_options.end()) {
+    try {
+      int level = std::stoi(it->second);
+      if (level < 0 || level > 2) {
+        ABORT_F("Invalid optimization_level: %d. Must be between 0 and %d.",
+                level, max_optimization_level);
+      }
+      return level;
+    } catch (const std::exception &e) {
+      ABORT_F("Failed to parse optimization_level: %s. Must be an integer "
+              "between 0 and %d ",
+              e.what(), max_optimization_level);
+    }
+  }
+  return std::nullopt;
+}
+
+bool shouldEnableOptimizer(int optimization_level) {
+  return optimization_level >= 1;
+}
+
+bool shouldEnableMemoryLayoutAnalysis(int optimization_level) {
+  return optimization_level >= 2;
+}
+
+bool shouldEnableFusingConv2dWithMultiplyPattern(int optimization_level) {
+  return optimization_level >= 1;
 }
 
 } // namespace internal
