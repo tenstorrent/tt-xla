@@ -118,13 +118,13 @@ def dump_tensors():
     model = get_model()
     model.compile(backend="tt")
 
-    input = get_input()
+    model_inputs = get_input()
 
     # Connect the device.
     device = xm.xla_device()
 
-    # Move inputs and model to device.
-    input = input.to(device)
+    # Move inputs and model to device if needed
+    model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
     model = model.to(device)
 
     torch_xla.set_custom_compile_options(
@@ -133,7 +133,7 @@ def dump_tensors():
             "dump_inputs": True,
         }
     )
-    output = model(input)
+    output = model(**model_inputs)
 
     return
 

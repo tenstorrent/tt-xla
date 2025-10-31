@@ -512,11 +512,11 @@ void FlatbufferLoadedExecutableInstance::dumpInputs(
   std::filesystem::path dump_dir =
       std::filesystem::path(
           m_executable_image->getCompileOptions().export_path.value()) /
-      "inputs";
+      "input_tensors";
   std::filesystem::create_directories(dump_dir);
 
   for (int i = 0; i < input_tensors.size(); ++i) {
-    std::string filename = "arg_" + std::to_string(i) + ".tensorbin";
+    std::string filename = "arg" + std::to_string(i) + ".tensorbin";
     std::filesystem::path filepath = dump_dir / filename;
 
     tt::runtime::dumpTensor(input_tensors[i], filepath.string());
