@@ -13,15 +13,10 @@ import torch_xla.runtime as xr
 from transformers import ResNetForImageClassification
 
 
-def get_model():
-    # Download model.
-    # model: nn.Module = torch.hub.load(
-    #     "pytorch/vision:v0.10.0", "alexnet", pretrained=True
-    # )
-    # Load ResNet-50 from HuggingFace
-    model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
+EXPORT_PATH = "resnet"
 
-    # Put it in inference mode.
+def get_model():
+    model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
     model = model.eval()
 
     return model
@@ -50,7 +45,7 @@ def dump_tensors():
 
     torch_xla.set_custom_compile_options(
         {
-            "export_path": "resnet",
+            "export_path": EXPORT_PATH,
             "dump_inputs": True,
         }
     )
@@ -77,7 +72,7 @@ def dump_code():
 
     torch_xla.set_custom_compile_options(
         {
-            "export_path": "resnet",
+            "export_path": EXPORT_PATH,
             "backend": "codegen_py",
         }
     )
