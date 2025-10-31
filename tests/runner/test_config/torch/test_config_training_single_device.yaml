@@ -22,3 +22,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "runtime/lib/ttnn/operations/utils/utils.cpp:363: numElements * elementSize == data->size() when calling toTTNNTensor"
+
+  falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Not enough space to allocate DRAM"

@@ -146,8 +146,9 @@ class TorchModelTester(ModelTester):
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """
         Unwraps model output to a single tensor.
+        In base case, we assume the output is a single tensor.
         """
-        raise NotImplementedError("Subclasses must implement this method")
+        return output
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
