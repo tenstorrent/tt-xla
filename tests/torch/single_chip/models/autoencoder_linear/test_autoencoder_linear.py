@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from third_party.tt_forge_models.autoencoder.pytorch.loader import ModelVariant
@@ -50,13 +49,7 @@ def training_tester() -> AutoencoderLinearTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed on Blackhole. Calculated: pcc=0.039223916828632355. Required: pcc=0.99."
-        "https://github.com/tenstorrent/tt-xla/issues/1038"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_autoencoder_linear_inference(inference_tester: AutoencoderLinearTester):
     inference_tester.test()

@@ -3,16 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import Framework, RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    ModelSource,
-    ModelTask,
-    build_model_name,
-    failed_ttmlir_compilation,
-)
+from infra import RunMode
+from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader,
@@ -49,13 +41,7 @@ def training_tester() -> BertTester:
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
     parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_bert_inference(inference_tester: BertTester):
     inference_tester.test()
