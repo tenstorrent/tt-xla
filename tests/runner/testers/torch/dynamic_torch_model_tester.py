@@ -5,6 +5,7 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+from typing import Any
 
 import torch
 import torch_xla.runtime as xr
