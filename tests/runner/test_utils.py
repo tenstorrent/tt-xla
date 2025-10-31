@@ -261,6 +261,10 @@ class DynamicTorchModelTester(TorchModelTester):
         # Optional: store requested parallelism for reporting/consumers
         self.parallelism = parallelism
 
+        # Disable program cache for data-parallel tests to avoid OOM issues
+        if self.parallelism == Parallelism.DATA_PARALLEL:
+            os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "0"
+
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
