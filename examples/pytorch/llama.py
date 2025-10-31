@@ -19,6 +19,41 @@ from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 
+DEFAULT_PROMPTS = [
+    "I like taking walks in the",
+    "My name is",
+    "My favorite color is",
+    "Cheese is an excellent",
+    "While ham sandwiches are great, I prefer",
+    "My bicycle is broken, and",
+    "The best way to start my day is with",
+    "I love to",
+    "I am not a fan of",
+    "Toronto has an explosive restaurant scene. There are many different cuisines to",
+    "My favorite season is",
+    "My least favorite season is",
+    "Bison meat is not",
+    "If you forget to wear your shoes when you go hiking,",
+    "My right elbow is in pain, and",
+    "To make a grilld cheese, start by",
+    "The internal combustion engine",
+    "The first person to walk on the moon was",
+    "The ocean is home to many",
+    "I",
+    "Calculus is a branch of mathematics that",
+    "The most common type of cloud is",
+    "A matrix dot product is",
+    "The 300 spartans were",
+    "Napolean Bonaparte was born in",
+    "The quick brown fox jumps over the lazy dog. And then he",
+    "The original title of the book 'The Great Gatsby' was",
+    "I forgot to tie my shoelaces",
+    "Playing video games",
+    "The sun is",
+    "My car's transmission is",
+    "My keyboard is in a language I don't understand! What"
+]
+
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
@@ -28,9 +63,9 @@ def llama(interactive: bool = False):
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 16
+    batch_size: int = 32
     max_cache_len: int = 128
-    default_prompts: List[str] = ["I like taking walks in the", "My name is", "My favorite color is", "Cheese is an excellent"] * (batch_size // 4)
+    default_prompts: List[str] = DEFAULT_PROMPTS[:batch_size]
 
     model_name: str = "meta-llama/Llama-3.2-3B"
 
@@ -338,8 +373,8 @@ def run_generate(
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
     for i in range(num_users):
-        print(f"Result for user {i}: {input_prompt[i]} {''.join(output_tokens[i])}")
-    # print("Result:", input_prompt + "".join(output_tokens))
+        print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
+        print()
 
 
 def check_transformers_version():
@@ -365,6 +400,7 @@ def check_transformers_version():
 
 
 if __name__ == "__main__":
+    os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     parser = argparse.ArgumentParser(description="Llama generation example")
     parser.add_argument(
         "--interactive",
