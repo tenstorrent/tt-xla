@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-
 import torch
 import torch.nn as nn
 import torch_xla
@@ -14,6 +13,32 @@ from transformers import SpeechT5ForTextToSpeech, SpeechT5Processor
 
 
 EXPORT_PATH = "speecht5"
+
+
+class SpeechT5RelativePositionalEncodingFixed(nn.Module):
+    """
+    Implementation of the relative positional encoding that avoids advanced indexing 
+    to avoid graph breaks with TT compile.
+    """
+    def __init__(self, original_module):
+        super().__init__()
+        self.dim = original_module.dim
+        self.max_length = original_module.max_length
+        self.pe_k = original_module.pe_k
+
+    def forward(self, hidden_states):
+        seq_len = hidden_states.shape[1]
+        pos_seq = torch.arange(0, seq_len, device=hidden_states.device, dtype=torch.long)
+        pos_seq = pos_seq[:, None] - pos_seq[None, :]
+
+        # Replacing advanced indexing with clamp to avoid graph breaks with TT compile.
+        # Original code that causes issues:
+        #   pos_seq[pos_seq < -self.max_length] = -self.max_length
+        #   pos_seq[pos_seq >= self.max_length] = self.max_length - 1
+        pos_seq = torch.clamp(pos_seq, -self.max_length, self.max_length - 1)
+        pos_seq = pos_seq + self.max_length
+
+        return self.pe_k(pos_seq)
 
 
 def get_model():
@@ -27,7 +52,7 @@ def get_model():
 def get_processor():
     processor = SpeechT5Processor.from_pretrained(
         "microsoft/speecht5_tts"
-    )
+    )   
     return processor
 
 
@@ -137,7 +162,7 @@ def run_on_tt():
     xr.set_device_type("TT")
 
     model = get_model()
-
+    model.speecht5.encoder.wrapped_encoder.embed_positions = SpeechT5RelativePositionalEncodingFixed(model.speecht5.encoder.wrapped_encoder.embed_positions)
     model.compile(backend="tt")
 
     device = xm.xla_device()
@@ -151,19 +176,8 @@ def run_on_tt():
     output = model(**model_inputs)
     print(output)
 
-
 # --------------------------------
 # main
 # --------------------------------
 if __name__ == "__main__":
-    # print("Dumping code...")
-    # dump_code()
-
-    # print("Dumping tensors...")
-    # dump_tensors()
-
-    # print("Running on cpu...")
-    # run_on_cpu()
-
-    print("Running on tt...")
     run_on_tt()
