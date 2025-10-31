@@ -172,6 +172,14 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention_decode(variant, variant_config, request):
+    # Xfail 70B models that don't fit on device
+    if "70b" in str(variant):
+        pytest.xfail("70B models don't fit on device")
+
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -382,13 +390,10 @@ def test_llama_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
@@ -424,8 +429,6 @@ def test_llama_sdpa(variant, variant_config, seq_len, request):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -555,8 +558,6 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config, request):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -631,8 +632,6 @@ def test_qwen3_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_concat_heads(variant, variant_config, seq_len):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -665,8 +664,6 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_create_heads(variant, variant_config, seq_len):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -718,8 +715,6 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_sdpa(variant, variant_config, seq_len, request):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -790,13 +785,10 @@ def test_qwen3_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
@@ -994,9 +986,6 @@ def test_bert_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
-    if str(variant) == "72b_instruct":
-        pytest.xfail("Not enough memory to run this test")
-
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -1127,9 +1116,6 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_decode(variant, variant_config, request):
-    if str(variant) == "72b_instruct":
-        pytest.xfail("Not enough memory to run this test")
-
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -1201,9 +1187,6 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
-    if str(variant) == "72b_instruct":
-        pytest.xfail("Not enough memory to run this test")
-
     xr.set_device_type("TT")
 
     def sdpa(
@@ -1272,13 +1255,10 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
@@ -1585,13 +1565,10 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
@@ -1888,13 +1865,10 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(sdpa, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
@@ -1931,10 +1905,114 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
 )
 def test_falcon_attention_prefill(seq_len, variant, variant_config, request):
     if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
-        pytest.xfail(
-            "Falcon3 models use Llama3 architecure. FalconMamba has no attention as it is a State Space Model."
-        )
+        if variant == FalconModelVariant.FALCON_MAMBA_7B:
+            pytest.xfail("FalconMamba has no attention as it is a State Space Model.")
+        else:
+            pytest.xfail(
+                "Falcon3-Base models use Llama3 architecure, use Llama attention tests instead."
+            )
 
+    xr.set_device_type("TT")
+
+    loader = FalconModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    attention = model.transformer.h[0].self_attention
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = model.config.head_dim
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    layer_past = None
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(falcon_attention_forward, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[1]] = ("batch", None, None)  # hidden_states
+            shard_specs[args[10][0]] = ("batch", None, None)  # position_embeddings[0]
+            shard_specs[args[10][1]] = ("batch", None, None)  # position_embeddings[1]
+            shard_specs[args[3]] = ("batch", None, None, None)  # attention_mask
+            shard_specs[args[0].query_key_value.weight] = (
+                "model",
+                None,
+            )  # fused qkv weight
+            shard_specs[args[0].dense.weight] = (
+                None,
+                "model",
+            )  # attention output dense weight at end of attention forward pass
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    def falcon_attention_forward(
+        attention,
+        hidden_states,
+        alibi,
+        attention_mask,
+        position_ids,
+        layer_past,
+        head_mask,
+        use_cache,
+        output_attentions,
+        cache_position,
+        position_embeddings,
+    ):
+        result = attention(
+            hidden_states,
+            alibi,
+            attention_mask,
+            position_ids,
+            layer_past,
+            head_mask,
+            use_cache,
+            output_attentions,
+            cache_position,
+            position_embeddings,
+        )
+        return result[0]  # Return only the attention output, not the tuple
+
+    run_graph_test(
+        falcon_attention_forward,
+        [
+            attention,
+            hidden_states,
+            None,
+            attention_mask,
+            None,
+            layer_past,
+            None,
+            False,
+            False,
+            None,
+            position_embeddings,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+# Add single push test to ensure multi-chip graph tester has coverage.
+@pytest.mark.push
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize("variant", [FalconModelVariant.FALCON_7B_INSTRUCT])
+def test_falcon_attention_prefill_push(seq_len, variant, variant_config, request):
     xr.set_device_type("TT")
 
     loader = FalconModelLoader(variant=variant)
@@ -2039,9 +2117,12 @@ def test_falcon_attention_prefill(seq_len, variant, variant_config, request):
 )
 def test_falcon_attention_decode(variant, variant_config, request):
     if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
-        pytest.xfail(
-            "Falcon3 models use Llama3 architecure. FalconMamba has no attention as it is a State Space Model."
-        )
+        if variant == FalconModelVariant.FALCON_MAMBA_7B:
+            pytest.xfail("FalconMamba has no attention as it is a State Space Model.")
+        else:
+            pytest.xfail(
+                "Falcon3-Base models use Llama3 architecure, use Llama attention tests instead."
+            )
 
     xr.set_device_type("TT")
 
@@ -2156,6 +2237,14 @@ def test_falcon_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("falcon").keys()],
 )
 def test_falcon_sdpa(variant, variant_config, seq_len, request):
+    if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
+        if variant == FalconModelVariant.FALCON_MAMBA_7B:
+            pytest.xfail("FalconMamba has no attention as it is a State Space Model.")
+        else:
+            pytest.xfail(
+                "Falcon3-Base models use Llama3 architecure, use Llama attention tests instead."
+            )
+
     xr.set_device_type("TT")
 
     def falcon_attention_compute(
@@ -2220,13 +2309,10 @@ def test_falcon_sdpa(variant, variant_config, seq_len, request):
 
         def get_shard_spec(falcon_attention_compute, args, kwargs):
             shard_specs = {}
-            # args[0] is attention module - no sharding needed
-            # Query, key, value states sharded on batch and heads dimensions
             shard_specs[args[1]] = ("batch", "model", None, None)  # query_layer
             shard_specs[args[2]] = ("batch", "model", None, None)  # key_layer
             shard_specs[args[3]] = ("batch", "model", None, None)  # value_layer
             shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            # args[5] is dropout (scalar), args[6] is scaling (scalar) - no sharding
             return shard_specs
 
     else:
