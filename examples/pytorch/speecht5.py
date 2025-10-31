@@ -46,6 +46,7 @@ def get_model():
         "microsoft/speecht5_tts"
     )
     model.eval()
+    model.speecht5.encoder.wrapped_encoder.embed_positions = SpeechT5RelativePositionalEncodingFixed(model.speecht5.encoder.wrapped_encoder.embed_positions)
     return model
 
 
@@ -114,7 +115,6 @@ def dump_code():
     xr.set_device_type("TT")
 
     model = get_model()
-
     model.compile(backend="tt")
 
     device = xm.xla_device()
@@ -162,7 +162,6 @@ def run_on_tt():
     xr.set_device_type("TT")
 
     model = get_model()
-    model.speecht5.encoder.wrapped_encoder.embed_positions = SpeechT5RelativePositionalEncodingFixed(model.speecht5.encoder.wrapped_encoder.embed_positions)
     model.compile(backend="tt")
 
     device = xm.xla_device()
@@ -180,4 +179,4 @@ def run_on_tt():
 # main
 # --------------------------------
 if __name__ == "__main__":
-    run_on_tt()
+    dump_code()
