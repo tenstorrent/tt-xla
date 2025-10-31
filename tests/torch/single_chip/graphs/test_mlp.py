@@ -10,17 +10,15 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
-from transformers import CacheConfig
-from transformers.cache_utils import StaticCache
-from transformers.models.llama.modeling_llama import (
-    ALL_ATTENTION_FUNCTIONS,
-    eager_attention_forward,
-)
-from utils import failed_runtime
 
 from tests.utils import is_llmbox
+from third_party.tt_forge_models.falcon.pytorch.loader import (
+    ModelLoader as FalconModelLoader,
+)
+from third_party.tt_forge_models.falcon.pytorch.loader import (
+    ModelVariant as FalconModelVariant,
+)
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelLoader as GemmaModelLoader,
 )
@@ -50,7 +48,7 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 )
 
 # To see all available models and variants, run:
-# pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants
+# pytest -s tests/torch/single_chip/graphs/test_mlp.py::test_display_available_variants
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
@@ -58,6 +56,7 @@ MODEL_LOADER_MAP = {
     "qwen2_5": Qwen2_5ModelLoader,
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
+    "falcon": FalconModelLoader,
 }
 
 
@@ -87,8 +86,6 @@ def test_display_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_mlp(seq_len, variant, variant_config, request):
-    if str(variant) == "qwq_32b":
-        pytest.xfail("QWQ_32B varaiant is actually Qwen2, which has a different config")
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -150,6 +147,10 @@ def test_llama_mlp(seq_len, variant, variant_config, request):
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
 
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -204,7 +205,6 @@ def test_llama_mlp(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_mlp(seq_len, variant, variant_config, request):
-
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
@@ -314,7 +314,6 @@ def test_mistral_mlp(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
-
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -342,6 +341,67 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
             shard_specs[mlp.gate_proj.weight] = ("model", None)
             shard_specs[mlp.up_proj.weight] = ("model", None)
             shard_specs[mlp.down_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Falcon MLP test"""
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("falcon").items(),
+    ids=[str(k) for k in get_available_variants("falcon").keys()],
+)
+def test_falcon_mlp(seq_len, variant, variant_config, request):
+    if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
+        if variant == FalconModelVariant.FALCON_MAMBA_7B:
+            pytest.xfail("FalconMamba has no MLP as it is a State Space Model.")
+        else:
+            pytest.xfail(
+                "Falcon3-Base models use Llama3 architecure, use Llama MLP test instead."
+            )
+
+    xr.set_device_type("TT")
+
+    loader = FalconModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    mlp = model.transformer.h[0].mlp
+
+    if is_llmbox(request):
+        batch_size = 2
+    else:
+        batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, num_devices // 2)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[mlp.dense_h_to_4h.weight] = ("model", None)  # up_proj
+            shard_specs[mlp.dense_4h_to_h.weight] = (None, "model")  # down_proj
             return shard_specs
 
     else:
