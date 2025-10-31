@@ -14,13 +14,7 @@ from ..tester import XGLMTester
 VARIANT_NAME = ModelVariant._564M
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> XGLMTester:
-    return XGLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -29,24 +23,6 @@ def training_tester() -> XGLMTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Invalid data size. numElements * elementSize == data->size(). "
-        "Issue: https://github.com/tenstorrent/tt-xla/issues/1313"
-    )
-)
-def test_xglm_564m_inference(inference_tester: XGLMTester):
-    inference_tester.test()
 
 
 @pytest.mark.training

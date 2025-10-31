@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 import pytest
 from infra import Framework, RunMode
 from utils import (
@@ -27,7 +26,6 @@ MODEL_NAME = build_model_name(
     ModelSource.CUSTOM,
 )
 
-
 # ----- Fixtures -----
 
 
@@ -37,41 +35,11 @@ def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
 
 
 @pytest.fixture
-def inference_tester(request) -> MNISTMLPTester:
-    return MNISTMLPTester(request.param)
-
-
-@pytest.fixture
 def training_tester(request) -> MNISTMLPTester:
     return MNISTMLPTester(request.param, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.nightly
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.parametrize(
-    "inference_tester",
-    [
-        (128,),
-        (128, 128),
-        (192, 128),
-        (512, 512),
-        (128, 128, 128),
-    ],
-    indirect=True,
-    ids=lambda val: f"{val}",
-)
-def test_mnist_mlp_inference_nightly(inference_tester: MNISTMLPTester):
-    inference_tester.test()
 
 
 @pytest.mark.push

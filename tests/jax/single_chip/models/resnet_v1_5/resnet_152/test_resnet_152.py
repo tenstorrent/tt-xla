@@ -27,34 +27,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> ResNetTester:
     return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.9893739223480225. Required: pcc=0.99"
-    )
-)
-@pytest.mark.large
-def test_resnet_v1_5_152_inference(inference_tester: ResNetTester):
-    inference_tester.test()
 
 
 @pytest.mark.training

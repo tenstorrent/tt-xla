@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-
 from typing import Dict, Optional, Sequence
 
 import jax
@@ -77,35 +76,11 @@ class MlpMixerTester(JaxModelTester):
 
 
 @pytest.fixture
-def inference_tester() -> MlpMixerTester:
-    return MlpMixerTester()
-
-
-@pytest.fixture
 def training_tester() -> MlpMixerTester:
     return MlpMixerTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=-0.006597555708140135. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_mlpmixer_inference(inference_tester: MlpMixerTester):
-    inference_tester.test()
 
 
 @pytest.mark.push

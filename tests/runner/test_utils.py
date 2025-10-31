@@ -23,10 +23,35 @@ from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 
-@dataclass
-class ModelTestEntry:
-    path: str
-    variant_info: tuple
+def fix_venv_isolation():
+    """
+    Fix venv isolation issue: ensure venv packages take precedence over system packages.
+
+    This function adjusts the Python path to prioritize virtual environment packages
+    over system packages, preventing package conflicts and ensuring proper isolation
+    during test execution.
+    """
+    venv_site = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "..",
+        "venv",
+        "lib",
+        "python3.11",
+        "site-packages",
+    )
+    if os.path.exists(venv_site) and venv_site not in sys.path:
+        sys.path.insert(0, os.path.abspath(venv_site))
+
+    # Remove system packages from path to ensure proper isolation
+    sys.path = [
+        p
+        for p in sys.path
+        if "/usr/local/lib/python3.11/dist-packages" not in p
+        or p == "/usr/local/lib/python3.11/dist-packages"
+    ]
+    # Re-add at the end as fallback
+    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
+        sys.path.append("/usr/local/lib/python3.11/dist-packages")
 
 
 class ModelTestStatus(Enum):
@@ -171,249 +196,6 @@ def update_test_metadata_for_exception(
 
     setattr(test_metadata, "runtime_bringup_status", status)
     setattr(test_metadata, "runtime_reason", message)
-
-
-def get_models_root(project_root):
-    """Return the filesystem path to the given module, supporting both installed and source-tree use cases."""
-    module_name = "third_party.tt_forge_models"
-    spec = importlib.util.find_spec(module_name)
-    if spec:
-        if spec.submodule_search_locations:
-            return spec.submodule_search_locations[0]
-        elif spec.origin:
-            return os.path.dirname(os.path.abspath(spec.origin))
-
-    # Derive filesystem path from module name
-    rel_path = os.path.join(*module_name.split("."))
-    fallback = os.path.join(project_root, rel_path)
-    print(f"No installed {module_name}; falling back to {fallback}")
-    return fallback
-
-
-def import_model_loader(loader_path, models_root):
-    """Dynamically import and return ModelLoader class from a loader.py path, ensuring relative imports work."""
-    # Import the base module first to ensure it's available
-    models_parent = os.path.dirname(models_root)
-    if models_parent not in sys.path:
-        sys.path.insert(0, models_parent)
-
-    # Get the relative path from models_root to construct proper module name
-    rel_path = os.path.relpath(loader_path, models_root)
-    rel_path_without_ext = rel_path.replace(".py", "")
-
-    # Use different/dummy module name to avoid conflicts with real package name
-    module_path = "tt-forge-models." + rel_path_without_ext.replace(os.sep, ".")
-
-    spec = importlib.util.spec_from_file_location(module_path, location=loader_path)
-    mod = importlib.util.module_from_spec(spec)
-
-    # Set the module's __package__ for relative imports to work
-    loader_dir = os.path.dirname(loader_path)
-    package_name = "tt_forge_models." + os.path.relpath(
-        loader_dir, models_root
-    ).replace(os.sep, ".")
-    mod.__package__ = package_name
-    mod.__name__ = module_path
-
-    # Add the module to sys.modules to support relative imports
-    sys.modules[module_path] = mod
-    spec.loader.exec_module(mod)
-
-    return mod.ModelLoader
-
-
-def get_model_variants(loader_path, loader_paths, models_root):
-    """Fill loader_paths[loader_path] with (variant_name, ModelLoader) tuples by querying the loader; on failure, log and continue."""
-    try:
-        # Import the ModelLoader class from the module
-        ModelLoader = import_model_loader(loader_path, models_root)
-        variants = ModelLoader.query_available_variants()
-
-        # Store variant_name, ModelLoader together for usage, or empty one if no variants found.
-        if variants:
-            for variant_name in variants.keys():
-                loader_paths[loader_path].append((variant_name, ModelLoader))
-        else:
-            loader_paths[loader_path].append((None, ModelLoader))
-
-    except Exception as e:
-        print(f"Cannot import path: {loader_path}: {e}")
-
-
-def generate_test_id(test_entry, models_root):
-    """Generate test ID from test entry with optional variant."""
-    model_path = os.path.relpath(os.path.dirname(test_entry.path), models_root)
-    variant_info = test_entry.variant_info
-    variant_name = variant_info[0] if variant_info else None
-    return f"{model_path}-{variant_name}" if variant_name else model_path
-
-
-class DynamicTorchModelTester(TorchModelTester):
-    def __init__(
-        self,
-        run_mode: RunMode,
-        *,
-        loader,
-        comparison_config: ComparisonConfig | None = None,
-        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
-    ) -> None:
-        self.loader = loader
-        # Optional: store requested parallelism for reporting/consumers
-        self.parallelism = parallelism
-
-        super().__init__(
-            comparison_config=comparison_config or ComparisonConfig(),
-            run_mode=run_mode,
-            parallelism=self.parallelism,
-        )
-
-    # --- TorchModelTester interface implementations ---
-
-    def _get_model(self):
-        sig = inspect.signature(self.loader.load_model)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_model(dtype_override=torch.bfloat16)
-        return self.loader.load_model()
-
-    def _get_input_activations(self):
-        sig = inspect.signature(self.loader.load_inputs)
-        inputs = None
-        if "dtype_override" in sig.parameters:
-            inputs = self.loader.load_inputs(dtype_override=torch.bfloat16)
-        else:
-            inputs = self.loader.load_inputs()
-
-        if self.parallelism == Parallelism.DATA_PARALLEL:
-
-            def batch_tensor(tensor, num_devices):
-                if isinstance(tensor, torch.Tensor):
-                    if tensor.dim() == 0:
-                        return tensor.repeat(num_devices)
-                    else:
-                        if tensor.dim() == 1:
-                            tensor = tensor.unsqueeze(0)
-                        return tensor.repeat_interleave(num_devices, dim=0)
-                return tensor
-
-            num_devices = xr.global_runtime_device_count()
-            if isinstance(inputs, collections.abc.Mapping):
-                inputs = {k: batch_tensor(v, num_devices) for k, v in inputs.items()}
-            elif isinstance(inputs, collections.abc.Sequence):
-                inputs = [batch_tensor(inp, num_devices) for inp in inputs]
-            else:
-                inputs = batch_tensor(inputs, num_devices)
-        return inputs
-
-    def _get_shard_specs_function(self):
-        if self.parallelism == Parallelism.DATA_PARALLEL:
-
-            def load_shard_spec(args, kwargs):
-                shard_specs = {}
-                for arg in args:
-                    if isinstance(arg, torch.Tensor) and arg.dim() > 0:
-                        shard_spec = [None] * len(arg.shape)
-                        shard_spec[0] = "data"
-                        shard_specs[arg] = tuple(shard_spec)
-                for kwarg_value in kwargs.values():
-                    if isinstance(kwarg_value, torch.Tensor) and kwarg_value.dim() > 0:
-                        shard_spec = [None] * len(kwarg_value.shape)
-                        shard_spec[0] = "data"
-                        shard_specs[kwarg_value] = tuple(shard_spec)
-                return shard_specs
-
-            return load_shard_spec
-        else:
-            return self.loader.load_shard_spec
-
-    def _get_mesh(self):
-        num_devices = xr.global_runtime_device_count()
-        if self.parallelism == Parallelism.DATA_PARALLEL:
-            mesh_shape, mesh_names = (1, num_devices), ("model", "data")
-        else:
-            mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
-
-        return get_mesh(mesh_shape, mesh_names)
-
-
-def setup_models_path(project_root):
-    """Setup models root path and add to sys.path for imports."""
-    models_root = get_models_root(project_root)
-
-    # Add the models root to sys.path so relative imports work
-    if models_root not in sys.path:
-        sys.path.insert(0, models_root)
-
-    return models_root
-
-
-def discover_loader_paths(models_root):
-    """Discover all pytorch (for now) loader.py files in the models directory, with exclusions."""
-    loader_paths = {}
-
-    # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
-    # Surya OCR imports and initializes torch_xla runtime which causes issues
-    # https://github.com/tenstorrent/tt-xla/issues/1166
-    excluded_model_dirs = {"suryaocr"}
-
-    for root, dirs, files in os.walk(models_root):
-
-        model_dir_name = os.path.basename(os.path.dirname(root))
-        if model_dir_name in excluded_model_dirs:
-            print(
-                f"Workaround to exclude model: {model_dir_name} from discovery. Issue #1166",
-                flush=True,
-            )
-            continue
-
-        if os.path.basename(root) == "pytorch" and "loader.py" in files:
-            loader_paths[os.path.join(root, "loader.py")] = []
-
-    # Populate variants for each loader path
-    for path in loader_paths.keys():
-        get_model_variants(path, loader_paths, models_root)
-
-    return loader_paths
-
-
-def create_test_entries(loader_paths):
-    """Create test entries combining loader paths and variants."""
-    test_entries = []
-
-    # Development / Debug workaround to collect only red models.
-    red_only = os.environ.get("TT_XLA_RED_ONLY", "0") == "1"
-
-    # Store variant tuple along with the ModelLoader
-    for loader_path, variant_tuples in loader_paths.items():
-        for variant_info in variant_tuples:
-
-            if red_only:
-                model_info = variant_info[1].get_model_info(variant_info[0])
-                if model_info.group.value != "red":
-                    continue
-
-            test_entries.append(
-                ModelTestEntry(path=loader_path, variant_info=variant_info)
-            )
-
-    return test_entries
-
-
-def setup_test_discovery(project_root):
-    """Complete test discovery setup - combines all the setup steps."""
-    models_root = setup_models_path(project_root)
-    loader_paths = discover_loader_paths(models_root)
-    test_entries = create_test_entries(loader_paths)
-    return models_root, test_entries
-
-
-def create_test_id_generator(models_root):
-    """Create a function for generating test IDs."""
-
-    def _generate_test_id(test_entry):
-        """Generate test ID from test entry using the utility function."""
-        return generate_test_id(test_entry, models_root)
-
-    return _generate_test_id
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml

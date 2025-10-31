@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 from flax import linen as nn
@@ -13,8 +13,6 @@ from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelLoader,
     ModelVariant,
 )
-
-ALEXNET_PARAMS_INIT_SEED = 42
 
 
 def create_alexnet_random_input_image() -> jax.Array:
@@ -57,14 +55,8 @@ class AlexNetTester(JaxModelTester):
 
     # @override
     def _get_input_parameters(self) -> PyTree:
-        # Example of flax.linen convention of first instatiating a model object
-        # and then later calling init to generate a set of initial tensors (parameters
-        # and maybe some extra state). Parameters are not stored with the models
-        # themselves, they are provided together with inputs to the forward method.
-        return self._model.init(
-            jax.random.PRNGKey(ALEXNET_PARAMS_INIT_SEED),
-            self._input_activations,
-            train=False if self._run_mode == RunMode.INFERENCE else True,
+        return self._model_loader.load_parameters(
+            train=self._run_mode == RunMode.TRAINING
         )
 
     # @override

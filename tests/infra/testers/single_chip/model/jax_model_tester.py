@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import os
 import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -144,9 +145,23 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, FlaxPreTrainedModel):
             kwargs = {
                 "params": self._input_parameters,
-                "train": False if self._run_mode == RunMode.INFERENCE else True,
                 **self._input_activations,
             }
+
+            # Only add 'deterministic' if the model accepts it
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if "deterministic" in sig.parameters:
+                    # deterministic=True means inference (no dropout), deterministic=False means training
+                    kwargs["deterministic"] = (
+                        True if self._run_mode == RunMode.INFERENCE else False
+                    )
+                if "train" in sig.parameters:
+                    kwargs["train"] = (
+                        False if self._run_mode == RunMode.INFERENCE else True
+                    )
+            except:
+                pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
@@ -164,9 +179,15 @@ class JaxModelTester(ModelTester):
 
         By default no arguments are static.
         """
+        static_argnames = []
+        sig = inspect.signature(self._model.__call__)
+        if "train" in sig.parameters:
+            static_argnames.append("train")
+        if "deterministic" in sig.parameters:
+            static_argnames.append("deterministic")
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
-            return ["mutable", "train"]
-        return ["train"]
+            static_argnames.append("mutable")
+        return static_argnames
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:

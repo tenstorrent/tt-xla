@@ -8,7 +8,6 @@ from .comparators import ComparisonConfig
 from .connectors import DeviceConnectorFactory, JaxDeviceConnector
 from .testers import (
     JaxModelTester,
-    JaxMultichipModelTester,
     RunMode,
     TorchModelTester,
     run_graph_test,

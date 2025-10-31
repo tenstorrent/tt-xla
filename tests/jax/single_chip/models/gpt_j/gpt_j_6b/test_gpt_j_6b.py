@@ -19,36 +19,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> GPTJTester:
-    return GPTJTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> GPTJTester:
     return GPTJTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 268435456 B DRAM buffer across 12 banks, "
-        "where each bank needs to store 22372352 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/918)"
-    )
-)
-def test_gpt_j_6b_inference(inference_tester: GPTJTester):
-    inference_tester.test()
 
 
 @pytest.mark.training

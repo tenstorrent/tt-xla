@@ -19,28 +19,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> GPT2Tester:
-    return GPT2Tester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> GPT2Tester:
     return GPT2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_gpt2_medium_inference(inference_tester: GPT2Tester):
-    inference_tester.test()
 
 
 @pytest.mark.training

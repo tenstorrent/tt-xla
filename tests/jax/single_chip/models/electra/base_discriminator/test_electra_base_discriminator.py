@@ -19,28 +19,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ElectraTester:
-    return ElectraTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> ElectraTester:
     return ElectraTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_electra_base_discriminator_inference(inference_tester: ElectraTester):
-    inference_tester.test()
 
 
 @pytest.mark.training

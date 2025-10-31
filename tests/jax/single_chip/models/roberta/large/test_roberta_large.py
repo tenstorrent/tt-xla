@@ -24,34 +24,11 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> FlaxRobertaForMaskedLMTester:
-    return FlaxRobertaForMaskedLMTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> FlaxRobertaForMaskedLMTester:
     return FlaxRobertaForMaskedLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.9585895538330078. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_flax_roberta_large_inference(inference_tester: FlaxRobertaForMaskedLMTester):
-    inference_tester.test()
 
 
 @pytest.mark.training

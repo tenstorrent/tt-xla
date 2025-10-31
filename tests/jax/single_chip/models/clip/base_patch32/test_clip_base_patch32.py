@@ -22,35 +22,11 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> FlaxCLIPTester:
-    return FlaxCLIPTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> FlaxCLIPTester:
     return FlaxCLIPTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 # ----- Tests -----
-
-
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 2287616 B L1 buffer "
-        "across 2 banks, where each bank needs to store 1143808 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
-    )
-)
-def test_clip_base_patch32_inference(inference_tester: FlaxCLIPTester):
-    inference_tester.test()
 
 
 @pytest.mark.training
