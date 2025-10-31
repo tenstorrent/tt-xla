@@ -41,7 +41,7 @@ test_config:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-1_5b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
@@ -871,12 +871,12 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
-  qwen_2_5/casual_lm/pytorch-3b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
-  qwen_2_5/casual_lm/pytorch-3b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
@@ -896,7 +896,7 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
-  qwen_2_5/casual_lm/pytorch-1_5b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
@@ -937,7 +937,7 @@ test_config:
     required_pcc: 0.945 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-0_5b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
     arch_overrides:
@@ -954,7 +954,7 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-0_5b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-inference:
     required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
 
@@ -1746,7 +1746,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1758,7 +1758,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1770,7 +1770,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct_1m-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1782,12 +1782,12 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-32b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1799,7 +1799,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1811,7 +1811,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct_1m-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1823,7 +1823,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-math_7b-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-math_7b-single_device-full-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1916,7 +1916,7 @@ test_config:
     reason: "Running the test CRASHED with signal 9 - uses too much memory need higher memory host."
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-72b_instruct-single_device-full-inference:
+  qwen_2_5/causal_lm/pytorch-72b_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME

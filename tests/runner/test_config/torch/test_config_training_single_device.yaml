@@ -18,57 +18,57 @@ test_config:
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-3b-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-3b_instruct-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct_1m-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-14b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct_1m-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-32b_instruct-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-72b_instruct-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-72b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/casual_lm/pytorch-math_7b-single_device-full-training:
+  qwen_2_5/causal_lm/pytorch-math_7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME

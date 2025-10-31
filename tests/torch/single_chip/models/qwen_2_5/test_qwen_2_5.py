@@ -13,7 +13,7 @@ from utils import (
     build_model_name,
 )
 
-from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch import ModelVariant
+from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch import ModelVariant
 
 from .tester import Qwen2_5Tester
 
