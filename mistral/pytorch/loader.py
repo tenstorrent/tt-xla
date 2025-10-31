@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     MISTRAL_7B_INSTRUCT_V03 = "7b_instruct_v03"
     MINISTRAL_3B = "ministral_3b_instruct"
     MINISTRAL_8B = "ministral_8b_instruct"
+    MISTRAL_SMALL_24B_INSTRUCT_2501 = "mistral_small_24b_instruct_2501"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MINISTRAL_8B: ModelConfig(
             pretrained_model_name="mistralai/Ministral-8B-Instruct-2410",
+        ),
+        ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-Small-24B-Instruct-2501",
         ),
     }
 
@@ -73,7 +77,11 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
 
-        if variant in [ModelVariant.MISTRAL_7B_INSTRUCT_V03, ModelVariant.MINISTRAL_8B]:
+        if variant in [
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03,
+            ModelVariant.MINISTRAL_8B,
+            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501,
+        ]:
             group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
