@@ -32,7 +32,6 @@ runs:
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           echo "Changed files:"
           echo "$CHANGED_FILES"
-          only_run_forge_models=true
 
           # Define patterns for files that can skip build/test
           # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS, and test config files
@@ -53,6 +52,7 @@ runs:
             ".github/workflows/manual-test-single.yml"
             ".github/workflows/push-main.yml"
             ".github/actions/inspect-changes/action.yml"
+            "tests/runner/*" # This goes with custom logic below.
           )
 
           for file in $CHANGED_FILES; do
@@ -72,16 +72,24 @@ runs:
               run_pr_tests=true
             fi
 
-            # Detect if all changes are strictly under tests/runner/
-            if [[ ! $file =~ ^tests/runner/.* ]]; then
-              only_run_forge_models=false
-            fi
-
             # Example: detect perf uplift (customize as needed)
             if [[ $file == *"perf"* ]]; then
               run_perf_tests=true
             fi
           done
+
+          # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
+          if [[ "$skip_build_and_test" == "true" ]]; then
+            for file in $CHANGED_FILES; do
+              if [[ $file == tests/runner/* ]]; then
+                echo "Detected only skippable files + tests/runner/, enabling forge-model tests."
+                skip_build_and_test=false
+                only_run_forge_models=true
+                break
+              fi
+            done
+          fi
+
         else
           skip_build_and_test=false
           run_pr_tests=true
