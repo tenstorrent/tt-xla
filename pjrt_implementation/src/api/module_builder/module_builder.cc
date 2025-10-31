@@ -1164,9 +1164,11 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   // or for execution within an existing development environment that already
   // has prerequisites installed(is_local=true).
   bool is_local = false;
-  // Long term solution is for alchemist to ingest TTNN, that will unify passing
-  // options to alchemist. For now, hardcode to load input tensors from disk.
-  std::string pipeline_options = "load-input-tensors-from-disk=true "
+  // Alchemist specific options are passed here.
+  // Other options are ingested during TTIR->TTNN conversion.
+  std::string should_load = compile_options.dump_inputs ? "true" : "false";
+  std::string pipeline_options = "load-input-tensors-from-disk=" + should_load +
+                                 " "
                                  "tensor-load-directory='./input_tensors'";
   bool result;
 
