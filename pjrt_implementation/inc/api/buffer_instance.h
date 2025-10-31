@@ -181,8 +181,12 @@ private:
   calculateStrides(size_t num_dims, const std::int64_t *byte_strides,
                    size_t num_byte_strides, std::uint32_t element_size);
 
-  // Static atomic counter for generating unique buffer IDs.
-  static std::atomic<uint64_t> s_next_uid;
+  // Gets next UID for buffer instances, used in buffer instance constructor
+  // to assign unique identifier to each buffer instance.
+  static uint64_t nextUID() {
+    static std::atomic<uint64_t> uid{0};
+    return uid.fetch_add(1, std::memory_order_relaxed);
+  }
 
   // Unique identifier for this buffer instance.
   const uint64_t m_uid;

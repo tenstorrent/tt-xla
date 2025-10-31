@@ -32,9 +32,6 @@
 
 namespace tt::pjrt {
 
-// Initialize the static UID counter
-std::atomic<uint64_t> BufferInstance::s_next_uid{0};
-
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
     DeviceInstance *device, MemoryInstance *memory) {
@@ -69,19 +66,17 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
                                DeviceInstance *device, MemoryInstance *memory)
-    : m_uid(s_next_uid.fetch_add(1, std::memory_order_relaxed)),
-      m_data_type(data_type), m_dimensions(dims, dims + num_dims),
-      m_device(device), m_memory(memory), m_host_runtime_tensor(std::nullopt),
-      m_data_ready(false), m_data_ready_event(nullptr),
-      m_done_with_host_buffer_event(nullptr), m_data_deleted(false),
-      m_prepared_runtime_tensor(std::nullopt) {}
+    : m_uid(nextUID()), m_data_type(data_type),
+      m_dimensions(dims, dims + num_dims), m_device(device), m_memory(memory),
+      m_host_runtime_tensor(std::nullopt), m_data_ready(false),
+      m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
+      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {}
 
 BufferInstance::BufferInstance(const tt::runtime::Tensor &tensor,
                                const std::vector<std::uint32_t> &dimensions,
                                DeviceInstance *device, MemoryInstance *memory,
                                PJRT_Buffer_Type data_type)
-    : m_uid(s_next_uid.fetch_add(1, std::memory_order_relaxed)),
-      m_data_type(data_type),
+    : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_memory(memory), m_host_runtime_tensor(tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
