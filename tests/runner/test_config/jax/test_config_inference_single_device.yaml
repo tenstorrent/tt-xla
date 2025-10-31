@@ -240,13 +240,13 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_2_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: " Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
   mistral/causal_lm/jax-v0_3_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
@@ -306,7 +306,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/causal_lm/jax-6.7B-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11186176 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
