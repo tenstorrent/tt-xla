@@ -5,13 +5,11 @@
 # Validations of failing reasons
 
 
-from loguru import logger
-
 from typing import Optional
 
-from .failing_reasons import ExceptionData
-from .failing_reasons import FailingReasons
-from .failing_reasons import FailingReasonsFinder
+from loguru import logger
+
+from .failing_reasons import ExceptionData, FailingReasons, FailingReasonsFinder
 
 
 class FailingReasonsValidation:
@@ -36,7 +34,9 @@ class FailingReasonsValidation:
             return False
 
         if len(failing_reason.value.checks) > 0:
-            ex_data = FailingReasonsFinder.build_ex_data(exception_value, exception_traceback)
+            ex_data = FailingReasonsFinder.build_ex_data(
+                exception_value, exception_traceback
+            )
 
             # Checking if exception data matches the failing reason
             if ex_data in failing_reason.value:

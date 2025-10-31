@@ -5,7 +5,6 @@
 # Failing reasons definition
 
 import re
-
 from dataclasses import dataclass
 from typing import Callable
 
@@ -50,7 +49,9 @@ class MessageChecker:
 
     @staticmethod
     def last_line(checker: MessageCheckerType) -> str:
-        return lambda ex_message: checker(ex_message.splitlines()[-1] if ex_message else ex_message)
+        return lambda ex_message: checker(
+            ex_message.splitlines()[-1] if ex_message else ex_message
+        )
 
 
 M = MessageChecker

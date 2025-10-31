@@ -3,23 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import pytest
 import _pytest
 import _pytest.python
 import _pytest.reports
 import _pytest.runner
-
-from loguru import logger
-
-from sweeps.utils.failing_reasons import FailingReasons
-from sweeps.utils.failing_reasons import FailingReasonsFinder
-from sweeps.utils.failing_reasons import ExceptionData
-
 import pluggy
+import pytest
+from loguru import logger
+from sweeps.utils.failing_reasons import (
+    ExceptionData,
+    FailingReasons,
+    FailingReasonsFinder,
+)
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: _pytest.python.Function, call: _pytest.runner.CallInfo):
+def pytest_runtest_makereport(
+    item: _pytest.python.Function, call: _pytest.runner.CallInfo
+):
     outcome: pluggy.Result = yield
     report: _pytest.reports.TestReport = outcome.get_result()
 
@@ -51,7 +52,9 @@ def pytest_runtest_makereport(item: _pytest.python.Function, call: _pytest.runne
             # cls.log_error_properties(item, exception_value, exception_traceback)
 
             # Build ExceptionData from exception
-            ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(exception_value, exception_traceback)
+            ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(
+                exception_value, exception_traceback
+            )
             # Find failing reason by ExceptionData
             failing_reason = FailingReasonsFinder.find_reason_by_ex_data(ex_data)
 
@@ -60,4 +63,6 @@ def pytest_runtest_makereport(item: _pytest.python.Function, call: _pytest.runne
                 failing_reason = FailingReasons.UNCLASSIFIED
 
             # Log detected failing reason
-            logger.warning(f"Detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
+            logger.warning(
+                f"Detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}"
+            )
