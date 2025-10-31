@@ -10,14 +10,14 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
 from transformers import SpeechT5ForTextToSpeech, SpeechT5Processor
-
+from transformers import SpeechT5HifiGan
 
 EXPORT_PATH = "speecht5"
 
 
 class SpeechT5RelativePositionalEncodingFixed(nn.Module):
     """
-    Implementation of the relative positional encoding that avoids advanced indexing 
+    Implementation of the relative positional encoding that avoids advanced indexing
     to avoid graph breaks with TT compile.
     """
     def __init__(self, original_module):
@@ -56,6 +56,10 @@ def get_processor():
     )   
     return processor
 
+def get_vocoder():
+    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
+    return vocoder
+
 
 def get_input():
     processor = get_processor()
@@ -84,6 +88,29 @@ def get_input():
 
     return model_inputs
 
+
+def get_speaker_embeddings():
+    """
+    Load speaker embeddings from CMU Arctic dataset.
+    This file looks messy because HF docs are not updated, so we're downloading the file however we can.
+    """
+    import pandas as pd
+    import urllib.request
+    import tempfile
+
+    url = "https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors/resolve/refs%2Fconvert%2Fparquet/default/validation/0000.parquet"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        urllib.request.urlretrieve(url, tmp_file.name)
+
+        df = pd.read_parquet(tmp_file.name)
+
+        # Speaker embedding at index 7306 according to example https://huggingface.co/microsoft/speecht5_tts
+        xvector = df.iloc[7306]["xvector"]
+        speaker_embeddings = torch.tensor(xvector, dtype=torch.float32).unsqueeze(0)
+
+        os.unlink(tmp_file.name)
+    return speaker_embeddings
 
 def dump_tensors():
     xr.set_device_type("TT")
@@ -175,8 +202,37 @@ def run_on_tt():
     output = model(**model_inputs)
     print(output)
 
+def run_vocoder_tt():
+    xr.set_device_type("TT")
+    vocoder = get_vocoder()
+
+    # Wrap with fixed version to avoid graph breaks
+
+    # torch inference first
+    spectrogram = torch.randn(1, 100, 80)
+    '''with torch.no_grad():
+        speech = vocoder(spectrogram)'''
+
+
+    vocoder.compile(backend="tt")
+    device = xm.xla_device()
+    vocoder = vocoder.to(device)
+    spectrogram = spectrogram.to(device)
+
+
+    torch_xla.set_custom_compile_options(
+        {
+            "export_path": EXPORT_PATH,
+            "backend": "codegen_py",
+        }
+    )
+
+    speech = vocoder(spectrogram)
+    print(speech)
+
+
 # --------------------------------
 # main
 # --------------------------------
 if __name__ == "__main__":
-    dump_code()
+    run_on_tt()
