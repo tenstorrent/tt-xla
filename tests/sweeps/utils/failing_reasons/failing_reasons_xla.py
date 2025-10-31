@@ -4,13 +4,13 @@
 
 # Failing reasons definition
 
-from enum import Enum
-from typing import Optional, List
-
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, Optional
+
 from loguru import logger
 
-from .failing_reasons_common import M, ExceptionData, MessageCheckerType
+from .failing_reasons_common import ExceptionData, M, MessageCheckerType
 
 
 @dataclass
@@ -47,12 +47,18 @@ class FailingReason:
 
     def __post_init__(self):
         self.checks = [
-            check for check in self.checks if check.component is None or check.component != ComponentChecker.NONE.value
+            check
+            for check in self.checks
+            if check.component is None or check.component != ComponentChecker.NONE.value
         ]
         if len(self.checks) == 0:
-            logger.trace(f"FailingReason '{self.description}' has no checks defined, it will not be used.")
+            logger.trace(
+                f"FailingReason '{self.description}' has no checks defined, it will not be used."
+            )
         elif len(self.checks) > 1:
-            logger.trace(f"FailingReason '{self.description}' has multiple ({len(self.checks)}) checks defined.")
+            logger.trace(
+                f"FailingReason '{self.description}' has multiple ({len(self.checks)}) checks defined."
+            )
 
     @property
     def component_checker(self) -> Optional["ComponentChecker"]:
@@ -122,7 +128,9 @@ class ComponentChecker(Enum):
                     M.contains("lib/_ttnncpp.so"),
                     M.contains("lib/libTTMLIRRuntime.so"),
                     M.any(
-                        M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
+                        M.last_line(
+                            M.contains("infra/runners/torch_device_runner.py:")
+                        ),
                     ),
                 ],
             ),
@@ -132,7 +140,9 @@ class ComponentChecker(Enum):
                     M.contains("lib/libTTMLIRCompiler.so"),
                     M.contains("lib/libTTMLIRRuntime.so"),
                     M.any(
-                        M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
+                        M.last_line(
+                            M.contains("infra/runners/torch_device_runner.py:")
+                        ),
                     ),
                 ],
             ),
@@ -156,8 +166,14 @@ class ComponentChecker(Enum):
                 error_log=[
                     M.any(
                         M.last_line(M.contains("tt_torch/backend/backend.py:")),
-                        M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
-                        M.last_line(M.contains("forge/test/operators/pytorch/indexing/test_index_copy.py")),
+                        M.last_line(
+                            M.contains("infra/runners/torch_device_runner.py:")
+                        ),
+                        M.last_line(
+                            M.contains(
+                                "forge/test/operators/pytorch/indexing/test_index_copy.py"
+                            )
+                        ),
                     ),
                 ],
             ),
@@ -173,7 +189,9 @@ class ComponentChecker(Enum):
                     M.neg(M.contains("lib/_ttnncpp.so")),
                     M.neg(M.contains("lib/libTTMLIRRuntime.so")),
                     M.any(
-                        M.last_line(M.contains("forge/test/operators/utils/verify.py:")),
+                        M.last_line(
+                            M.contains("forge/test/operators/utils/verify.py:")
+                        ),
                         M.last_line(M.contains("infra/comparators/comparator.py:")),
                     ),
                 ],
@@ -189,11 +207,17 @@ class FailingReasons(Enum):
     @classmethod
     def find_by_description(cls, desc: str) -> Optional["FailingReasons"]:
         """Find failing reason by description."""
-        failing_reasons = [xfail_reason for xfail_reason in FailingReasons if xfail_reason.value.description == desc]
+        failing_reasons = [
+            xfail_reason
+            for xfail_reason in FailingReasons
+            if xfail_reason.value.description == desc
+        ]
         if len(failing_reasons) == 0:
             return None
         elif len(failing_reasons) > 1:
-            raise ValueError(f"Multiple xfail reasons {failing_reasons} found for description: {desc}")
+            raise ValueError(
+                f"Multiple xfail reasons {failing_reasons} found for description: {desc}"
+            )
         return failing_reasons[0]
 
     UNCLASSIFIED = FailingReason(
@@ -244,7 +268,9 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.METAL.value,
                 message=[
-                    M.contains("Can only work with bfloat16/float32 or int32/uint32 tensors"),
+                    M.contains(
+                        "Can only work with bfloat16/float32 or int32/uint32 tensors"
+                    ),
                 ],
                 error_log=[
                     # M.contains("normalized_index >= 0 and normalized_index < rank"),
@@ -453,7 +479,9 @@ class FailingReasons(Enum):
                     M.equals("Error code: 13"),
                 ],
                 error_log=[
-                    M.contains(">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"),
+                    M.contains(
+                        ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                    ),
                     M.last_line(M.contains("tt_torch/backend/backend.py:")),
                 ],
             ),
@@ -571,7 +599,9 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.METAL.value,
                 message=[
-                    M.regex("Unsupported input data type .* for UnaryOpType .* \\(Bitwise operation\\)\\."),
+                    M.regex(
+                        "Unsupported input data type .* for UnaryOpType .* \\(Bitwise operation\\)\\."
+                    ),
                 ],
                 error_log=[
                     M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
@@ -634,7 +664,9 @@ class FailingReasons(Enum):
                     ),
                 ],
                 error_log=[
-                    M.regex("RuntimeError: TT_THROW @ .*/tt_metal/impl/program/program.cpp:.*: tt::exception"),
+                    M.regex(
+                        "RuntimeError: TT_THROW @ .*/tt_metal/impl/program/program.cpp:.*: tt::exception"
+                    ),
                     M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
                 ],
             ),
@@ -678,7 +710,9 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.TTNN.value,
                 message=[
-                    M.regex(".*/src/tt-metal/ttnn/core/tensor/tensor_utils\\.cpp.* new_volume == old_volume.*"),
+                    M.regex(
+                        ".*/src/tt-metal/ttnn/core/tensor/tensor_utils\\.cpp.* new_volume == old_volume.*"
+                    ),
                     M.contains("Invalid arguments to reshape"),
                 ],
                 error_log=[
@@ -795,7 +829,9 @@ class FailingReasons(Enum):
                     M.regex(
                         ".*/src/tt-metal/ttnn/cpp/ttnn/operations/normalization/softmax/device/softmax_program_factory\\.cpp.* !attributes\\.numeric_stable.*"
                     ),
-                    M.contains("For softmax, cannot enable both large_kernel and numeric_stable"),
+                    M.contains(
+                        "For softmax, cannot enable both large_kernel and numeric_stable"
+                    ),
                 ],
                 error_log=[
                     M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
@@ -954,7 +990,9 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.TTNN.value,
                 message=[
-                    M.regex("TT_FATAL @ .*/src/tt-metal/ttnn/cpp/ttnn/operations/kv_cache/device/update_cache_op.cpp"),
+                    M.regex(
+                        "TT_FATAL @ .*/src/tt-metal/ttnn/cpp/ttnn/operations/kv_cache/device/update_cache_op.cpp"
+                    ),
                     M.contains(
                         "(num_blocks_of_work <= compute_with_storage_grid_size.x * compute_with_storage_grid_size.y)"
                     ),
@@ -1009,7 +1047,9 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.METAL.value,
                 message=[
-                    M.regex("TT_THROW @ .*/src/tt-metal/tt_metal/impl/program/program\\.cpp"),
+                    M.regex(
+                        "TT_THROW @ .*/src/tt-metal/tt_metal/impl/program/program\\.cpp"
+                    ),
                     M.regex(
                         "Statically allocated circular buffers on core range .* grow to .* B which is beyond max L1 size of .* B"
                     ),
@@ -1034,10 +1074,16 @@ class FailingReasons(Enum):
                 class_name="RuntimeError",
                 component=ComponentChecker.XLA.value,
                 message=[
-                    M.contains("Check failed: xtensor: Input tensor is not an XLA tensor: torch.LongTensor"),
+                    M.contains(
+                        "Check failed: xtensor: Input tensor is not an XLA tensor: torch.LongTensor"
+                    ),
                 ],
                 error_log=[
-                    M.last_line(M.contains("forge/test/operators/pytorch/indexing/test_index_copy.py")),
+                    M.last_line(
+                        M.contains(
+                            "forge/test/operators/pytorch/indexing/test_index_copy.py"
+                        )
+                    ),
                 ],
             ),
         ],

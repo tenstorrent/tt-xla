@@ -4,19 +4,20 @@
 
 # Failing reasons definition
 
-from typing import Optional, Generator
+from typing import Generator, Optional
+
 from loguru import logger
 
 from ..pytest import PyTestUtils
-
 from .failing_reasons_common import ExceptionData, MessageChecker, MessageCheckerType
-
 from .failing_reasons_xla import ExceptionCheck, FailingReason, FailingReasons
 
 
 class FailingReasonsFinder:
     @classmethod
-    def build_ex_data(cls, exception_value: Exception, exception_traceback: str) -> ExceptionData:
+    def build_ex_data(
+        cls, exception_value: Exception, exception_traceback: str
+    ) -> ExceptionData:
         """Convert exception to ExceptionData object
 
         Args:
@@ -26,7 +27,9 @@ class FailingReasonsFinder:
         Returns:
             ExceptionData: Exception data object
         """
-        ex_class_name = f"{type(exception_value).__module__}.{type(exception_value).__name__}"
+        ex_class_name = (
+            f"{type(exception_value).__module__}.{type(exception_value).__name__}"
+        )
         ex_class_name = ex_class_name.replace("builtins.", "")
         ex_message = f"{exception_value}"
         exception_traceback = PyTestUtils.remove_colors(exception_traceback)
@@ -47,7 +50,9 @@ class FailingReasonsFinder:
         return reasons[0]
 
     @classmethod
-    def find_reasons_by_ex_data(cls, ex: ExceptionData) -> Generator["FailingReasons", None, None]:
+    def find_reasons_by_ex_data(
+        cls, ex: ExceptionData
+    ) -> Generator["FailingReasons", None, None]:
         for failing_reason in FailingReasons:
             # Checking if exception data matches the failing reason
             if ex in failing_reason.value:
