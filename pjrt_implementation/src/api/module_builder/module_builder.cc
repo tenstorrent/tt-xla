@@ -819,14 +819,18 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
+  // Set optimizer flags based on optimization_level
+  options.optimizerPassEnabled =
+      internal::shouldEnableOptimizer(compile_options.optimization_level);
   options.memoryLayoutAnalysisEnabled =
-      compile_options.enable_memory_layout_analysis;
-  options.l1InterleavedFallbackAnalysisEnabled =
-      compile_options.enable_l1_interleaved;
-  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
+      internal::shouldEnableMemoryLayoutAnalysis(
+          compile_options.optimization_level);
   options.enableFusingConv2dWithMultiplyPattern =
-      compile_options.enable_fusing_conv2d_with_multiply_pattern;
+      internal::shouldEnableFusingConv2dWithMultiplyPattern(
+          compile_options.optimization_level);
+
+  // Set other independent options
+  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;

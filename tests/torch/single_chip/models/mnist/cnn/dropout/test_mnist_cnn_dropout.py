@@ -42,11 +42,7 @@ def inference_tester_optimizer() -> MNISTCNNTester:
     return MNISTCNNTester(
         MNISTCNNDropoutModel,
         run_mode=RunMode.INFERENCE,
-        compiler_config=CompilerConfig(
-            enable_optimizer=True,
-            enable_memory_layout_analysis=True,
-            enable_fusing_conv2d_with_multiply_pattern=True,
-        ),
+        compiler_config=CompilerConfig(optimization_level=2),
     )
 
 
