@@ -38,7 +38,7 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: true
+      build_type: codecov
 
   test:
     needs: [ build-image, build-ttxla, build-ttxla-codecov ]
