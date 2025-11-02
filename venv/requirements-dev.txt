@@ -1,3 +1,4 @@
+--index-url https://download.pytorch.org/whl/cpu
 black
 clang-format
 cmake

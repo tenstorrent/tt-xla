@@ -1,3 +1,4 @@
+--index-url https://download.pytorch.org/whl/cpu
 jax==0.7.1
 jaxlib==0.7.1
 requests

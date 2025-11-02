@@ -6,6 +6,7 @@ from typing import Tuple
 
 import torch
 import torch_xla
+import tt_xla_debug
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
@@ -16,7 +17,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
-    handle_composite_ops,
+    generate_intermediates,
     insert_argument_type_markers,
 )
 
@@ -78,6 +79,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
+        intermediates: dict[str, torch.Tensor],
     ):
         self.module = module
         self.signature = signature
@@ -85,7 +87,8 @@ class XLAExecutor:
         # Inject metadata if xla debug is enabled and node_info is not empty
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
-
+        self.intermediates = intermediates
+        self._enable_intermediate_verification()
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
@@ -124,9 +127,23 @@ class XLAExecutor:
 
         return output
 
+    def _enable_intermediate_verification(self):
+        def intermediate_callback(binary, programContext, opContext):
+            raw_location = tt_xla_debug.get_op_loc_info(opContext)
+            breakpoint()
+
+        self._register_intermediate_callback(intermediate_callback)
+
+    def _register_intermediate_callback(self, callback):
+        if not tt_xla_debug.is_runtime_debug_enabled():
+            raise RuntimeError(
+                "Runtime debug is required to use intermediate callbacks. Please recompile this project with -DTT_RUNTIME_DEBUG=ON."
+            )
+        tt_xla_debug.DebugHooks.get_debug_hooks(callback)
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature, node_info)
+    intermediates = generate_intermediates(module, example_inputs)
+    return XLAExecutor(module, graph_signature, node_info, intermediates)
