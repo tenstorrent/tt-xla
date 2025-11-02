@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include <ATen/Functions.h>
 #include <ATen/core/TensorBody.h>
 
 #include <pybind11/pybind11.h>
@@ -36,6 +37,7 @@ static at::ScalarType dt_to_torch_scalar_type(tt::target::DataType df) {
     break;
   }
   assert(false && "Unsupported scalar type");
+  return at::ScalarType::Undefined;
 }
 
 static tt::target::DataType torch_scalar_type_to_dt(at::ScalarType st) {
@@ -71,6 +73,7 @@ static tt::target::DataType torch_scalar_type_to_dt(at::ScalarType st) {
     break;
   }
   assert(false && "Unsupported scalar type");
+  return tt::target::DataType::UInt8;
 }
 
 
@@ -134,7 +137,8 @@ static at::Tensor create_torch_tensor(const tt::runtime::Tensor &tensor) {
       tt::runtime::getTensorDataType(untilized_tensor);
   const at::ScalarType dataType = dt_to_torch_scalar_type(rt_datatype);
 
-  at::Tensor torch_tensor = at::empty_strided(shape, stride, dataType);
+  at::Tensor torch_tensor =
+      at::empty(shape, at::TensorOptions().dtype(dataType)).as_strided(shape, stride);
   tt::runtime::Tensor rt_tensor = create_tensor(torch_tensor);
   tt::runtime::memcpy(rt_tensor, untilized_tensor);
 
