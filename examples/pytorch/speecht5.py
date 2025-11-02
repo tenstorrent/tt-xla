@@ -3,14 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import sys
+from typing import Optional, Union, Any
+import types
+import time
 import torch
 import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-from transformers import SpeechT5ForTextToSpeech, SpeechT5Processor
-from transformers import SpeechT5HifiGan
+from datasets import load_dataset
+import soundfile as sf
+
+from transformers import SpeechT5PreTrainedModel, SpeechT5Processor, SpeechT5HifiGan, SpeechT5ForTextToSpeech
+from transformers.cache_utils import EncoderDecoderCache, StaticCache
+from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
+
 
 EXPORT_PATH = "speecht5"
 
@@ -40,6 +49,50 @@ class SpeechT5RelativePositionalEncodingFixed(nn.Module):
 
         return self.pe_k(pos_seq)
 
+
+# This is a workaround to avoid an issue in ttnn.fill_cache, where the size of the fill values is too large to split the work over
+# the device grid.
+def static_cache_layer_update_workaround(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        cache_kwargs: Optional[dict[str, Any]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Update the key and value caches in-place, and return the necessary keys and value states.
+
+        Args:
+            key_states (`torch.Tensor`): The new key states to cache.
+            value_states (`torch.Tensor`): The new value states to cache.
+            cache_kwargs (`dict[str, Any]`, *optional*): Additional arguments for the cache.
+
+        Returns:
+            tuple[`torch.Tensor`, `torch.Tensor`]: The key and value states.
+        """
+        # Lazy initialization
+        if not self.is_initialized:
+            self.lazy_initialization(key_states)
+
+        # Some old models give None for `cache_position` or even omit passing `cache_kwargs` when used as cross-attention,
+        # in which case we should copy the whole Layer (key_states.shape[-2] == self.max_cache_len)
+        cache_position = cache_kwargs.get("cache_position") if cache_kwargs is not None else None
+
+        # If there is no cache position, instead of updating the cache at every position in the states, we copy the entire states into the cache.
+        # This works because with the generate implementation, prefill states are always the same size as the cache.
+        if cache_position is None:
+            self.keys.copy_(key_states)
+            self.values.copy_(value_states)
+            return self.keys, self.values
+
+        # Update the cache
+        try:
+            self.keys.index_copy_(2, cache_position, key_states)
+            self.values.index_copy_(2, cache_position, value_states)
+        except NotImplementedError:
+            # Fallback for devices like MPS where index_copy_ might not be supported.
+            self.keys[:, :, cache_position] = key_states
+            self.values[:, :, cache_position] = value_states
+        return self.keys, self.values
 
 def get_model():
     model = SpeechT5ForTextToSpeech.from_pretrained(
@@ -169,7 +222,7 @@ def run_on_cpu():
 
     # Process text input using the processor
     text = "Hello, my dog is cute."
-    inputs = processor(text=text, return_tensors="pt")
+    inputs = processor(text=text, return_tensors="pt", max_length=256, padding="max_length")
     
     # Create decoder input values (zeros for initial state)
     decoder_input_values = torch.zeros((1, 1, model.config.num_mel_bins))
@@ -185,22 +238,205 @@ def run_on_cpu():
     print(output)
 
 
+@torch.no_grad()
+def _generate_speech(
+    model: SpeechT5PreTrainedModel,
+    input_values: torch.FloatTensor,
+    speaker_embeddings: Optional[torch.FloatTensor] = None,
+    attention_mask: Optional[torch.LongTensor] = None,
+    threshold: float = 0.5,
+    minlenratio: float = 0.0,
+    maxlenratio: float = 20.0,
+    vocoder: Optional[nn.Module] = None,
+    output_cross_attentions: bool = False,
+    return_output_lengths: bool = False,
+) -> Union[torch.FloatTensor, tuple[torch.FloatTensor, torch.FloatTensor]]:
+    if speaker_embeddings is None:
+        raise ValueError(
+            """`speaker_embeddings` must be specified. For example, you can use a speaker embeddings by following
+                    the code snippet provided in this link:
+                    https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors
+                    """
+        )
+    device = input_values.device
+    if attention_mask is None:
+        encoder_attention_mask = 1 - (input_values == model.config.pad_token_id).int()
+    else:
+        encoder_attention_mask = attention_mask
+
+    bsz = input_values.size(0)
+
+    # model.speecht5.encoder.to("cpu")
+    encoder_out = model.speecht5.encoder(
+        input_values=input_values.to("cpu"),
+        attention_mask=encoder_attention_mask.to("cpu"),
+        return_dict=True,
+    )
+
+    encoder_last_hidden_state = encoder_out.last_hidden_state.to(device)
+
+    # downsample encoder attention mask
+    if isinstance(model.speecht5.encoder, SpeechT5EncoderWithSpeechPrenet):
+        encoder_attention_mask = model.speecht5.encoder.prenet._get_feature_vector_attention_mask(
+            encoder_out[0].shape[1], encoder_attention_mask
+        )
+
+    maxlen = int(encoder_last_hidden_state.size(1) * maxlenratio / model.config.reduction_factor)
+    minlen = int(encoder_last_hidden_state.size(1) * minlenratio / model.config.reduction_factor)
+    
+    # Start the output sequence with a mel spectrum that is all zeros.
+    max_len = 512
+    output_sequence = encoder_last_hidden_state.new_zeros(bsz, max_len, model.config.num_mel_bins).to("cpu")
+    
+    spectrogram = []
+    cross_attentions = []
+
+    # Setup an encoder-decoder cache using static caches.
+    past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_len), StaticCache(config=model.config, max_cache_len=max_len))
+
+    # Re-assign the update method to use the workaround.
+    for layer in past_key_values.self_attention_cache.layers:
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+
+    for layer in past_key_values.cross_attention_cache.layers:
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+
+    cache_position = torch.tensor([0], dtype=torch.int32, device=device)
+    idx = 0
+    result_spectrogram = {}
+    while True:
+        idx += 1
+
+        # Run the decoder prenet on the entire output sequence.
+        decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
+        attention_mask = torch.ones(1, max_len, dtype=torch.int32)
+        attention_mask[0, idx:] = 0
+
+        decoder_out = model.speecht5.decoder.wrapped_decoder(
+            hidden_states=decoder_hidden_states[:, idx-1:idx].to(device),
+            attention_mask=attention_mask.to(device),
+            encoder_hidden_states=encoder_last_hidden_state,
+            encoder_attention_mask=encoder_attention_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+            output_attentions=output_cross_attentions,
+            return_dict=True,
+            cache_position=cache_position,
+        )
+
+        cache_position = cache_position + 1
+
+        if output_cross_attentions:
+            cross_attentions.append(torch.cat(decoder_out.cross_attentions, dim=0))
+
+        last_decoder_output = decoder_out.last_hidden_state.squeeze(1)
+        past_key_values = decoder_out.past_key_values
+
+        # Predict the new mel spectrum for this step in the sequence.
+        spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
+        spectrum = spectrum.view(bsz, model.config.reduction_factor, model.config.num_mel_bins)
+        spectrogram.append(spectrum)
+
+        # Extend the output sequence with the new mel spectrum.
+        new_spectrogram = spectrum[:, -1, :].view(bsz, 1, model.config.num_mel_bins).to("cpu")
+
+        output_sequence[:, idx, :] = new_spectrogram
+
+        # Predict the probability that this is the stop token.
+        prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
+
+        if idx < minlen:
+            continue
+        else:
+            # If the generation loop is less than maximum length time, check the ones in the batch that have met
+            # the prob threshold. Otherwise, assume all have met thresholds and fill other spectrograms for the batch.
+            if idx < maxlen:
+                meet_thresholds = torch.sum(prob, dim=-1) >= threshold
+                meet_indexes = torch.where(meet_thresholds)
+                if meet_indexes[0].numel() > 0:
+                    meet_indexes = meet_indexes[0].tolist()
+                else:
+                    meet_indexes = []
+            else:
+                meet_indexes = range(len(prob))
+            meet_indexes = [i for i in meet_indexes if i not in result_spectrogram]
+            if len(meet_indexes) > 0:
+                spectrograms = torch.stack(spectrogram)
+                spectrograms = spectrograms.transpose(0, 1).flatten(1, 2)
+                spectrograms = model.speech_decoder_postnet.postnet(spectrograms)
+                for meet_index in meet_indexes:
+                    result_spectrogram[meet_index] = spectrograms[meet_index]
+            if len(result_spectrogram) >= bsz:
+                break
+
+    spectrograms = [result_spectrogram[i] for i in range(len(result_spectrogram))]
+    if not return_output_lengths:
+        spectrogram = spectrograms[0] if bsz == 1 else torch.nn.utils.rnn.pad_sequence(spectrograms, batch_first=True)
+        if vocoder is not None:
+            outputs = vocoder(spectrogram.to("cpu"))
+        else:
+            outputs = spectrogram
+        if output_cross_attentions:
+            cross_attentions = torch.cat(cross_attentions, dim=2)
+            if bsz > 1:
+                cross_attentions = cross_attentions.view(
+                    bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.size()[-3:]
+                )
+            outputs = (outputs, cross_attentions)
+    else:
+        # batched return values should also include the spectrogram/waveform lengths
+        spectrogram_lengths = []
+        for i in range(bsz):
+            spectrogram_lengths.append(spectrograms[i].size(0))
+        if vocoder is None:
+            spectrograms = torch.nn.utils.rnn.pad_sequence(spectrograms, batch_first=True)
+            outputs = (spectrograms, spectrogram_lengths)
+        else:
+            waveforms = []
+            spectrograms = torch.nn.utils.rnn.pad_sequence(spectrograms, batch_first=True)
+            waveforms = vocoder(spectrograms.to("cpu"))
+            waveform_lengths = [int(waveforms.size(1) / max(spectrogram_lengths)) * i for i in spectrogram_lengths]
+            outputs = (waveforms, waveform_lengths)
+        if output_cross_attentions:
+            cross_attentions = torch.cat(cross_attentions, dim=2)
+            cross_attentions = cross_attentions.view(
+                bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.size()[-3:]
+            )
+            outputs = (*outputs, cross_attentions)
+    return outputs
+
+
 def run_on_tt():
+    os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
+    torch._dynamo.config.cache_size_limit = 1024
     xr.set_device_type("TT")
 
-    model = get_model()
-    model.compile(backend="tt")
-
     device = xm.xla_device()
+    # device = "cpu"
 
-    model_inputs = get_input()
+    model = get_model().eval()
+    model = model.to(torch.bfloat16).to(device)
 
-    # Move inputs and model to device if needed
-    model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
-    model = model.to(device)
+    model.speecht5.encoder.to("cpu")
+    model.speecht5.decoder.prenet.to("cpu")
+    
+    model.speecht5.decoder.wrapped_decoder.eval()
+    model.speecht5.decoder.wrapped_decoder.compile(backend="tt")
+    model.speech_decoder_postnet.eval()
+    model.speech_decoder_postnet.compile(backend="tt")
 
-    output = model(**model_inputs)
-    print(output)
+    vocoder = get_vocoder()
+    processor = get_processor()
+
+    inputs = processor(text="Hello, my dog is cute.", return_tensors="pt", max_length=512, padding="max_length")
+
+    # load xvector containing speaker's voice characteristics from a dataset
+    inputs = {key : value.to(device) for key, value in inputs.items()}
+    embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+    speaker_embeddings = torch.tensor(embeddings_dataset[7306]["xvector"]).unsqueeze(0).to(torch.bfloat16)
+
+    speech = _generate_speech(model, inputs["input_ids"], speaker_embeddings=speaker_embeddings, vocoder=vocoder)
+    sf.write("speech.wav", speech.detach().cpu().numpy(), samplerate=16000)
 
 def run_vocoder_tt():
     xr.set_device_type("TT")
