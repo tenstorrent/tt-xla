@@ -81,5 +81,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
 endif()
 
 add_subdirectory(pjrt_implementation/src)
+add_subdirectory(debug_tools/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)

@@ -34,6 +34,9 @@ class SetupConfig:
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
     torch_plugin_tt                     # Thin PyTorch/XLA wrapper
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
+    tt_xla_debug/                      # Debug hooks package
+        `-- __init__.py                     # imports and sets up tt_xla_debug for debugging
+        |-- tt_xla_debug.so                 # Debug hooks binary
     ```
     """
 
