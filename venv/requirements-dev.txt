@@ -29,6 +29,7 @@ pytorchcv
 rjieba
 sentencepiece
 setuptools
+six
 soundfile
 tabulate
 timm

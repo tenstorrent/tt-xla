@@ -192,6 +192,7 @@ def generate_intermediates(gm, inputs):
     input_index = 0
     intermediates = {}
     out_degree = {}
+    breakpoint()
     for node in gm.graph.nodes:
         out_degree[node] = len(node.users)
         if node.op == "placeholder":
