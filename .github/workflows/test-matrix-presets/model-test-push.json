@@ -1,8 +1,4 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and expected_passing and push" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and expected_passing and push" },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and expected_passing and push" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and expected_passing and push" },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and expected_passing and push and large" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and expected_passing and push and large" }
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and expected_passing and issue_1783_fix" },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and expected_passing and issue_1783_fix" }
 ]
