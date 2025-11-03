@@ -77,8 +77,10 @@ def test_embed_qwen3_perf():
     max_seq_len = 2**14  # 16384
     prompts_list = []
 
-    i = 128
+    i = max_seq_len
     while i <= max_seq_len:
+        prompts_list.append((i, ["hello " * (i - 2)]))
+        prompts_list.append((i, ["hello " * (i - 2)]))
         prompts_list.append((i, ["hello " * (i - 2)]))
         i *= 2
     llm_args = {
@@ -92,6 +94,7 @@ def test_embed_qwen3_perf():
         "enable_prefix_caching": False,
         "additional_config": {
             "enable_const_eval": False,
+            "min_context_len": max_seq_len,
         },
     }
 
