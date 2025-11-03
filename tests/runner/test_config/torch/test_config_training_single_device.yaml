@@ -28,6 +28,1236 @@ test_config:
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.869604229927063. Required: pcc=0.99."
 
+  nbeats/pytorch-generic_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.9751636385917664. Required: pcc=0.99."
+
+  nbeats/pytorch-seasonality_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.38206756114959717. Required: pcc=0.99."
+
+  nbeats/pytorch-trend_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
+
+  musicgen_small/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-medium-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  oft/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_b32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_l32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_s32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: targets should not be none when in training mode"
+
+  resnext/pytorch-resnext101_64x4d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
+
+  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: targets should not be none when in training mode"
+
+  bi_lstm_crf/pytorch-default-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+
+  ssd300_resnet50/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  oft_stable_diffusion/pytorch-runwayml/stable-diffusion-v1-5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  yolov5/pytorch-yolov5n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  whisper/pytorch-openai/whisper-large-v3-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
+
+  yolox/pytorch-yolox_x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "EOFError: Ran out of input"
+
+  unet/pytorch-smp_unet_resnet101-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
+
+  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
+
+  bge_m3/encode/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  stable_diffusion_1_4/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  gliner/pytorch-urchade/gliner_largev2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  yolox/pytorch-yolox_nano-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_tiny-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_darknet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  hippynn/pytorch-Hippynn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  yolov6/pytorch-yolov6n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov6/pytorch-yolov6s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov6/pytorch-yolov6m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  distilbert/question_answering/pytorch-distilbert-base-cased-distilled-squad-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  pointpillars/pytorch-pointpillars-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  fpn/pytorch-resnet50_fpn_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov10/pytorch-yolov10x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov10/pytorch-yolov10n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov11/pytorch-yolo11n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov11/pytorch-yolo11s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov11/pytorch-yolo11m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov11/pytorch-yolo11l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov11/pytorch-yolo11x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  albert/question_answering/pytorch-squad2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bge_m3/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  opt/qa/pytorch-facebook/opt-125m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  opt/qa/pytorch-facebook/opt-350m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  opt/qa/pytorch-facebook/opt-1.3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  segformer/semantic_segmentation/pytorch-b2_finetuned_ade_512_512-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  segformer/semantic_segmentation/pytorch-b3_finetuned_ade_512_512-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  mgp_str_base/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolos/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov8/pytorch-yolov8x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov9/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  retinanet/pytorch-retinanet_rn18fpn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  retinanet/pytorch-retinanet_rn34fpn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  retinanet/pytorch-retinanet_rn50fpn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  retinanet/pytorch-retinanet_rn101fpn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  retinanet/pytorch-retinanet_rn152fpn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-multiset-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-multiset-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  dla/pytorch-dla34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla46_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla46x_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60x_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102x2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla169-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet121-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet161-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet169-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet201-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-multi-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-nl-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-vit_b_16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-vit_b_32-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-vit_l_16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-vit_l_32-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  vit/pytorch-vit_h_14-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  maptr/pytorch-tiny_r50_24e_av2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  albert/sequence_classification/pytorch-imdb-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_t-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_v2_t-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  deit/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  deit/pytorch-base_distilled-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  deit/pytorch-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  deit/pytorch-tiny-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  bart/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  sam/pytorch-facebook/sam-vit-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  sam/pytorch-facebook/sam-vit-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  sam/pytorch-facebook/sam-vit-huge-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  mamba/pytorch-mamba-370m-hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  mamba/pytorch-mamba-790m-hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  mamba/pytorch-mamba-1.4b-hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  resnext/pytorch-resnext50_32x4d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_32x8d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_32x8d_wsl-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext14_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_64x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  rcnn/pytorch-alexnet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet27s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet39-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet57-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet39_th-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet57_th-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet19b_dw-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet39b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet99b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inception_v4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inceptionv4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  dla/pytorch-dla34.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  googlenet/pytorch-googlenet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet_50_hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_timm_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet18-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet101-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet152-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  hardnet/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  alexnet/pytorch-alexnet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  alexnet/pytorch-alexnetb-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  autoencoder/pytorch-conv-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg11-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg13-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-bn_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-bn_vgg19b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-timm_vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg11-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg11_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg13-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg13_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg16_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-hf_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  unet/pytorch-torchhub_brain_unet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  unet/pytorch-carvana_unet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  distilbert/masked_lm/pytorch-distilbert-base-uncased-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  distilbert/masked_lm/pytorch-distilbert-base-multilingual-cased-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  vgg19_unet/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  qwen_3/causal_lm/pytorch-0_6b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-base_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-xlarge_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-xxlarge_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-base_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-large_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-xlarge_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-xxlarge_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-base_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-large_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-xlarge_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-xxlarge_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-base_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-large_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-xlarge_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/token_classification/pytorch-xxlarge_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xglm/pytorch-xglm-564M-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xglm/pytorch-xglm-1.7B-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  densenet/pytorch-densenet121_xray-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  opt/causal_lm/pytorch-facebook/opt-125m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  opt/causal_lm/pytorch-facebook/opt-350m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  beit/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  beit/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  d_fine/pytorch-nano-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  d_fine/pytorch-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  d_fine/pytorch-medium-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  d_fine/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  d_fine/pytorch-xlarge-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  bert/masked_lm/pytorch-bert-base-uncased-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_b16_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_b16_224_miil-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_l16_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_s16_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/pytorch-mixer_github-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mlp_mixer/lucidrains/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  perceiver/pytorch-deepmind/language-perceiver-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  gpt2/pytorch-gpt2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
   deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
@@ -524,6 +1754,16 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/pytorch-32b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2/token_classification/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
