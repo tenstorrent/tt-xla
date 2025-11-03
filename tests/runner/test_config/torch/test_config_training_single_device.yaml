@@ -43,6 +43,26 @@ test_config:
     bringup_status: INCORRECT_RESULT
     reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
 
+  musicgen_small/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-medium-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
+  stereo/pytorch-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+
   bge_m3/encode/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
