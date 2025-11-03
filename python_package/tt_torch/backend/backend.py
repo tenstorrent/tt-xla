@@ -133,10 +133,27 @@ class XLAExecutor:
         intermediates = self.intermediates
 
         def _intermediate_callback(executor, binary, callback_context, op_context):
+            def clean_location(raw_location):
+                return raw_location[5:-2]
+
+            def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+                x_flat, y_flat = x.flatten(), y.flatten()
+                vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
+                denom = vx.norm() * vy.norm()
+
+                return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
+
             raw_location = tt_xla_debug.get_op_loc_info(op_context)
-            output_tensor = tt_xla_debug.get_op_output_torch_tensor(
+            location = clean_location(raw_location)
+            print(location)
+            calculated = tt_xla_debug.get_op_output_torch_tensor(
                 op_context, callback_context
             )
+            if location in executor.intermediates:
+                golden = executor.intermediates[location]
+                if calculated is not None and calculated.numel() == golden.numel():
+                    pcc = compute_pcc(calculated, golden)
+                    print(f"PCC is {pcc:02}")
 
         wrapped = functools.partial(_intermediate_callback, self)
         self._register_intermediate_callback(wrapped)

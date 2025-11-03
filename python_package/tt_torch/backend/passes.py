@@ -191,10 +191,11 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
 def generate_intermediates(gm, inputs, node_info):
     node_to_tensor = {}
     input_index = 0
+    call_fn_index = 0
     intermediates = {}
-    out_degree = {}
-    for info, node in zip(node_info, gm.graph.nodes):
-        out_degree[node] = len(node.users)
+    assert sum(node.op == "call_function" for node in gm.graph.nodes) == len(node_info)
+    for node in gm.graph.nodes:
+
         if node.op == "placeholder":
             node_to_tensor[node] = inputs[input_index].to("cpu")
             input_index += 1
@@ -211,6 +212,10 @@ def generate_intermediates(gm, inputs, node_info):
                 assert buffer_found
 
         elif node.op == "call_function":
+            info = node_info[call_fn_index]
+            call_fn_index += 1
+            if hasattr(node.target, "name"):
+                info += node.target.name().replace(":", "_").split(".")[0]
             args = []
             for arg in node.args:
                 if isinstance(arg, torch.fx.node.Node):
