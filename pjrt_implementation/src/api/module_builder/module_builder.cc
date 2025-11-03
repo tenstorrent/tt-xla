@@ -860,6 +860,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
+  // Dump MLIR module before pass manager runs
+  printModule(mlir_module, ".", "ttir_before_ttnn");
+
   // Run the pass manager.
   if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
@@ -868,7 +871,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   ttnn_mlir = getMlirCode(mlir_module);
 
-  printModule(mlir_module, compile_options.export_path, "ttnn");
+  // Dump MLIR module after pass manager runs
+  printModule(mlir_module, ".", "ttnn");
 
   return tt_pjrt_status::kSuccess;
 }
