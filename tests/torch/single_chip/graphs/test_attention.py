@@ -62,9 +62,6 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
 )
 
-# To see all available models and variants, run:
-# pytest -s tests/torch/single_chip/graphs/test_attention.py::test_display_available_variants
-
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
     "qwen3": QwenModelLoader,
@@ -76,19 +73,44 @@ MODEL_LOADER_MAP = {
     "falcon": FalconModelLoader,
 }
 
+AVAILABLE_VARIANT_MAP = {
+    "llama": [
+        "llama_3_8b",
+        "llama_3_8b_instruct",
+        "llama_3_1_8b",
+        "llama_3_1_8b_instruct",
+        "llama_3_1_70b",
+        "llama_3_1_70b_instruct",
+        "llama_3_1_405b",
+        "llama_3_1_405b_instruct",
+        "llama_3_2_1b",
+        "llama_3_2_1b_instruct",
+        "llama_3_2_3b",
+        "llama_3_2_3b_instruct",
+        "llama_3_3_70b_instruct",
+        "huggyllama_7b",
+        "TinyLlama_v1.1",
+    ],
+    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b", "30b_a3b"],
+    "bge_m3": ["base"],
+    "bert": ["bert-base-uncased"],
+}
+
 
 def get_available_variants(model_name):
     ModelLoader = MODEL_LOADER_MAP[model_name]
     available_variants = ModelLoader.query_available_variants()
+
+    # Filter to only include variants that match names in AVAILABLE_VARIANT_MAP
+    if model_name in AVAILABLE_VARIANT_MAP:
+        allowed_variant_names = set(AVAILABLE_VARIANT_MAP[model_name])
+        return {
+            variant_key: variant_config
+            for variant_key, variant_config in available_variants.items()
+            if str(variant_key) in allowed_variant_names
+        }
+
     return available_variants
-
-
-@pytest.mark.parametrize("model_name", list(MODEL_LOADER_MAP.keys()))
-def test_display_available_variants(model_name):
-    print(
-        f"\nAvailable variants for {model_name}: ",
-        [str(k) for k in get_available_variants(model_name)],
-    )
 
 
 """Llama attention tests"""
