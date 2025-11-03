@@ -6,8 +6,8 @@
   { "runs-on": "p150",               "name": "run_torch",             "dir": "./tests/torch/single_chip",               "test-mark": "push and not llmbox", "parallel-groups": 3  },
   { "runs-on": "n300",               "name": "run_jax",               "dir": "./tests/jax/multi_chip/n300",             "test-mark": "push", "codecov": "true" },
   { "runs-on": "n300",               "name": "torch_multichip",       "dir": "./tests/torch/multi_chip/n300",           "test-mark": "push" },
-  { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "push", "shared-runners": "true" },
-  { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "push", "shared-runners": "true" },
-  { "runs-on": "n300-llmbox",        "name": "run_torch_multi_chip",  "dir": "./tests/torch/single_chip",               "test-mark": "push and llmbox", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "push" },
+  { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "push" },
+  { "runs-on": "n300-llmbox",        "name": "run_torch_multi_chip",  "dir": "./tests/torch/single_chip",               "test-mark": "push and llmbox" },
   { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push", "shared-runners": "true" }
 ]
