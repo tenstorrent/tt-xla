@@ -143,11 +143,19 @@ class TorchModelTester(ModelTester):
 
         workload.compiled_executable = torch.compile(workload.model, backend=backend)
 
+    def _unpack_forward_output(self, output: Any) -> torch.Tensor:
+        """
+        Unwraps model output to a single tensor.
+        In base case, we assume the output is a single tensor.
+        """
+        return output
+
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        cpu_res = self._unpack_forward_output(cpu_res)
 
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
@@ -168,6 +176,8 @@ class TorchModelTester(ModelTester):
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
+        tt_res = self._unpack_forward_output(tt_res)
+
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
 

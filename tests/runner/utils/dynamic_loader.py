@@ -367,6 +367,14 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         return self.loader.load_inputs()
 
+    def unpack_forward_output(self, output: Any) -> torch.Tensor:
+        """Unpack model output to a single tensor.
+
+        Returns:
+            Model output as a single tensor
+        """
+        return self.loader.unpack_forward_output(output)
+
     @classmethod
     def discover_loader_paths(cls, models_root: str) -> Dict:
         """Discover all PyTorch loader.py files in the models directory, with exclusions.
