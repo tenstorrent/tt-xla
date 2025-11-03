@@ -20,7 +20,7 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference:
-    assert_pcc: False  # 0.749 on BH / 0.76 on WH
+    assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
@@ -729,7 +729,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
-    assert_pcc: False  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
+    assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
@@ -840,9 +840,9 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
-      status: KNOWN_FAILURE_XFAIL
-      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-      bringup_status: FAILED_TTMLIR_COMPILATION
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2266,3 +2266,11 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
+    bringup_status: INCORRECT_RESULT
