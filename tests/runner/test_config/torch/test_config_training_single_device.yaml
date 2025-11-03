@@ -63,6 +63,46 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
 
+  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: targets should not be none when in training mode"
+
+  resnext/pytorch-resnext101_64x4d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
+
+  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: targets should not be none when in training mode"
+
+  bi_lstm_crf/pytorch-default-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+
+  ssd300_resnet50/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  oft_stable_diffusion/pytorch-runwayml/stable-diffusion-v1-5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
+  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+
   yolov5/pytorch-yolov5n-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1689,6 +1729,16 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/pytorch-32b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2/token_classification/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
