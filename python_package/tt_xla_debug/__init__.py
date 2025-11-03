@@ -8,8 +8,8 @@ TT XLA Debug package.
 This package provides Python bindings for the TT runtime debug hooks.
 """
 
-import sys
 import importlib.util
+import sys
 from pathlib import Path
 
 TT_XLA_DEBUG_NAME = "tt_xla_debug.so"
