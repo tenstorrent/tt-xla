@@ -83,8 +83,10 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
-    required_pcc: 0.96  # BH is higher at 0.97
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98 # Is lately 0.992 but close to threshold.
 
   openpose/v2/pytorch-single_device-full-inference:
     assert_pcc: false
@@ -96,8 +98,10 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-large_v2-single_device-full-inference:
-    required_pcc: 0.98
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98
 
   yolov3/pytorch-base-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -691,7 +695,9 @@ test_config:
 
   albert/token_classification/pytorch-large_v2-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    arch_overrides:
+      p150:
+        required_pcc: 0.98
 
   albert/token_classification/pytorch-xlarge_v1-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1574,9 +1580,6 @@ test_config:
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.98
 
   detr3d/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
