@@ -976,12 +976,12 @@ test_config:
     status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_nano-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    status: NOT_SUPPORTED_SKIP
     reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_tiny-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    status: NOT_SUPPORTED_SKIP
     reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
