@@ -63,6 +63,26 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
 
+  oft/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_b32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_l32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  mlp_mixer/pytorch-mixer_s32_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
