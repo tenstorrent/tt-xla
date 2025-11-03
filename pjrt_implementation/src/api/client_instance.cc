@@ -419,14 +419,13 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
 
-  // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache
-  // now that it's enabled by default here,
+  // TODO(odjuricicTT, #1485): This is a temporary way to enable program cache
   // until we have a proper way for a user to pass device options. After that
   // this should be removed. Issue for device options:
   // https://github.com/tenstorrent/tt-xla/issues/1480
   bool enableProgramCache =
-      std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") == nullptr ||
-      std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) != "0";
+      std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) == "1";
 
   // TODO(jnie-TT, #1485): This is a temporary way to set trace region size
   // until we have a proper way for a user to pass device options. After that

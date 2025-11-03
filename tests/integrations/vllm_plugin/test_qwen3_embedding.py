@@ -74,6 +74,8 @@ def test_embed_qwen3():
 
 
 def test_embed_qwen3_perf():
+    # Enable program cache for better performance
+    os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     max_seq_len = 2**14  # 16384
     prompts_list = []
 

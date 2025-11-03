@@ -49,6 +49,7 @@ def create_inference_tester(format: str, enable_optimizer: bool) -> ResnetTester
 
 @pytest.fixture
 def trace_tester(monkeypatch: MonkeyPatch) -> ResnetTester:
+    monkeypatch.setenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE", "1")
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
 
     compiler_config = CompilerConfig(enable_optimizer=True, enable_trace=True)

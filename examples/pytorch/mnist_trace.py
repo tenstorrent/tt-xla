@@ -4,6 +4,7 @@
 
 import os
 
+os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
 os.environ["TT_RUNTIME_TRACE_REGION_SIZE"] = "10000000"
 
 import torch
