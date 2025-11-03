@@ -834,6 +834,7 @@
     "tests/torch/models/resnet/test_resnet.py::test_torch_resnet_inference[optimization_level_0-float32]": 22.216,
     "tests/torch/models/resnet/test_resnet.py::test_torch_resnet_inference_trace": 24.383,
     "tests/torch/models/stable_diffusion_3_5/test_stable_diffusion_3_5_medium.py::test_torch_stable_diffusion_3_5_medium_inference": 0.002,
+    "tests/torch/models/surya_ocr/test_surya_ocr_text.py::test_torch_surya_ocr_text_inference": 1500,
     "tests/runner/test_models.py::test_all_models_torch[xception/pytorch-xception41-single_device-training]": 203.077,
     "tests/runner/test_models.py::test_all_models_torch[wide_resnet/pytorch-wide_resnet101_2.timm-single_device-training]": 146.852,
     "tests/runner/test_models.py::test_all_models_torch[regnet/pytorch-regnet_y_3_2gf-single_device-training]": 151.887,
