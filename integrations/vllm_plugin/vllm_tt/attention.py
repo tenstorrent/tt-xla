@@ -49,8 +49,7 @@ torch._dynamo.config.reorderable_logging_functions.add(print)
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
     def get_name() -> str:
-        # return "PALLAS_VLLM_V1"
-        return "PALLAS_VLLM_V1"
+        return "TT_VLLM_V1"
 
     @staticmethod
     def get_impl_cls() -> type["TTAttentionBackendImpl"]:
@@ -184,23 +183,18 @@ class TTAttentionBackendImpl(AttentionImpl):
         if attn_type == "encoder_only":
             attn_type = AttentionType.ENCODER
 
-        self.is_encoder = attn_type == AttentionType.ENCODER
-        # If encoder, do not require or set up KV cache, and always use a dummy tensor for kv_cache in forward
-        if self.is_encoder:
-            self.kv_cache_stored = None
-            self.kv_cache_quantized_dtype = None
-        else:
-            if attn_type != AttentionType.DECODER:
-                raise NotImplementedError(
-                    f"Attention type '{attn_type}' is not implemented for TTAttentionBackendImpl. "
-                    "Only DECODER is supported."
-                )
-            self.kv_cache_stored = None
-            self.kv_cache_quantized_dtype = None
-            if kv_cache_dtype != "auto":
-                self.kv_cache_quantized_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE.get(
-                    kv_cache_dtype.lower().strip()
-                )
+        if attn_type != AttentionType.DECODER and attn_type != AttentionType.ENCODER:
+            raise NotImplementedError(
+                f"TT attention only supports encoder or decoder attention, but got {attn_type}."
+            )
+
+        self.kv_cache_stored = None
+
+        self.kv_cache_quantized_dtype = None
+        if kv_cache_dtype != "auto":
+            self.kv_cache_quantized_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE.get(
+                kv_cache_dtype.lower().strip()
+            )
 
     # @torch.compiler.disable
     def forward(
@@ -225,39 +219,47 @@ class TTAttentionBackendImpl(AttentionImpl):
             attn_metadata: Metadata for attention.
         Returns:
             shape = [num_tokens, num_heads * head_size]
-        """
-        num_tokens, hidden_size = query.shape
-        query = query.reshape(
-            1, query.shape[0], query.shape[1] // self.head_size, self.head_size
-        ).transpose(
-            -3, -2
-        )  # [1, num_tokens, num_heads, head_size]
-        key = key.reshape(
-            1, key.shape[0], key.shape[1] // self.head_size, self.head_size
-        ).transpose(
-            -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
-        value = value.reshape(
-            1, value.shape[0], value.shape[1] // self.head_size, self.head_size
-        ).transpose(
-            -3, -2
-        )  # [1, num_tokens, num_kv_heads, head_size]
 
-        # Encoder self-attention does not use/update KV cache
-        if self.is_encoder:
-            # Use a dummy tensor for kv_cache to avoid upstream errors
-            kv_cache = torch.empty(0)
-            return (
-                torch.ops.tt.scaled_dot_product_attention(
-                    query,
-                    key,
-                    value,
-                    is_causal=attn_metadata.is_causal,
-                    attn_mask=attn_metadata.attn_mask,
-                )
-                .transpose(-3, -2)
-                .reshape(query.shape[1], query.shape[2] * query.shape[3])
-            )
+        query/key/value/output tensors have additional dimension 'batch_size'
+        for batched inputs.
+            query: shape = [batch_size, num_tokens, num_heads * head_size]
+            key: shape = [batch_size, num_tokens, num_kv_heads * head_size]
+            value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
+            output: shape = [batch_size, num_tokens, num_heads * head_size]
+        """
+        is_batched = query.ndim > 2
+        query_hidden_size = query.shape[-1]
+        query_num_tokens = query.shape[-2]
+        query_batch_size = query.shape[0] if is_batched else 1
+
+        kv_hidden_size = key.shape[-1]
+        kv_num_tokens = key.shape[-2]
+        kv_batch_size = key.shape[0] if is_batched else 1
+
+        query = query.reshape(
+            query_batch_size,
+            query_num_tokens,
+            query_hidden_size // self.head_size,
+            self.head_size,
+        ).transpose(
+            -3, -2
+        )  # [batch, num_tokens, num_heads, head_size]
+        key = key.reshape(
+            kv_batch_size,
+            kv_num_tokens,
+            kv_hidden_size // self.head_size,
+            self.head_size,
+        ).transpose(
+            -3, -2
+        )  # [batch, num_tokens, num_kv_heads, head_size]
+        value = value.reshape(
+            kv_batch_size,
+            kv_num_tokens,
+            kv_hidden_size // self.head_size,
+            self.head_size,
+        ).transpose(
+            -3, -2
+        )  # [batch, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
             cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
@@ -289,20 +291,22 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
-            out = out.reshape(num_tokens, hidden_size)
+            out = out.reshape(query_num_tokens, query_hidden_size)
             return out
         else:
-            return (
-                torch.ops.tt.scaled_dot_product_attention(
-                    query,
-                    key,
-                    value,
-                    is_causal=attn_metadata.is_causal,
-                    attn_mask=attn_metadata.attn_mask,
+            output = torch.ops.tt.scaled_dot_product_attention(
+                query,
+                key,
+                value,
+                is_causal=attn_metadata.is_causal,
+                attn_mask=attn_metadata.attn_mask,
+            ).transpose(-3, -2)
+            if is_batched:
+                return output.reshape(
+                    query_batch_size, query_num_tokens, query_hidden_size
                 )
-                .transpose(-3, -2)
-                .reshape(num_tokens, hidden_size)
-            )
+            else:
+                return output.reshape(query_num_tokens, query_hidden_size)
 
 
 def write_to_kv_cache(
