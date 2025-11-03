@@ -242,6 +242,7 @@ class MetadataDispatchMode(TorchDispatchMode):
         in the HLO IR. Since all outputs come from the same operation node, setting metadata
         on one output is sufficient to label the entire operation.
         """
+        print(module_hierarchy)
         if isinstance(result, torch.Tensor):
             self._set_tensor_metadata(result, module_hierarchy)
         elif isinstance(result, (tuple, list)):

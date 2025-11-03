@@ -187,22 +187,29 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
 
     return gm
 
-def generate_intermediates(gm, inputs):
+
+def generate_intermediates(gm, inputs, node_info):
     node_to_tensor = {}
     input_index = 0
     intermediates = {}
     out_degree = {}
-    breakpoint()
-    for node in gm.graph.nodes:
+    for info, node in zip(node_info, gm.graph.nodes):
         out_degree[node] = len(node.users)
         if node.op == "placeholder":
-            node_to_tensor[node] = inputs[input_index]
+            node_to_tensor[node] = inputs[input_index].to("cpu")
             input_index += 1
         elif node.op == "get_attr":
-            for buffer in gm.named_buffers():
-                if buffer[0] == node.target:
-                    node_to_tensor[node] = buffer[1]
-                    break
+            if node.target in gm.state_dict():
+                node_to_tensor[node] = gm.state_dict()[node.target].to("cpu")
+            else:
+                buffer_found = False
+                for buffer in gm.named_buffers():
+                    if buffer[0] == node.target:
+                        node_to_tensor[node] = buffer[1].to("cpu")
+                        buffer_found = True
+                        break
+                assert buffer_found
+
         elif node.op == "call_function":
             args = []
             for arg in node.args:
@@ -211,9 +218,11 @@ def generate_intermediates(gm, inputs):
                 elif isinstance(arg, list):
                     args.append(
                         [
-                            node_to_tensor[a]
-                            if isinstance(a, torch.fx.node.Node)
-                            else a
+                            (
+                                node_to_tensor[a]
+                                if isinstance(a, torch.fx.node.Node)
+                                else a
+                            )
                             for a in arg
                         ]
                     )
@@ -236,5 +245,5 @@ def generate_intermediates(gm, inputs):
                 print(
                     f"\033[33m[WARNING] {node.name} has {len(golden)} outputs, but we can only get one from runtime.\033[0m"
                 )
-            intermediates[node.name] = golden
+            intermediates[info] = golden
     return intermediates

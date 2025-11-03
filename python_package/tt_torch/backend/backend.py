@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import functools
 import os
 from typing import Tuple
 
@@ -88,6 +89,7 @@ class XLAExecutor:
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
         self.intermediates = intermediates
+        self.intermediate_pccs = {}
         self._enable_intermediate_verification()
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
@@ -128,11 +130,16 @@ class XLAExecutor:
         return output
 
     def _enable_intermediate_verification(self):
-        def intermediate_callback(binary, programContext, opContext):
-            raw_location = tt_xla_debug.get_op_loc_info(opContext)
-            breakpoint()
+        intermediates = self.intermediates
 
-        self._register_intermediate_callback(intermediate_callback)
+        def _intermediate_callback(executor, binary, callback_context, op_context):
+            raw_location = tt_xla_debug.get_op_loc_info(op_context)
+            output_tensor = tt_xla_debug.get_op_output_torch_tensor(
+                op_context, callback_context
+            )
+
+        wrapped = functools.partial(_intermediate_callback, self)
+        self._register_intermediate_callback(wrapped)
 
     def _register_intermediate_callback(self, callback):
         if not tt_xla_debug.is_runtime_debug_enabled():
@@ -141,9 +148,10 @@ class XLAExecutor:
             )
         tt_xla_debug.DebugHooks.get_debug_hooks(callback)
 
+
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    intermediates = generate_intermediates(module, example_inputs)
+    intermediates = generate_intermediates(module, example_inputs, node_info)
     return XLAExecutor(module, graph_signature, node_info, intermediates)

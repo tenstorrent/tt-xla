@@ -4,6 +4,7 @@
 
 #include <ATen/Functions.h>
 #include <ATen/core/TensorBody.h>
+#include <torch/extension.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -76,8 +77,6 @@ static tt::target::DataType torch_scalar_type_to_dt(at::ScalarType st) {
   return tt::target::DataType::UInt8;
 }
 
-
-
 template <typename T>
 std::vector<int64_t> as_vec_int64(std::vector<T> const &vec) {
   std::vector<int64_t> result;
@@ -138,7 +137,8 @@ static at::Tensor create_torch_tensor(const tt::runtime::Tensor &tensor) {
   const at::ScalarType dataType = dt_to_torch_scalar_type(rt_datatype);
 
   at::Tensor torch_tensor =
-      at::empty(shape, at::TensorOptions().dtype(dataType)).as_strided(shape, stride);
+      at::empty(shape, at::TensorOptions().dtype(dataType))
+          .as_strided(shape, stride);
   tt::runtime::Tensor rt_tensor = create_tensor(torch_tensor);
   tt::runtime::memcpy(rt_tensor, untilized_tensor);
 
@@ -168,9 +168,8 @@ get_op_output_torch_tensor(tt::runtime::OpContext opContextHandle,
   return create_torch_tensor(tensor);
 }
 
-
 PYBIND11_MODULE(tt_xla_debug, m) {
-  #if defined(TT_RUNTIME_DEBUG) && TT_RUNTIME_DEBUG == 1
+#if defined(TT_RUNTIME_DEBUG) && TT_RUNTIME_DEBUG == 1
   py::class_<tt::runtime::CallbackContext>(m, "CallbackContext");
   py::class_<tt::runtime::OpContext>(m, "OpContext");
   py::class_<tt::runtime::TensorDesc>(m, "TensorDesc")
@@ -178,6 +177,10 @@ PYBIND11_MODULE(tt_xla_debug, m) {
       .def_readonly("stride", &tt::runtime::TensorDesc::stride)
       .def_readonly("itemsize", &tt::runtime::TensorDesc::itemsize)
       .def_readonly("dataType", &tt::runtime::TensorDesc::dataType);
+  py::class_<tt::runtime::Binary>(m, "Binary")
+      .def("getProgramInputs", &tt::runtime::Binary::getProgramInputs)
+      .def("getProgramOutputs", &tt::runtime::Binary::getProgramOutputs)
+      .def("asJson", &tt::runtime::Binary::asJson);
   m.def("get_op_output_tensor", &tt::runtime::getOpOutputTensor);
   m.def("get_op_output_tensor_desc", &tt::runtime::getTensorDesc);
   m.def("get_op_output_torch_tensor", &get_op_output_torch_tensor);
@@ -189,12 +192,22 @@ PYBIND11_MODULE(tt_xla_debug, m) {
       .def_static(
           "get_debug_hooks",
           [](py::function func) {
+            func.inc_ref();
+            auto holder =
+                std::shared_ptr<PyObject>(func.ptr(), [](PyObject *obj) {
+                  py::gil_scoped_acquire gil;
+                  Py_DECREF(obj);
+                });
+
             return tt::runtime::debug::Hooks::get(
                 std::nullopt,
-                [func](tt::runtime::Binary binary,
-                       tt::runtime::CallbackContext programContext,
-                       tt::runtime::OpContext opContext) {
-                  func(binary, programContext, opContext);
+                [holder](tt::runtime::Binary binary,
+                         tt::runtime::CallbackContext callback_ctx,
+                         tt::runtime::OpContext op_ctx) {
+                  py::gil_scoped_acquire gil;
+                  auto callable =
+                      py::reinterpret_borrow<py::function>(holder.get());
+                  callable(binary, callback_ctx, op_ctx);
                 });
           },
           "Get the debug hooks")
@@ -207,7 +220,7 @@ PYBIND11_MODULE(tt_xla_debug, m) {
   /**
    * Cleanup code to force a well ordered destruction w.r.t. the GIL
    */
-   auto cleanup_callback = []() {
+  auto cleanup_callback = []() {
     tt::runtime::debug::Hooks::get().unregisterHooks();
   };
   m.add_object("_cleanup", py::capsule(cleanup_callback));
