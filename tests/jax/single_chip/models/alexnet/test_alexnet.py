@@ -32,7 +32,7 @@ def training_tester() -> AlexNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -43,8 +43,8 @@ def training_tester() -> AlexNetTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_alexnet_training(training_tester: AlexNetTester):

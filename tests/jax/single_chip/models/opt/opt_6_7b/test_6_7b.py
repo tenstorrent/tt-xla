@@ -32,7 +32,7 @@ def training_tester() -> OPTTester:
         "(https://github.com/tenstorrent/tt-xla/issues/918)"
     )
 )
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

@@ -74,7 +74,7 @@ def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,

@@ -36,7 +36,7 @@ def training_tester() -> FlaxCLIPTester:
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

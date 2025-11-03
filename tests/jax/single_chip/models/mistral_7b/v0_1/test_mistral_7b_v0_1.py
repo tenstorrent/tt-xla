@@ -47,7 +47,7 @@ def training_tester() -> Mistral7BTester:
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

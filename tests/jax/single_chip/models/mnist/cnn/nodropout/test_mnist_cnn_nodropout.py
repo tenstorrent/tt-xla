@@ -40,7 +40,7 @@ def training_tester() -> MNISTCNNTester:
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

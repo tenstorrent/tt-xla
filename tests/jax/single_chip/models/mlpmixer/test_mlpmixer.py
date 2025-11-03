@@ -84,7 +84,7 @@ def training_tester() -> MlpMixerTester:
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
@@ -95,8 +95,8 @@ def training_tester() -> MlpMixerTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
-        "https://github.com/tenstorrent/tt-mlir/issues/5304"
+        "Invalid data size. numElements * elementSize == data->size() "
+        "https://github.com/tenstorrent/tt-mlir/issues/5665"
     )
 )
 def test_mlpmixer_training(training_tester: MlpMixerTester):

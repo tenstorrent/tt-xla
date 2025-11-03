@@ -34,7 +34,7 @@ def training_tester() -> Wav2Vec2Tester:
         "https://github.com/tenstorrent/tt-xla/issues/1635"
     )
 )
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
