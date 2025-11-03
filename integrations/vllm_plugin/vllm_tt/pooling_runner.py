@@ -340,6 +340,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.requests: dict[str, CachedRequestState] = {}
 
         # Initialize input batch early to avoid AttributeError in _update_states
+        # For attention-only/encoder models, we don't need KV cache block tables
+        is_pooling_model = self.model_config.runner_type == "pooling"
+        block_sizes = [] if is_pooling_model else [self.block_size]
+
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
@@ -347,7 +351,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device=self.device,
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
-            block_sizes=[self.block_size],
+            block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 self.device,
