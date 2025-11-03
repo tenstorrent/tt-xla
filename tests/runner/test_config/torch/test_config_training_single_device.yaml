@@ -25,8 +25,8 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
-    reason: "Not enough space to allocate DRAM"
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.869604229927063. Required: pcc=0.99."
 
   deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP

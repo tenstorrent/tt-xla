@@ -216,7 +216,7 @@ class TorchModelTester(ModelTester):
         wanted_grads = [p.grad for p in self._model.parameters() if p.grad is not None]
         torch_xla._XLAC._xla_sync_multi(
             wanted_grads,
-            set([p.device for p in wanted_grads]),
+            list(set([p.device.type for p in wanted_grads])),
             wait=True,
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
