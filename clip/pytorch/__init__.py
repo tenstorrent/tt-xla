@@ -4,4 +4,4 @@
 """
 CLIP PyTorch model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant

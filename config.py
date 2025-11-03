@@ -68,6 +68,7 @@ class ModelTask(StrEnum):
     MM_ACTION_PREDICTION = "mm_action_prediction"
     MM_CONDITIONAL_GENERATION = "mm_conditional_generation"
     MM_DOC_OCR = "mm_doc_ocr"
+    MM_IMAGE_TEXT_SIM = "mm_image_text_similarity"
     CONDITIONAL_GENERATION = "conditional_generation"
     ATOMIC_ML = "atomic_ml"
 

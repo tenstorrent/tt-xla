@@ -1,45 +1,57 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Clip model loader implementation
+CLIP model loader implementation for image-text similarity.
 """
+import torch
+from transformers import CLIPProcessor, CLIPModel
+from typing import Optional
+from PIL import Image
 
-
+from ...base import ForgeModel
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    ModelConfig,
 )
-from ...base import ForgeModel
-from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
-from ...tools.utils import get_file, print_compiled_model_results
-from typing import Optional
+from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
-    """Available CLIP model variants."""
+    """Available CLIP model variants for image-text similarity."""
 
-    CLIP_VIT_BASE_PATCH32 = "openai/clip-vit-base-patch32"
+    BASE_PATCH16 = "base_patch16"
+    BASE_PATCH32 = "base_patch32"
+    LARGE_PATCH14 = "large_patch14"
+    LARGE_PATCH14_336 = "large_patch14_336"
 
 
 class ModelLoader(ForgeModel):
-    """CLIP model loader implementation."""
+    """CLIP model loader implementation for image-text similarity tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.CLIP_VIT_BASE_PATCH32: ModelConfig(
+        ModelVariant.BASE_PATCH16: ModelConfig(
+            pretrained_model_name="openai/clip-vit-base-patch16",
+        ),
+        ModelVariant.BASE_PATCH32: ModelConfig(
             pretrained_model_name="openai/clip-vit-base-patch32",
+        ),
+        ModelVariant.LARGE_PATCH14: ModelConfig(
+            pretrained_model_name="openai/clip-vit-large-patch14",
+        ),
+        ModelVariant.LARGE_PATCH14_336: ModelConfig(
+            pretrained_model_name="openai/clip-vit-large-patch14-336",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.CLIP_VIT_BASE_PATCH32
+    DEFAULT_VARIANT = ModelVariant.BASE_PATCH32
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -52,58 +64,67 @@ class ModelLoader(ForgeModel):
 
         # Configuration parameters
         self.processor = None
+        self.text_prompts = None
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        """Get model information for dashboard and metrics reporting.
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
 
         Args:
-            variant: Optional variant. If None, uses DEFAULT_VARIANT.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="clip",
             variant=variant,
-            group=ModelGroup.GENERALITY,
-            task=ModelTask.MM_IMAGE_CAPT,
+            group=ModelGroup.RED,
+            task=ModelTask.MM_IMAGE_TEXT_SIM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        """Load processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
+        # Load the processor
+        self.processor = CLIPProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.processor
+
     def load_model(self, dtype_override=None):
-        """Load and return the CLIP model instance with default settings.
+        """Load and return the CLIP model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The CLIP model instance.
+            torch.nn.Module: The CLIP model instance for image-text similarity.
         """
-        model_name = self._variant_config.pretrained_model_name
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Initialize processor first with default or overridden dtype
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
+        model_kwargs = {"return_dict": False}
 
-        self.processor = CLIPProcessor.from_pretrained(model_name, **processor_kwargs)
-
-        # Load pre-trained model from HuggingFace
-        model_kwargs = {}
+        # Load the model with dtype override if specified
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = CLIPModel.from_pretrained(model_name, **model_kwargs)
+        model = CLIPModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the CLIP model with default settings.
+        """Load and return sample inputs for the CLIP model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -113,31 +134,53 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors, pixel values and attention masks that can be fed to the model.
         """
-
         # Ensure processor is initialized
         if self.processor is None:
-            self.load_model()  # This will initialize the processor
+            self._load_processor()
 
+        # Get the Image
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(str(image_file))
+        image = Image.open(image_file)
 
-        text = ["a photo of a cat", "a photo of a dog"]
+        # Define text prompts for image-text similarity
+        self.text_prompts = ["a photo of a cat", "a photo of a dog"]
 
+        # Process both text and images
         inputs = self.processor(
-            text=text,
-            images=image,
-            return_tensors="pt",
-            padding=True,
+            text=self.text_prompts, images=image, return_tensors="pt", padding=True
         )
 
         # Replicate tensors for batch size
         for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
+        # Convert the input dtype to dtype_override if specified
         if dtype_override is not None:
             inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
         return inputs
 
-    def print_cls_results(self, compiled_model_out):
-        print_compiled_model_results(compiled_model_out)
+    def post_process(self, outputs):
+        """Post-process CLIP model outputs to extract similarity scores.
+
+        Args:
+            outputs: Raw model output
+
+        Returns:
+            dict: Post-processed similarity results with probabilities for each text prompt.
+        """
+        # Ensure text prompts are initialized
+        if self.text_prompts is None:
+            # Use default text prompts if not already set
+            self.text_prompts = ["a photo of a cat", "a photo of a dog"]
+
+        # Extract logits_per_image from outputs
+        logits_per_image = outputs[0]  # Image-Text similarity score
+        probs = logits_per_image.softmax(
+            dim=1
+        )  # Softmax to get the label probabilities
+
+        # Print results
+        for i, text in enumerate(self.text_prompts):
+            print(f"Probability of '{text}':", probs[0, i].item())
