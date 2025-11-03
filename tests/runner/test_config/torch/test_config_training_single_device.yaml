@@ -28,6 +28,91 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate DRAM"
 
+  dla/pytorch-dla34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla46_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla46x_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla60x_c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla102x2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  dla/pytorch-dla169-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet121-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet161-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet169-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  densenet/pytorch-densenet201-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-multi-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
+  codegen/pytorch-Salesforce/codegen-350M-nl-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
