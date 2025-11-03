@@ -10,6 +10,7 @@ from typing import Any, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.debug.profiler as xp
 import torch_xla.runtime as xr
@@ -122,7 +123,7 @@ class TTWorker:
 
         # Device initialization should happen after initializing
         # the distributed runtime.
-        self.device = xm.xla_device()
+        self.device = torch_xla.device()
         self.device_config.device = self.device
 
         # Set random seed.
