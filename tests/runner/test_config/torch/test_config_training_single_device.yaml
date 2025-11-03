@@ -28,6 +28,306 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate DRAM"
 
+  resnext/pytorch-resnext50_32x4d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_32x8d-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_32x8d_wsl-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext14_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnext/pytorch-resnext101_64x4d_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  rcnn/pytorch-alexnet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet27s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet39-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet57-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet39_th-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-vovnet57_th-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet19b_dw-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet39b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet99b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inception_v4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  inception/pytorch-inceptionv4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  dla/pytorch-dla34.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  googlenet/pytorch-googlenet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet_50_hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_timm_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet18-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet50_high_res-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet101-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  resnet/pytorch-resnet152-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  hardnet/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  alexnet/pytorch-alexnet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  alexnet/pytorch-alexnetb-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  autoencoder/pytorch-conv-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg11-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg13-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-bn_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-bn_vgg19b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-timm_vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg11-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg11_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg13-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg13_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg16-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg16_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-torchvision_vgg19_bn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  vgg/pytorch-hf_vgg19-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  unet/pytorch-torchhub_brain_unet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
+  unet/pytorch-carvana_unet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
