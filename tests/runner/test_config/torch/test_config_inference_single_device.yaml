@@ -2000,6 +2000,9 @@ test_config:
   whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-inference:
     status: EXCLUDE_MODEL
 
+  suryaocr/pytorch-ocr_text-single_device-full-inference:
+    status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
+
   uniad/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
