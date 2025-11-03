@@ -181,9 +181,13 @@ class TTAttentionBackendImpl(AttentionImpl):
             raise NotImplementedError("Alibi slopes is not supported.")
 
         if attn_type == "encoder_only":
-            attn_type = AttentionType.ENCODER
+            attn_type = AttentionType.ENCODER_ONLY
 
-        if attn_type != AttentionType.DECODER and attn_type != AttentionType.ENCODER:
+        if attn_type not in (
+            AttentionType.DECODER,
+            AttentionType.ENCODER,
+            AttentionType.ENCODER_ONLY,
+        ):
             raise NotImplementedError(
                 f"TT attention only supports encoder or decoder attention, but got {attn_type}."
             )
