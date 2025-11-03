@@ -38,13 +38,16 @@ class SpeechT5RelativePositionalEncodingFixed(nn.Module):
     def forward(self, hidden_states):
         seq_len = hidden_states.shape[1]
         pos_seq = torch.arange(0, seq_len, device=hidden_states.device, dtype=torch.long)
-        pos_seq = pos_seq[:, None] - pos_seq[None, :]
+        pos_seq = pos_seq.unsqueeze(-1) - pos_seq.unsqueeze(0)
 
         # Replacing advanced indexing with clamp to avoid graph breaks with TT compile.
         # Original code that causes issues:
         #   pos_seq[pos_seq < -self.max_length] = -self.max_length
         #   pos_seq[pos_seq >= self.max_length] = self.max_length - 1
-        pos_seq = torch.clamp(pos_seq, -self.max_length, self.max_length - 1)
+        pos_seq = torch.where(
+            pos_seq < -self.max_length, -self.max_length,
+            torch.where(pos_seq >= self.max_length, self.max_length - 1, pos_seq)
+        )
         pos_seq = pos_seq + self.max_length
 
         return self.pe_k(pos_seq)
@@ -121,7 +124,7 @@ def get_input():
     # Prepare inputs for the decoder
     # First, get encoder outputs by processing text through the full model encoder
     text = "Hello, my dog is cute."
-    inputs = processor(text=text, return_tensors="pt")
+    inputs = processor(text=text, return_tensors="pt", max_length=512, padding="max_length")
 
     # Create decoder input values (zeros for initial state)
     decoder_input_values = torch.zeros((1, 1, model.config.num_mel_bins))
