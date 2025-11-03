@@ -976,13 +976,13 @@ test_config:
     status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_nano-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_tiny-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_s-single_device-full-inference:
@@ -996,18 +996,18 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_l-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_darknet-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_x-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
     bringup_status: FAILED_FE_COMPILATION
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
@@ -2178,6 +2178,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2226,11 +2227,13 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+    markers: [large]
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+    markers: [large]
 
   gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL

@@ -104,7 +104,9 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   bloom/causal_lm/jax-1b7-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 1027604480 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1957"
+    bringup_status: FAILED_RUNTIME
 
   bloom/causal_lm/jax-3b-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
