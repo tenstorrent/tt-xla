@@ -10,20 +10,38 @@ import vllm
 
 
 @pytest.mark.push
-def test_embed_qwen3():
+@pytest.mark.parametrize(
+    "batch_size, max_num_seqs",
+    [
+        (1, 2),
+        (2, 2),
+        (4, 4),
+    ],
+)
+def test_embed_qwen3(batch_size, max_num_seqs):
     """
     Test the Qwen3-Embedding-4B model's embedding outputs for correctness
     under different batching and padding scenarios.
 
     Test Setup:
     - Input consists of four prompts with token lengths [32, 15, 29, 7].
-    - vLLM is configured with max_num_seqs=2, meaning each batch can contain
-      up to 2 sequences and vLLM always process single prompt in first batch.
-    - This results in three batches:
+    - vLLM process one input in first iteration and one or more inputs in
+      subsequent iteration(s) depending on engine configs.
+    Case 1 (batch_size=1, max_num_seqs=2):
+    - Inputs will be processed in three iterations:
         1. First batch: first prompt (32 tokens) → no padding required.
         2. Second batch: second and third prompts concatenated (15 + 29 = 44
            tokens), padded to max_model_len=64.
         3. Third batch: fourth prompt (7 tokens), padded to max_model_len=32.
+    Case 2 (batch_size=2, max_num_seqs=2):
+    - Inputs will be processed in three iterations:
+        1. First batch: first prompt (32 tokens) → no padding required.
+        2. Second batch: second and third prompts stacked as [2 x padded_tokens].
+        3. Third batch: fourth prompt (7 tokens) as [1 x padded_tokens].
+    Case 3 (batch_size=4, max_num_seqs=4):
+    - Inputs will be processed in two iterations:
+        1. First batch: first prompt (32 tokens) → no padding required.
+        2. Second batch: remaining three prompts stacked as [3 x padded_tokens].
 
     Purpose:
     - Validates that the model produces embeddings consistent with precomputed
@@ -48,7 +66,11 @@ def test_embed_qwen3():
         "max_model_len": 64,
         "disable_sliding_window": True,
         "max_num_batched_tokens": 64,
-        "max_num_seqs": 2,
+        "max_num_seqs": max_num_seqs,
+        "additional_config": {
+            "enable_const_eval": False,
+            "batch_size": batch_size,
+        },
     }
     model = vllm.LLM(**llm_args)
 
