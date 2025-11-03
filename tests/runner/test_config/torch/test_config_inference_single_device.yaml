@@ -1221,7 +1221,7 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt2/pytorch-gpt2-single_device-full-inference:
-    markers: ["push", "weekly"]
+    markers: ["weekly"]
     status: EXPECTED_PASSING
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
