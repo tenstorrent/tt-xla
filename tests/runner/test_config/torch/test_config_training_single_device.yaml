@@ -28,6 +28,21 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate DRAM"
 
+  nbeats/pytorch-generic_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.9751636385917664. Required: pcc=0.99."
+
+  nbeats/pytorch-seasonality_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.38206756114959717. Required: pcc=0.99."
+
+  nbeats/pytorch-trend_basis-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
+
   yolov6/pytorch-yolov6n-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
