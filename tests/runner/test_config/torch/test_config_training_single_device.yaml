@@ -63,6 +63,51 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
 
+  yolov5/pytorch-yolov5n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  yolov5/pytorch-yolov5x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+
+  whisper/pytorch-openai/whisper-large-v3-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
+
+  yolox/pytorch-yolox_x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "EOFError: Ran out of input"
+
+  unet/pytorch-smp_unet_resnet101-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
+
+  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
+
   bge_m3/encode/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
