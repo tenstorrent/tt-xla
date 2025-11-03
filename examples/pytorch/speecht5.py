@@ -163,7 +163,7 @@ def get_speaker_embeddings():
         speaker_embeddings = torch.tensor(xvector, dtype=torch.float32).unsqueeze(0)
 
         os.unlink(tmp_file.name)
-    return speaker_embeddings
+    return speaker_embeddings.to(dtype=torch.bfloat16)
 
 def dump_tensors():
     xr.set_device_type("TT")
@@ -189,7 +189,6 @@ def dump_tensors():
     output = model(**model_inputs)
 
     return
-
 
 def dump_code():
     xr.set_device_type("TT")
@@ -292,14 +291,14 @@ def _generate_speech(
     cross_attentions = []
 
     # Setup an encoder-decoder cache using static caches.
-    past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_len), StaticCache(config=model.config, max_cache_len=max_len))
+    past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz), StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz))
 
-    # Re-assign the update method to use the workaround.
+    '''# Re-assign the update method to use the workaround.
     for layer in past_key_values.self_attention_cache.layers:
         layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
 
     for layer in past_key_values.cross_attention_cache.layers:
-        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)'''
 
     cache_position = torch.tensor([0], dtype=torch.int32, device=device)
     idx = 0
@@ -432,8 +431,7 @@ def run_on_tt():
 
     # load xvector containing speaker's voice characteristics from a dataset
     inputs = {key : value.to(device) for key, value in inputs.items()}
-    embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
-    speaker_embeddings = torch.tensor(embeddings_dataset[7306]["xvector"]).unsqueeze(0).to(torch.bfloat16)
+    speaker_embeddings = get_speaker_embeddings()
 
     speech = _generate_speech(model, inputs["input_ids"], speaker_embeddings=speaker_embeddings, vocoder=vocoder)
     sf.write("speech.wav", speech.detach().cpu().numpy(), samplerate=16000)
@@ -466,9 +464,27 @@ def run_vocoder_tt():
     speech = vocoder(spectrogram)
     print(speech)
 
+def validate_encoder():
+    xr.set_device_type("TT")
+    model = get_model().speecht5.encoder
+    model.eval()
+    model_inputs = get_input()
+
+    with torch.no_grad():
+        torch_output = model(model_inputs["input_ids"])
+    torch_output = torch_output.last_hidden_state
+
+    device = xm.xla_device()
+    model_inputs = {k: v.to(device) for k, v in model_inputs.items()}
+    model = model.to(device)
+
+    output = model(model_inputs["input_ids"])
+    output = output.last_hidden_state.cpu()
+    print(output.shape)
+    print(torch_output.shape)
 
 # --------------------------------
 # main
 # --------------------------------
 if __name__ == "__main__":
-    run_on_tt()
+    validate_encoder()
