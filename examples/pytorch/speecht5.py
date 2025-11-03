@@ -117,32 +117,14 @@ def get_vocoder():
     return vocoder
 
 
-def get_input():
+def get_input(sentence: str, device: torch.device):
     processor = get_processor()
-    model = get_model()
 
-    # Prepare inputs for the decoder
-    # First, get encoder outputs by processing text through the full model encoder
-    text = "Hello, my dog is cute."
-    inputs = processor(text=text, return_tensors="pt", max_length=512, padding="max_length")
+    inputs = processor(text=sentence, return_tensors="pt", max_length=512, padding="max_length")
+    # load xvector containing speaker's voice characteristics from a dataset
+    inputs = {key : value.to(device) for key, value in inputs.items()}
 
-    # Create decoder input values (zeros for initial state)
-    decoder_input_values = torch.zeros((1, 1, model.config.num_mel_bins))
-    
-    # Prepare model inputs
-    model_inputs = {
-        "input_ids": inputs["input_ids"],
-        "attention_mask": inputs["attention_mask"],
-        "decoder_input_values": decoder_input_values,
-    }
-
-    # # Serialize model_inputs to disk
-    # torch.save(model_inputs, "model_inputs.pt")
-
-    # # Load model_inputs from disk
-    # model_inputs = torch.load("model_inputs.pt")
-
-    return model_inputs
+    return inputs
 
 
 def get_speaker_embeddings():
@@ -166,7 +148,7 @@ def get_speaker_embeddings():
         speaker_embeddings = torch.tensor(xvector, dtype=torch.float32).unsqueeze(0)
 
         os.unlink(tmp_file.name)
-    return speaker_embeddings.to(dtype=torch.bfloat16)
+    return speaker_embeddings.to(dtype=torch.float32) # speaker embeddings are only used in decoder prenet, for accuracy purposes we use float32
 
 def dump_tensors():
     xr.set_device_type("TT")
@@ -268,14 +250,13 @@ def _generate_speech(
 
     bsz = input_values.size(0)
 
-    # model.speecht5.encoder.to("cpu")
     encoder_out = model.speecht5.encoder(
-        input_values=input_values.to("cpu"),
-        attention_mask=encoder_attention_mask.to("cpu"),
+        input_values=input_values,
+        attention_mask=encoder_attention_mask,
         return_dict=True,
     )
 
-    encoder_last_hidden_state = encoder_out.last_hidden_state.to(device)
+    encoder_last_hidden_state = encoder_out.last_hidden_state
 
     # downsample encoder attention mask
     if isinstance(model.speecht5.encoder, SpeechT5EncoderWithSpeechPrenet):
@@ -288,7 +269,7 @@ def _generate_speech(
     
     # Start the output sequence with a mel spectrum that is all zeros.
     max_len = 512
-    output_sequence = encoder_last_hidden_state.new_zeros(bsz, max_len, model.config.num_mel_bins).to("cpu")
+    output_sequence = torch.zeros(bsz, max_len, model.config.num_mel_bins, dtype=encoder_last_hidden_state.dtype)
     
     spectrogram = []
     cross_attentions = []
@@ -296,12 +277,12 @@ def _generate_speech(
     # Setup an encoder-decoder cache using static caches.
     past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz), StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz))
 
-    '''# Re-assign the update method to use the workaround.
+    #Re-assign the update method to use the workaround.
     for layer in past_key_values.self_attention_cache.layers:
         layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
 
     for layer in past_key_values.cross_attention_cache.layers:
-        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)'''
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
 
     cache_position = torch.tensor([0], dtype=torch.int32, device=device)
     idx = 0
@@ -310,7 +291,8 @@ def _generate_speech(
         idx += 1
 
         # Run the decoder prenet on the entire output sequence.
-        decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
+        # Move outputs to cpu so the slice we perform on `decoder_hidden_states` doesn't cause a graph break. If we do not do this we will generate a slicing program for every `idx`
+        decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence.to(torch.float32).to(device), speaker_embeddings).to("cpu").to(torch.bfloat16)
         attention_mask = torch.ones(1, max_len, dtype=torch.int32)
         attention_mask[0, idx:] = 0
 
@@ -419,24 +401,25 @@ def run_on_tt():
     model = get_model().eval()
     model = model.to(torch.bfloat16).to(device)
 
-    model.speecht5.encoder.to("cpu")
-    model.speecht5.decoder.prenet.to("cpu")
-    
+    # Run prenet in f32 as bf16 causes accuracy issues
+    model.speecht5.decoder.prenet.to(torch.float32)
+
+    model.speecht5.decoder.prenet.eval()
+    model.speecht5.decoder.prenet.compile(backend="tt")
+    model.speecht5.encoder.eval()
+    model.speecht5.encoder.compile(backend="tt")
     model.speecht5.decoder.wrapped_decoder.eval()
     model.speecht5.decoder.wrapped_decoder.compile(backend="tt")
     model.speech_decoder_postnet.eval()
     model.speech_decoder_postnet.compile(backend="tt")
 
     vocoder = get_vocoder()
-    processor = get_processor()
 
-    inputs = processor(text="Hello, my dog is cute.", return_tensors="pt", max_length=512, padding="max_length")
-
-    # load xvector containing speaker's voice characteristics from a dataset
-    inputs = {key : value.to(device) for key, value in inputs.items()}
-    speaker_embeddings = get_speaker_embeddings()
+    inputs = get_input("Hello, my dog is cute.", device)
+    speaker_embeddings = get_speaker_embeddings().to(device)
 
     speech = _generate_speech(model, inputs["input_ids"], speaker_embeddings=speaker_embeddings, vocoder=vocoder)
+
     sf.write("speech.wav", speech.detach().cpu().numpy(), samplerate=16000)
 
 def run_vocoder_tt():
@@ -490,4 +473,4 @@ def validate_encoder():
 # main
 # --------------------------------
 if __name__ == "__main__":
-    validate_encoder()
+    run_on_tt()
