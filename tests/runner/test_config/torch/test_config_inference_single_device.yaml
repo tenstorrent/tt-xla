@@ -20,7 +20,7 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference:
-    assert_pcc: False  # 0.749 on BH / 0.76 on WH
+    assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
@@ -61,10 +61,12 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
-    bringup_status: INCORRECT_RESULT
+    arch_overrides:
+      n150:
+        assert_pcc: false
+        reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
+        bringup_status: INCORRECT_RESULT
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -81,8 +83,10 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
-    required_pcc: 0.96  # BH is higher at 0.97
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98 # Is lately 0.992 but close to threshold.
 
   openpose/v2/pytorch-single_device-full-inference:
     assert_pcc: false
@@ -94,8 +98,10 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-large_v2-single_device-full-inference:
-    required_pcc: 0.98
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98
 
   yolov3/pytorch-base-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -689,7 +695,9 @@ test_config:
 
   albert/token_classification/pytorch-large_v2-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    arch_overrides:
+      p150:
+        required_pcc: 0.98
 
   albert/token_classification/pytorch-xlarge_v1-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -706,10 +714,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-base_v2-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9709743889025922. Required: pcc=0.99"
 
   albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
     assert_pcc: false
@@ -724,7 +729,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
-    assert_pcc: False  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
+    assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
@@ -835,9 +840,9 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
-      status: KNOWN_FAILURE_XFAIL
-      reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-      bringup_status: FAILED_TTMLIR_COMPILATION
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    bringup_status: FAILED_TTMLIR_COMPILATION
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1575,9 +1580,6 @@ test_config:
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.98
 
   detr3d/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2264,3 +2266,11 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+
+  gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
+    bringup_status: INCORRECT_RESULT
