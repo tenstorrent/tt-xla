@@ -34,6 +34,7 @@ class TTConfig:
     # There is an issue tracking this in tt-mlir: https://github.com/tenstorrent/tt-mlir/issues/3888
     enable_const_eval: bool = True
     min_context_len: int = 128
+    is_data_parallel_model: bool = False
 
     def get_pjrt_compile_config(self) -> dict:
         return {
