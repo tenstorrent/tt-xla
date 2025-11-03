@@ -93,7 +93,7 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, nnx.Module):
             _, state = nnx.split(self._model)
             return state
-        
+
         elif isinstance(self._model, FlaxPreTrainedModel):
             assert hasattr(self._model, "params")
             return self._model.params
