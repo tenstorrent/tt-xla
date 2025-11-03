@@ -16,7 +16,7 @@ import torch_xla.runtime as xr
 from datasets import load_dataset
 import soundfile as sf
 
-from transformers import SpeechT5PreTrainedModel, SpeechT5Processor, SpeechT5HifiGan, SpeechT5ForTextToSpeech
+from transformers import SpeechT5Config, SpeechT5PreTrainedModel, SpeechT5Processor, SpeechT5HifiGan, SpeechT5ForTextToSpeech
 from transformers.cache_utils import EncoderDecoderCache, StaticCache
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
@@ -83,8 +83,8 @@ def static_cache_layer_update_workaround(
         # If there is no cache position, instead of updating the cache at every position in the states, we copy the entire states into the cache.
         # This works because with the generate implementation, prefill states are always the same size as the cache.
         if cache_position is None:
-            self.keys.copy_(key_states)
-            self.values.copy_(value_states)
+            self.keys[:, :, :key_states.shape[2], :] = key_states
+            self.values[:, :, :value_states.shape[2], :] = value_states
             return self.keys, self.values
 
         # Update the cache
@@ -97,9 +97,18 @@ def static_cache_layer_update_workaround(
             self.values[:, :, cache_position] = value_states
         return self.keys, self.values
 
+
+def apply_cache_workaround(cache: EncoderDecoderCache):
+    for layer in cache.self_attention_cache.layers:
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+    for layer in cache.cross_attention_cache.layers:
+        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+
 def get_model():
+    config = SpeechT5Config.from_pretrained("microsoft/speecht5_tts")
+    config.max_speech_positions = 8192
     model = SpeechT5ForTextToSpeech.from_pretrained(
-        "microsoft/speecht5_tts"
+        "microsoft/speecht5_tts", config=config
     )
     model.eval()
     model.speecht5.encoder.wrapped_encoder.embed_positions = SpeechT5RelativePositionalEncodingFixed(model.speecht5.encoder.wrapped_encoder.embed_positions)
@@ -120,10 +129,14 @@ def get_vocoder():
 def get_input(sentence: str, device: torch.device):
     processor = get_processor()
 
-    inputs = processor(text=sentence, return_tensors="pt", max_length=512, padding="max_length")
-    # load xvector containing speaker's voice characteristics from a dataset
-    inputs = {key : value.to(device) for key, value in inputs.items()}
+    inputs = processor(
+        text=sentence, 
+        return_tensors="pt")
 
+    inputs = {
+        key : nn.functional.pad(value, (0, next_power_of_two(value.shape[1]) - value.shape[1])).to(device) 
+        for key, value in inputs.items()}
+    
     return inputs
 
 
@@ -222,10 +235,18 @@ def run_on_cpu():
     print(output)
 
 
+def next_power_of_two(x: int):
+    return 1 << (x - 1).bit_length()
+
+def pad_spectrograms_to_nearest_power_of_two(tensor: torch.Tensor):
+    dim_size = tensor.shape[1]
+    padding = next_power_of_two(dim_size) - dim_size
+    return torch.nn.functional.pad(tensor, (0, 0, 0, padding))
+
 @torch.no_grad()
 def _generate_speech(
     model: SpeechT5PreTrainedModel,
-    input_values: torch.FloatTensor,
+    input_ids: torch.FloatTensor,
     speaker_embeddings: Optional[torch.FloatTensor] = None,
     attention_mask: Optional[torch.LongTensor] = None,
     threshold: float = 0.5,
@@ -234,6 +255,7 @@ def _generate_speech(
     vocoder: Optional[nn.Module] = None,
     output_cross_attentions: bool = False,
     return_output_lengths: bool = False,
+    is_precompile: bool = False,
 ) -> Union[torch.FloatTensor, tuple[torch.FloatTensor, torch.FloatTensor]]:
     if speaker_embeddings is None:
         raise ValueError(
@@ -242,16 +264,16 @@ def _generate_speech(
                     https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors
                     """
         )
-    device = input_values.device
+    device = input_ids.device
     if attention_mask is None:
-        encoder_attention_mask = 1 - (input_values == model.config.pad_token_id).int()
+        encoder_attention_mask = 1 - (input_ids == model.config.pad_token_id).int()
     else:
         encoder_attention_mask = attention_mask
 
-    bsz = input_values.size(0)
-
+    bsz = input_ids.size(0)
+    encoder_len = input_ids.size(1)
     encoder_out = model.speecht5.encoder(
-        input_values=input_values,
+        input_values=input_ids,
         attention_mask=encoder_attention_mask,
         return_dict=True,
     )
@@ -268,32 +290,36 @@ def _generate_speech(
     minlen = int(encoder_last_hidden_state.size(1) * minlenratio / model.config.reduction_factor)
     
     # Start the output sequence with a mel spectrum that is all zeros.
-    max_len = 512
-    output_sequence = torch.zeros(bsz, max_len, model.config.num_mel_bins, dtype=encoder_last_hidden_state.dtype)
+    max_decoder_len = next_power_of_two(maxlen)
+
+
+    # If the encoder length and max decoder length are not the same, we must pad the encoder attention mask.
+    if encoder_len < max_decoder_len:
+        encoder_attention_mask = nn.functional.pad(encoder_attention_mask.to("cpu"), (0, max_decoder_len - encoder_len)).to(device)
+    elif encoder_len > max_decoder_len:
+        raise ValueError(f"Encoder length {encoder_len} is greater than max decoder length {max_decoder_len}")
+
+    output_sequence = torch.zeros(bsz, max_decoder_len, model.config.num_mel_bins, dtype=encoder_last_hidden_state.dtype)
     
     spectrogram = []
     cross_attentions = []
 
     # Setup an encoder-decoder cache using static caches.
-    past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz), StaticCache(config=model.config, max_cache_len=max_len, max_batch_size=bsz))
+    past_key_values = EncoderDecoderCache(StaticCache(config=model.config, max_cache_len=max_decoder_len, max_batch_size=bsz), StaticCache(config=model.config, max_cache_len=max_decoder_len, max_batch_size=bsz))
 
     #Re-assign the update method to use the workaround.
-    for layer in past_key_values.self_attention_cache.layers:
-        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
-
-    for layer in past_key_values.cross_attention_cache.layers:
-        layer.update = types.MethodType(static_cache_layer_update_workaround, layer)
+    apply_cache_workaround(past_key_values)
 
     cache_position = torch.tensor([0], dtype=torch.int32, device=device)
     idx = 0
     result_spectrogram = {}
-    while True:
+    while True and (not is_precompile or idx < 2):
         idx += 1
 
         # Run the decoder prenet on the entire output sequence.
         # Move outputs to cpu so the slice we perform on `decoder_hidden_states` doesn't cause a graph break. If we do not do this we will generate a slicing program for every `idx`
         decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence.to(torch.float32).to(device), speaker_embeddings).to("cpu").to(torch.bfloat16)
-        attention_mask = torch.ones(1, max_len, dtype=torch.int32)
+        attention_mask = torch.ones(1, max_decoder_len, dtype=torch.int32)
         attention_mask[0, idx:] = 0
 
         decoder_out = model.speecht5.decoder.wrapped_decoder(
@@ -317,8 +343,12 @@ def _generate_speech(
         past_key_values = decoder_out.past_key_values
 
         # Predict the new mel spectrum for this step in the sequence.
-        spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
+        spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output).to("cpu")
         spectrum = spectrum.view(bsz, model.config.reduction_factor, model.config.num_mel_bins)
+        # The amount of sepctra we append to the spectrogram is determined dynamically by the number of generation loops.
+        # Before the spectrogram is passed to the postnet, these tensors are stacked. This means the stack operation has
+        # a dynamic shape as well. To avoid generating a program for the `stack` for every possible number of spectra,
+        # we store the spectra on cpu and stack them there.
         spectrogram.append(spectrum)
 
         # Extend the output sequence with the new mel spectrum.
@@ -329,6 +359,7 @@ def _generate_speech(
         # Predict the probability that this is the stop token.
         prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
 
+        original_spectrogram_length = len(spectrogram) # to be populated below
         if idx < minlen:
             continue
         else:
@@ -345,19 +376,38 @@ def _generate_speech(
                 meet_indexes = range(len(prob))
             meet_indexes = [i for i in meet_indexes if i not in result_spectrogram]
             if len(meet_indexes) > 0:
+                # As stated in an earlier comment, the number of spectra in `spectrogram` is dynamic.
+                # We must stack the spectra on cpu to avoid generation of many graphs for `stack`.
                 spectrograms = torch.stack(spectrogram)
                 spectrograms = spectrograms.transpose(0, 1).flatten(1, 2)
-                spectrograms = model.speech_decoder_postnet.postnet(spectrograms)
+
+                # Similar to the reasoning for stacking the spectra on cpu, we will also pad the spectrogram height
+                # to the nearest power of two. This prevents compiling a new graph for `postnet` for every possible
+                # spectrogram height. This way, we only compile a program for every power of two.
+                original_spectrogram_length = spectrograms.shape[1]
+                spectrograms = pad_spectrograms_to_nearest_power_of_two(spectrograms)
+                # Run postnet on device
+
+                spectrograms = model.speech_decoder_postnet.postnet(spectrograms.to(device))
                 for meet_index in meet_indexes:
                     result_spectrogram[meet_index] = spectrograms[meet_index]
             if len(result_spectrogram) >= bsz:
                 break
-
+    
+    # The vocoder outputs a waveform in the form of a 1D tensor,
+    # This waveform is always 256x the height of the spectrogram.
+    # Since the spectrogram is padded, we want to truncate the 
+    # waveform as well to cut out the noise caused by the padding.
+    # The output waveform is directly converted to a `.wav` file,
+    # so this tensor must end up on host regardless. Thus we place
+    # the waveform on host and truncate it, this part should have
+    # a minimal impact on performance.
+    true_waveform_length = original_spectrogram_length * 256
     spectrograms = [result_spectrogram[i] for i in range(len(result_spectrogram))]
     if not return_output_lengths:
         spectrogram = spectrograms[0] if bsz == 1 else torch.nn.utils.rnn.pad_sequence(spectrograms, batch_first=True)
         if vocoder is not None:
-            outputs = vocoder(spectrogram.to("cpu"))
+            outputs = vocoder(spectrogram.to("cpu")).to("cpu")[:true_waveform_length]
         else:
             outputs = spectrogram
         if output_cross_attentions:
@@ -378,7 +428,7 @@ def _generate_speech(
         else:
             waveforms = []
             spectrograms = torch.nn.utils.rnn.pad_sequence(spectrograms, batch_first=True)
-            waveforms = vocoder(spectrograms.to("cpu"))
+            waveforms = vocoder(spectrograms.to("cpu")).to("cpu")[:true_waveform_length]
             waveform_lengths = [int(waveforms.size(1) / max(spectrogram_lengths)) * i for i in spectrogram_lengths]
             outputs = (waveforms, waveform_lengths)
         if output_cross_attentions:
@@ -390,10 +440,19 @@ def _generate_speech(
     return outputs
 
 
-def run_on_tt():
+def initialize_tts():
     os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     torch._dynamo.config.cache_size_limit = 1024
     xr.set_device_type("TT")
+
+    # We disable consteval to avoid OOM errors as for every precompiled graph, the consteval graphs end up copying the model weights.
+    # This is not a problem for the single test case, however for serving, we will likely want o have precompild graphs for numerous
+    # sequence lengths.
+    torch_xla.set_custom_compile_options(
+        {
+            "enable_const_eval": False,
+        }
+    )
 
     device = xm.xla_device()
     # device = "cpu"
@@ -404,21 +463,35 @@ def run_on_tt():
     # Run prenet in f32 as bf16 causes accuracy issues
     model.speecht5.decoder.prenet.to(torch.float32)
 
-    model.speecht5.decoder.prenet.eval()
-    model.speecht5.decoder.prenet.compile(backend="tt")
     model.speecht5.encoder.eval()
     model.speecht5.encoder.compile(backend="tt")
+    model.speecht5.decoder.prenet.eval()
+    model.speecht5.decoder.prenet.compile(backend="tt")
     model.speecht5.decoder.wrapped_decoder.eval()
     model.speecht5.decoder.wrapped_decoder.compile(backend="tt")
     model.speech_decoder_postnet.eval()
     model.speech_decoder_postnet.compile(backend="tt")
+    # The `postnet` function of `speech_decoder_postnet` a separate function from `forward`, so we must explicitly compile this function.
+    model.speech_decoder_postnet.postnet = torch.compile(model.speech_decoder_postnet.postnet, backend="tt")
+
+    # The `feat_out` function of `speech_decoder_postnet` is a separate function from `forward`, so we must explicitly compile this function.
+    model.speech_decoder_postnet.feat_out = torch.compile(model.speech_decoder_postnet.feat_out, backend="tt")
+
+    # The `prob_out` function of `speech_decoder_postnet` is a separate function from `forward`, so we must explicitly compile this function.
+    model.speech_decoder_postnet.prob_out = torch.compile(model.speech_decoder_postnet.prob_out, backend="tt")
 
     vocoder = get_vocoder()
 
-    inputs = get_input("Hello, my dog is cute.", device)
     speaker_embeddings = get_speaker_embeddings().to(device)
 
-    speech = _generate_speech(model, inputs["input_ids"], speaker_embeddings=speaker_embeddings, vocoder=vocoder)
+    return device, model, vocoder, speaker_embeddings
+
+def run_on_tt():
+    device, model, vocoder, speaker_embeddings = initialize_tts()
+
+    inputs = get_input("My name is Quietbox. I am here to help.", device)
+
+    speech = _generate_speech(model, **inputs, speaker_embeddings=speaker_embeddings, vocoder=vocoder)
 
     sf.write("speech.wav", speech.detach().cpu().numpy(), samplerate=16000)
 
