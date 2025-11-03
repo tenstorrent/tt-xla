@@ -332,6 +332,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.requests: dict[str, CachedRequestState] = {}
 
         # Initialize input batch early to avoid AttributeError in _update_states
+        # For attention-only/encoder models, we don't need KV cache block tables
+        is_pooling_model = self.model_config.runner_type == "pooling"
+        block_sizes = [] if is_pooling_model else [self.block_size]
+
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
@@ -339,7 +343,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device=self.device,
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
-            block_sizes=[self.block_size],
+            block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 self.device,
@@ -578,7 +582,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Update the persistent batch.
             self.input_batch.num_computed_tokens_cpu[req_index] = num_computed_tokens
-            if new_block_ids is not None:
+            if (
+                new_block_ids is not None
+                and len(self.input_batch.block_table.block_tables) > 0
+            ):
                 self.input_batch.block_table.append_row(new_block_ids, req_index)
 
         # Add the new or resumed requests to the persistent batch.
@@ -875,9 +882,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_tables = self.block_table_cpu[
                 : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
             ]
-            block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
-            )
+            # Only copy block table data for non-pooling models
+            if len(self.input_batch.block_table.block_tables) > 0:
+                block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
+                    self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
+                )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
@@ -886,11 +895,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_tables = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
             ]
-            block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :num_reqs, : self.num_blocks_per_most_len_req
-                ]
-            )
+            # Only copy block table data for non-pooling models
+            if len(self.input_batch.block_table.block_tables) > 0:
+                block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
+                    self.input_batch.block_table[0].get_cpu_tensor()[
+                        :num_reqs, : self.num_blocks_per_most_len_req
+                    ]
+                )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
