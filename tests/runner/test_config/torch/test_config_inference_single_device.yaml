@@ -62,6 +62,7 @@ test_config:
 
   bloom/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push"]
     arch_overrides:
       n150:
         assert_pcc: false
@@ -83,6 +84,7 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
+    markers: ["push"]
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -99,6 +101,7 @@ test_config:
 
   albert/masked_lm/pytorch-large_v2-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push"]
     arch_overrides:
       n150:
         required_pcc: 0.98
@@ -694,6 +697,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-large_v2-single_device-full-inference:
+    markers: ["push"]
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
@@ -714,6 +718,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-base_v2-single_device-full-inference:
+    markers: ["push"]
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
@@ -1580,6 +1585,7 @@ test_config:
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push"]
 
   detr3d/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2269,8 +2275,10 @@ test_config:
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push"]
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
     bringup_status: INCORRECT_RESULT
+    markers: ["push"]

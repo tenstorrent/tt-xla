@@ -39,9 +39,11 @@ test_config:
 
   beit/image_classification/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   beit/image_classification/jax-large-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   bert/masked_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -87,9 +89,11 @@ test_config:
 
   bloom/causal_lm/jax-560m-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   bloom/causal_lm/jax-1b1-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   bloom/causal_lm/jax-1b7-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -313,6 +317,7 @@ test_config:
 
   regnet/image_classification/jax-y-040-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   regnet/image_classification/jax-y-160-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
