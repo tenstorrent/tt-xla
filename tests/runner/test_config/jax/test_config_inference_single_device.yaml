@@ -38,16 +38,10 @@ test_config:
     status: EXPECTED_PASSING
 
   beit/image_classification/jax-base-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.1442379504442215. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
 
   beit/image_classification/jax-large-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.09154801815748215. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
 
   bert/masked_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -92,16 +86,10 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   bloom/causal_lm/jax-560m-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=-0.4757141172885895. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
 
   bloom/causal_lm/jax-1b1-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=-0.06243601813912392. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
 
   bloom/causal_lm/jax-1b7-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -324,10 +312,7 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   regnet/image_classification/jax-y-040-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.3722558617591858. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
 
   regnet/image_classification/jax-y-160-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -397,10 +382,7 @@ test_config:
     markers: [push]
 
   t5/summarization/jax-large-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=-0.04681511968374252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
     markers: [push]
 
   t5/summarization/jax-small-single_device-full-inference:

@@ -61,10 +61,12 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
-    bringup_status: INCORRECT_RESULT
+    arch_overrides:
+      n150:
+        assert_pcc: false
+        reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
+        bringup_status: INCORRECT_RESULT
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -706,10 +708,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-base_v2-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9709743889025922. Required: pcc=0.99"
 
   albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
     assert_pcc: false
