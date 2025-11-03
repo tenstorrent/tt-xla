@@ -43,6 +43,56 @@ test_config:
     bringup_status: INCORRECT_RESULT
     reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
 
+  bge_m3/encode/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  stable_diffusion_1_4/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  gliner/pytorch-urchade/gliner_largev2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
+  yolox/pytorch-yolox_nano-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_tiny-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  yolox/pytorch-yolox_darknet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+
+  hippynn/pytorch-Hippynn-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "loader.load_model() does not return `nn.Module`"
+
   yolov6/pytorch-yolov6n-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
