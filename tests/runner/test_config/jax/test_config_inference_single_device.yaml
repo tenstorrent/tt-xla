@@ -27,9 +27,7 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   alexnet/image_classification/jax-custom-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: EXPECTED_PASSING
 
   bart/causal_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
