@@ -44,7 +44,6 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_3B_INSTRUCT = "llama_3_2_3b_instruct"
 
     # Llama 3.3 variants
-    LLAMA_3_3_8B_INSTRUCT = "llama_3_3_8b_instruct"
     LLAMA_3_3_70B_INSTRUCT = "llama_3_3_70b_instruct"
 
     # HuggingFace community variants
@@ -111,10 +110,6 @@ class ModelLoader(ForgeModel):
             max_length=128,
         ),
         # Llama 3.3 variants
-        ModelVariant.LLAMA_3_3_8B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="meta-llama/Llama-3.3-8B-Instruct",
-            max_length=128,
-        ),
         ModelVariant.LLAMA_3_3_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
             max_length=128,
@@ -162,8 +157,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Set group based on variant (instruct variants are RED priority except
-        # llama_3_8b_instruct, llama_3_1_405b_instruct, llama_3_3_8b_instruct variant)
+        # Set group based on variant (instruct variants are RED priority except llama_3_8b_instruct and llama_3_1_405b_instruct variant)
         if (
             (
                 "instruct" in variant.value
@@ -172,7 +166,6 @@ class ModelLoader(ForgeModel):
                     not in [
                         ModelVariant.LLAMA_3_8B_INSTRUCT,
                         ModelVariant.LLAMA_3_1_405B_INSTRUCT,
-                        ModelVariant.LLAMA_3_3_8B_INSTRUCT,
                     ]
                 )
             )
