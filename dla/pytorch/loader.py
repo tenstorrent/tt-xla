@@ -164,7 +164,7 @@ class ModelLoader(ForgeModel):
         else:
             # Load model using the dla_model module (torchvision style)
             func = getattr(dla_model, model_name)
-            model = func(pretrained=None)
+            model = func(pretrained="imagenet")
 
         model.eval()
 
