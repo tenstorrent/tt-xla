@@ -84,6 +84,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
     status: EXPECTED_PASSING
     assert_pcc: false
     bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
@@ -100,10 +101,12 @@ test_config:
 
   mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
     status: EXPECTED_PASSING
 
   mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
     status: EXPECTED_PASSING
 
   mistral/pytorch-mistral_large_instruct_2411-tensor_parallel-full-inference:
@@ -125,12 +128,14 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/1474
