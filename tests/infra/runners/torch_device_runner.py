@@ -15,7 +15,7 @@ from torch.utils._pytree import tree_map
 from .device_runner import DeviceRunner
 
 
-def to_device(x, device, mesh, depth=5):
+def to_device(x, device, workload, depth=5):
     """
     Recursively move data structures and objects to the specified device.
 
@@ -40,29 +40,29 @@ def to_device(x, device, mesh, depth=5):
         # Still try to move tensors/models at the final depth level
         if hasattr(x, "to"):
             x = x.to(device)
-            if device.type != "cpu" and is_tensor:
-                xs.mark_sharding(x, mesh, ("batch", None))
+            if device.type != "cpu" and is_tensor and workload.mesh:
+                xs.mark_sharding(x, workload.mesh, ("batch", None))
             return x
 
     if x is None:
         return x
     elif isinstance(x, list):
-        return [to_device(item, device, mesh, depth - 1) for item in x]
+        return [to_device(item, device, workload, depth - 1) for item in x]
     elif isinstance(x, tuple):
-        return tuple(to_device(item, device, mesh, depth - 1) for item in x)
+        return tuple(to_device(item, device, workload, depth - 1) for item in x)
     elif isinstance(x, dict):
-        return {k: to_device(v, device, mesh, depth - 1) for k, v in x.items()}
+        return {k: to_device(v, device, workload, depth - 1) for k, v in x.items()}
     elif hasattr(x, "to"):
         x = x.to(device)
-        if device.type != "cpu" and is_tensor:
-            xs.mark_sharding(x, mesh, ("batch", None))
+        if device.type != "cpu" and is_tensor and workload.mesh:
+            xs.mark_sharding(x, workload.mesh, ("batch", None))
         return x
     # Handle objects with attributes by recursively processing all fields.
     # This is done in-place.
     elif hasattr(x, "__dict__"):
         for attr_name in x.__dict__:
             attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device, mesh, depth - 1))
+            setattr(x, attr_name, to_device(attr_value, device, workload, depth - 1))
         return x
     else:
         return x
@@ -98,8 +98,8 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        args_on_device = tree_map(lambda x: to_device(x, device, workload.mesh), workload.args)
-        kwargs_on_device = tree_map(lambda x: to_device(x, device, workload.mesh), workload.kwargs)
+        args_on_device = tree_map(lambda x: to_device(x, device, workload), workload.args)
+        kwargs_on_device = tree_map(lambda x: to_device(x, device, workload), workload.kwargs)
 
         if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
@@ -152,7 +152,7 @@ class TorchDeviceRunner(DeviceRunner):
         # So we also move it to the device. But we have to check if compiled_executable has '.to' method.
         # If we compiled function, compiled_executable will be a callable
         # which doesn't have `.to()` method (function is not loaded on device).
-        workload.compiled_executable = to_device(workload.compiled_executable, device, workload.mesh)
+        workload.compiled_executable = to_device(workload.compiled_executable, device, workload)
 
         return TorchWorkload(
             model=workload.model,  # Moved to device if not None.
