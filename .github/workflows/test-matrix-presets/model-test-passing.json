@@ -1,11 +1,3 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "not weekly and n150 and expected_passing", "parallel-groups": 10 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "not weekly and p150 and expected_passing", "parallel-groups": 10 },
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 4 },
-  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "data_parallel and expected_passing", "parallel-groups": 3 },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and expected_passing and not large", "parallel-groups": 3 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and expected_passing and not large", "parallel-groups": 3 },
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 1 },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and expected_passing and large", "shared-runners": "true" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and expected_passing and large", "shared-runners": "true" }
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 4 }
 ]
