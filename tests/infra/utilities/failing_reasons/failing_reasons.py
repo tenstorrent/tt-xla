@@ -8,9 +8,9 @@ from typing import Generator, Optional
 
 from loguru import logger
 
-from ..pytest import PyTestUtils
 from .failing_reasons_common import ExceptionData, MessageChecker, MessageCheckerType
 from .failing_reasons_xla import ExceptionCheck, FailingReason, FailingReasons
+from .pytest import PyTestUtils
 
 
 class FailingReasonsFinder:

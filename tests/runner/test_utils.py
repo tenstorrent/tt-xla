@@ -15,8 +15,8 @@ import numpy as np
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
-from sweeps.utils.failing_reasons import FailingReasons, FailingReasonsFinder
 from torch_xla.distributed.spmd import Mesh
 
 from tests.infra.comparators import comparison_config
