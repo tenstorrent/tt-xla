@@ -46,10 +46,24 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
+  clip/pytorch-base_patch16-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 3802 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
   clip/pytorch-base_patch32-single_device-full-inference:
-    assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Sept 6 due to tt-mlir uplift.
-    reason: "RuntimeError... - ID 4489 while an async operation is in flight: UNKNOWN_SCALAR - https://github.com/tenstorrent/tt-xla/issues/1306"
+    status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 7604 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  clip/pytorch-large_patch14-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 13185 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  clip/pytorch-large_patch14_336-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 18766 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-inference:
@@ -2274,3 +2288,8 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
     bringup_status: INCORRECT_RESULT
+
+  owl_vit/pytorch-base_patch32-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
