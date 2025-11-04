@@ -2101,7 +2101,7 @@ test_config:
 
   pointpillars/pytorch-pointpillars-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.batch_norm' op input tensor must be a 4D tensor' - https://github.com/tenstorrent/tt-xla/issues/1611"
+    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
     bringup_status: FAILED_RUNTIME
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-inference:
