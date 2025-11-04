@@ -65,7 +65,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="detr_detection",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=ModelGroup.RED,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

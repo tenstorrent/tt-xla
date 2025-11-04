@@ -82,10 +82,16 @@ class ModelLoader(ForgeModel):
 
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        if variant in [ModelVariant.YOLOV11N]:
+            group = ModelGroup.RED
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="yolo11",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,

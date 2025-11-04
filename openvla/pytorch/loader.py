@@ -102,7 +102,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant == "openvla_7b":
+        if variant in [ModelVariant.OPENVLA_7B_FINETUNED_LIBERO_OBJECT]:
             group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
