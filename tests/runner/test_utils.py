@@ -324,14 +324,18 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
-        "failing_reason": failing_reason.name if failing_reason else None,
-        "failing_reason_desc": (
-            failing_reason.value.description if failing_reason else None
-        ),
-        "failing_reason_component": (
-            failing_reason.value.component_checker_description
+        "failing_reason": (
+            {
+                "name": failing_reason.name,
+                "description": failing_reason.value.description,
+                "component": failing_reason.value.component_checker_description,
+            }
             if failing_reason
-            else None
+            else {
+                "name": None,
+                "description": None,
+                "component": None,
+            }
         ),
         "parallelism": str(parallelism),
         "arch": arch,
