@@ -2,15 +2,14 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-# Failing reasons definition
+# Failing reasons finder
 
 from typing import Generator, Optional
 
 from loguru import logger
 
-from .failing_reasons_common import ExceptionData, MessageChecker, MessageCheckerType
-from .failing_reasons_xla import ExceptionCheck, FailingReason, FailingReasons
-from .pytest import PyTestUtils
+from .checks_xla_torch import FailingReasons
+from .utils import ExceptionData, PyTestUtils
 
 
 class FailingReasonsFinder:

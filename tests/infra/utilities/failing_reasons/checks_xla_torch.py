@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from loguru import logger
 
-from .failing_reasons_common import ExceptionData, M, MessageCheckerType
+from .utils import ExceptionData, M, MessageCheckerType
 
 
 @dataclass
