@@ -17,15 +17,6 @@ from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
 
-
-# Define copy_slice function for local use
-def copy_slice(
-    src_tensor: torch.Tensor, dst_tensor: torch.Tensor, num_items: int
-) -> None:
-    """Copy num_items from src_tensor to dst_tensor."""
-    dst_tensor[:num_items].copy_(src_tensor[:num_items])
-
-
 _SAMPLING_EPS = 1e-5
 
 
@@ -230,8 +221,8 @@ class InputBatch:
         self.num_tokens_no_spec[req_index] = request.num_tokens
 
         self.num_computed_tokens_cpu[req_index] = request.num_computed_tokens
-        # Only manage block tables for non-pooling models that need KV cache
-        if not self.is_pooling_model and len(self.block_table.block_tables) > 0:
+        # Only manage block tables for models that actually need KV cache
+        if len(self.block_table.block_tables) > 0:
             self.block_table.add_row(request.block_ids, req_index)
 
         if sampling_params := request.sampling_params:
@@ -466,8 +457,8 @@ class InputBatch:
                 self.allowed_token_ids_mask_cpu_tensor[i2],
                 self.allowed_token_ids_mask_cpu_tensor[i1],
             )
-        # Only manage block tables for non-pooling models that need KV cache
-        if not self.is_pooling_model and len(self.block_table.block_tables) > 0:
+        # Only manage block tables for models that need KV cache
+        if len(self.block_table.block_tables) > 0:
             self.block_table.swap_row(i1, i2)
 
     def condense(self, empty_req_indices: list[int]) -> None:
@@ -518,8 +509,8 @@ class InputBatch:
             self.num_computed_tokens_cpu[empty_index] = self.num_computed_tokens_cpu[
                 last_req_index
             ]
-            # Only manage block tables for non-pooling models that need KV cache
-            if not self.is_pooling_model and len(self.block_table.block_tables) > 0:
+            # Only manage block tables for models that need KV cache
+            if len(self.block_table.block_tables) > 0:
                 self.block_table.move_row(last_req_index, empty_index)
             self.temperature_cpu[empty_index] = self.temperature_cpu[last_req_index]
             self.top_p_cpu[empty_index] = self.top_p_cpu[last_req_index]

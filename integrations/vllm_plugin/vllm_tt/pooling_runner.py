@@ -333,8 +333,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Initialize input batch early to avoid AttributeError in _update_states
         # For attention-only/encoder models, we don't need KV cache block tables
-        is_pooling_model = self.model_config.runner_type == "pooling"
-        block_sizes = [] if is_pooling_model else [self.block_size]
+        kv_cache_spec = self.get_kv_cache_spec()
+        block_sizes = [self.block_size] if kv_cache_spec else []
 
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,

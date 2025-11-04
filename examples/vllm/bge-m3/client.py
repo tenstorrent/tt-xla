@@ -22,7 +22,7 @@ def main():
 
         try:
             response = requests.post(url, headers=headers, json=data)
-            print(f"Embedding: {response.json()}")
+            print(f"Embedding: {response.json()['data'][0]['embedding']}")
             print(f"Elapsed time: {response.elapsed.total_seconds()}")
         except Exception as e:
             if isinstance(e, requests.exceptions.ConnectionError):
