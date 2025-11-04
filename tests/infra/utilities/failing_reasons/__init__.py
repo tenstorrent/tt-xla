@@ -2,11 +2,12 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-from .checks_xla_torch import FailingReason, FailingReasons
+from .checks_xla_torch import ComponentChecker, FailingReason, FailingReasons
 from .finder import FailingReasonsFinder
 from .utils import ExceptionData
 
 __all__ = [
+    "ComponentChecker",
     "FailingReason",
     "FailingReasons",
     "FailingReasonsFinder",

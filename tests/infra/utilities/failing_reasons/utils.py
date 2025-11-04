@@ -5,10 +5,15 @@
 # Utilities for failing reasons
 
 import re
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Callable, ClassVar, List, Optional
 
+from loguru import logger
 from pytest import ExceptionInfo
+
+if TYPE_CHECKING:
+    # ComponentChecker is only imported for type checking to avoid circular imports
+    from .checks_xla_torch import ComponentChecker
 
 
 @dataclass
@@ -68,6 +73,104 @@ class MessageChecker:
 
 # Short alias for MessageChecker used in failing reasons definitions
 M = MessageChecker
+
+
+@dataclass
+class ExceptionCheck:
+    """
+    Class representing a set of checks to identify a specific exception.
+    """
+
+    class_name: Optional[str] = None
+    component: Optional["ComponentChecker"] = None
+    message: List[MessageCheckerType] = field(default_factory=list)
+    error_log: List[MessageCheckerType] = field(default_factory=list)
+
+    def __contains__(self, ex: ExceptionData) -> bool:
+        """
+        Check if the exception data matches this exception check via 'in' operator.
+        """
+        return self.check(ex)
+
+    def check(self, ex: ExceptionData) -> bool:
+        """
+        Check if the exception data matches this exception check.
+
+        Args:
+            ex (ExceptionData): The exception data to check.
+
+        Returns:
+            bool: True if the exception data matches, False otherwise.
+        """
+        if self.class_name:
+            if ex.class_name != self.class_name:
+                return False
+        if self.component is not None:
+            if ex not in self.component:
+                return False
+        for message_check in self.message:
+            if not message_check(ex.message):
+                return False
+        for message_check in self.error_log:
+            if not message_check(ex.error_log):
+                return False
+        return True
+
+
+@dataclass
+class FailingReason:
+    """
+    Class representing a failing reason for a specific exception.
+    It contains a description and a list of exception checks.
+    """
+
+    # Static class variable to be populated later to avoid circular import
+    component_checker_none: ClassVar[Optional["ComponentChecker"]] = None
+
+    description: str
+    checks: List[ExceptionCheck] = field(default_factory=list)
+
+    def __post_init__(self):
+        self.checks = [
+            check
+            for check in self.checks
+            if check.component is None
+            or check.component != self.__class__.component_checker_none
+        ]
+        if len(self.checks) == 0:
+            logger.trace(
+                f"FailingReason '{self.description}' has no checks defined, it will not be used."
+            )
+        elif len(self.checks) > 1:
+            logger.trace(
+                f"FailingReason '{self.description}' has multiple ({len(self.checks)}) checks defined."
+            )
+
+    @property
+    def component_checker(self) -> Optional["ComponentChecker"]:
+        for check in self.checks:
+            component = check.component
+            if component is None or component == self.__class__.component_checker_none:
+                continue
+            return component
+        return None
+
+    @property
+    def component_checker_description(self) -> Optional[str]:
+        component_checker = self.component_checker
+        return component_checker.description if component_checker else None
+
+    def __contains__(self, ex: ExceptionData) -> bool:
+        return self.check(ex)
+
+    def check(self, ex: ExceptionData) -> bool:
+        for check in self.checks:
+            if ex in check:
+                return True
+        return False
+
+    def __repr__(self) -> str:
+        return f"FailingReason(description={self.description!r})"
 
 
 class PyTestUtils:
