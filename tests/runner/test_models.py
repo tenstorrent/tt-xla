@@ -167,6 +167,7 @@ def test_all_models_torch(
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
 )
 @pytest.mark.parametrize(
@@ -212,6 +213,10 @@ def test_all_models_jax(
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
+
+    # Skip tensor parallel tests when in training mode
+    if run_mode == RunMode.TRAINING and parallelism == Parallelism.TENSOR_PARALLEL:
+        pytest.skip("Tensor parallel not supported for training mode in JAX")
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info

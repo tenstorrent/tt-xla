@@ -92,6 +92,8 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Forward method kwargs from loader if available, otherwise from parent
         """
+        kwargs = {}
+
         # Check if loader has specific forward method kwargs
         if hasattr(self.dynamic_loader.loader, "get_forward_method_kwargs"):
             # Pass run_mode if the method accepts it
@@ -99,14 +101,34 @@ class DynamicJaxModelTester(JaxModelTester):
                 self.dynamic_loader.loader.get_forward_method_kwargs
             )
             if "run_mode" in sig.parameters:
-                return self.dynamic_loader.loader.get_forward_method_kwargs(
+                kwargs = self.dynamic_loader.loader.get_forward_method_kwargs(
                     run_mode=self._run_mode
                 )
             else:
-                return self.dynamic_loader.loader.get_forward_method_kwargs()
+                kwargs = self.dynamic_loader.loader.get_forward_method_kwargs()
+        else:
+            # Otherwise delegate to parent implementation
+            kwargs = super()._get_forward_method_kwargs()
 
-        # Otherwise delegate to parent implementation
-        return super()._get_forward_method_kwargs()
+        # Add dropout PRNG key for training mode if not already present
+        # This ensures all models get the required PRNG keys for dropout during training
+        if self._run_mode == RunMode.TRAINING:
+            # Check if model's forward method accepts dropout_rng or rngs parameter
+            try:
+                model = self._get_model()
+                forward_method_name = self._get_forward_method_name()
+                forward_method = getattr(model, forward_method_name)
+                sig = inspect.signature(forward_method)
+
+                # Only add if not already present in kwargs
+                if "dropout_rng" in sig.parameters and "dropout_rng" not in kwargs:
+                    kwargs["dropout_rng"] = jax.random.key(1)
+                elif "rngs" in sig.parameters and "rngs" not in kwargs:
+                    kwargs["rngs"] = {"dropout": jax.random.key(1)}
+            except:
+                pass
+
+        return kwargs
 
     def _get_static_argnames(self):
         """Get static argnames, checking loader first then delegating to parent.
