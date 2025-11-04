@@ -372,7 +372,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_sdpa(variant, variant_config, seq_len, request):
+def test_llama_attention(variant, variant_config, seq_len, request):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -738,7 +738,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_sdpa(variant, variant_config, seq_len, request):
+def test_qwen3_attention(variant, variant_config, seq_len, request):
     if str(variant) == "32b" or str(variant) == "30b_a3b":
         pytest.xfail("Variant doesn't fit on device")
 
@@ -1270,7 +1270,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
+def test_qwen2_5_attention(variant, variant_config, seq_len, request):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -1578,7 +1578,7 @@ def test_gemma_attention_decode(variant, variant_config, request):
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_sdpa(variant, variant_config, seq_len, request):
+def test_gemma_attention(variant, variant_config, seq_len, request):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -1852,7 +1852,7 @@ def test_mistral_attention_decode(variant, variant_config, request):
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_sdpa(variant, variant_config, seq_len, request):
+def test_mistral_attention(variant, variant_config, seq_len, request):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -2288,7 +2288,7 @@ def test_falcon_attention_decode(variant, variant_config, request):
     get_available_variants("falcon").items(),
     ids=[str(k) for k in get_available_variants("falcon").keys()],
 )
-def test_falcon_sdpa(variant, variant_config, seq_len, request):
+def test_falcon_attention(variant, variant_config, seq_len, request):
     if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
         if variant == FalconModelVariant.FALCON_MAMBA_7B:
             pytest.xfail("FalconMamba has no attention as it is a State Space Model.")
