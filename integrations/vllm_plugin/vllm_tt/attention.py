@@ -180,9 +180,6 @@ class TTAttentionBackendImpl(AttentionImpl):
         if alibi_slopes is not None:
             raise NotImplementedError("Alibi slopes is not supported.")
 
-        if attn_type == "encoder_only":
-            attn_type = AttentionType.ENCODER_ONLY
-
         if attn_type not in (
             AttentionType.DECODER,
             AttentionType.ENCODER,

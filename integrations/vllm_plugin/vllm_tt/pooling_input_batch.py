@@ -7,7 +7,6 @@ from typing import Optional, cast
 import numpy as np
 import torch
 from vllm.lora.request import LoRARequest
-from vllm.pooling_params import PoolingParams
 from vllm.sampling_params import SamplingType
 from vllm.utils import swap_dict_values
 from vllm.v1.outputs import LogprobsTensors
