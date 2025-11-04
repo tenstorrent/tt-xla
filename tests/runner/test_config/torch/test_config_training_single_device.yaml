@@ -18,7 +18,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Node arity mismatch; expected 291, but got 290. failed in Comparator"
 
-  clip/pytorch-openai/clip-vit-base-patch32-single_device-full-training:
+  clip/pytorch-base_patch32-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "runtime/lib/ttnn/operations/utils/utils.cpp:363: numElements * elementSize == data->size() when calling toTTNNTensor"

@@ -18,7 +18,7 @@ from third_party.tt_forge_models.clip.pytorch.loader import ModelVariant
 
 from .tester import ClipTester
 
-VARIANT_NAME = ModelVariant.CLIP_VIT_BASE_PATCH32
+VARIANT_NAME = ModelVariant.BASE_PATCH32
 
 MODEL_NAME = build_model_name(
     Framework.TORCH,

@@ -46,7 +46,7 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT
 
-  clip/pytorch-openai/clip-vit-base-patch32-single_device-full-inference:
+  clip/pytorch-base_patch32-single_device-full-inference:
     assert_pcc: false
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Sept 6 due to tt-mlir uplift.
     reason: "RuntimeError... - ID 4489 while an async operation is in flight: UNKNOWN_SCALAR - https://github.com/tenstorrent/tt-xla/issues/1306"
