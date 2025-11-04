@@ -33,7 +33,6 @@ add_library(TTPJRTApi
 )
 
 target_include_directories(TTPJRTApi PUBLIC
-    ${Protobuf_INCLUDE_DIRS}
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )
@@ -42,11 +41,11 @@ target_link_libraries(TTPJRTApi
 PRIVATE
     dl
     coverage_config
-    libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
 PUBLIC
     TTPJRTUtils
+    libprotobuf
 )
 
 target_link_directories(TTPJRTApi PUBLIC
