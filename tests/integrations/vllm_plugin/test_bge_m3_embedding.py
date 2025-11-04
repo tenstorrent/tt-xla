@@ -91,10 +91,10 @@ def test_embed_bge_m3_perf():
 
     i = 128
     while i <= max_seq_len:
-        # Create prompts that are approximately i tokens long
-        # "hello " is about 2 tokens, so we use i//2 repetitions with some safety margin
-        num_hellos = max(1, (i - 10) // 2)  # Leave some margin for special tokens
-        prompts_list.append((i, [f"hello " * num_hellos]))
+        num_hellos = max(1, (i // 2 - 2))  # Hello is ~2 tokens for bge-m3
+        prompts_list.append(
+            (i, [f"hello " * num_hellos + "hello"])
+        )  # hello can't make exact token count
         i *= 2
 
     llm_args = {
