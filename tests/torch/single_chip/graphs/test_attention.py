@@ -1368,9 +1368,6 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    print(f"mesh: {mesh}")
-    print(f"get_shard_spec: {get_shard_spec}")
-
     run_graph_test(
         sdpa,
         [
