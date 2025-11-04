@@ -116,11 +116,8 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
-
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    
+    batch_size = 1
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -135,16 +132,12 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -186,10 +179,7 @@ def test_llama_attention_decode(variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -213,16 +203,12 @@ def test_llama_attention_decode(variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -357,10 +343,7 @@ def test_llama_sdpa(variant, variant_config, seq_len, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -384,7 +367,7 @@ def test_llama_sdpa(variant, variant_config, seq_len, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -438,10 +421,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -456,16 +436,12 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -499,10 +475,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
 def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
-    if is_llmbox:
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     loader = QwenModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -521,16 +494,12 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -567,10 +536,7 @@ def test_qwen3_attention_decode(variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -595,16 +561,12 @@ def test_qwen3_attention_decode(variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -752,10 +714,7 @@ def test_qwen3_sdpa(variant, variant_config, seq_len, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -779,7 +738,7 @@ def test_qwen3_sdpa(variant, variant_config, seq_len, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -1303,10 +1262,7 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -1321,16 +1277,12 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1367,10 +1319,7 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
 def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
-    if is_llmbox:
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     loader = GemmaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -1395,10 +1344,6 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1435,10 +1380,7 @@ def test_gemma_attention_decode(variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -1462,16 +1404,12 @@ def test_gemma_attention_decode(variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1532,10 +1470,7 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -1559,7 +1494,7 @@ def test_gemma_sdpa(variant, variant_config, seq_len, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -1610,10 +1545,7 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -1627,16 +1559,12 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1670,10 +1598,7 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, request):
 def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
-    if is_llmbox:
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     loader = MistralModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -1691,16 +1616,12 @@ def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1734,10 +1655,7 @@ def test_mistral_attention_decode(variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -1760,16 +1678,12 @@ def test_mistral_attention_decode(variant, variant_config, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
             shard_specs[attention.v_proj.weight] = ("model", None)
@@ -1832,10 +1746,7 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    if is_llmbox(request):
-        batch_size = 2
-    else:
-        batch_size = 1
+    batch_size = 1
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -1859,7 +1770,7 @@ def test_mistral_sdpa(variant, variant_config, seq_len, request):
 
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
