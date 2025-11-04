@@ -34,7 +34,7 @@ def training_tester() -> RegNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -45,8 +45,8 @@ def training_tester() -> RegNetTester:
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'ttir.reverse' that was explicitly marked illegal "
+        "https://github.com/tenstorrent/tt-mlir/issues/5663"
     )
 )
 def test_regnet_y_040_training(training_tester: RegNetTester):

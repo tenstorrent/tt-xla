@@ -45,7 +45,7 @@ def inference_tester_optimizer() -> ResNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -57,8 +57,8 @@ def inference_tester_optimizer() -> ResNetTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):
