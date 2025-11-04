@@ -33,10 +33,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   mistralai/Magistral-Small-2506:
     bringup_status: NOT_STARTED
-  mistralai/Mistral-Large-Instruct-2411:
-    bringup_status: NOT_STARTED
-  mistralai/Mistral-Small-24B-Instruct-2501:
-    bringup_status: NOT_STARTED
   mistralai/Mistral-Small-3.2-24B-Instruct-2506:
     bringup_status: NOT_STARTED
   genmo/mochi-1-preview:
@@ -54,8 +50,6 @@ PLACEHOLDER_MODELS:
   KLA K-SegNet:
     bringup_status: NOT_STARTED
   KLA Klassify:
-    bringup_status: NOT_STARTED
-  mistralai/Mistral-Nemo-Instruct-2407:
     bringup_status: NOT_STARTED
   MiniMaxAI/MiniMax-Text-01:
     bringup_status: NOT_STARTED
