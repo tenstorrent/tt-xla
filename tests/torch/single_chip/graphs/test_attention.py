@@ -1386,9 +1386,6 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
-    # xm.mark_step()
-    torch_xla.sync()
-    xm.wait_device_ops()
 
 
 """Gemma attention tests"""
