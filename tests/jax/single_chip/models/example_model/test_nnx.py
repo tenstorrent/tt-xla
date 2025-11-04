@@ -42,7 +42,7 @@ def inference_tester() -> SimpleMlpTester:
 
 @pytest.fixture
 def training_tester() -> SimpleMlpTester:
-    return SimpleMlpTester(RunMode.TRAINING)
+    return SimpleMlpTester(run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -54,6 +54,5 @@ def test_simple_mlp_inference(inference_tester: SimpleMlpTester):
 
 
 @pytest.mark.push
-@pytest.mark.skip(reason="Support for training not implemented")
 def test_simple_mlp_training(training_tester: SimpleMlpTester):
     training_tester.test()
