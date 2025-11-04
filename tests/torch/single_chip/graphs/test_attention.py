@@ -116,7 +116,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
-    
+
     batch_size = 1
 
     hidden_states = torch.randn(
@@ -951,10 +951,53 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
+    # Determine batch size and mesh configuration based on attention heads
     if is_llmbox(request):
-        batch_size = 2
+        num_devices = xr.global_runtime_device_count()
+        num_heads = model.config.num_attention_heads
+
+        if num_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Don't shard args - no batch dimension splitting
+                # Only shard the model weights
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when heads not divisible by 8
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Shard args on batch dimension
+                shard_specs[args[0]] = ("batch", None, None)
+                shard_specs[args[1][0]] = ("batch", None, None)
+                shard_specs[args[1][1]] = ("batch", None, None)
+                shard_specs[args[2]] = ("batch", None, None, None)
+                # Shard weights on model dimension
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
     else:
         batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -965,28 +1008,6 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
 
@@ -1014,14 +1035,57 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
 def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
-    if is_llmbox:
-        batch_size = 2
-    else:
-        batch_size = 1
-
     loader = Qwen2_5ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
+
+    # Determine batch size and mesh configuration based on attention heads
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        num_heads = model.config.num_attention_heads
+
+        if num_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Don't shard args - no batch dimension splitting
+                # Only shard the model weights
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when heads not divisible by 8
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Shard args on batch dimension
+                shard_specs[args[0]] = ("batch", None, None)
+                shard_specs[args[1][0]] = ("batch", None, None)
+                shard_specs[args[1][1]] = ("batch", None, None)
+                shard_specs[args[2]] = ("batch", None, None, None)
+                # Shard weights on model dimension
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -1032,28 +1096,6 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-
-    if is_llmbox:
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
 
@@ -1081,10 +1123,53 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
+    # Determine batch size and mesh configuration based on attention heads
     if is_llmbox(request):
-        batch_size = 2
+        num_devices = xr.global_runtime_device_count()
+        num_heads = model.config.num_attention_heads
+
+        if num_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Don't shard args - no batch dimension splitting
+                # Only shard the model weights
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when heads not divisible by 8
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Shard args on batch dimension
+                shard_specs[args[0]] = ("batch", None, None)
+                shard_specs[args[1][0]] = ("batch", None, None)
+                shard_specs[args[1][1]] = ("batch", None, None)
+                shard_specs[args[2]] = ("batch", None, None, None)
+                # Shard weights on model dimension
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
     else:
         batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -1105,28 +1190,6 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     )
     cache_position = torch.tensor([0])
     past_key_states = static_cache
-
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[0]] = ("batch", None, None)
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     run_graph_test(
         attention,
@@ -1179,10 +1242,47 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
+    # Determine batch size and mesh configuration based on attention heads
     if is_llmbox(request):
-        batch_size = 2
+        num_devices = xr.global_runtime_device_count()
+        num_heads = model.config.num_attention_heads
+
+        if num_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(sdpa, args, kwargs):
+                shard_specs = {}
+                # Shard QKV states on model dimension only (not batch)
+                shard_specs[args[1]] = (None, "model", None, None)  # query_states
+                shard_specs[args[2]] = (None, "model", None, None)  # key_states
+                shard_specs[args[3]] = (None, "model", None, None)  # value_states
+                shard_specs[args[4]] = (None, None, None, None)  # attention_mask
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when heads not divisible by 8
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(sdpa, args, kwargs):
+                shard_specs = {}
+                # Shard on both batch and model dimensions
+                shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+                shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+                shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+                shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+                return shard_specs
+
     else:
         batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -1206,23 +1306,8 @@ def test_qwen2_5_sdpa(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(sdpa, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
-            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
-            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
-            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
+    print(f"mesh: {mesh}")
+    print(f"get_shard_spec: {get_shard_spec}")
 
     run_graph_test(
         sdpa,
