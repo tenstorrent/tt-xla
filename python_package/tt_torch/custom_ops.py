@@ -54,13 +54,19 @@ def mark_argument_attributes(
 
 
 @mark_argument_attributes.register_fake
-def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tensor:
+def fake_mark(
+    tensor: torch.Tensor, argument_type: str, name: str = None
+) -> torch.Tensor:
     """
     FakeTensor implementation of torch.ops.tt.mark_argument_attributes.
     This must be implemented in order for dynamo to trace the function.
     returns:
         - tensor: the same tensor that was passed in
     """
+    if not isinstance(tensor, torch._subclasses.FakeTensor):
+        print(f"not a fake tensor!!!!")
+    if not isinstance(tensor.clone(), torch._subclasses.FakeTensor):
+        print(f"clone is not fake!")
     return tensor.clone()
 
 

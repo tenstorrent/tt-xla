@@ -182,6 +182,7 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
 
     if removed_non_redundant_casts:
         # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
+        print(f"len(example_inputs): {len(example_inputs)}")
         run_shape_prop(gm, example_inputs)
         gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
 
