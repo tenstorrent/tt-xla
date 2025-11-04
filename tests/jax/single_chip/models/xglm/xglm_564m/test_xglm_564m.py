@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.xglm.causal_lm.jax import ModelLoader, ModelVariant
@@ -32,7 +32,7 @@ def training_tester() -> XGLMTester:
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.FORWARD,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
