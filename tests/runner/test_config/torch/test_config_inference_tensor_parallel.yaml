@@ -101,3 +101,52 @@ test_config:
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+
+  mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  mistral/pytorch-mistral_large_instruct_2411-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: NOT_SUPPORTED_SKIP
+    reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+
+  qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    # TODO (kmabee): Add back when multichip device close issues fixed - https://github.com/tenstorrent/tt-xla/issues/1824
+    # status: EXPECTED_PASSING
+    # bringup_status: INCORRECT_RESULT
+    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM - device DRAM/Mesh leak between tests - https://github.com/tenstorrent/tt-xla/issues/1824"
+
+  qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    # TODO (kmabee): Add back when multichip device close issues fixed - https://github.com/tenstorrent/tt-xla/issues/1824
+    # status: EXPECTED_PASSING
+    # bringup_status: INCORRECT_RESULT
+    # required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/1474
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM - device DRAM/Mesh leak between tests - https://github.com/tenstorrent/tt-xla/issues/1824"
+
+  qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
