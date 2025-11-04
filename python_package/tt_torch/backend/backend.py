@@ -95,7 +95,10 @@ class XLAExecutor:
         self.devices = list(self.devices)
 
     def __call__(self, *args):
-
+        # Sync call at the start so we can isolate the torch-xla trace to this module alone.
+        # If we do not do this, than any eager ops run on the input(s) before hand will be 
+        # captured by the torch-xla trace, and we will end up compiling a totally new flatbuffer.
+        torch_xla.sync()
         if self.inject_metadata:
             # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
             # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
