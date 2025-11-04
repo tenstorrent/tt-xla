@@ -149,6 +149,22 @@ class ComponentChecker(Enum):
         ],
     )
 
+    TORCH = FailingReason(
+        description="Torch",
+        checks=[
+            ExceptionCheck(
+                error_log=[
+                    M.neg(M.contains("lib/libtt_metal.so")),
+                    M.neg(M.contains("lib/_ttnncpp.so")),
+                    M.neg(M.contains("lib/libTTMLIRRuntime.so")),
+                    M.any(
+                        M.last_line(M.contains("torch/utils/_pytree.py:")),
+                    ),
+                ],
+            ),
+        ],
+    )
+
     XLA = FailingReason(
         description="Xla",
         checks=[
@@ -1168,6 +1184,24 @@ class FailingReasons(Enum):
                             "tests/infra/testers/single_chip/model/torch_model_tester.py:"
                         )
                     ),
+                ],
+            ),
+        ],
+    )
+
+    NODE_ARITY_MISMATCH = FailingReason(
+        description="Node arity mismatch",
+        checks=[
+            # E               ValueError: Node arity mismatch; expected 291, but got 290.
+            # /localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.11/site-packages/torch/utils/_pytree.py:935: ValueError
+            ExceptionCheck(
+                class_name="ValueError",
+                component=ComponentChecker.TORCH.value,
+                message=[
+                    M.regex("Node arity mismatch; expected .*, but got .*"),
+                ],
+                error_log=[
+                    M.last_line(M.contains("torch/utils/_pytree.py:")),
                 ],
             ),
         ],
