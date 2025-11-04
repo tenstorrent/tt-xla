@@ -2064,7 +2064,7 @@ def test_falcon_attention_prefill(seq_len, variant, variant_config, request):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [FalconModelVariant.FALCON_7B_INSTRUCT])
-def test_falcon_attention_prefill_push(seq_len, variant, variant_config, request):
+def test_falcon_attention_prefill_push(seq_len, variant, request):
     xr.set_device_type("TT")
 
     loader = FalconModelLoader(variant=variant)
