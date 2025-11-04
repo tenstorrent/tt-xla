@@ -2,7 +2,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-# Failing reasons definition
+# Failing reasons definition for XLA
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -15,16 +15,31 @@ from .failing_reasons_common import ExceptionData, M, MessageCheckerType
 
 @dataclass
 class ExceptionCheck:
-    # operators: List[str]
+    """
+    Class representing a set of checks to identify a specific exception.
+    """
+
     class_name: Optional[str] = None
     component: Optional["ComponentChecker"] = None
     message: List[MessageCheckerType] = field(default_factory=list)
     error_log: List[MessageCheckerType] = field(default_factory=list)
 
     def __contains__(self, ex: ExceptionData) -> bool:
+        """
+        Check if the exception data matches this exception check via 'in' operator.
+        """
         return self.check(ex)
 
     def check(self, ex: ExceptionData) -> bool:
+        """
+        Check if the exception data matches this exception check.
+
+        Args:
+            ex (ExceptionData): The exception data to check.
+
+        Returns:
+            bool: True if the exception data matches, False otherwise.
+        """
         if self.class_name:
             if ex.class_name != self.class_name:
                 return False
@@ -42,6 +57,11 @@ class ExceptionCheck:
 
 @dataclass
 class FailingReason:
+    """
+    Class representing a failing reason for a specific exception.
+    It contains a description and a list of exception checks.
+    """
+
     description: str
     checks: List[ExceptionCheck] = field(default_factory=list)
 
@@ -88,6 +108,10 @@ class FailingReason:
 
 
 class ComponentChecker(Enum):
+    """
+    Enum representing different components which cause failures.
+    """
+
     def __repr__(self) -> str:
         return self.name
 
@@ -222,6 +246,10 @@ class ComponentChecker(Enum):
 
 
 class FailingReasons(Enum):
+    """
+    Enum representing different failing reasons with their checks.
+    """
+
     def __repr__(self) -> str:
         return self.name
 
@@ -273,10 +301,6 @@ class FailingReasons(Enum):
     HIGH_MEMORY = FailingReason(
         description="High memory usage",
     )
-
-    # UNSUPPORTED_INPUT_SOURCE = FailingReason(
-    #     description="Unsupported input source",
-    # )
 
     INFERENCE_FROZEN = FailingReason(
         description="Inference frozen without error message",
