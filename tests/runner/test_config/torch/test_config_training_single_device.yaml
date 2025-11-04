@@ -27,6 +27,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.869604229927063. Required: pcc=0.99."
+    markers: [large]
 
   nbeats/pytorch-generic_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
