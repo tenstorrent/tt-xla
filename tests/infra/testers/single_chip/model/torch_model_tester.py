@@ -13,6 +13,7 @@ from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
 from infra.workloads import TorchWorkload, Workload
 from loguru import logger
+from torch_xla.debug import metrics as xla_metrics
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -157,9 +158,6 @@ class TorchModelTester(ModelTester):
         """
         Extracts gradients from a model and returns a dictionary of gradients and a dictionary of None gradients.
         """
-        # TODO: Right now, we only extract gradients for parameters that have a gradient.
-        # In the future, we should extract gradients for all parameters that require grad is True.
-        #
         existing_grads = {
             name: p.grad.clone()
             for name, p in model.named_parameters()
@@ -173,6 +171,7 @@ class TorchModelTester(ModelTester):
         return existing_grads, none_grads
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        xla_metrics.clear_counters()
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
@@ -194,6 +193,15 @@ class TorchModelTester(ModelTester):
         cpu_grads, cpu_none_grads = self._extract_grads(self._model)
         self._workload.model.zero_grad()
 
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == None
+        ), f"UncachedCompile counter is not 0: {comp_counter} before forward on TT"
+        root_export_path = self._compiler_config.export_path
+        self._compiler_config.export_path = root_export_path + "/forward"
+        torch_xla.set_custom_compile_options(
+            self._compiler_config.to_torch_compile_options()
+        )
         # Run forward on TT
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
@@ -202,7 +210,15 @@ class TorchModelTester(ModelTester):
 
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 1
+        ), f"UncachedCompile counter is not 1: {comp_counter} after forward on TT"
 
+        self._compiler_config.export_path = root_export_path + "/backward"
+        torch_xla.set_custom_compile_options(
+            self._compiler_config.to_torch_compile_options()
+        )
         # Run backward on TT
         tt_backward_workload = Workload(
             framework=self._framework,
@@ -221,6 +237,10 @@ class TorchModelTester(ModelTester):
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 2
+        ), f"UncachedCompile counter is not 2: {comp_counter} after backward on TT"
         assert (
             cpu_none_grads == tt_none_grads
         ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
@@ -228,7 +248,10 @@ class TorchModelTester(ModelTester):
 
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
-
+        comp_counter = xla_metrics.counter_value("UncachedCompile")
+        assert (
+            comp_counter == 2
+        ), f"UncachedCompile counter is not 2: {comp_counter} after comparing forward and backward results"
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result

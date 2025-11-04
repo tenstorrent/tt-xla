@@ -31,6 +31,7 @@ class DynamicTorchModelTester(TorchModelTester):
         loader,
         comparison_config: ComparisonConfig | None = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
+        compiler_config: CompilerConfig | None = None,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 
@@ -49,6 +50,7 @@ class DynamicTorchModelTester(TorchModelTester):
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
             parallelism=self.parallelism,
+            compiler_config=compiler_config,
         )
 
     # --- TorchModelTester interface implementations ---
