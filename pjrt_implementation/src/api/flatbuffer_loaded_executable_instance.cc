@@ -480,7 +480,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 
   for (size_t output_index = 0; output_index < output_tensors.size();
        ++output_index) {
-    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
+    tt::runtime::deallocateTensor(output_tensors[output_index],
+                                  /*force=*/false);
   }
 
   if (args->device_complete_events) {
