@@ -962,52 +962,52 @@ test_config:
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.gather' PLACEHOLDER_GATHER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.gather'"
 
   unet/pytorch-unet_cityscapes-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.gather' PLACEHOLDER_GATHER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.gather'"
 
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1 PLACEHOLDER_RESHAPE_ISSUE"
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
 
   vilt/question_answering/pytorch-vqa-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1 PLACEHOLDER_RESHAPE_ISSUE"
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2112,39 +2112,39 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   gemma/pytorch-google/gemma-2b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   mamba/pytorch-mamba-2.8b-hf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   qwen_2_5_coder/pytorch-1_5b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+    reason: "Out of Memory: Not enough space on DRAM"
