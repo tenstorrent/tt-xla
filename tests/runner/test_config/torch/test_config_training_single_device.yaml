@@ -44,6 +44,36 @@ test_config:
     bringup_status: INCORRECT_RESULT
     reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
 
+  qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  phi1/token_classification/pytorch-microsoft/phi-1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
   musicgen_small/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
