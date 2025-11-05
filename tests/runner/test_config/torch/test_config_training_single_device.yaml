@@ -684,6 +684,16 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
+  vilt/masked_lm/pytorch-mlm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1 PLACEHOLDER_RESHAPE_ISSUE"
+
+  vilt/question_answering/pytorch-vqa-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1 PLACEHOLDER_RESHAPE_ISSUE"
+
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
