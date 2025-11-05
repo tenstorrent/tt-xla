@@ -90,9 +90,12 @@ class JaxModelTester(ModelTester):
 
         By default returns existing model parameters for the HF FlaxPreTrainedModel.
         """
+
         if isinstance(self._model, FlaxPreTrainedModel):
             assert hasattr(self._model, "params")
             return self._model.params
+        elif isinstance(self._model, nnx.Module):
+            return
 
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -110,7 +113,7 @@ class JaxModelTester(ModelTester):
         ), f"Forward method args or kwargs or both must be provided"
         assert hasattr(
             self._model, forward_method_name
-        ), f"Model does not have {forward_method_name} method provided."
+        ), f"Model does not have method {forward_method_name}"
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
@@ -129,7 +132,9 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the Flax linen models,
         and empty list for other type of models.
         """
-        if isinstance(self._model, linen.Module):
+        if isinstance(self._model, nnx.Module):
+            return [self._input_activations]
+        elif isinstance(self._model, linen.Module):
             return [self._input_parameters, self._input_activations]
 
         return []
@@ -162,6 +167,8 @@ class JaxModelTester(ModelTester):
                     )
             except:
                 pass
+        elif isinstance(self._model, nnx.Module):
+            pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
