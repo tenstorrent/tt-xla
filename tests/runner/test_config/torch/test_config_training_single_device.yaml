@@ -684,6 +684,16 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
+  roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.gather' PLACEHOLDER_GATHER_ISSUE"
+
+  unet/pytorch-unet_cityscapes-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.gather' PLACEHOLDER_GATHER_ISSUE"
+
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
